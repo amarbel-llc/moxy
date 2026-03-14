@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 
+	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 
@@ -14,14 +17,46 @@ import (
 	"github.com/amarbel-llc/moxy/internal/proxy"
 )
 
+func newApp() *command.App {
+	app := command.NewApp("moxy", "MCP proxy that aggregates child MCP servers")
+	app.Version = "0.1.0"
+	return app
+}
+
 func main() {
-	if err := run(); err != nil {
+	flag.Parse()
+
+	if flag.NArg() >= 1 && flag.Arg(0) == "install-mcp" {
+		app := newApp()
+		if err := app.InstallMCP(); err != nil {
+			log.Fatalf("installing MCP: %v", err)
+		}
+		return
+	}
+
+	if flag.NArg() >= 1 && flag.Arg(0) == "generate-plugin" {
+		app := newApp()
+		if err := app.HandleGeneratePlugin(flag.Args()[1:], os.Stdout); err != nil {
+			log.Fatalf("generating plugin: %v", err)
+		}
+		return
+	}
+
+	if flag.NArg() >= 1 && flag.Arg(0) == "hook" {
+		app := newApp()
+		if err := app.HandleHook(os.Stdin, os.Stdout); err != nil {
+			log.Fatalf("handling hook: %v", err)
+		}
+		return
+	}
+
+	if err := runServer(); err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func runServer() error {
 	cfg, err := config.Load("moxyfile")
 	if err != nil {
 		return err

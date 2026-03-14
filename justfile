@@ -2,10 +2,16 @@ set output-format := "tap"
 
 default: build test
 
-build: build-go
+build: build-go build-nix
 
 build-go:
   go build -o build/moxy ./cmd/moxy
+
+build-gomod2nix:
+  gomod2nix
+
+build-nix: build-gomod2nix
+  nix build --show-trace
 
 test: test-go
 

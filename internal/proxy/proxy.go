@@ -79,7 +79,7 @@ func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.Tools
 			if !matchesAnnotationFilter(tool.Annotations, child.Config.Annotations) {
 				continue
 			}
-			tool.Name = child.Client.Name() + "__" + tool.Name
+			tool.Name = child.Client.Name() + "-" + tool.Name
 			allTools = append(allTools, tool)
 		}
 	}
@@ -88,7 +88,7 @@ func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.Tools
 }
 
 func (p *Proxy) CallToolV1(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
-	serverName, toolName, ok := splitPrefix(name, "__")
+	serverName, toolName, ok := splitPrefix(name, "-")
 	if !ok {
 		return protocol.ErrorResultV1(fmt.Sprintf("invalid tool name %q: missing server prefix", name)), nil
 	}
