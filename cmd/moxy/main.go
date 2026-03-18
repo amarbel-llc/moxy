@@ -12,6 +12,7 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 
+	"github.com/amarbel-llc/moxy/internal/add"
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
 	"github.com/amarbel-llc/moxy/internal/proxy"
@@ -53,6 +54,17 @@ func main() {
 			log.Fatalf("getting cwd: %v", err)
 		}
 		os.Exit(validate.Run(os.Stdout, home, cwd))
+	}
+
+	if flag.NArg() >= 1 && flag.Arg(0) == "add" {
+		path := "moxyfile"
+		if flag.NArg() >= 2 {
+			path = flag.Arg(1)
+		}
+		if err := add.Run(path); err != nil {
+			log.Fatalf("add: %v", err)
+		}
+		return
 	}
 
 	if flag.NArg() >= 1 && flag.Arg(0) == "hook" {

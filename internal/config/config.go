@@ -71,6 +71,14 @@ func (c Command) IsEmpty() bool {
 	return len(c.parts) == 0
 }
 
+func (c Command) String() string {
+	return strings.Join(c.parts, " ")
+}
+
+func MakeCommand(parts ...string) Command {
+	return Command{parts: parts}
+}
+
 type AnnotationFilter struct {
 	ReadOnlyHint    *bool `toml:"readOnlyHint"`
 	DestructiveHint *bool `toml:"destructiveHint"`

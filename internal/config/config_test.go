@@ -358,6 +358,25 @@ func TestLoadHierarchyNoFiles(t *testing.T) {
 	}
 }
 
+func TestCommandString(t *testing.T) {
+	tests := []struct {
+		name   string
+		parts  []string
+		expect string
+	}{
+		{"single word", []string{"grit"}, "grit"},
+		{"multiple words", []string{"grit", "mcp", "--verbose"}, "grit mcp --verbose"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := makeCommand(tt.parts...)
+			if got := cmd.String(); got != tt.expect {
+				t.Errorf("got %q, want %q", got, tt.expect)
+			}
+		})
+	}
+}
+
 func makeCommand(parts ...string) Command {
 	return Command{parts: parts}
 }
