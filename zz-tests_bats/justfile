@@ -1,0 +1,14 @@
+bats_timeout := "5"
+bin_dir := ""
+
+_bats_args := if bin_dir != "" { "--bin-dir " + bin_dir } else { "" }
+
+test-targets *targets="*.bats":
+  BATS_TEST_TIMEOUT="{{bats_timeout}}" \
+    bats --jobs {{num_cpus()}} {{_bats_args}} {{targets}}
+
+test-tags *tags:
+  BATS_TEST_TIMEOUT="{{bats_timeout}}" \
+    bats --jobs {{num_cpus()}} {{_bats_args}} --filter-tags {{tags}} *.bats
+
+test: (test-targets "*.bats")

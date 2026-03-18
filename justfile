@@ -13,7 +13,12 @@ build-gomod2nix:
 build-nix: build-gomod2nix
   nix build --show-trace
 
-test: test-go
+dir_build := "build"
+
+test: test-go test-bats
+
+test-bats: build-go
+  just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
 
 test-go:
   go vet ./...
