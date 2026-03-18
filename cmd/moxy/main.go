@@ -68,9 +68,12 @@ func runServer() error {
 		return fmt.Errorf("no servers configured in any moxyfile")
 	}
 
-	for name, srv := range cfg.Servers {
-		if srv.Command == "" {
-			return fmt.Errorf("server %q has no command", name)
+	for _, srv := range cfg.Servers {
+		if srv.Name == "" {
+			return fmt.Errorf("server has no name")
+		}
+		if srv.Command.IsEmpty() {
+			return fmt.Errorf("server %q has no command", srv.Name)
 		}
 	}
 
@@ -78,13 +81,13 @@ func runServer() error {
 	defer cancel()
 
 	var children []proxy.ChildEntry
-	for name, srvCfg := range cfg.Servers {
-		client, result, err := mcpclient.SpawnAndInitialize(ctx, name, srvCfg.Command, srvCfg.Args)
+	for _, srvCfg := range cfg.Servers {
+		client, result, err := mcpclient.SpawnAndInitialize(ctx, srvCfg.Name, srvCfg.Command.Executable(), srvCfg.Command.Args())
 		if err != nil {
 			for _, c := range children {
 				c.Client.Close()
 			}
-			return fmt.Errorf("starting server %s: %w", name, err)
+			return fmt.Errorf("starting server %s: %w", srvCfg.Name, err)
 		}
 
 		children = append(children, proxy.ChildEntry{
@@ -94,7 +97,7 @@ func runServer() error {
 		})
 
 		fmt.Fprintf(os.Stderr, "moxy: connected to %s (%s %s)\n",
-			name, result.ServerInfo.Name, result.ServerInfo.Version)
+			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
 	}
 
 	p := proxy.New(children)

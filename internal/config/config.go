@@ -12,13 +12,63 @@ import (
 )
 
 type Config struct {
-	Servers map[string]ServerConfig `toml:"servers"`
+	Servers []ServerConfig `toml:"servers"`
 }
 
 type ServerConfig struct {
-	Command     string            `toml:"command"`
-	Args        []string          `toml:"args"`
+	Name        string            `toml:"name"`
+	Command     Command           `toml:"command"`
 	Annotations *AnnotationFilter `toml:"annotations"`
+}
+
+// Command holds a shell command as either a string or an array of strings.
+// String form is split on whitespace; array form is used as-is.
+type Command struct {
+	parts []string
+}
+
+func (c *Command) UnmarshalTOML(data any) error {
+	switch v := data.(type) {
+	case string:
+		c.parts = strings.Fields(v)
+		if len(c.parts) == 0 {
+			return fmt.Errorf("command string is empty")
+		}
+		return nil
+	case []any:
+		c.parts = make([]string, len(v))
+		for i, elem := range v {
+			s, ok := elem.(string)
+			if !ok {
+				return fmt.Errorf("command array element %d is not a string", i)
+			}
+			c.parts[i] = s
+		}
+		if len(c.parts) == 0 {
+			return fmt.Errorf("command array is empty")
+		}
+		return nil
+	default:
+		return fmt.Errorf("command must be a string or array of strings")
+	}
+}
+
+func (c Command) Executable() string {
+	if len(c.parts) == 0 {
+		return ""
+	}
+	return c.parts[0]
+}
+
+func (c Command) Args() []string {
+	if len(c.parts) <= 1 {
+		return nil
+	}
+	return c.parts[1:]
+}
+
+func (c Command) IsEmpty() bool {
+	return len(c.parts) == 0
 }
 
 type AnnotationFilter struct {
@@ -61,12 +111,17 @@ func Load(path string) (Config, error) {
 func Merge(base, overlay Config) Config {
 	merged := base
 
-	if overlay.Servers != nil {
-		if merged.Servers == nil {
-			merged.Servers = make(map[string]ServerConfig)
+	for _, srv := range overlay.Servers {
+		found := false
+		for i, existing := range merged.Servers {
+			if existing.Name == srv.Name {
+				merged.Servers[i] = srv
+				found = true
+				break
+			}
 		}
-		for name, srv := range overlay.Servers {
-			merged.Servers[name] = srv
+		if !found {
+			merged.Servers = append(merged.Servers, srv)
 		}
 	}
 
