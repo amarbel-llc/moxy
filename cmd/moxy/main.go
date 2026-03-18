@@ -15,6 +15,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
 	"github.com/amarbel-llc/moxy/internal/proxy"
+	"github.com/amarbel-llc/moxy/internal/validate"
 )
 
 func newApp() *command.App {
@@ -40,6 +41,18 @@ func main() {
 			log.Fatalf("generating plugin: %v", err)
 		}
 		return
+	}
+
+	if flag.NArg() >= 1 && flag.Arg(0) == "validate" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatalf("getting home dir: %v", err)
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("getting cwd: %v", err)
+		}
+		os.Exit(validate.Run(os.Stdout, home, cwd))
 	}
 
 	if flag.NArg() >= 1 && flag.Arg(0) == "hook" {
