@@ -24,15 +24,23 @@ type AnnotationFilter struct {
 	OpenWorldHint   *bool `toml:"openWorldHint"`
 }
 
+func Parse(data []byte) (Config, error) {
+	var cfg Config
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return Config{}, fmt.Errorf("parsing moxyfile: %w", err)
+	}
+	return cfg, nil
+}
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading moxyfile: %w", err)
 	}
 
-	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing moxyfile: %w", err)
+	cfg, err := Parse(data)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(cfg.Servers) == 0 {
