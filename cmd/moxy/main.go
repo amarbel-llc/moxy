@@ -57,9 +57,21 @@ func main() {
 }
 
 func runServer() error {
-	cfg, err := config.Load("moxyfile")
+	hierarchy, err := config.LoadDefaultHierarchy()
 	if err != nil {
 		return err
+	}
+
+	cfg := hierarchy.Merged
+
+	if len(cfg.Servers) == 0 {
+		return fmt.Errorf("no servers configured in any moxyfile")
+	}
+
+	for name, srv := range cfg.Servers {
+		if srv.Command == "" {
+			return fmt.Errorf("server %q has no command", name)
+		}
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)

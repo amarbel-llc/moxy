@@ -17,6 +17,7 @@ test: test-go
 
 test-go:
   go vet ./...
+  go test ./... -v
 
 run-nix *ARGS:
   nix run . -- {{ARGS}}
