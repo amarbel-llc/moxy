@@ -56,6 +56,9 @@
           modules = ./gomod2nix.toml;
           go = pkgs.go_1_25;
           GOTOOLCHAIN = "local";
+          postInstall = ''
+            $out/bin/moxy generate-plugin $out
+          '';
         };
       in
       {
