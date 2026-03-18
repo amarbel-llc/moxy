@@ -17,11 +17,28 @@ overrides.
    (e.g. `~/eng/moxyfile`, `~/eng/repos/moxyfile`)
 3. `<cwd>/moxyfile` — repo-local
 
+### Moxyfile format
+
+Servers are a TOML array-of-tables with explicit `name` and `command` fields.
+Command accepts a string (split on whitespace) or an array (preserves args with
+spaces). Per-server annotation filters use inline table syntax for clarity.
+
+```toml
+[[servers]]
+name = "grit"
+command = "grit mcp"
+
+[[servers]]
+name = "lux"
+command = ["lux", "--lsp-dir", "/path with spaces"]
+annotations = { readOnlyHint = true }
+```
+
 ### Merge semantics
 
-- **Servers map**: last-writer-wins per server name. A child moxyfile defining
-  `[servers.grit]` completely replaces the parent's `[servers.grit]`. New server
-  names are added to the accumulated map.
+- **Servers**: last-writer-wins per server name. A child moxyfile defining a
+  server with the same `name` completely replaces the parent's definition. New
+  server names are appended, preserving insertion order.
 - No clear sentinel — to remove an inherited server, override it in a lower
   layer (future work if needed).
 
