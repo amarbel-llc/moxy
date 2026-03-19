@@ -135,9 +135,10 @@ func runServer() error {
 	srv, err := server.New(t, server.Options{
 		ServerName:    "moxy",
 		ServerVersion: "0.1.0",
-		Instructions:  "MCP proxy aggregating tools and resources from child servers.",
+		Instructions:  "MCP proxy aggregating tools, resources, and prompts from child servers.",
 		Tools:         p,
 		Resources:     p,
+		Prompts:       p,
 	})
 	if err != nil {
 		for _, c := range children {
@@ -157,3 +158,4 @@ func runServer() error {
 
 var _ server.ToolProviderV1 = (*proxy.Proxy)(nil)
 var _ server.ResourceProviderV1 = (*proxy.Proxy)(nil)
+var _ server.PromptProviderV1 = (*proxy.Proxy)(nil)

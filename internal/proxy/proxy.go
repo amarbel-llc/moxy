@@ -283,6 +283,107 @@ func (p *Proxy) ListResourceTemplatesV1(ctx context.Context, cursor string) (*pr
 	return &protocol.ResourceTemplatesListResultV1{ResourceTemplates: allTemplates}, nil
 }
 
+// --- PromptProvider (V0) ---
+
+func (p *Proxy) ListPrompts(ctx context.Context) ([]protocol.Prompt, error) {
+	v1, err := p.ListPromptsV1(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	prompts := make([]protocol.Prompt, len(v1.Prompts))
+	for i, pr := range v1.Prompts {
+		prompts[i] = protocol.Prompt{
+			Name:        pr.Name,
+			Description: pr.Description,
+			Arguments:   pr.Arguments,
+		}
+	}
+	return prompts, nil
+}
+
+func (p *Proxy) GetPrompt(ctx context.Context, name string, args map[string]string) (*protocol.PromptGetResult, error) {
+	v1, err := p.GetPromptV1(ctx, name, args)
+	if err != nil {
+		return nil, err
+	}
+	messages := make([]protocol.PromptMessage, len(v1.Messages))
+	for i, m := range v1.Messages {
+		messages[i] = protocol.PromptMessage{
+			Role: m.Role,
+			Content: protocol.ContentBlock{
+				Type:     m.Content.Type,
+				Text:     m.Content.Text,
+				MimeType: m.Content.MimeType,
+				Data:     m.Content.Data,
+			},
+		}
+	}
+	return &protocol.PromptGetResult{
+		Description: v1.Description,
+		Messages:    messages,
+	}, nil
+}
+
+// --- PromptProviderV1 ---
+
+func (p *Proxy) ListPromptsV1(ctx context.Context, cursor string) (*protocol.PromptsListResultV1, error) {
+	allPrompts := make([]protocol.PromptV1, 0)
+
+	for _, child := range p.children {
+		if child.Capabilities.Prompts == nil {
+			continue
+		}
+
+		raw, err := child.Client.Call(ctx, protocol.MethodPromptsList, cursorParams(cursor))
+		if err != nil {
+			p.markFailed(child.Client.Name(), fmt.Errorf("listing prompts: %w", err))
+			continue
+		}
+
+		prompts, err := decodePromptsList(raw)
+		if err != nil {
+			p.markFailed(child.Client.Name(), fmt.Errorf("decoding prompts: %w", err))
+			continue
+		}
+
+		for _, pr := range prompts {
+			pr.Name = child.Client.Name() + "-" + pr.Name
+			allPrompts = append(allPrompts, pr)
+		}
+	}
+
+	return &protocol.PromptsListResultV1{Prompts: allPrompts}, nil
+}
+
+func (p *Proxy) GetPromptV1(ctx context.Context, name string, args map[string]string) (*protocol.PromptGetResultV1, error) {
+	serverName, promptName, ok := splitPrefix(name, "-")
+	if !ok {
+		return nil, fmt.Errorf("invalid prompt name %q: missing server prefix", name)
+	}
+
+	child, ok := p.findChild(serverName)
+	if !ok {
+		return nil, fmt.Errorf("unknown server %q", serverName)
+	}
+
+	params := protocol.PromptGetParams{
+		Name:      promptName,
+		Arguments: args,
+	}
+
+	raw, err := child.Client.Call(ctx, protocol.MethodPromptsGet, params)
+	if err != nil {
+		return nil, fmt.Errorf("getting prompt %s from %s: %w", promptName, serverName, err)
+	}
+
+	result, err := decodePromptGetResult(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decoding prompt get result from %s: %w", serverName, err)
+	}
+
+	return result, nil
+}
+
 // --- helpers ---
 
 func (p *Proxy) findChild(name string) (ChildEntry, bool) {
@@ -453,4 +554,57 @@ func upgradeContentBlocks(blocks []protocol.ContentBlock) []protocol.ContentBloc
 		}
 	}
 	return out
+}
+
+// decodePromptsList tries V1 first, falls back to V0 and upgrades.
+func decodePromptsList(raw json.RawMessage) ([]protocol.PromptV1, error) {
+	var v1 protocol.PromptsListResultV1
+	if err := json.Unmarshal(raw, &v1); err == nil && len(v1.Prompts) > 0 {
+		return v1.Prompts, nil
+	}
+
+	var v0 protocol.PromptsListResult
+	if err := json.Unmarshal(raw, &v0); err == nil {
+		prompts := make([]protocol.PromptV1, len(v0.Prompts))
+		for i, p := range v0.Prompts {
+			prompts[i] = protocol.PromptV1{
+				Name:        p.Name,
+				Description: p.Description,
+				Arguments:   p.Arguments,
+			}
+		}
+		return prompts, nil
+	}
+
+	return nil, fmt.Errorf("unable to decode prompts list response")
+}
+
+// decodePromptGetResult tries V1 first, falls back to V0 and upgrades.
+func decodePromptGetResult(raw json.RawMessage) (*protocol.PromptGetResultV1, error) {
+	var v1 protocol.PromptGetResultV1
+	if err := json.Unmarshal(raw, &v1); err == nil {
+		return &v1, nil
+	}
+
+	var v0 protocol.PromptGetResult
+	if err := json.Unmarshal(raw, &v0); err == nil {
+		messages := make([]protocol.PromptMessageV1, len(v0.Messages))
+		for i, m := range v0.Messages {
+			messages[i] = protocol.PromptMessageV1{
+				Role: m.Role,
+				Content: protocol.ContentBlockV1{
+					Type:     m.Content.Type,
+					Text:     m.Content.Text,
+					MimeType: m.Content.MimeType,
+					Data:     m.Content.Data,
+				},
+			}
+		}
+		return &protocol.PromptGetResultV1{
+			Description: v0.Description,
+			Messages:    messages,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unable to decode prompt get result")
 }
