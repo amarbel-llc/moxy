@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -62,7 +63,7 @@ func checkUnknownFields(data []byte) []string {
 	return unknown
 }
 
-func checkServers(servers []config.ServerConfig) []string {
+func checkServers(servers []config.ServerConfig, checkPath bool) []string {
 	var issues []string
 	seen := make(map[string]bool)
 	for _, srv := range servers {
@@ -71,6 +72,10 @@ func checkServers(servers []config.ServerConfig) []string {
 		}
 		if srv.Command.IsEmpty() {
 			issues = append(issues, fmt.Sprintf("server %q has no command", srv.Name))
+		} else if checkPath {
+			if _, err := exec.LookPath(srv.Command.Executable()); err != nil {
+				issues = append(issues, fmt.Sprintf("server %q command %q not found on $PATH", srv.Name, srv.Command.Executable()))
+			}
 		}
 		if seen[srv.Name] {
 			issues = append(issues, fmt.Sprintf("duplicate server name %q", srv.Name))
@@ -124,7 +129,7 @@ func Run(w io.Writer, home, dir string) int {
 			tw.ok(src.Path + " valid")
 		}
 
-		if issues := checkServers(src.File.Servers); len(issues) > 0 {
+		if issues := checkServers(src.File.Servers, false); len(issues) > 0 {
 			for _, iss := range issues {
 				tw.notOk(src.Path+" servers", map[string]string{
 					"message": iss,
@@ -143,7 +148,7 @@ func Run(w io.Writer, home, dir string) int {
 		tw.ok(fmt.Sprintf("merged: %d server(s)", len(merged.Servers)))
 	}
 
-	if issues := checkServers(merged.Servers); len(issues) > 0 {
+	if issues := checkServers(merged.Servers, true); len(issues) > 0 {
 		for _, iss := range issues {
 			tw.notOk("merged: "+iss, nil)
 		}

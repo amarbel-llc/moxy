@@ -22,7 +22,7 @@ function loads_moxyfile_from_cwd { # @test
   cat > "$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "fake-server"
-command = "nonexistent-mcp-server"
+command = "true"
 EOF
 
   cd "$HOME/repo"
@@ -37,7 +37,7 @@ function loads_moxyfile_from_global_config { # @test
   cat > "$HOME/.config/moxy/moxyfile" <<'EOF'
 [[servers]]
 name = "global-server"
-command = "nonexistent-global-server"
+command = "true"
 EOF
 
   mkdir -p "$HOME/repo"
@@ -53,7 +53,7 @@ function loads_moxyfile_from_parent_dir { # @test
   cat > "$HOME/eng/moxyfile" <<'EOF'
 [[servers]]
 name = "parent-server"
-command = "nonexistent-parent-server"
+command = "true"
 EOF
 
   cd "$HOME/eng/repos/myrepo"
@@ -68,14 +68,14 @@ function repo_moxyfile_overrides_global { # @test
   cat > "$HOME/.config/moxy/moxyfile" <<'EOF'
 [[servers]]
 name = "myserver"
-command = "global-cmd --global"
+command = "echo --global"
 EOF
 
   mkdir -p "$HOME/repo"
   cat > "$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "myserver"
-command = "repo-cmd --repo"
+command = "echo --repo"
 EOF
 
   cd "$HOME/repo"
@@ -89,14 +89,14 @@ function merges_servers_from_global_and_repo { # @test
   cat > "$HOME/.config/moxy/moxyfile" <<'EOF'
 [[servers]]
 name = "server-a"
-command = "cmd-a"
+command = "true"
 EOF
 
   mkdir -p "$HOME/repo"
   cat > "$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "server-b"
-command = "cmd-b"
+command = "true"
 EOF
 
   cd "$HOME/repo"
@@ -110,7 +110,7 @@ function command_string_splits_on_whitespace { # @test
   cat > "$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "grit"
-command = "nonexistent-grit mcp --verbose"
+command = "echo mcp --verbose"
 EOF
 
   cd "$HOME/repo"
@@ -123,10 +123,24 @@ function command_array_preserves_args { # @test
   cat > "$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "lux"
-command = ["nonexistent-lux", "--lsp-dir", "/path with spaces"]
+command = ["echo", "--lsp-dir", "/path with spaces"]
 EOF
 
   cd "$HOME/repo"
   run_moxy validate
   assert_success
+}
+
+function validate_fails_when_command_not_on_path { # @test
+  mkdir -p "$HOME/repo"
+  cat > "$HOME/repo/moxyfile" <<'EOF'
+[[servers]]
+name = "missing"
+command = "nonexistent-mcp-server-binary"
+EOF
+
+  cd "$HOME/repo"
+  run_moxy validate
+  assert_failure
+  assert_output --partial 'not found on $PATH'
 }
