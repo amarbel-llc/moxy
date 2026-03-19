@@ -144,6 +144,11 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 		delete(c.pending, id.String())
 		c.mu.Unlock()
 		return nil, ctx.Err()
+	case <-c.done:
+		c.mu.Lock()
+		delete(c.pending, id.String())
+		c.mu.Unlock()
+		return nil, fmt.Errorf("child process %s exited unexpectedly", c.name)
 	case resp := <-ch:
 		if resp.Error != nil {
 			return nil, resp.Error

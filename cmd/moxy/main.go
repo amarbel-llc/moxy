@@ -106,13 +106,16 @@ func runServer() error {
 	defer cancel()
 
 	var children []proxy.ChildEntry
+	var failed []proxy.FailedServer
 	for _, srvCfg := range cfg.Servers {
 		client, result, err := mcpclient.SpawnAndInitialize(ctx, srvCfg.Name, srvCfg.Command.Executable(), srvCfg.Command.Args())
 		if err != nil {
-			for _, c := range children {
-				c.Client.Close()
-			}
-			return fmt.Errorf("starting server %s: %w", srvCfg.Name, err)
+			fmt.Fprintf(os.Stderr, "moxy: failed to start %s: %v\n", srvCfg.Name, err)
+			failed = append(failed, proxy.FailedServer{
+				Name:  srvCfg.Name,
+				Error: err.Error(),
+			})
+			continue
 		}
 
 		children = append(children, proxy.ChildEntry{
@@ -125,7 +128,7 @@ func runServer() error {
 			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
 	}
 
-	p := proxy.New(children)
+	p := proxy.New(children, failed)
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 

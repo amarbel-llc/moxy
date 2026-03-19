@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
@@ -18,12 +19,33 @@ type ChildEntry struct {
 	Capabilities protocol.ServerCapabilitiesV1
 }
 
-type Proxy struct {
-	children []ChildEntry
+type FailedServer struct {
+	Name  string
+	Error string
 }
 
-func New(children []ChildEntry) *Proxy {
-	return &Proxy{children: children}
+type Proxy struct {
+	children []ChildEntry
+	failed   []FailedServer
+	mu       sync.Mutex
+}
+
+func New(children []ChildEntry, failed []FailedServer) *Proxy {
+	return &Proxy{children: children, failed: failed}
+}
+
+func (p *Proxy) markFailed(name string, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, f := range p.failed {
+		if f.Name == name {
+			return
+		}
+	}
+	p.failed = append(p.failed, FailedServer{
+		Name:  name,
+		Error: err.Error(),
+	})
 }
 
 // --- ToolProvider (V0) ---
@@ -67,12 +89,14 @@ func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.Tools
 
 		raw, err := child.Client.Call(ctx, protocol.MethodToolsList, cursorParams(cursor))
 		if err != nil {
-			return nil, fmt.Errorf("listing tools from %s: %w", child.Client.Name(), err)
+			p.markFailed(child.Client.Name(), fmt.Errorf("listing tools: %w", err))
+			continue
 		}
 
 		tools, err := decodeToolsList(raw)
 		if err != nil {
-			return nil, fmt.Errorf("decoding tools from %s: %w", child.Client.Name(), err)
+			p.markFailed(child.Client.Name(), fmt.Errorf("decoding tools: %w", err))
+			continue
 		}
 
 		for _, tool := range tools {
@@ -84,6 +108,16 @@ func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.Tools
 		}
 	}
 
+	p.mu.Lock()
+	for _, f := range p.failed {
+		allTools = append(allTools, protocol.ToolV1{
+			Name:        f.Name + "-status",
+			Description: fmt.Sprintf("Server %q failed to start: %s", f.Name, f.Error),
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		})
+	}
+	p.mu.Unlock()
+
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
 
@@ -91,6 +125,17 @@ func (p *Proxy) CallToolV1(ctx context.Context, name string, args json.RawMessag
 	serverName, toolName, ok := splitPrefix(name, "-")
 	if !ok {
 		return protocol.ErrorResultV1(fmt.Sprintf("invalid tool name %q: missing server prefix", name)), nil
+	}
+
+	if toolName == "status" {
+		p.mu.Lock()
+		for _, f := range p.failed {
+			if f.Name == serverName {
+				p.mu.Unlock()
+				return protocol.ErrorResultV1(fmt.Sprintf("server %q failed to start: %s", f.Name, f.Error)), nil
+			}
+		}
+		p.mu.Unlock()
 	}
 
 	child, ok := p.findChild(serverName)
@@ -190,12 +235,14 @@ func (p *Proxy) ListResourcesV1(ctx context.Context, cursor string) (*protocol.R
 
 		raw, err := child.Client.Call(ctx, protocol.MethodResourcesList, cursorParams(cursor))
 		if err != nil {
-			return nil, fmt.Errorf("listing resources from %s: %w", child.Client.Name(), err)
+			p.markFailed(child.Client.Name(), fmt.Errorf("listing resources: %w", err))
+			continue
 		}
 
 		resources, err := decodeResourcesList(raw)
 		if err != nil {
-			return nil, fmt.Errorf("decoding resources from %s: %w", child.Client.Name(), err)
+			p.markFailed(child.Client.Name(), fmt.Errorf("decoding resources: %w", err))
+			continue
 		}
 
 		for _, r := range resources {
@@ -217,12 +264,14 @@ func (p *Proxy) ListResourceTemplatesV1(ctx context.Context, cursor string) (*pr
 
 		raw, err := child.Client.Call(ctx, protocol.MethodResourcesTemplates, cursorParams(cursor))
 		if err != nil {
-			return nil, fmt.Errorf("listing resource templates from %s: %w", child.Client.Name(), err)
+			p.markFailed(child.Client.Name(), fmt.Errorf("listing resource templates: %w", err))
+			continue
 		}
 
 		templates, err := decodeResourceTemplatesList(raw)
 		if err != nil {
-			return nil, fmt.Errorf("decoding resource templates from %s: %w", child.Client.Name(), err)
+			p.markFailed(child.Client.Name(), fmt.Errorf("decoding resource templates: %w", err))
+			continue
 		}
 
 		for _, t := range templates {
