@@ -24,6 +24,15 @@ test-go:
   go vet ./...
   go test ./... -v
 
+mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
+
+test-mcp: build-go
+  #!/usr/bin/env nix
+  #! nix shell nixpkgs#nodejs --command bash
+  set -euo pipefail
+  tools=$({{mcp-inspect}} --method tools/list {{justfile_directory()}}/{{dir_build}}/moxy)
+  echo "$tools" | jq .
+
 run-nix *ARGS:
   nix run . -- {{ARGS}}
 
