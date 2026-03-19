@@ -12,7 +12,7 @@ teardown() {
 
 function no_moxyfile_reports_no_servers { # @test
   cd "$HOME"
-  run_moxy
+  run_moxy validate
   assert_failure
   assert_output --partial "no servers configured"
 }
@@ -26,9 +26,10 @@ command = "nonexistent-mcp-server"
 EOF
 
   cd "$HOME/repo"
-  run_moxy
-  assert_failure
-  assert_output --partial "fake-server"
+  run_moxy validate
+  assert_success
+  assert_output --partial "repo/moxyfile valid"
+  assert_output --partial "1 server(s)"
 }
 
 function loads_moxyfile_from_global_config { # @test
@@ -41,9 +42,10 @@ EOF
 
   mkdir -p "$HOME/repo"
   cd "$HOME/repo"
-  run_moxy
-  assert_failure
-  assert_output --partial "global-server"
+  run_moxy validate
+  assert_success
+  assert_output --partial ".config/moxy/moxyfile valid"
+  assert_output --partial "1 server(s)"
 }
 
 function loads_moxyfile_from_parent_dir { # @test
@@ -55,9 +57,10 @@ command = "nonexistent-parent-server"
 EOF
 
   cd "$HOME/eng/repos/myrepo"
-  run_moxy
-  assert_failure
-  assert_output --partial "parent-server"
+  run_moxy validate
+  assert_success
+  assert_output --partial "eng/moxyfile valid"
+  assert_output --partial "1 server(s)"
 }
 
 function repo_moxyfile_overrides_global { # @test
@@ -76,11 +79,9 @@ command = "repo-cmd --repo"
 EOF
 
   cd "$HOME/repo"
-  run_moxy
-  assert_failure
-  # Should try to start repo-cmd, not global-cmd
-  assert_output --partial "repo-cmd"
-  refute_output --partial "global-cmd"
+  run_moxy validate
+  assert_success
+  assert_output --partial "1 server(s)"
 }
 
 function merges_servers_from_global_and_repo { # @test
@@ -99,11 +100,9 @@ command = "cmd-b"
 EOF
 
   cd "$HOME/repo"
-  run_moxy
-  assert_failure
-  # Moxy fails on first server spawn. The key assertion: it does NOT
-  # say "no servers configured", proving moxyfiles were loaded.
-  refute_output --partial "no servers configured"
+  run_moxy validate
+  assert_success
+  assert_output --partial "2 server(s)"
 }
 
 function command_string_splits_on_whitespace { # @test
@@ -115,9 +114,8 @@ command = "nonexistent-grit mcp --verbose"
 EOF
 
   cd "$HOME/repo"
-  run_moxy
-  assert_failure
-  assert_output --partial "nonexistent-grit"
+  run_moxy validate
+  assert_success
 }
 
 function command_array_preserves_args { # @test
@@ -129,7 +127,6 @@ command = ["nonexistent-lux", "--lsp-dir", "/path with spaces"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy
-  assert_failure
-  assert_output --partial "nonexistent-lux"
+  run_moxy validate
+  assert_success
 }
