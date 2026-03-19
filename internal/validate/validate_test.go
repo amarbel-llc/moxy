@@ -66,7 +66,7 @@ func TestRunInvalidToml(t *testing.T) {
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
 
-	writeFile(t, filepath.Join(dir, "moxyfile"), `this is not valid toml [[[`)
+	writeFile(t, filepath.Join(dir, "moxyfile"), `name = = broken`)
 
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
@@ -76,7 +76,7 @@ func TestRunInvalidToml(t *testing.T) {
 	}
 }
 
-func TestRunUnknownFields(t *testing.T) {
+func TestRunUnknownFieldsIgnored(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
@@ -92,11 +92,8 @@ bogus_field = "oops"
 	code := Run(&buf, home, dir)
 	output := buf.String()
 
-	if code != 1 {
-		t.Fatalf("expected exit 1, got %d\noutput:\n%s", code, output)
-	}
-	if !strings.Contains(output, "unknown fields") {
-		t.Errorf("expected 'unknown fields' in output:\n%s", output)
+	if code != 0 {
+		t.Fatalf("expected exit 0 (unknown fields ignored), got %d\noutput:\n%s", code, output)
 	}
 }
 

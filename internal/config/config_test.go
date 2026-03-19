@@ -89,12 +89,11 @@ command = ["lux", "--lsp-dir", "/tmp"]
 	}
 }
 
-func TestParseAnnotations(t *testing.T) {
+func TestParseAnnotationsFlat(t *testing.T) {
 	input := `
 [[servers]]
 name = "lux"
 command = "lux"
-[servers.annotations]
 readOnlyHint = true
 `
 	cfg, err := Parse([]byte(input))

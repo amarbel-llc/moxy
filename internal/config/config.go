@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/BurntSushi/toml"
+	"github.com/amarbel-llc/tommy/pkg/cst"
+	"github.com/amarbel-llc/tommy/pkg/document"
 )
 
 type Config struct {
@@ -98,11 +99,73 @@ type Hierarchy struct {
 }
 
 func Parse(data []byte) (Config, error) {
-	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
+	if len(data) == 0 {
+		return Config{}, nil
+	}
+
+	doc, err := document.Parse(data)
+	if err != nil {
 		return Config{}, fmt.Errorf("parsing moxyfile: %w", err)
 	}
+
+	nodes := doc.FindArrayTableNodes("servers")
+	if len(nodes) == 0 {
+		return Config{}, nil
+	}
+
+	cfg := Config{
+		Servers: make([]ServerConfig, len(nodes)),
+	}
+	for i, node := range nodes {
+		name, _ := document.GetFromContainer[string](doc, node, "name")
+
+		cfg.Servers[i] = ServerConfig{
+			Name:    name,
+			Command: parseCommandFromNode(doc, node),
+		}
+
+		cfg.Servers[i].Annotations = parseAnnotations(doc, node)
+	}
 	return cfg, nil
+}
+
+func parseCommandFromNode(doc *document.Document, node *cst.Node) Command {
+	// Try array form first: command = ["lux", "--lsp-dir", "/path"]
+	if parts, err := document.GetFromContainer[[]string](doc, node, "command"); err == nil {
+		return MakeCommand(parts...)
+	}
+	// Fall back to string form: command = "grit mcp --verbose"
+	if s, err := document.GetFromContainer[string](doc, node, "command"); err == nil {
+		return MakeCommand(strings.Fields(s)...)
+	}
+	return Command{}
+}
+
+func parseAnnotations(doc *document.Document, node *cst.Node) *AnnotationFilter {
+	var af AnnotationFilter
+	var found bool
+
+	if v, err := document.GetFromContainer[bool](doc, node, "readOnlyHint"); err == nil {
+		af.ReadOnlyHint = &v
+		found = true
+	}
+	if v, err := document.GetFromContainer[bool](doc, node, "destructiveHint"); err == nil {
+		af.DestructiveHint = &v
+		found = true
+	}
+	if v, err := document.GetFromContainer[bool](doc, node, "idempotentHint"); err == nil {
+		af.IdempotentHint = &v
+		found = true
+	}
+	if v, err := document.GetFromContainer[bool](doc, node, "openWorldHint"); err == nil {
+		af.OpenWorldHint = &v
+		found = true
+	}
+
+	if !found {
+		return nil
+	}
+	return &af
 }
 
 func Load(path string) (Config, error) {

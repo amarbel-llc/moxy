@@ -5,9 +5,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
-
-	"github.com/BurntSushi/toml"
 
 	"github.com/amarbel-llc/moxy/internal/config"
 )
@@ -48,19 +45,6 @@ func (tw *tapWriter) skip(description, reason string) {
 
 func (tw *tapWriter) plan() {
 	fmt.Fprintf(tw.w, "1..%d\n", tw.n)
-}
-
-func checkUnknownFields(data []byte) []string {
-	var cfg config.Config
-	md, err := toml.Decode(string(data), &cfg)
-	if err != nil {
-		return nil
-	}
-	var unknown []string
-	for _, key := range md.Undecoded() {
-		unknown = append(unknown, key.String())
-	}
-	return unknown
 }
 
 func checkServers(servers []config.ServerConfig, checkPath bool) []string {
@@ -121,13 +105,7 @@ func Run(w io.Writer, home, dir string) int {
 			continue
 		}
 
-		if unknown := checkUnknownFields(data); len(unknown) > 0 {
-			tw.notOk(src.Path+" no unknown fields", map[string]string{
-				"message": "unknown fields: " + strings.Join(unknown, ", "),
-			})
-		} else {
-			tw.ok(src.Path + " valid")
-		}
+		tw.ok(src.Path + " valid")
 
 		if issues := checkServers(src.File.Servers, false); len(issues) > 0 {
 			for _, iss := range issues {

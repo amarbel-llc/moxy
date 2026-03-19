@@ -1,10 +1,10 @@
 module github.com/amarbel-llc/moxy
 
-go 1.23.0
+go 1.25.6
 
 require (
-	github.com/BurntSushi/toml v1.5.0
 	github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.4
+	github.com/amarbel-llc/tommy v0.0.0-20260319120655-45c98678c1a8
 	github.com/charmbracelet/huh v1.0.0
 )
 

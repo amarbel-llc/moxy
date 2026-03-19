@@ -2,7 +2,6 @@ package add
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -10,56 +9,6 @@ import (
 
 	"github.com/amarbel-llc/moxy/internal/config"
 )
-
-func FormatServerBlock(srv config.ServerConfig) string {
-	var b strings.Builder
-	b.WriteString("[[servers]]\n")
-	fmt.Fprintf(&b, "name = %q\n", srv.Name)
-	fmt.Fprintf(&b, "command = %q\n", srv.Command.String())
-
-	if srv.Annotations != nil {
-		var parts []string
-		if srv.Annotations.ReadOnlyHint != nil && *srv.Annotations.ReadOnlyHint {
-			parts = append(parts, "readOnlyHint = true")
-		}
-		if srv.Annotations.DestructiveHint != nil && *srv.Annotations.DestructiveHint {
-			parts = append(parts, "destructiveHint = true")
-		}
-		if srv.Annotations.IdempotentHint != nil && *srv.Annotations.IdempotentHint {
-			parts = append(parts, "idempotentHint = true")
-		}
-		if srv.Annotations.OpenWorldHint != nil && *srv.Annotations.OpenWorldHint {
-			parts = append(parts, "openWorldHint = true")
-		}
-		if len(parts) > 0 {
-			fmt.Fprintf(&b, "annotations = { %s }\n", strings.Join(parts, ", "))
-		}
-	}
-
-	return b.String()
-}
-
-func AppendServerToFile(path string, srv config.ServerConfig) error {
-	block := FormatServerBlock(srv)
-
-	existing, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("reading %s: %w", path, err)
-	}
-
-	var content string
-	if len(existing) > 0 {
-		s := string(existing)
-		if !strings.HasSuffix(s, "\n") {
-			s += "\n"
-		}
-		content = s + "\n" + block
-	} else {
-		content = block
-	}
-
-	return os.WriteFile(path, []byte(content), 0o644)
-}
 
 func Run(path string) error {
 	var name, command string
@@ -111,7 +60,7 @@ func Run(path string) error {
 	}
 
 	srv := buildServerConfig(name, command, annotations)
-	return AppendServerToFile(path, srv)
+	return config.WriteServer(path, srv)
 }
 
 func buildServerConfig(name, command string, annotations []string) config.ServerConfig {
