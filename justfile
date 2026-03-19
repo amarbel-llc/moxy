@@ -20,6 +20,9 @@ test: test-go test-bats
 test-bats: build-go
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
 
+test-bats-file file: build-go
+  just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
+
 test-go:
   go vet ./...
   go test ./... -v

@@ -1,4 +1,5 @@
-bats_timeout := "5"
+bats_timeout := "15"
+# Prompt proxy tests need ~10s for child server startup + JSON-RPC round-trip
 bin_dir := ""
 
 _bats_args := if bin_dir != "" { "--bin-dir " + bin_dir } else { "" }
