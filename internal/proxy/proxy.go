@@ -58,7 +58,7 @@ func (p *Proxy) CallTool(ctx context.Context, name string, args json.RawMessage)
 // --- ToolProviderV1 ---
 
 func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.ToolsListResultV1, error) {
-	var allTools []protocol.ToolV1
+	allTools := make([]protocol.ToolV1, 0)
 
 	for _, child := range p.children {
 		if child.Capabilities.Tools == nil {
@@ -181,7 +181,7 @@ func (p *Proxy) ListResourceTemplates(ctx context.Context) ([]protocol.ResourceT
 // --- ResourceProviderV1 ---
 
 func (p *Proxy) ListResourcesV1(ctx context.Context, cursor string) (*protocol.ResourcesListResultV1, error) {
-	var allResources []protocol.ResourceV1
+	allResources := make([]protocol.ResourceV1, 0)
 
 	for _, child := range p.children {
 		if child.Capabilities.Resources == nil {
@@ -208,7 +208,7 @@ func (p *Proxy) ListResourcesV1(ctx context.Context, cursor string) (*protocol.R
 }
 
 func (p *Proxy) ListResourceTemplatesV1(ctx context.Context, cursor string) (*protocol.ResourceTemplatesListResultV1, error) {
-	var allTemplates []protocol.ResourceTemplateV1
+	allTemplates := make([]protocol.ResourceTemplateV1, 0)
 
 	for _, child := range p.children {
 		if child.Capabilities.Resources == nil {
