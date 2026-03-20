@@ -116,3 +116,38 @@ EOF
   # All 10 items returned since 10 < 50
   echo "$text" | jq -e '.items == [1,2,3,4,5,6,7,8,9,10]'
 }
+
+function pagination_non_array_passes_through { # @test
+  mkdir -p "$HOME/repo"
+  cat > "$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "res"
+command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
+paginate = true
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp resources/read '{"uri":"res/test://status?offset=0&limit=3"}'
+  assert_success
+  # JSON object (not array) passes through unchanged despite pagination params
+  echo "$output" | jq -e '.contents[0].text == "{\"ok\":true,\"count\":42}"'
+}
+
+function pagination_offset_beyond_end_returns_empty { # @test
+  mkdir -p "$HOME/repo"
+  cat > "$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "res"
+command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
+paginate = true
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp resources/read '{"uri":"res/test://items?offset=100&limit=3"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | jq -e '.items == []'
+  echo "$text" | jq -e '.total == 10'
+  echo "$text" | jq -e '.offset == 100'
+}
