@@ -11,6 +11,7 @@ import (
 
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
+	"github.com/amarbel-llc/moxy/internal/paginate"
 )
 
 type ChildEntry struct {
@@ -66,7 +67,11 @@ func (p *Proxy) ListTools(ctx context.Context) ([]protocol.Tool, error) {
 	return tools, nil
 }
 
-func (p *Proxy) CallTool(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResult, error) {
+func (p *Proxy) CallTool(
+	ctx context.Context,
+	name string,
+	args json.RawMessage,
+) (*protocol.ToolCallResult, error) {
 	v1, err := p.CallToolV1(ctx, name, args)
 	if err != nil {
 		return nil, err
@@ -79,7 +84,10 @@ func (p *Proxy) CallTool(ctx context.Context, name string, args json.RawMessage)
 
 // --- ToolProviderV1 ---
 
-func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.ToolsListResultV1, error) {
+func (p *Proxy) ListToolsV1(
+	ctx context.Context,
+	cursor string,
+) (*protocol.ToolsListResultV1, error) {
 	allTools := make([]protocol.ToolV1, 0)
 
 	for _, child := range p.children {
@@ -87,20 +95,33 @@ func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.Tools
 			continue
 		}
 
-		raw, err := child.Client.Call(ctx, protocol.MethodToolsList, cursorParams(cursor))
+		raw, err := child.Client.Call(
+			ctx,
+			protocol.MethodToolsList,
+			cursorParams(cursor),
+		)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("listing tools: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("listing tools: %w", err),
+			)
 			continue
 		}
 
 		tools, err := decodeToolsList(raw)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("decoding tools: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("decoding tools: %w", err),
+			)
 			continue
 		}
 
 		for _, tool := range tools {
-			if !matchesAnnotationFilter(tool.Annotations, child.Config.Annotations) {
+			if !matchesAnnotationFilter(
+				tool.Annotations,
+				child.Config.Annotations,
+			) {
 				continue
 			}
 			tool.Name = child.Client.Name() + "-" + tool.Name
@@ -111,8 +132,12 @@ func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.Tools
 	p.mu.Lock()
 	for _, f := range p.failed {
 		allTools = append(allTools, protocol.ToolV1{
-			Name:        f.Name + "-status",
-			Description: fmt.Sprintf("Server %q failed to start: %s", f.Name, f.Error),
+			Name: f.Name + "-status",
+			Description: fmt.Sprintf(
+				"Server %q failed to start: %s",
+				f.Name,
+				f.Error,
+			),
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		})
 	}
@@ -121,10 +146,16 @@ func (p *Proxy) ListToolsV1(ctx context.Context, cursor string) (*protocol.Tools
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
 
-func (p *Proxy) CallToolV1(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+func (p *Proxy) CallToolV1(
+	ctx context.Context,
+	name string,
+	args json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
 	serverName, toolName, ok := splitPrefix(name, "-")
 	if !ok {
-		return protocol.ErrorResultV1(fmt.Sprintf("invalid tool name %q: missing server prefix", name)), nil
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("invalid tool name %q: missing server prefix", name),
+		), nil
 	}
 
 	if toolName == "status" {
@@ -132,7 +163,13 @@ func (p *Proxy) CallToolV1(ctx context.Context, name string, args json.RawMessag
 		for _, f := range p.failed {
 			if f.Name == serverName {
 				p.mu.Unlock()
-				return protocol.ErrorResultV1(fmt.Sprintf("server %q failed to start: %s", f.Name, f.Error)), nil
+				return protocol.ErrorResultV1(
+					fmt.Sprintf(
+						"server %q failed to start: %s",
+						f.Name,
+						f.Error,
+					),
+				), nil
 			}
 		}
 		p.mu.Unlock()
@@ -140,7 +177,9 @@ func (p *Proxy) CallToolV1(ctx context.Context, name string, args json.RawMessag
 
 	child, ok := p.findChild(serverName)
 	if !ok {
-		return protocol.ErrorResultV1(fmt.Sprintf("unknown server %q", serverName)), nil
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("unknown server %q", serverName),
+		), nil
 	}
 
 	params := protocol.ToolCallParams{
@@ -150,12 +189,21 @@ func (p *Proxy) CallToolV1(ctx context.Context, name string, args json.RawMessag
 
 	raw, err := child.Client.Call(ctx, protocol.MethodToolsCall, params)
 	if err != nil {
-		return nil, fmt.Errorf("calling tool %s on %s: %w", toolName, serverName, err)
+		return nil, fmt.Errorf(
+			"calling tool %s on %s: %w",
+			toolName,
+			serverName,
+			err,
+		)
 	}
 
 	result, err := decodeToolCallResult(raw)
 	if err != nil {
-		return nil, fmt.Errorf("decoding tool call result from %s: %w", serverName, err)
+		return nil, fmt.Errorf(
+			"decoding tool call result from %s: %w",
+			serverName,
+			err,
+		)
 	}
 
 	return result, nil
@@ -163,7 +211,9 @@ func (p *Proxy) CallToolV1(ctx context.Context, name string, args json.RawMessag
 
 // --- ResourceProvider (V0) ---
 
-func (p *Proxy) ListResources(ctx context.Context) ([]protocol.Resource, error) {
+func (p *Proxy) ListResources(
+	ctx context.Context,
+) ([]protocol.Resource, error) {
 	v1, err := p.ListResourcesV1(ctx, "")
 	if err != nil {
 		return nil, err
@@ -180,10 +230,16 @@ func (p *Proxy) ListResources(ctx context.Context) ([]protocol.Resource, error) 
 	return resources, nil
 }
 
-func (p *Proxy) ReadResource(ctx context.Context, uri string) (*protocol.ResourceReadResult, error) {
+func (p *Proxy) ReadResource(
+	ctx context.Context,
+	uri string,
+) (*protocol.ResourceReadResult, error) {
 	serverName, originalURI, ok := splitPrefix(uri, "/")
 	if !ok {
-		return nil, fmt.Errorf("invalid resource URI %q: missing server prefix", uri)
+		return nil, fmt.Errorf(
+			"invalid resource URI %q: missing server prefix",
+			uri,
+		)
 	}
 
 	child, ok := p.findChild(serverName)
@@ -191,22 +247,43 @@ func (p *Proxy) ReadResource(ctx context.Context, uri string) (*protocol.Resourc
 		return nil, fmt.Errorf("unknown server %q", serverName)
 	}
 
+	// Parse and strip pagination params if server has paginate enabled
+	var pgParams paginate.Params
+	if child.Config.Paginate {
+		originalURI, pgParams = paginate.ParseParams(originalURI)
+	}
+
 	params := protocol.ResourceReadParams{URI: originalURI}
 
 	raw, err := child.Client.Call(ctx, protocol.MethodResourcesRead, params)
 	if err != nil {
-		return nil, fmt.Errorf("reading resource %s from %s: %w", originalURI, serverName, err)
+		return nil, fmt.Errorf(
+			"reading resource %s from %s: %w",
+			originalURI,
+			serverName,
+			err,
+		)
 	}
 
 	var result protocol.ResourceReadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, fmt.Errorf("decoding resource read result from %s: %w", serverName, err)
+		return nil, fmt.Errorf(
+			"decoding resource read result from %s: %w",
+			serverName,
+			err,
+		)
+	}
+
+	if pgParams.Active {
+		result = paginateResourceResult(result, pgParams)
 	}
 
 	return &result, nil
 }
 
-func (p *Proxy) ListResourceTemplates(ctx context.Context) ([]protocol.ResourceTemplate, error) {
+func (p *Proxy) ListResourceTemplates(
+	ctx context.Context,
+) ([]protocol.ResourceTemplate, error) {
 	v1, err := p.ListResourceTemplatesV1(ctx, "")
 	if err != nil {
 		return nil, err
@@ -225,7 +302,10 @@ func (p *Proxy) ListResourceTemplates(ctx context.Context) ([]protocol.ResourceT
 
 // --- ResourceProviderV1 ---
 
-func (p *Proxy) ListResourcesV1(ctx context.Context, cursor string) (*protocol.ResourcesListResultV1, error) {
+func (p *Proxy) ListResourcesV1(
+	ctx context.Context,
+	cursor string,
+) (*protocol.ResourcesListResultV1, error) {
 	allResources := make([]protocol.ResourceV1, 0)
 
 	for _, child := range p.children {
@@ -233,15 +313,25 @@ func (p *Proxy) ListResourcesV1(ctx context.Context, cursor string) (*protocol.R
 			continue
 		}
 
-		raw, err := child.Client.Call(ctx, protocol.MethodResourcesList, cursorParams(cursor))
+		raw, err := child.Client.Call(
+			ctx,
+			protocol.MethodResourcesList,
+			cursorParams(cursor),
+		)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("listing resources: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("listing resources: %w", err),
+			)
 			continue
 		}
 
 		resources, err := decodeResourcesList(raw)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("decoding resources: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("decoding resources: %w", err),
+			)
 			continue
 		}
 
@@ -254,7 +344,10 @@ func (p *Proxy) ListResourcesV1(ctx context.Context, cursor string) (*protocol.R
 	return &protocol.ResourcesListResultV1{Resources: allResources}, nil
 }
 
-func (p *Proxy) ListResourceTemplatesV1(ctx context.Context, cursor string) (*protocol.ResourceTemplatesListResultV1, error) {
+func (p *Proxy) ListResourceTemplatesV1(
+	ctx context.Context,
+	cursor string,
+) (*protocol.ResourceTemplatesListResultV1, error) {
 	allTemplates := make([]protocol.ResourceTemplateV1, 0)
 
 	for _, child := range p.children {
@@ -262,15 +355,25 @@ func (p *Proxy) ListResourceTemplatesV1(ctx context.Context, cursor string) (*pr
 			continue
 		}
 
-		raw, err := child.Client.Call(ctx, protocol.MethodResourcesTemplates, cursorParams(cursor))
+		raw, err := child.Client.Call(
+			ctx,
+			protocol.MethodResourcesTemplates,
+			cursorParams(cursor),
+		)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("listing resource templates: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("listing resource templates: %w", err),
+			)
 			continue
 		}
 
 		templates, err := decodeResourceTemplatesList(raw)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("decoding resource templates: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("decoding resource templates: %w", err),
+			)
 			continue
 		}
 
@@ -280,7 +383,9 @@ func (p *Proxy) ListResourceTemplatesV1(ctx context.Context, cursor string) (*pr
 		}
 	}
 
-	return &protocol.ResourceTemplatesListResultV1{ResourceTemplates: allTemplates}, nil
+	return &protocol.ResourceTemplatesListResultV1{
+		ResourceTemplates: allTemplates,
+	}, nil
 }
 
 // --- PromptProvider (V0) ---
@@ -301,7 +406,11 @@ func (p *Proxy) ListPrompts(ctx context.Context) ([]protocol.Prompt, error) {
 	return prompts, nil
 }
 
-func (p *Proxy) GetPrompt(ctx context.Context, name string, args map[string]string) (*protocol.PromptGetResult, error) {
+func (p *Proxy) GetPrompt(
+	ctx context.Context,
+	name string,
+	args map[string]string,
+) (*protocol.PromptGetResult, error) {
 	v1, err := p.GetPromptV1(ctx, name, args)
 	if err != nil {
 		return nil, err
@@ -326,7 +435,10 @@ func (p *Proxy) GetPrompt(ctx context.Context, name string, args map[string]stri
 
 // --- PromptProviderV1 ---
 
-func (p *Proxy) ListPromptsV1(ctx context.Context, cursor string) (*protocol.PromptsListResultV1, error) {
+func (p *Proxy) ListPromptsV1(
+	ctx context.Context,
+	cursor string,
+) (*protocol.PromptsListResultV1, error) {
 	allPrompts := make([]protocol.PromptV1, 0)
 
 	for _, child := range p.children {
@@ -334,15 +446,25 @@ func (p *Proxy) ListPromptsV1(ctx context.Context, cursor string) (*protocol.Pro
 			continue
 		}
 
-		raw, err := child.Client.Call(ctx, protocol.MethodPromptsList, cursorParams(cursor))
+		raw, err := child.Client.Call(
+			ctx,
+			protocol.MethodPromptsList,
+			cursorParams(cursor),
+		)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("listing prompts: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("listing prompts: %w", err),
+			)
 			continue
 		}
 
 		prompts, err := decodePromptsList(raw)
 		if err != nil {
-			p.markFailed(child.Client.Name(), fmt.Errorf("decoding prompts: %w", err))
+			p.markFailed(
+				child.Client.Name(),
+				fmt.Errorf("decoding prompts: %w", err),
+			)
 			continue
 		}
 
@@ -355,10 +477,17 @@ func (p *Proxy) ListPromptsV1(ctx context.Context, cursor string) (*protocol.Pro
 	return &protocol.PromptsListResultV1{Prompts: allPrompts}, nil
 }
 
-func (p *Proxy) GetPromptV1(ctx context.Context, name string, args map[string]string) (*protocol.PromptGetResultV1, error) {
+func (p *Proxy) GetPromptV1(
+	ctx context.Context,
+	name string,
+	args map[string]string,
+) (*protocol.PromptGetResultV1, error) {
 	serverName, promptName, ok := splitPrefix(name, "-")
 	if !ok {
-		return nil, fmt.Errorf("invalid prompt name %q: missing server prefix", name)
+		return nil, fmt.Errorf(
+			"invalid prompt name %q: missing server prefix",
+			name,
+		)
 	}
 
 	child, ok := p.findChild(serverName)
@@ -373,12 +502,21 @@ func (p *Proxy) GetPromptV1(ctx context.Context, name string, args map[string]st
 
 	raw, err := child.Client.Call(ctx, protocol.MethodPromptsGet, params)
 	if err != nil {
-		return nil, fmt.Errorf("getting prompt %s from %s: %w", promptName, serverName, err)
+		return nil, fmt.Errorf(
+			"getting prompt %s from %s: %w",
+			promptName,
+			serverName,
+			err,
+		)
 	}
 
 	result, err := decodePromptGetResult(raw)
 	if err != nil {
-		return nil, fmt.Errorf("decoding prompt get result from %s: %w", serverName, err)
+		return nil, fmt.Errorf(
+			"decoding prompt get result from %s: %w",
+			serverName,
+			err,
+		)
 	}
 
 	return result, nil
@@ -403,31 +541,60 @@ func splitPrefix(s, sep string) (prefix, rest string, ok bool) {
 	return s[:i], s[i+len(sep):], true
 }
 
-func matchesAnnotationFilter(annotations *protocol.ToolAnnotations, filter *config.AnnotationFilter) bool {
+func matchesAnnotationFilter(
+	annotations *protocol.ToolAnnotations,
+	filter *config.AnnotationFilter,
+) bool {
 	if filter == nil {
 		return true
 	}
 	if filter.ReadOnlyHint != nil {
-		if annotations == nil || annotations.ReadOnlyHint == nil || *annotations.ReadOnlyHint != *filter.ReadOnlyHint {
+		if annotations == nil || annotations.ReadOnlyHint == nil ||
+			*annotations.ReadOnlyHint != *filter.ReadOnlyHint {
 			return false
 		}
 	}
 	if filter.DestructiveHint != nil {
-		if annotations == nil || annotations.DestructiveHint == nil || *annotations.DestructiveHint != *filter.DestructiveHint {
+		if annotations == nil || annotations.DestructiveHint == nil ||
+			*annotations.DestructiveHint != *filter.DestructiveHint {
 			return false
 		}
 	}
 	if filter.IdempotentHint != nil {
-		if annotations == nil || annotations.IdempotentHint == nil || *annotations.IdempotentHint != *filter.IdempotentHint {
+		if annotations == nil || annotations.IdempotentHint == nil ||
+			*annotations.IdempotentHint != *filter.IdempotentHint {
 			return false
 		}
 	}
 	if filter.OpenWorldHint != nil {
-		if annotations == nil || annotations.OpenWorldHint == nil || *annotations.OpenWorldHint != *filter.OpenWorldHint {
+		if annotations == nil || annotations.OpenWorldHint == nil ||
+			*annotations.OpenWorldHint != *filter.OpenWorldHint {
 			return false
 		}
 	}
 	return true
+}
+
+func paginateResourceResult(
+	result protocol.ResourceReadResult,
+	params paginate.Params,
+) protocol.ResourceReadResult {
+	for i, content := range result.Contents {
+		if content.Text == "" {
+			continue
+		}
+		sliced, err := paginate.SliceArray(content.Text, params)
+		if err != nil {
+			// Not a JSON array or pagination not active — pass through
+			continue
+		}
+		wrapped, err := json.Marshal(sliced)
+		if err != nil {
+			continue
+		}
+		result.Contents[i].Text = string(wrapped)
+	}
+	return result
 }
 
 type cursorParam struct {
@@ -465,7 +632,9 @@ func decodeToolsList(raw json.RawMessage) ([]protocol.ToolV1, error) {
 }
 
 // decodeToolCallResult tries V1 first, falls back to V0 and upgrades.
-func decodeToolCallResult(raw json.RawMessage) (*protocol.ToolCallResultV1, error) {
+func decodeToolCallResult(
+	raw json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
 	var v1 protocol.ToolCallResultV1
 	if err := json.Unmarshal(raw, &v1); err == nil {
 		return &v1, nil
@@ -507,15 +676,21 @@ func decodeResourcesList(raw json.RawMessage) ([]protocol.ResourceV1, error) {
 }
 
 // decodeResourceTemplatesList tries V1 first, falls back to V0 and upgrades.
-func decodeResourceTemplatesList(raw json.RawMessage) ([]protocol.ResourceTemplateV1, error) {
+func decodeResourceTemplatesList(
+	raw json.RawMessage,
+) ([]protocol.ResourceTemplateV1, error) {
 	var v1 protocol.ResourceTemplatesListResultV1
-	if err := json.Unmarshal(raw, &v1); err == nil && len(v1.ResourceTemplates) > 0 {
+	if err := json.Unmarshal(raw, &v1); err == nil &&
+		len(v1.ResourceTemplates) > 0 {
 		return v1.ResourceTemplates, nil
 	}
 
 	var v0 protocol.ResourceTemplatesListResult
 	if err := json.Unmarshal(raw, &v0); err == nil {
-		templates := make([]protocol.ResourceTemplateV1, len(v0.ResourceTemplates))
+		templates := make(
+			[]protocol.ResourceTemplateV1,
+			len(v0.ResourceTemplates),
+		)
 		for i, t := range v0.ResourceTemplates {
 			templates[i] = protocol.ResourceTemplateV1{
 				URITemplate: t.URITemplate,
@@ -530,7 +705,9 @@ func decodeResourceTemplatesList(raw json.RawMessage) ([]protocol.ResourceTempla
 	return nil, fmt.Errorf("unable to decode resource templates list response")
 }
 
-func downgradeContentBlocks(blocks []protocol.ContentBlockV1) []protocol.ContentBlock {
+func downgradeContentBlocks(
+	blocks []protocol.ContentBlockV1,
+) []protocol.ContentBlock {
 	out := make([]protocol.ContentBlock, len(blocks))
 	for i, b := range blocks {
 		out[i] = protocol.ContentBlock{
@@ -543,7 +720,9 @@ func downgradeContentBlocks(blocks []protocol.ContentBlockV1) []protocol.Content
 	return out
 }
 
-func upgradeContentBlocks(blocks []protocol.ContentBlock) []protocol.ContentBlockV1 {
+func upgradeContentBlocks(
+	blocks []protocol.ContentBlock,
+) []protocol.ContentBlockV1 {
 	out := make([]protocol.ContentBlockV1, len(blocks))
 	for i, b := range blocks {
 		out[i] = protocol.ContentBlockV1{
@@ -580,7 +759,9 @@ func decodePromptsList(raw json.RawMessage) ([]protocol.PromptV1, error) {
 }
 
 // decodePromptGetResult tries V1 first, falls back to V0 and upgrades.
-func decodePromptGetResult(raw json.RawMessage) (*protocol.PromptGetResultV1, error) {
+func decodePromptGetResult(
+	raw json.RawMessage,
+) (*protocol.PromptGetResultV1, error) {
 	var v1 protocol.PromptGetResultV1
 	if err := json.Unmarshal(raw, &v1); err == nil {
 		return &v1, nil
