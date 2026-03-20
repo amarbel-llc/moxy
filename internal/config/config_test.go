@@ -101,7 +101,8 @@ readOnlyHint = true
 		t.Fatalf("unexpected error: %v", err)
 	}
 	srv := cfg.Servers[0]
-	if srv.Annotations == nil || srv.Annotations.ReadOnlyHint == nil || !*srv.Annotations.ReadOnlyHint {
+	if srv.Annotations == nil || srv.Annotations.ReadOnlyHint == nil ||
+		!*srv.Annotations.ReadOnlyHint {
 		t.Error("expected readOnlyHint = true")
 	}
 }
@@ -156,7 +157,11 @@ func TestMergeAddsNewServer(t *testing.T) {
 		t.Fatalf("expected 2 servers, got %d", len(merged.Servers))
 	}
 	if merged.Servers[0].Name != "grit" || merged.Servers[1].Name != "lux" {
-		t.Errorf("names: got %q, %q", merged.Servers[0].Name, merged.Servers[1].Name)
+		t.Errorf(
+			"names: got %q, %q",
+			merged.Servers[0].Name,
+			merged.Servers[1].Name,
+		)
 	}
 }
 
@@ -218,7 +223,8 @@ func TestMergePreservesOrder(t *testing.T) {
 		t.Fatalf("expected 3 servers, got %d", len(merged.Servers))
 	}
 	// alpha overridden in place, beta inherited, gamma appended
-	if merged.Servers[0].Name != "alpha" || merged.Servers[0].Command.Executable() != "alpha-v2" {
+	if merged.Servers[0].Name != "alpha" ||
+		merged.Servers[0].Command.Executable() != "alpha-v2" {
 		t.Errorf("expected alpha-v2 at index 0, got %v", merged.Servers[0])
 	}
 	if merged.Servers[1].Name != "beta" {
@@ -263,10 +269,15 @@ command = "grit"
 	}
 	for i := 1; i < len(result.Sources); i++ {
 		if result.Sources[i].Found {
-			t.Errorf("expected source %d (%s) to not be found", i, result.Sources[i].Path)
+			t.Errorf(
+				"expected source %d (%s) to not be found",
+				i,
+				result.Sources[i].Path,
+			)
 		}
 	}
-	if len(result.Merged.Servers) != 1 || result.Merged.Servers[0].Command.Executable() != "grit" {
+	if len(result.Merged.Servers) != 1 ||
+		result.Merged.Servers[0].Command.Executable() != "grit" {
 		t.Errorf("expected grit server, got %v", result.Merged.Servers)
 	}
 }
@@ -364,7 +375,11 @@ func TestCommandString(t *testing.T) {
 		expect string
 	}{
 		{"single word", []string{"grit"}, "grit"},
-		{"multiple words", []string{"grit", "mcp", "--verbose"}, "grit mcp --verbose"},
+		{
+			"multiple words",
+			[]string{"grit", "mcp", "--verbose"},
+			"grit mcp --verbose",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -373,6 +388,37 @@ func TestCommandString(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.expect)
 			}
 		})
+	}
+}
+
+func TestParsePaginate(t *testing.T) {
+	input := `
+[[servers]]
+name = "caldav"
+command = "caldav-mcp"
+paginate = true
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Servers[0].Paginate {
+		t.Error("expected paginate = true")
+	}
+}
+
+func TestParsePaginateDefault(t *testing.T) {
+	input := `
+[[servers]]
+name = "grit"
+command = "grit"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].Paginate {
+		t.Error("expected paginate = false by default")
 	}
 }
 

@@ -20,6 +20,7 @@ type ServerConfig struct {
 	Name        string            `toml:"name"`
 	Command     Command           `toml:"command"`
 	Annotations *AnnotationFilter `toml:"annotations"`
+	Paginate    bool              `toml:"paginate"`
 }
 
 // Command holds a shell command as either a string or an array of strings.
@@ -125,6 +126,9 @@ func Parse(data []byte) (Config, error) {
 		}
 
 		cfg.Servers[i].Annotations = parseAnnotations(doc, node)
+
+		paginate, _ := document.GetFromContainer[bool](doc, node, "paginate")
+		cfg.Servers[i].Paginate = paginate
 	}
 	return cfg, nil
 }
@@ -141,7 +145,10 @@ func parseCommandFromNode(doc *document.Document, node *cst.Node) Command {
 	return Command{}
 }
 
-func parseAnnotations(doc *document.Document, node *cst.Node) *AnnotationFilter {
+func parseAnnotations(
+	doc *document.Document,
+	node *cst.Node,
+) *AnnotationFilter {
 	var af AnnotationFilter
 	var found bool
 
@@ -223,7 +230,10 @@ func LoadHierarchy(home, dir string) (Hierarchy, error) {
 			return err
 		}
 		_, found := fileExists(path)
-		sources = append(sources, LoadSource{Path: path, Found: found, File: cfg})
+		sources = append(
+			sources,
+			LoadSource{Path: path, Found: found, File: cfg},
+		)
 		if found {
 			merged = Merge(merged, cfg)
 		}
