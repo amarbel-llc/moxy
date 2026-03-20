@@ -1,6 +1,8 @@
 package paginate
 
 import (
+	"encoding/json"
+	"errors"
 	"net/url"
 	"strconv"
 	"strings"
@@ -8,10 +10,22 @@ import (
 
 const DefaultLimit = 50
 
+var (
+	ErrNotArray  = errors.New("content is not a JSON array")
+	ErrNotActive = errors.New("pagination not active")
+)
+
 type Params struct {
 	Active bool
 	Offset int
 	Limit  int
+}
+
+type Result struct {
+	Items  json.RawMessage `json:"items"`
+	Total  int             `json:"total"`
+	Offset int             `json:"offset"`
+	Limit  int             `json:"limit"`
 }
 
 func ParseParams(uri string) (string, Params) {
@@ -52,4 +66,38 @@ func ParseParams(uri string) (string, Params) {
 	}
 
 	return clean, Params{Active: true, Offset: offset, Limit: limit}
+}
+
+func SliceArray(text string, params Params) (*Result, error) {
+	if !params.Active {
+		return nil, ErrNotActive
+	}
+
+	var items []json.RawMessage
+	if err := json.Unmarshal([]byte(text), &items); err != nil {
+		return nil, ErrNotArray
+	}
+
+	total := len(items)
+	start := params.Offset
+	if start > total {
+		start = total
+	}
+	end := start + params.Limit
+	if end > total {
+		end = total
+	}
+
+	page := items[start:end]
+	pageJSON, err := json.Marshal(page)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Result{
+		Items:  pageJSON,
+		Total:  total,
+		Offset: params.Offset,
+		Limit:  params.Limit,
+	}, nil
 }

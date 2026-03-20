@@ -77,3 +77,60 @@ func TestParseParams(t *testing.T) {
 		})
 	}
 }
+
+func TestSliceArray(t *testing.T) {
+	input := `[1,2,3,4,5,6,7,8,9,10]`
+
+	tests := []struct {
+		name       string
+		offset     int
+		limit      int
+		wantTotal  int
+		wantOffset int
+		wantLimit  int
+	}{
+		{"first page", 0, 3, 10, 0, 3},
+		{"middle page", 3, 3, 10, 3, 3},
+		{"last page partial", 8, 3, 10, 8, 3},
+		{"offset beyond end", 20, 3, 10, 20, 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := SliceArray(
+				input,
+				Params{Active: true, Offset: tt.offset, Limit: tt.limit},
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result.Total != tt.wantTotal {
+				t.Errorf("total: got %d, want %d", result.Total, tt.wantTotal)
+			}
+			if result.Offset != tt.wantOffset {
+				t.Errorf(
+					"offset: got %d, want %d",
+					result.Offset,
+					tt.wantOffset,
+				)
+			}
+			if result.Limit != tt.wantLimit {
+				t.Errorf("limit: got %d, want %d", result.Limit, tt.wantLimit)
+			}
+		})
+	}
+}
+
+func TestSliceArrayNotArray(t *testing.T) {
+	input := `{"key": "value"}`
+	_, err := SliceArray(input, Params{Active: true, Offset: 0, Limit: 10})
+	if err != ErrNotArray {
+		t.Errorf("expected ErrNotArray, got %v", err)
+	}
+}
+
+func TestSliceArrayInactiveParams(t *testing.T) {
+	_, err := SliceArray(`[1,2,3]`, Params{Active: false})
+	if err != ErrNotActive {
+		t.Errorf("expected ErrNotActive, got %v", err)
+	}
+}
