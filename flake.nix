@@ -74,6 +74,7 @@
           ];
           packages = [
             bob.packages.${system}.batman
+            purse-first.packages.${system}.purse-first
           ];
         };
       }

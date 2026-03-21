@@ -15,7 +15,7 @@ build-nix: build-gomod2nix
 
 dir_build := "build"
 
-test: test-go test-bats
+test: test-go test-bats test-validate-mcp
 
 test-bats: build-go
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
@@ -26,6 +26,9 @@ test-bats-file file: build-go
 test-go:
   go vet ./...
   go test ./... -v
+
+test-validate-mcp: build-go
+  purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy
 
 mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
 
