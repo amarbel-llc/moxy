@@ -16,6 +16,9 @@ while IFS= read -r line; do
   resources/list)
     echo '{"jsonrpc":"2.0","id":'"$id"',"result":{"resources":[{"uri":"test://items","name":"items","mimeType":"application/json"},{"uri":"test://status","name":"status","mimeType":"application/json"}]}}'
     ;;
+  resources/templates/list)
+    echo '{"jsonrpc":"2.0","id":'"$id"',"result":{"resourceTemplates":[{"uriTemplate":"test://items/{id}","name":"item","description":"Get item by ID","mimeType":"application/json"}]}}'
+    ;;
   resources/read)
     uri=$(echo "$line" | jq -r '.params.uri')
     case "$uri" in

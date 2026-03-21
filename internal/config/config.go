@@ -17,10 +17,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Name        string            `toml:"name"`
-	Command     Command           `toml:"command"`
-	Annotations *AnnotationFilter `toml:"annotations"`
-	Paginate    bool              `toml:"paginate"`
+	Name          string            `toml:"name"`
+	Command       Command           `toml:"command"`
+	Annotations   *AnnotationFilter `toml:"annotations"`
+	Paginate      bool              `toml:"paginate"`
+	ResourceTools *bool             `toml:"resource_tools"`
 }
 
 // Command holds a shell command as either a string or an array of strings.
@@ -129,6 +130,10 @@ func Parse(data []byte) (Config, error) {
 
 		paginate, _ := document.GetFromContainer[bool](doc, node, "paginate")
 		cfg.Servers[i].Paginate = paginate
+
+		if rt, err := document.GetFromContainer[bool](doc, node, "resource_tools"); err == nil {
+			cfg.Servers[i].ResourceTools = &rt
+		}
 	}
 	return cfg, nil
 }

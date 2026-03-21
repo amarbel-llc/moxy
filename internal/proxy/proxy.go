@@ -124,8 +124,48 @@ func (p *Proxy) ListToolsV1(
 			) {
 				continue
 			}
-			tool.Name = child.Client.Name() + "-" + tool.Name
+			tool.Name = child.Client.Name() + "-" + toSnobCase(tool.Name)
 			allTools = append(allTools, tool)
+		}
+	}
+
+	// Inject synthetic resource tools for resource-capable children
+	for _, child := range p.children {
+		if child.Capabilities.Resources == nil {
+			continue
+		}
+		if child.Config.ResourceTools != nil && !*child.Config.ResourceTools {
+			continue
+		}
+
+		serverName := child.Client.Name()
+
+		// Check for collisions with child's own tools
+		hasResourceRead := false
+		hasResourceTemplates := false
+		for _, t := range allTools {
+			if t.Name == serverName+"-resource_read" {
+				hasResourceRead = true
+			}
+			if t.Name == serverName+"-resource_templates" {
+				hasResourceTemplates = true
+			}
+		}
+
+		if !hasResourceRead {
+			allTools = append(allTools, protocol.ToolV1{
+				Name:        serverName + "-resource_read",
+				Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
+			})
+		}
+
+		if !hasResourceTemplates {
+			allTools = append(allTools, protocol.ToolV1{
+				Name:        serverName + "-resource_templates",
+				Description: fmt.Sprintf("List available resource templates for %s", serverName),
+				InputSchema: json.RawMessage(`{"type":"object"}`),
+			})
 		}
 	}
 
@@ -182,8 +222,16 @@ func (p *Proxy) CallToolV1(
 		), nil
 	}
 
+	if toolName == "resource_read" {
+		return p.callResourceRead(ctx, child, args)
+	}
+
+	if toolName == "resource_templates" {
+		return p.callResourceTemplates(ctx, child)
+	}
+
 	params := protocol.ToolCallParams{
-		Name:      toolName,
+		Name:      fromSnobCase(toolName),
 		Arguments: args,
 	}
 
@@ -469,7 +517,7 @@ func (p *Proxy) ListPromptsV1(
 		}
 
 		for _, pr := range prompts {
-			pr.Name = child.Client.Name() + "-" + pr.Name
+			pr.Name = child.Client.Name() + "-" + toSnobCase(pr.Name)
 			allPrompts = append(allPrompts, pr)
 		}
 	}
@@ -496,7 +544,7 @@ func (p *Proxy) GetPromptV1(
 	}
 
 	params := protocol.PromptGetParams{
-		Name:      promptName,
+		Name:      fromSnobCase(promptName),
 		Arguments: args,
 	}
 
@@ -524,6 +572,93 @@ func (p *Proxy) GetPromptV1(
 
 // --- helpers ---
 
+func (p *Proxy) callResourceRead(
+	ctx context.Context,
+	child ChildEntry,
+	args json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
+	var params struct {
+		URI string `json:"uri"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("invalid resource_read args: %v", err),
+		), nil
+	}
+
+	raw, err := child.Client.Call(
+		ctx,
+		protocol.MethodResourcesRead,
+		protocol.ResourceReadParams{URI: params.URI},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reading resource %s from %s: %w",
+			params.URI,
+			child.Client.Name(),
+			err,
+		)
+	}
+
+	var result protocol.ResourceReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, fmt.Errorf(
+			"decoding resource read result from %s: %w",
+			child.Client.Name(),
+			err,
+		)
+	}
+
+	text, err := json.Marshal(result.Contents)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling resource contents: %w", err)
+	}
+
+	return &protocol.ToolCallResultV1{
+		Content: []protocol.ContentBlockV1{
+			{Type: "text", Text: string(text)},
+		},
+	}, nil
+}
+
+func (p *Proxy) callResourceTemplates(
+	ctx context.Context,
+	child ChildEntry,
+) (*protocol.ToolCallResultV1, error) {
+	raw, err := child.Client.Call(
+		ctx,
+		protocol.MethodResourcesTemplates,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"listing resource templates from %s: %w",
+			child.Client.Name(),
+			err,
+		)
+	}
+
+	templates, err := decodeResourceTemplatesList(raw)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"decoding resource templates from %s: %w",
+			child.Client.Name(),
+			err,
+		)
+	}
+
+	text, err := json.Marshal(templates)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling resource templates: %w", err)
+	}
+
+	return &protocol.ToolCallResultV1{
+		Content: []protocol.ContentBlockV1{
+			{Type: "text", Text: string(text)},
+		},
+	}, nil
+}
+
 func (p *Proxy) findChild(name string) (ChildEntry, bool) {
 	for _, c := range p.children {
 		if c.Client.Name() == name {
@@ -531,6 +666,14 @@ func (p *Proxy) findChild(name string) (ChildEntry, bool) {
 		}
 	}
 	return ChildEntry{}, false
+}
+
+func toSnobCase(name string) string {
+	return strings.ReplaceAll(name, "-", "_")
+}
+
+func fromSnobCase(name string) string {
+	return strings.ReplaceAll(name, "_", "-")
 }
 
 func splitPrefix(s, sep string) (prefix, rest string, ok bool) {

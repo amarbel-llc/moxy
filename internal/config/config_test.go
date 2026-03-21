@@ -422,6 +422,37 @@ command = "grit"
 	}
 }
 
+func TestParseResourceTools(t *testing.T) {
+	input := `
+[[servers]]
+name = "grit"
+command = "grit"
+resource_tools = false
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].ResourceTools == nil || *cfg.Servers[0].ResourceTools != false {
+		t.Error("expected resource_tools = false")
+	}
+}
+
+func TestParseResourceToolsDefault(t *testing.T) {
+	input := `
+[[servers]]
+name = "grit"
+command = "grit"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].ResourceTools != nil {
+		t.Error("expected resource_tools = nil (absent)")
+	}
+}
+
 func makeCommand(parts ...string) Command {
 	return Command{parts: parts}
 }
