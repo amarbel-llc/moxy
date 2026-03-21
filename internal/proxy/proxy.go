@@ -134,7 +134,7 @@ func (p *Proxy) ListToolsV1(
 		if child.Capabilities.Resources == nil {
 			continue
 		}
-		if child.Config.ResourceTools != nil && !*child.Config.ResourceTools {
+		if child.Config.GenerateResourceTools != nil && !*child.Config.GenerateResourceTools {
 			continue
 		}
 

@@ -73,7 +73,7 @@ function synthetic_tools_disabled_by_config { # @test
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
-resource_tools = false
+generate-resource-tools = false
 EOF
 
   cd "$HOME/repo"

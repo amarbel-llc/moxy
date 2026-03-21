@@ -52,17 +52,17 @@ child, returns the template list as JSON
 is `resource_read` or `resource_templates`, the child's tool takes precedence
 --- no synthetic tool is generated.
 
-**Opt-out:** a moxyfile field `resource_tools = false` on a server entry
-suppresses synthetic tool generation for that server. Default is true.
+**Opt-out:** a moxyfile field `generate-resource-tools = false` on a server
+entry suppresses synthetic tool generation for that server. Default is true.
 
 ### Config change
 
-Add `ResourceTools *bool` to `ServerConfig`:
+Add `GenerateResourceTools *bool` to `ServerConfig`:
 
 ``` toml
 [servers.grit]
 command = "grit"
-resource_tools = false  # suppress synthetic resource tools
+generate-resource-tools = false  # suppress synthetic resource tools
 ```
 
 `nil` (absent) and `true` both enable synthetic tools. Only explicit `false`
@@ -87,7 +87,7 @@ disables.
   - `resource_read` and `resource_templates` tools appear for resource-capable
     servers
   - `resource_read` actually reads a resource via the child
-  - `resource_tools = false` suppresses synthetic tools
+  - `generate-resource-tools = false` suppresses synthetic tools
   - No synthetic tool when child already provides `resource-read` /
     `resource_read`
 - Deferred: `purse-first validate-mcp` recipe once purse-first#1 ships (moxy#7)

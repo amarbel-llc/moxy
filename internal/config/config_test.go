@@ -427,14 +427,14 @@ func TestParseResourceTools(t *testing.T) {
 [[servers]]
 name = "grit"
 command = "grit"
-resource_tools = false
+generate-resource-tools = false
 `
 	cfg, err := Parse([]byte(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Servers[0].ResourceTools == nil || *cfg.Servers[0].ResourceTools != false {
-		t.Error("expected resource_tools = false")
+	if cfg.Servers[0].GenerateResourceTools == nil || *cfg.Servers[0].GenerateResourceTools != false {
+		t.Error("expected generate-resource-tools = false")
 	}
 }
 
@@ -448,7 +448,7 @@ command = "grit"
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Servers[0].ResourceTools != nil {
+	if cfg.Servers[0].GenerateResourceTools != nil {
 		t.Error("expected resource_tools = nil (absent)")
 	}
 }

@@ -21,7 +21,7 @@ type ServerConfig struct {
 	Command       Command           `toml:"command"`
 	Annotations   *AnnotationFilter `toml:"annotations"`
 	Paginate      bool              `toml:"paginate"`
-	ResourceTools *bool             `toml:"resource_tools"`
+	GenerateResourceTools *bool `toml:"generate-resource-tools"`
 }
 
 // Command holds a shell command as either a string or an array of strings.
@@ -131,8 +131,8 @@ func Parse(data []byte) (Config, error) {
 		paginate, _ := document.GetFromContainer[bool](doc, node, "paginate")
 		cfg.Servers[i].Paginate = paginate
 
-		if rt, err := document.GetFromContainer[bool](doc, node, "resource_tools"); err == nil {
-			cfg.Servers[i].ResourceTools = &rt
+		if rt, err := document.GetFromContainer[bool](doc, node, "generate-resource-tools"); err == nil {
+			cfg.Servers[i].GenerateResourceTools = &rt
 		}
 	}
 	return cfg, nil
