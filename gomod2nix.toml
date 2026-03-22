@@ -6,8 +6,8 @@ schema = 3
     hash = 'sha256-xEmWi8sABzRWp8fbPavpZKznx943HWqVcLv6pckTP+k='
 
   [mod.'github.com/amarbel-llc/tommy']
-    version = 'v0.0.0-20260319120655-45c98678c1a8'
-    hash = 'sha256-zclMLkJhQcX7nSqfe9lJ37kQi/aeBvK/h4ERK3gIZEM='
+    version = 'v0.0.0-20260322231344-5bfc25360cab'
+    hash = 'sha256-p3oPHmWtvV39uF0K+LVTaiuvEZvBvogbvIqJCRmkn00='
 
   [mod.'github.com/atotto/clipboard']
     version = 'v0.1.4'
@@ -106,8 +106,8 @@ schema = 3
     hash = 'sha256-GyCDxxMQhXA3Pi/TsWXpA8cX5akEoZV7CFx4RO3rARU='
 
   [mod.'golang.org/x/sync']
-    version = 'v0.15.0'
-    hash = 'sha256-Jf4ehm8H8YAWY6mM151RI5CbG7JcOFtmN0AZx4bE3UE='
+    version = 'v0.20.0'
+    hash = 'sha256-ybcjhCfK6lroUM0yswUvWooW8MOQZBXyiSqoxG6Uy0Y='
 
   [mod.'golang.org/x/sys']
     version = 'v0.33.0'

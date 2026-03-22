@@ -7,11 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/amarbel-llc/tommy/pkg/cst"
-	"github.com/amarbel-llc/tommy/pkg/document"
 )
 
+//go:generate tommy generate
 type Config struct {
 	Servers []ServerConfig `toml:"servers"`
 }
@@ -54,6 +52,10 @@ func (c *Command) UnmarshalTOML(data any) error {
 	default:
 		return fmt.Errorf("command must be a string or array of strings")
 	}
+}
+
+func (c Command) MarshalTOML() (string, error) {
+	return c.String(), nil
 }
 
 func (c Command) Executable() string {
@@ -105,79 +107,12 @@ func Parse(data []byte) (Config, error) {
 		return Config{}, nil
 	}
 
-	doc, err := document.Parse(data)
+	doc, err := DecodeConfig(data)
 	if err != nil {
 		return Config{}, fmt.Errorf("parsing moxyfile: %w", err)
 	}
 
-	nodes := doc.FindArrayTableNodes("servers")
-	if len(nodes) == 0 {
-		return Config{}, nil
-	}
-
-	cfg := Config{
-		Servers: make([]ServerConfig, len(nodes)),
-	}
-	for i, node := range nodes {
-		name, _ := document.GetFromContainer[string](doc, node, "name")
-
-		cfg.Servers[i] = ServerConfig{
-			Name:    name,
-			Command: parseCommandFromNode(doc, node),
-		}
-
-		cfg.Servers[i].Annotations = parseAnnotations(doc, node)
-
-		paginate, _ := document.GetFromContainer[bool](doc, node, "paginate")
-		cfg.Servers[i].Paginate = paginate
-
-		if rt, err := document.GetFromContainer[bool](doc, node, "generate-resource-tools"); err == nil {
-			cfg.Servers[i].GenerateResourceTools = &rt
-		}
-	}
-	return cfg, nil
-}
-
-func parseCommandFromNode(doc *document.Document, node *cst.Node) Command {
-	// Try array form first: command = ["lux", "--lsp-dir", "/path"]
-	if parts, err := document.GetFromContainer[[]string](doc, node, "command"); err == nil {
-		return MakeCommand(parts...)
-	}
-	// Fall back to string form: command = "grit mcp --verbose"
-	if s, err := document.GetFromContainer[string](doc, node, "command"); err == nil {
-		return MakeCommand(strings.Fields(s)...)
-	}
-	return Command{}
-}
-
-func parseAnnotations(
-	doc *document.Document,
-	node *cst.Node,
-) *AnnotationFilter {
-	var af AnnotationFilter
-	var found bool
-
-	if v, err := document.GetFromContainer[bool](doc, node, "readOnlyHint"); err == nil {
-		af.ReadOnlyHint = &v
-		found = true
-	}
-	if v, err := document.GetFromContainer[bool](doc, node, "destructiveHint"); err == nil {
-		af.DestructiveHint = &v
-		found = true
-	}
-	if v, err := document.GetFromContainer[bool](doc, node, "idempotentHint"); err == nil {
-		af.IdempotentHint = &v
-		found = true
-	}
-	if v, err := document.GetFromContainer[bool](doc, node, "openWorldHint"); err == nil {
-		af.OpenWorldHint = &v
-		found = true
-	}
-
-	if !found {
-		return nil
-	}
-	return &af
+	return *doc.Data(), nil
 }
 
 func Load(path string) (Config, error) {

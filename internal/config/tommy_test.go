@@ -5,45 +5,46 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/amarbel-llc/tommy/pkg/marshal"
 )
 
-func TestTommyNoOpRoundTrip(t *testing.T) {
-	input := []byte("# my MCP servers\n\n[[servers]]\nname = \"grit\"  # git operations\ncommand = \"grit mcp\"\n\n[[servers]]\nname = \"lux\"\ncommand = \"lux\"\n")
+func TestCodegenNoOpRoundTrip(t *testing.T) {
+	input := []byte("# my MCP servers\n\n[[servers]]\nname = \"grit\"\ncommand = \"grit mcp\"\n\n[[servers]]\nname = \"lux\"\ncommand = \"lux\"\n")
 
-	var mf moxyfileConfig
-	handle, err := marshal.UnmarshalDocument(input, &mf)
+	doc, err := DecodeConfig(input)
 	if err != nil {
-		t.Fatalf("unmarshal: %v", err)
+		t.Fatalf("decode: %v", err)
 	}
 
-	if len(mf.Servers) != 2 {
-		t.Fatalf("expected 2 servers, got %d", len(mf.Servers))
+	if len(doc.Data().Servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(doc.Data().Servers))
 	}
 
-	out, err := marshal.MarshalDocument(handle, &mf)
+	out, err := doc.Encode()
 	if err != nil {
-		t.Fatalf("marshal: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 	if string(out) != string(input) {
 		t.Fatalf("no-op round-trip changed output.\nexpected:\n%s\ngot:\n%s", input, out)
 	}
 }
 
-func TestTommyAppendPreservesComments(t *testing.T) {
+func TestCodegenAppendPreservesComments(t *testing.T) {
 	input := []byte("# my MCP servers\n\n[[servers]]\nname = \"grit\"  # git operations\ncommand = \"grit mcp\"\n")
 
-	var mf moxyfileConfig
-	handle, err := marshal.UnmarshalDocument(input, &mf)
+	doc, err := DecodeConfig(input)
 	if err != nil {
-		t.Fatalf("unmarshal: %v", err)
+		t.Fatalf("decode: %v", err)
 	}
 
-	mf.Servers = append(mf.Servers, moxyfileServer{Name: "chix", Command: "chix mcp"})
-	out, err := marshal.MarshalDocument(handle, &mf)
+	cfg := doc.Data()
+	cfg.Servers = append(cfg.Servers, ServerConfig{
+		Name:    "chix",
+		Command: MakeCommand("chix", "mcp"),
+	})
+
+	out, err := doc.Encode()
 	if err != nil {
-		t.Fatalf("marshal: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 
 	outStr := string(out)
@@ -58,19 +59,20 @@ func TestTommyAppendPreservesComments(t *testing.T) {
 	}
 }
 
-func TestTommyUpdateInPlacePreservesComments(t *testing.T) {
+func TestCodegenUpdateInPlacePreservesComments(t *testing.T) {
 	input := []byte("# my MCP servers\n\n[[servers]]\nname = \"grit\"  # git operations\ncommand = \"grit mcp\"\n\n[[servers]]\nname = \"lux\"\ncommand = \"lux\"\n")
 
-	var mf moxyfileConfig
-	handle, err := marshal.UnmarshalDocument(input, &mf)
+	doc, err := DecodeConfig(input)
 	if err != nil {
-		t.Fatalf("unmarshal: %v", err)
+		t.Fatalf("decode: %v", err)
 	}
 
-	mf.Servers[0].Command = "grit mcp --verbose"
-	out, err := marshal.MarshalDocument(handle, &mf)
+	cfg := doc.Data()
+	cfg.Servers[0].Command = MakeCommand("grit", "mcp", "--verbose")
+
+	out, err := doc.Encode()
 	if err != nil {
-		t.Fatalf("marshal: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
 
 	outStr := string(out)
@@ -82,20 +84,6 @@ func TestTommyUpdateInPlacePreservesComments(t *testing.T) {
 	}
 	if !strings.Contains(outStr, "# my MCP servers") {
 		t.Error("top comment lost after update")
-	}
-}
-
-func TestToMoxyfileServer(t *testing.T) {
-	srv := ServerConfig{
-		Name:    "grit",
-		Command: MakeCommand("grit", "mcp"),
-	}
-	mf := toMoxyfileServer(srv)
-	if mf.Name != "grit" {
-		t.Errorf("name: got %q", mf.Name)
-	}
-	if mf.Command != "grit mcp" {
-		t.Errorf("command: got %q", mf.Command)
 	}
 }
 
