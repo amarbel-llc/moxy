@@ -1,5 +1,3 @@
-set output-format := "tap"
-
 default: build test
 
 build: build-go build-nix
