@@ -87,6 +87,98 @@ func TestCodegenUpdateInPlacePreservesComments(t *testing.T) {
 	}
 }
 
+func TestCodegenRoundTripAllFields(t *testing.T) {
+	input := []byte("[[servers]]\nname = \"grit\"\ncommand = \"grit mcp\"\npaginate = true\ngenerate-resource-tools = false\nreadOnlyHint = true\n")
+
+	doc, err := DecodeConfig(input)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	srv := doc.Data().Servers[0]
+	if !srv.Paginate {
+		t.Error("expected paginate = true after decode")
+	}
+	if srv.GenerateResourceTools == nil || *srv.GenerateResourceTools {
+		t.Error("expected generate-resource-tools = false after decode")
+	}
+	if srv.Annotations == nil || srv.Annotations.ReadOnlyHint == nil || !*srv.Annotations.ReadOnlyHint {
+		t.Error("expected readOnlyHint = true after decode")
+	}
+
+	out, err := doc.Encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	// Re-parse the encoded output and verify fields survived
+	doc2, err := DecodeConfig(out)
+	if err != nil {
+		t.Fatalf("re-decode: %v", err)
+	}
+	srv2 := doc2.Data().Servers[0]
+	if srv2.Name != "grit" {
+		t.Errorf("name lost after round-trip: got %q", srv2.Name)
+	}
+	if srv2.Command.String() != "grit mcp" {
+		t.Errorf("command lost after round-trip: got %q", srv2.Command.String())
+	}
+	if !srv2.Paginate {
+		t.Error("paginate lost after round-trip")
+	}
+	if srv2.GenerateResourceTools == nil || *srv2.GenerateResourceTools {
+		t.Error("generate-resource-tools lost after round-trip")
+	}
+	if srv2.Annotations == nil || srv2.Annotations.ReadOnlyHint == nil || !*srv2.Annotations.ReadOnlyHint {
+		t.Error("readOnlyHint lost after round-trip")
+	}
+}
+
+func TestWriteServerWithPaginate(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "moxyfile")
+
+	srv := ServerConfig{
+		Name:     "caldav",
+		Command:  MakeCommand("caldav-mcp"),
+		Paginate: true,
+	}
+	if err := WriteServer(path, srv); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("re-read: %v", err)
+	}
+	if !cfg.Servers[0].Paginate {
+		t.Error("expected paginate = true after WriteServer round-trip")
+	}
+}
+
+func TestWriteServerWithGenerateResourceTools(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "moxyfile")
+
+	rt := false
+	srv := ServerConfig{
+		Name:                  "grit",
+		Command:               MakeCommand("grit", "mcp"),
+		GenerateResourceTools: &rt,
+	}
+	if err := WriteServer(path, srv); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("re-read: %v", err)
+	}
+	if cfg.Servers[0].GenerateResourceTools == nil || *cfg.Servers[0].GenerateResourceTools {
+		t.Error("expected generate-resource-tools = false after WriteServer round-trip")
+	}
+}
+
 func TestWriteServerCreatesNewFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "moxyfile")

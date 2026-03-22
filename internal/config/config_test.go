@@ -453,6 +453,130 @@ command = "grit"
 	}
 }
 
+func TestParseAnnotationsSubTable(t *testing.T) {
+	input := `
+[[servers]]
+name = "lux"
+command = "lux"
+
+[servers.annotations]
+readOnlyHint = true
+destructiveHint = false
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	srv := cfg.Servers[0]
+	if srv.Annotations == nil {
+		t.Fatal("expected annotations, got nil")
+	}
+	if srv.Annotations.ReadOnlyHint == nil || !*srv.Annotations.ReadOnlyHint {
+		t.Error("expected readOnlyHint = true")
+	}
+	if srv.Annotations.DestructiveHint == nil || *srv.Annotations.DestructiveHint {
+		t.Error("expected destructiveHint = false")
+	}
+	if srv.Annotations.IdempotentHint != nil {
+		t.Error("expected idempotentHint = nil (absent)")
+	}
+}
+
+func TestParseAnnotationsFlatMultiple(t *testing.T) {
+	input := `
+[[servers]]
+name = "lux"
+command = "lux"
+readOnlyHint = true
+idempotentHint = true
+openWorldHint = false
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	srv := cfg.Servers[0]
+	if srv.Annotations == nil {
+		t.Fatal("expected annotations, got nil")
+	}
+	if srv.Annotations.ReadOnlyHint == nil || !*srv.Annotations.ReadOnlyHint {
+		t.Error("expected readOnlyHint = true")
+	}
+	if srv.Annotations.IdempotentHint == nil || !*srv.Annotations.IdempotentHint {
+		t.Error("expected idempotentHint = true")
+	}
+	if srv.Annotations.OpenWorldHint == nil || *srv.Annotations.OpenWorldHint {
+		t.Error("expected openWorldHint = false")
+	}
+	if srv.Annotations.DestructiveHint != nil {
+		t.Error("expected destructiveHint = nil (absent)")
+	}
+}
+
+func TestParseAnnotationsAbsent(t *testing.T) {
+	input := `
+[[servers]]
+name = "grit"
+command = "grit"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].Annotations != nil {
+		t.Error("expected nil annotations when none specified")
+	}
+}
+
+func TestParseAllFields(t *testing.T) {
+	input := `
+[[servers]]
+name = "grit"
+command = "grit mcp --verbose"
+paginate = true
+generate-resource-tools = false
+readOnlyHint = true
+destructiveHint = false
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	srv := cfg.Servers[0]
+	if srv.Name != "grit" {
+		t.Errorf("name: got %q", srv.Name)
+	}
+	if srv.Command.Executable() != "grit" {
+		t.Errorf("executable: got %q", srv.Command.Executable())
+	}
+	if !srv.Paginate {
+		t.Error("expected paginate = true")
+	}
+	if srv.GenerateResourceTools == nil || *srv.GenerateResourceTools {
+		t.Error("expected generate-resource-tools = false")
+	}
+	if srv.Annotations == nil || srv.Annotations.ReadOnlyHint == nil || !*srv.Annotations.ReadOnlyHint {
+		t.Error("expected readOnlyHint = true")
+	}
+	if srv.Annotations.DestructiveHint == nil || *srv.Annotations.DestructiveHint {
+		t.Error("expected destructiveHint = false")
+	}
+}
+
+func TestParseNoCommand(t *testing.T) {
+	input := `
+[[servers]]
+name = "broken"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Servers[0].Command.IsEmpty() {
+		t.Error("expected empty command when not specified")
+	}
+}
+
 func makeCommand(parts ...string) Command {
 	return Command{parts: parts}
 }
