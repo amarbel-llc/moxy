@@ -75,6 +75,8 @@
           packages = [
             pkgs.just
             bob.packages.${system}.batman
+            bob.packages.${system}.grit
+            bob.packages.${system}.lux
             purse-first.packages.${system}.purse-first
           ];
         };
