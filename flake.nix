@@ -73,6 +73,7 @@
             purse-first.devShells.${system}.shell
           ];
           packages = [
+            pkgs.just
             bob.packages.${system}.batman
             purse-first.packages.${system}.purse-first
           ];
