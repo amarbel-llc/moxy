@@ -53,7 +53,7 @@ run_moxy_mcp_two() {
   fi
 
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; echo "$4"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 1; echo "$4"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
     -- "$init" "$initialized" "$req1" "$req2"
 }
 
