@@ -191,7 +191,7 @@ func (p *Proxy) CallToolV1(
 	name string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
-	serverName, toolName, ok := splitPrefix(name, "-")
+	serverName, toolName, ok := splitLastPrefix(name, "-")
 	if !ok {
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("invalid tool name %q: missing server prefix", name),
@@ -530,7 +530,7 @@ func (p *Proxy) GetPromptV1(
 	name string,
 	args map[string]string,
 ) (*protocol.PromptGetResultV1, error) {
-	serverName, promptName, ok := splitPrefix(name, "-")
+	serverName, promptName, ok := splitLastPrefix(name, "-")
 	if !ok {
 		return nil, fmt.Errorf(
 			"invalid prompt name %q: missing server prefix",
@@ -678,6 +678,16 @@ func fromSnobCase(name string) string {
 
 func splitPrefix(s, sep string) (prefix, rest string, ok bool) {
 	i := strings.Index(s, sep)
+	if i < 0 {
+		return "", "", false
+	}
+	return s[:i], s[i+len(sep):], true
+}
+
+// splitLastPrefix splits on the last occurrence of sep. Used for tool and
+// prompt routing where snobcase guarantees the suffix contains no hyphens.
+func splitLastPrefix(s, sep string) (prefix, rest string, ok bool) {
+	i := strings.LastIndex(s, sep)
 	if i < 0 {
 		return "", "", false
 	}
