@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
 	"github.com/amarbel-llc/moxy/internal/config"
@@ -41,7 +42,18 @@ type Proxy struct {
 	configs         map[string]config.ServerConfig
 	ephemeral       map[string]*EphemeralMeta
 	globalEphemeral *bool
+	notifier        func(*jsonrpc.Message) error
 	mu              sync.RWMutex
+}
+
+func (p *Proxy) SetNotifier(fn func(*jsonrpc.Message) error) {
+	p.notifier = fn
+}
+
+func (p *Proxy) ForwardNotification(msg *jsonrpc.Message) {
+	if p.notifier != nil {
+		p.notifier(msg)
+	}
 }
 
 func New(
@@ -183,6 +195,9 @@ func (p *Proxy) spawnEphemeral(ctx context.Context, serverName string) (*mcpclie
 	if err != nil {
 		return nil, fmt.Errorf("spawning ephemeral %s: %w", serverName, err)
 	}
+	client.SetOnNotification(func(msg *jsonrpc.Message) {
+		p.ForwardNotification(msg)
+	})
 	return client, nil
 }
 
@@ -871,6 +886,10 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 		p.markFailed(serverName, err)
 		return fmt.Errorf("spawning %s: %w", serverName, err)
 	}
+
+	client.SetOnNotification(func(msg *jsonrpc.Message) {
+		p.ForwardNotification(msg)
+	})
 
 	p.mu.Lock()
 	p.children = append(p.children, ChildEntry{

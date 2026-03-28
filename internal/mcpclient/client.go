@@ -16,13 +16,18 @@ import (
 )
 
 type Client struct {
-	name      string
-	cmd       *exec.Cmd
-	transport *transport.Stdio
-	pending   map[string]chan *jsonrpc.Message
-	mu        sync.Mutex
-	nextID    atomic.Int64
-	done      chan struct{}
+	name           string
+	cmd            *exec.Cmd
+	transport      *transport.Stdio
+	pending        map[string]chan *jsonrpc.Message
+	mu             sync.Mutex
+	nextID         atomic.Int64
+	done           chan struct{}
+	onNotification func(*jsonrpc.Message)
+}
+
+func (c *Client) SetOnNotification(fn func(*jsonrpc.Message)) {
+	c.onNotification = fn
 }
 
 func SpawnAndInitialize(ctx context.Context, name, command string, args []string) (*Client, *protocol.InitializeResultV1, error) {
@@ -101,6 +106,13 @@ func (c *Client) readLoop() {
 			return
 		}
 
+		if msg.IsNotification() {
+			if c.onNotification != nil {
+				c.onNotification(msg)
+			}
+			continue
+		}
+
 		if msg.IsResponse() {
 			c.mu.Lock()
 			ch, ok := c.pending[msg.ID.String()]
@@ -114,7 +126,6 @@ func (c *Client) readLoop() {
 				close(ch)
 			}
 		}
-		// Notifications from child are silently dropped.
 	}
 }
 

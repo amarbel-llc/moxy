@@ -134,9 +134,16 @@ func runServer() error {
 	}
 
 	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral)
-	p.ProbeEphemeral(ctx)
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
+	p.SetNotifier(t.Write)
+
+	// Wire notification forwarding for startup children
+	for _, c := range children {
+		c.Client.SetOnNotification(p.ForwardNotification)
+	}
+
+	p.ProbeEphemeral(ctx)
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "moxy",
