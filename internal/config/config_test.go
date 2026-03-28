@@ -580,3 +580,77 @@ name = "broken"
 func makeCommand(parts ...string) Command {
 	return Command{parts: parts}
 }
+
+func boolPtr(b bool) *bool { return &b }
+
+func TestParseEphemeralGlobal(t *testing.T) {
+	input := `
+ephemeral = true
+
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Ephemeral == nil || !*cfg.Ephemeral {
+		t.Error("expected global ephemeral = true")
+	}
+}
+
+func TestParseEphemeralPerServer(t *testing.T) {
+	input := `
+[[servers]]
+name = "echo"
+command = "echo"
+ephemeral = true
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].Ephemeral == nil || !*cfg.Servers[0].Ephemeral {
+		t.Error("expected server ephemeral = true")
+	}
+}
+
+func TestIsEphemeralInheritance(t *testing.T) {
+	tests := []struct {
+		name   string
+		global *bool
+		server *bool
+		want   bool
+	}{
+		{"both nil", nil, nil, false},
+		{"global true, server nil", boolPtr(true), nil, true},
+		{"global false, server nil", boolPtr(false), nil, false},
+		{"global nil, server true", nil, boolPtr(true), true},
+		{"global true, server false", boolPtr(true), boolPtr(false), false},
+		{"global false, server true", boolPtr(false), boolPtr(true), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := ServerConfig{Ephemeral: tt.server}
+			if got := s.IsEphemeral(tt.global); got != tt.want {
+				t.Errorf("IsEphemeral() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMergeEphemeral(t *testing.T) {
+	base := Config{Ephemeral: boolPtr(false)}
+	overlay := Config{Ephemeral: boolPtr(true)}
+	merged := Merge(base, overlay)
+	if merged.Ephemeral == nil || !*merged.Ephemeral {
+		t.Error("expected overlay ephemeral to win")
+	}
+
+	// nil overlay should preserve base
+	merged2 := Merge(base, Config{})
+	if merged2.Ephemeral == nil || *merged2.Ephemeral {
+		t.Error("expected base ephemeral to be preserved")
+	}
+}

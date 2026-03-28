@@ -95,7 +95,9 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools | length == 2'
+  # 2 status tools + 1 restart tool = 3
+  echo "$output" | jq -e '.tools | length == 3'
   echo "$output" | jq -e '.tools[] | select(.name == "broken-a-status")'
   echo "$output" | jq -e '.tools[] | select(.name == "broken-b-status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "restart")'
 }

@@ -11,15 +11,27 @@ import (
 
 //go:generate tommy generate
 type Config struct {
-	Servers []ServerConfig `toml:"servers"`
+	Ephemeral *bool          `toml:"ephemeral"`
+	Servers   []ServerConfig `toml:"servers"`
 }
 
 type ServerConfig struct {
-	Name          string            `toml:"name"`
-	Command       Command           `toml:"command"`
-	Annotations   *AnnotationFilter `toml:"annotations"`
-	Paginate      bool              `toml:"paginate"`
-	GenerateResourceTools *bool `toml:"generate-resource-tools"`
+	Name                  string            `toml:"name"`
+	Command               Command           `toml:"command"`
+	Annotations           *AnnotationFilter `toml:"annotations"`
+	Paginate              bool              `toml:"paginate"`
+	GenerateResourceTools *bool             `toml:"generate-resource-tools"`
+	Ephemeral             *bool             `toml:"ephemeral"`
+}
+
+func (s ServerConfig) IsEphemeral(globalEphemeral *bool) bool {
+	if s.Ephemeral != nil {
+		return *s.Ephemeral
+	}
+	if globalEphemeral != nil {
+		return *globalEphemeral
+	}
+	return false
 }
 
 // Command holds a shell command as either a string or an array of strings.
@@ -128,6 +140,10 @@ func Load(path string) (Config, error) {
 
 func Merge(base, overlay Config) Config {
 	merged := base
+
+	if overlay.Ephemeral != nil {
+		merged.Ephemeral = overlay.Ephemeral
+	}
 
 	for _, srv := range overlay.Servers {
 		found := false

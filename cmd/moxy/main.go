@@ -108,6 +108,11 @@ func runServer() error {
 	var children []proxy.ChildEntry
 	var failed []proxy.FailedServer
 	for _, srvCfg := range cfg.Servers {
+		if srvCfg.IsEphemeral(cfg.Ephemeral) {
+			fmt.Fprintf(os.Stderr, "moxy: %s configured as ephemeral (on-demand)\n", srvCfg.Name)
+			continue
+		}
+
 		client, result, err := mcpclient.SpawnAndInitialize(ctx, srvCfg.Name, srvCfg.Command.Executable(), srvCfg.Command.Args())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "moxy: failed to start %s: %v\n", srvCfg.Name, err)
@@ -128,7 +133,8 @@ func runServer() error {
 			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
 	}
 
-	p := proxy.New(children, failed)
+	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral)
+	p.ProbeEphemeral(ctx)
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 

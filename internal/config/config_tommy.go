@@ -33,6 +33,9 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 
 	d := &ConfigDocument{cstDoc: doc}
 
+	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "ephemeral"); err == nil {
+		d.data.Ephemeral = &v
+	}
 	serversNodes := d.cstDoc.FindArrayTableNodes("servers")
 	d.servers = make([]serverConfigHandle, len(serversNodes))
 	d.data.Servers = make([]ServerConfig, len(serversNodes))
@@ -90,6 +93,9 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "generate-resource-tools"); err == nil {
 			d.data.Servers[i].GenerateResourceTools = &v
 		}
+		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "ephemeral"); err == nil {
+			d.data.Servers[i].Ephemeral = &v
+		}
 	}
 
 	return d, nil
@@ -98,6 +104,11 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 func (d *ConfigDocument) Data() *Config { return &d.data }
 
 func (d *ConfigDocument) Encode() ([]byte, error) {
+	if d.data.Ephemeral != nil {
+		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "ephemeral", *d.data.Ephemeral); err != nil {
+			return nil, err
+		}
+	}
 	for i := range d.data.Servers {
 		var container *cst.Node
 		if i < len(d.servers) {
@@ -126,6 +137,11 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 		}
 		if d.data.Servers[i].GenerateResourceTools != nil {
 			if err := d.cstDoc.SetInContainer(container, "generate-resource-tools", *d.data.Servers[i].GenerateResourceTools); err != nil {
+				return nil, err
+			}
+		}
+		if d.data.Servers[i].Ephemeral != nil {
+			if err := d.cstDoc.SetInContainer(container, "ephemeral", *d.data.Servers[i].Ephemeral); err != nil {
 				return nil, err
 			}
 		}
