@@ -37,13 +37,14 @@ type EphemeralMeta struct {
 }
 
 type Proxy struct {
-	children        []ChildEntry
-	failed          []FailedServer
-	configs         map[string]config.ServerConfig
-	ephemeral       map[string]*EphemeralMeta
-	globalEphemeral *bool
-	notifier        func(*jsonrpc.Message) error
-	mu              sync.RWMutex
+	children                    []ChildEntry
+	failed                      []FailedServer
+	configs                     map[string]config.ServerConfig
+	ephemeral                   map[string]*EphemeralMeta
+	globalEphemeral             *bool
+	globalProgressiveDisclosure *bool
+	notifier                    func(*jsonrpc.Message) error
+	mu                          sync.RWMutex
 }
 
 func (p *Proxy) SetNotifier(fn func(*jsonrpc.Message) error) {
@@ -61,6 +62,7 @@ func New(
 	failed []FailedServer,
 	allConfigs []config.ServerConfig,
 	globalEphemeral *bool,
+	globalProgressiveDisclosure *bool,
 ) *Proxy {
 	configs := make(map[string]config.ServerConfig, len(allConfigs))
 	ephemeral := make(map[string]*EphemeralMeta)
@@ -71,11 +73,12 @@ func New(
 		}
 	}
 	return &Proxy{
-		children:        children,
-		failed:          failed,
-		configs:         configs,
-		ephemeral:       ephemeral,
-		globalEphemeral: globalEphemeral,
+		children:                    children,
+		failed:                      failed,
+		configs:                     configs,
+		ephemeral:                   ephemeral,
+		globalEphemeral:             globalEphemeral,
+		globalProgressiveDisclosure: globalProgressiveDisclosure,
 	}
 }
 
@@ -265,6 +268,9 @@ func (p *Proxy) ListToolsV1(
 		if child.Capabilities.Tools == nil {
 			continue
 		}
+		if child.Config.IsProgressiveDisclosure(p.globalProgressiveDisclosure) {
+			continue
+		}
 
 		raw, err := child.Client.Call(
 			ctx,
@@ -308,6 +314,9 @@ func (p *Proxy) ListToolsV1(
 		if child.Config.GenerateResourceTools != nil && !*child.Config.GenerateResourceTools {
 			continue
 		}
+		if child.Config.IsProgressiveDisclosure(p.globalProgressiveDisclosure) {
+			continue
+		}
 
 		serverName := child.Client.Name()
 
@@ -342,26 +351,28 @@ func (p *Proxy) ListToolsV1(
 
 	// Append cached tools from ephemeral servers
 	for serverName, meta := range p.ephemeral {
-		for _, tool := range meta.Tools {
-			if !matchesAnnotationFilter(tool.Annotations, meta.Config.Annotations) {
-				continue
+		if !meta.Config.IsProgressiveDisclosure(p.globalProgressiveDisclosure) {
+			for _, tool := range meta.Tools {
+				if !matchesAnnotationFilter(tool.Annotations, meta.Config.Annotations) {
+					continue
+				}
+				tool.Name = serverName + "-" + toSnobCase(tool.Name)
+				allTools = append(allTools, tool)
 			}
-			tool.Name = serverName + "-" + toSnobCase(tool.Name)
-			allTools = append(allTools, tool)
-		}
-		if meta.Capabilities.Resources != nil {
-			grt := meta.Config.GenerateResourceTools
-			if grt == nil || *grt {
-				allTools = append(allTools, protocol.ToolV1{
-					Name:        serverName + "-resource_read",
-					Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
-					InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
-				})
-				allTools = append(allTools, protocol.ToolV1{
-					Name:        serverName + "-resource_templates",
-					Description: fmt.Sprintf("List available resource templates for %s", serverName),
-					InputSchema: json.RawMessage(`{"type":"object"}`),
-				})
+			if meta.Capabilities.Resources != nil {
+				grt := meta.Config.GenerateResourceTools
+				if grt == nil || *grt {
+					allTools = append(allTools, protocol.ToolV1{
+						Name:        serverName + "-resource_read",
+						Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
+						InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
+					})
+					allTools = append(allTools, protocol.ToolV1{
+						Name:        serverName + "-resource_templates",
+						Description: fmt.Sprintf("List available resource templates for %s", serverName),
+						InputSchema: json.RawMessage(`{"type":"object"}`),
+					})
+				}
 			}
 		}
 	}
@@ -384,6 +395,12 @@ func (p *Proxy) ListToolsV1(
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name to restart"}},"required":["server"]}`),
 	})
 
+	allTools = append(allTools, protocol.ToolV1{
+		Name:        "exec",
+		Description: "Execute a tool on a child server by name. Use moxy:// resources to discover available tools and schemas.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name"},"tool":{"type":"string","description":"Tool name"},"arguments":{"type":"object","description":"Tool arguments"}},"required":["server","tool"]}`),
+	})
+
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
 
@@ -394,6 +411,10 @@ func (p *Proxy) CallToolV1(
 ) (*protocol.ToolCallResultV1, error) {
 	if name == "restart" {
 		return p.handleRestart(ctx, args)
+	}
+
+	if name == "exec" {
+		return p.handleExec(ctx, args)
 	}
 
 	p.mu.RLock()
@@ -493,6 +514,10 @@ func (p *Proxy) ReadResource(
 	ctx context.Context,
 	uri string,
 ) (*protocol.ResourceReadResult, error) {
+	if strings.HasPrefix(uri, "moxy://") {
+		return p.readMoxyResource(ctx, uri)
+	}
+
 	serverName, originalURI, ok := splitPrefix(uri, "/")
 	if !ok {
 		return nil, fmt.Errorf(
@@ -614,6 +639,28 @@ func (p *Proxy) ListResourcesV1(
 		}
 	}
 
+	// moxy:// tool schema resources for each server with tools
+	for _, child := range children {
+		if child.Capabilities.Tools != nil {
+			allResources = append(allResources, protocol.ResourceV1{
+				URI:         "moxy://tools/" + child.Client.Name(),
+				Name:        child.Client.Name() + " tools",
+				Description: fmt.Sprintf("List of tools available on %s", child.Client.Name()),
+				MimeType:    "application/json",
+			})
+		}
+	}
+	for serverName, meta := range p.ephemeral {
+		if len(meta.Tools) > 0 {
+			allResources = append(allResources, protocol.ResourceV1{
+				URI:         "moxy://tools/" + serverName,
+				Name:        serverName + " tools",
+				Description: fmt.Sprintf("List of tools available on %s", serverName),
+				MimeType:    "application/json",
+			})
+		}
+	}
+
 	return &protocol.ResourcesListResultV1{Resources: allResources}, nil
 }
 
@@ -666,6 +713,20 @@ func (p *Proxy) ListResourceTemplatesV1(
 			allTemplates = append(allTemplates, t)
 		}
 	}
+
+	// moxy:// resource templates for tool schema browsing
+	allTemplates = append(allTemplates, protocol.ResourceTemplateV1{
+		URITemplate: "moxy://tools/{server}",
+		Name:        "List tools for a server",
+		Description: "Returns tool names and descriptions for a child server",
+		MimeType:    "application/json",
+	})
+	allTemplates = append(allTemplates, protocol.ResourceTemplateV1{
+		URITemplate: "moxy://tools/{server}/{tool}",
+		Name:        "Tool schema",
+		Description: "Returns the full JSON schema for a specific tool on a child server",
+		MimeType:    "application/json",
+	})
 
 	return &protocol.ResourceTemplatesListResultV1{
 		ResourceTemplates: allTemplates,
@@ -847,6 +908,151 @@ func (p *Proxy) handleRestart(
 			{Type: "text", Text: fmt.Sprintf("Server %q restarted successfully", params.Server)},
 		},
 	}, nil
+}
+
+func (p *Proxy) handleExec(
+	ctx context.Context,
+	args json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
+	var params struct {
+		Server    string          `json:"server"`
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("invalid exec args: %v", err),
+		), nil
+	}
+	if params.Server == "" {
+		return protocol.ErrorResultV1("server name is required"), nil
+	}
+	if params.Tool == "" {
+		return protocol.ErrorResultV1("tool name is required"), nil
+	}
+
+	p.mu.RLock()
+	children := p.children
+	p.mu.RUnlock()
+
+	callParams := protocol.ToolCallParams{
+		Name:      params.Tool,
+		Arguments: params.Arguments,
+	}
+
+	child, ok := findChildIn(children, params.Server)
+	if !ok {
+		if _, isEphemeral := p.ephemeral[params.Server]; isEphemeral {
+			client, err := p.spawnEphemeral(ctx, params.Server)
+			if err != nil {
+				return nil, err
+			}
+			defer client.Close()
+
+			raw, err := client.Call(ctx, protocol.MethodToolsCall, callParams)
+			if err != nil {
+				return nil, fmt.Errorf("calling tool %s on ephemeral %s: %w", params.Tool, params.Server, err)
+			}
+			return decodeToolCallResult(raw)
+		}
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("unknown server %q", params.Server),
+		), nil
+	}
+
+	raw, err := child.Client.Call(ctx, protocol.MethodToolsCall, callParams)
+	if err != nil {
+		return nil, fmt.Errorf("calling tool %s on %s: %w", params.Tool, params.Server, err)
+	}
+	return decodeToolCallResult(raw)
+}
+
+func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]protocol.ToolV1, error) {
+	if meta, ok := p.ephemeral[serverName]; ok {
+		return meta.Tools, nil
+	}
+
+	p.mu.RLock()
+	children := p.children
+	p.mu.RUnlock()
+
+	child, ok := findChildIn(children, serverName)
+	if !ok {
+		return nil, fmt.Errorf("unknown server %q", serverName)
+	}
+
+	if child.Capabilities.Tools == nil {
+		return nil, nil
+	}
+
+	raw, err := child.Client.Call(ctx, protocol.MethodToolsList, nil)
+	if err != nil {
+		return nil, fmt.Errorf("listing tools from %s: %w", serverName, err)
+	}
+
+	tools, err := decodeToolsList(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decoding tools from %s: %w", serverName, err)
+	}
+
+	return tools, nil
+}
+
+func (p *Proxy) readMoxyResource(
+	ctx context.Context,
+	uri string,
+) (*protocol.ResourceReadResult, error) {
+	path := strings.TrimPrefix(uri, "moxy://")
+	parts := strings.SplitN(path, "/", 3)
+
+	if len(parts) < 2 || parts[0] != "tools" {
+		return nil, fmt.Errorf("unknown moxy resource URI %q", uri)
+	}
+
+	serverName := parts[1]
+	tools, err := p.getToolsForServer(ctx, serverName)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(parts) == 2 {
+		// moxy://tools/{server} — return tool list summary
+		type toolSummary struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		summaries := make([]toolSummary, len(tools))
+		for i, t := range tools {
+			summaries[i] = toolSummary{Name: t.Name, Description: t.Description}
+		}
+		data, err := json.Marshal(summaries)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling tool list: %w", err)
+		}
+		return &protocol.ResourceReadResult{
+			Contents: []protocol.ResourceContent{
+				{URI: uri, MimeType: "application/json", Text: string(data)},
+			},
+		}, nil
+	}
+
+	// moxy://tools/{server}/{tool} — return full tool schema
+	toolName := parts[2]
+	for _, t := range tools {
+		if t.Name == toolName {
+			data, err := json.Marshal(t)
+			if err != nil {
+				return nil, fmt.Errorf("marshaling tool schema: %w", err)
+			}
+			return &protocol.ResourceReadResult{
+				Contents: []protocol.ResourceContent{
+					{URI: uri, MimeType: "application/json", Text: string(data)},
+				},
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("tool %q not found on server %q", toolName, serverName)
 }
 
 func (p *Proxy) restartServer(ctx context.Context, serverName string) error {

@@ -6,8 +6,8 @@ schema = 3
     hash = 'sha256-xEmWi8sABzRWp8fbPavpZKznx943HWqVcLv6pckTP+k='
 
   [mod.'github.com/amarbel-llc/tommy']
-    version = 'v0.0.0-20260322231344-5bfc25360cab'
-    hash = 'sha256-p3oPHmWtvV39uF0K+LVTaiuvEZvBvogbvIqJCRmkn00='
+    version = 'v0.0.0-20260326203518-8ebebb5d2759'
+    hash = 'sha256-X0Q2E/jREtcOoq22q0/QBGRyHyuN0G9qFU+qDXPsSbM='
 
   [mod.'github.com/atotto/clipboard']
     version = 'v0.1.4'

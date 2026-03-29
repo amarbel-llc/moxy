@@ -133,7 +133,7 @@ func runServer() error {
 			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
 	}
 
-	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral)
+	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure)
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 	p.SetNotifier(t.Write)

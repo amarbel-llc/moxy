@@ -20,9 +20,10 @@ type serverConfigHandle struct {
 }
 
 type ConfigDocument struct {
-	data    Config
-	cstDoc  *document.Document
-	servers []serverConfigHandle
+	data     Config
+	cstDoc   *document.Document
+	consumed map[string]bool
+	servers  []serverConfigHandle
 }
 
 func DecodeConfig(input []byte) (*ConfigDocument, error) {
@@ -31,37 +32,50 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		return nil, err
 	}
 
-	d := &ConfigDocument{cstDoc: doc}
+	d := &ConfigDocument{cstDoc: doc, consumed: make(map[string]bool)}
 
 	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "ephemeral"); err == nil {
 		d.data.Ephemeral = &v
+		d.consumed["ephemeral"] = true
+	}
+	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "progressive-disclosure"); err == nil {
+		d.data.ProgressiveDisclosure = &v
+		d.consumed["progressive-disclosure"] = true
 	}
 	serversNodes := d.cstDoc.FindArrayTableNodes("servers")
 	d.servers = make([]serverConfigHandle, len(serversNodes))
 	d.data.Servers = make([]ServerConfig, len(serversNodes))
+	d.consumed["servers"] = true
 	for i, node := range serversNodes {
 		d.servers[i] = serverConfigHandle{node: node}
 		if v, err := document.GetFromContainer[string](d.cstDoc, node, "name"); err == nil {
 			d.data.Servers[i].Name = v
+			d.consumed["servers.name"] = true
 		}
 		if raw, err := document.GetRawFromContainer(d.cstDoc, node, "command"); err == nil {
 			if err := d.data.Servers[i].Command.UnmarshalTOML(raw); err != nil {
 				return nil, fmt.Errorf("command: %w", err)
 			}
+			d.consumed["servers.command"] = true
 		}
 		if tableNode := d.cstDoc.FindTableInContainer(node, "annotations"); tableNode != nil {
+			d.consumed["servers.annotations"] = true
 			annotationsVal := &AnnotationFilter{}
 			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "readOnlyHint"); err == nil {
 				annotationsVal.ReadOnlyHint = &v
+				d.consumed["servers.annotations.readOnlyHint"] = true
 			}
 			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "destructiveHint"); err == nil {
 				annotationsVal.DestructiveHint = &v
+				d.consumed["servers.annotations.destructiveHint"] = true
 			}
 			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "idempotentHint"); err == nil {
 				annotationsVal.IdempotentHint = &v
+				d.consumed["servers.annotations.idempotentHint"] = true
 			}
 			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "openWorldHint"); err == nil {
 				annotationsVal.OpenWorldHint = &v
+				d.consumed["servers.annotations.openWorldHint"] = true
 			}
 			d.data.Servers[i].Annotations = annotationsVal
 		} else {
@@ -70,18 +84,22 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "readOnlyHint"); err == nil {
 				annotationsVal.ReadOnlyHint = &v
 				found = true
+				d.consumed["servers.readOnlyHint"] = true
 			}
 			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "destructiveHint"); err == nil {
 				annotationsVal.DestructiveHint = &v
 				found = true
+				d.consumed["servers.destructiveHint"] = true
 			}
 			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "idempotentHint"); err == nil {
 				annotationsVal.IdempotentHint = &v
 				found = true
+				d.consumed["servers.idempotentHint"] = true
 			}
 			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "openWorldHint"); err == nil {
 				annotationsVal.OpenWorldHint = &v
 				found = true
+				d.consumed["servers.openWorldHint"] = true
 			}
 			if found {
 				d.data.Servers[i].Annotations = annotationsVal
@@ -89,12 +107,19 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		}
 		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "paginate"); err == nil {
 			d.data.Servers[i].Paginate = v
+			d.consumed["servers.paginate"] = true
 		}
 		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "generate-resource-tools"); err == nil {
 			d.data.Servers[i].GenerateResourceTools = &v
+			d.consumed["servers.generate-resource-tools"] = true
 		}
 		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "ephemeral"); err == nil {
 			d.data.Servers[i].Ephemeral = &v
+			d.consumed["servers.ephemeral"] = true
+		}
+		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "progressive-disclosure"); err == nil {
+			d.data.Servers[i].ProgressiveDisclosure = &v
+			d.consumed["servers.progressive-disclosure"] = true
 		}
 	}
 
@@ -109,43 +134,264 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			return nil, err
 		}
 	}
-	for i := range d.data.Servers {
-		var container *cst.Node
-		if i < len(d.servers) {
-			container = d.servers[i].node
-		} else {
-			container = d.cstDoc.AppendArrayTableEntry("servers")
+	if d.data.ProgressiveDisclosure != nil {
+		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "progressive-disclosure", *d.data.ProgressiveDisclosure); err != nil {
+			return nil, err
 		}
-		if d.data.Servers[i].Name != "" || d.cstDoc.HasInContainer(container, "name") {
-			if err := d.cstDoc.SetInContainer(container, "name", d.data.Servers[i].Name); err != nil {
-				return nil, err
+	}
+	{
+		for i := range d.data.Servers {
+			var container *cst.Node
+			if i < len(d.servers) {
+				container = d.servers[i].node
+			} else {
+				container = d.cstDoc.AppendArrayTableEntry("servers")
 			}
-		}
-		{
-			v, err := d.data.Servers[i].Command.MarshalTOML()
-			if err != nil {
-				return nil, fmt.Errorf("command: %w", err)
+			if d.data.Servers[i].Name != "" || d.cstDoc.HasInContainer(container, "name") {
+				if err := d.cstDoc.SetInContainer(container, "name", d.data.Servers[i].Name); err != nil {
+					return nil, err
+				}
 			}
-			if err := d.cstDoc.SetInContainer(container, "command", v); err != nil {
-				return nil, err
+			{
+				v, err := d.data.Servers[i].Command.MarshalTOML()
+				if err != nil {
+					return nil, fmt.Errorf("command: %w", err)
+				}
+				if err := d.cstDoc.SetInContainer(container, "command", v); err != nil {
+					return nil, err
+				}
 			}
-		}
-		if d.data.Servers[i].Paginate != false || d.cstDoc.HasInContainer(container, "paginate") {
-			if err := d.cstDoc.SetInContainer(container, "paginate", d.data.Servers[i].Paginate); err != nil {
-				return nil, err
+			if d.data.Servers[i].Annotations != nil {
+				tableNode := d.cstDoc.EnsureTableInContainer(container, "annotations")
+				if d.data.Servers[i].Annotations.ReadOnlyHint != nil {
+					if err := d.cstDoc.SetInContainer(tableNode, "readOnlyHint", *d.data.Servers[i].Annotations.ReadOnlyHint); err != nil {
+						return nil, err
+					}
+				}
+				if d.data.Servers[i].Annotations.DestructiveHint != nil {
+					if err := d.cstDoc.SetInContainer(tableNode, "destructiveHint", *d.data.Servers[i].Annotations.DestructiveHint); err != nil {
+						return nil, err
+					}
+				}
+				if d.data.Servers[i].Annotations.IdempotentHint != nil {
+					if err := d.cstDoc.SetInContainer(tableNode, "idempotentHint", *d.data.Servers[i].Annotations.IdempotentHint); err != nil {
+						return nil, err
+					}
+				}
+				if d.data.Servers[i].Annotations.OpenWorldHint != nil {
+					if err := d.cstDoc.SetInContainer(tableNode, "openWorldHint", *d.data.Servers[i].Annotations.OpenWorldHint); err != nil {
+						return nil, err
+					}
+				}
 			}
-		}
-		if d.data.Servers[i].GenerateResourceTools != nil {
-			if err := d.cstDoc.SetInContainer(container, "generate-resource-tools", *d.data.Servers[i].GenerateResourceTools); err != nil {
-				return nil, err
+			if d.data.Servers[i].Paginate != false || d.cstDoc.HasInContainer(container, "paginate") {
+				if err := d.cstDoc.SetInContainer(container, "paginate", d.data.Servers[i].Paginate); err != nil {
+					return nil, err
+				}
 			}
-		}
-		if d.data.Servers[i].Ephemeral != nil {
-			if err := d.cstDoc.SetInContainer(container, "ephemeral", *d.data.Servers[i].Ephemeral); err != nil {
-				return nil, err
+			if d.data.Servers[i].GenerateResourceTools != nil {
+				if err := d.cstDoc.SetInContainer(container, "generate-resource-tools", *d.data.Servers[i].GenerateResourceTools); err != nil {
+					return nil, err
+				}
+			}
+			if d.data.Servers[i].Ephemeral != nil {
+				if err := d.cstDoc.SetInContainer(container, "ephemeral", *d.data.Servers[i].Ephemeral); err != nil {
+					return nil, err
+				}
+			}
+			if d.data.Servers[i].ProgressiveDisclosure != nil {
+				if err := d.cstDoc.SetInContainer(container, "progressive-disclosure", *d.data.Servers[i].ProgressiveDisclosure); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
 
 	return d.cstDoc.Bytes(), nil
+}
+
+func (d *ConfigDocument) Undecoded() []string {
+	return document.UndecodedKeys(d.cstDoc.Root(), d.consumed)
+}
+
+func (d *ConfigDocument) Comment(key string) string {
+	return d.cstDoc.GetComment(key)
+}
+
+func (d *ConfigDocument) SetComment(key, comment string) {
+	d.cstDoc.SetComment(key, comment)
+}
+
+func (d *ConfigDocument) InlineComment(key string) string {
+	return d.cstDoc.GetInlineComment(key)
+}
+
+func (d *ConfigDocument) SetInlineComment(key, comment string) {
+	d.cstDoc.SetInlineComment(key, comment)
+}
+
+func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node, consumed map[string]bool, keyPrefix string) error {
+	if v, err := document.GetFromContainer[bool](doc, container, "ephemeral"); err == nil {
+		data.Ephemeral = &v
+		consumed[keyPrefix+"ephemeral"] = true
+	}
+	if v, err := document.GetFromContainer[bool](doc, container, "progressive-disclosure"); err == nil {
+		data.ProgressiveDisclosure = &v
+		consumed[keyPrefix+"progressive-disclosure"] = true
+	}
+	serversNodes := doc.FindArrayTableNodes("servers")
+	data.Servers = make([]ServerConfig, len(serversNodes))
+	consumed[keyPrefix+"servers"] = true
+	for i, node := range serversNodes {
+		if v, err := document.GetFromContainer[string](doc, node, "name"); err == nil {
+			data.Servers[i].Name = v
+			consumed[keyPrefix+"servers.name"] = true
+		}
+		if raw, err := document.GetRawFromContainer(doc, node, "command"); err == nil {
+			if err := data.Servers[i].Command.UnmarshalTOML(raw); err != nil {
+				return fmt.Errorf("command: %w", err)
+			}
+			consumed[keyPrefix+"servers.command"] = true
+		}
+		if tableNode := doc.FindTableInContainer(node, "annotations"); tableNode != nil {
+			consumed[keyPrefix+"servers.annotations"] = true
+			annotationsVal := &AnnotationFilter{}
+			if v, err := document.GetFromContainer[bool](doc, tableNode, "readOnlyHint"); err == nil {
+				annotationsVal.ReadOnlyHint = &v
+				consumed[keyPrefix+"servers.annotations.readOnlyHint"] = true
+			}
+			if v, err := document.GetFromContainer[bool](doc, tableNode, "destructiveHint"); err == nil {
+				annotationsVal.DestructiveHint = &v
+				consumed[keyPrefix+"servers.annotations.destructiveHint"] = true
+			}
+			if v, err := document.GetFromContainer[bool](doc, tableNode, "idempotentHint"); err == nil {
+				annotationsVal.IdempotentHint = &v
+				consumed[keyPrefix+"servers.annotations.idempotentHint"] = true
+			}
+			if v, err := document.GetFromContainer[bool](doc, tableNode, "openWorldHint"); err == nil {
+				annotationsVal.OpenWorldHint = &v
+				consumed[keyPrefix+"servers.annotations.openWorldHint"] = true
+			}
+			data.Servers[i].Annotations = annotationsVal
+		} else {
+			annotationsVal := &AnnotationFilter{}
+			found := false
+			if v, err := document.GetFromContainer[bool](doc, node, "readOnlyHint"); err == nil {
+				annotationsVal.ReadOnlyHint = &v
+				found = true
+				consumed[keyPrefix+"servers.readOnlyHint"] = true
+			}
+			if v, err := document.GetFromContainer[bool](doc, node, "destructiveHint"); err == nil {
+				annotationsVal.DestructiveHint = &v
+				found = true
+				consumed[keyPrefix+"servers.destructiveHint"] = true
+			}
+			if v, err := document.GetFromContainer[bool](doc, node, "idempotentHint"); err == nil {
+				annotationsVal.IdempotentHint = &v
+				found = true
+				consumed[keyPrefix+"servers.idempotentHint"] = true
+			}
+			if v, err := document.GetFromContainer[bool](doc, node, "openWorldHint"); err == nil {
+				annotationsVal.OpenWorldHint = &v
+				found = true
+				consumed[keyPrefix+"servers.openWorldHint"] = true
+			}
+			if found {
+				data.Servers[i].Annotations = annotationsVal
+			}
+		}
+		if v, err := document.GetFromContainer[bool](doc, node, "paginate"); err == nil {
+			data.Servers[i].Paginate = v
+			consumed[keyPrefix+"servers.paginate"] = true
+		}
+		if v, err := document.GetFromContainer[bool](doc, node, "generate-resource-tools"); err == nil {
+			data.Servers[i].GenerateResourceTools = &v
+			consumed[keyPrefix+"servers.generate-resource-tools"] = true
+		}
+		if v, err := document.GetFromContainer[bool](doc, node, "ephemeral"); err == nil {
+			data.Servers[i].Ephemeral = &v
+			consumed[keyPrefix+"servers.ephemeral"] = true
+		}
+		if v, err := document.GetFromContainer[bool](doc, node, "progressive-disclosure"); err == nil {
+			data.Servers[i].ProgressiveDisclosure = &v
+			consumed[keyPrefix+"servers.progressive-disclosure"] = true
+		}
+	}
+
+	return nil
+}
+
+func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node) error {
+	if data.Ephemeral != nil {
+		if err := doc.SetInContainer(container, "ephemeral", *data.Ephemeral); err != nil {
+			return err
+		}
+	}
+	if data.ProgressiveDisclosure != nil {
+		if err := doc.SetInContainer(container, "progressive-disclosure", *data.ProgressiveDisclosure); err != nil {
+			return err
+		}
+	}
+	for i := range data.Servers {
+		container := doc.AppendArrayTableEntry("servers")
+		if data.Servers[i].Name != "" || doc.HasInContainer(container, "name") {
+			if err := doc.SetInContainer(container, "name", data.Servers[i].Name); err != nil {
+				return err
+			}
+		}
+		{
+			v, err := data.Servers[i].Command.MarshalTOML()
+			if err != nil {
+				return fmt.Errorf("command: %w", err)
+			}
+			if err := doc.SetInContainer(container, "command", v); err != nil {
+				return err
+			}
+		}
+		if data.Servers[i].Annotations != nil {
+			tableNode := doc.EnsureTableInContainer(container, "annotations")
+			if data.Servers[i].Annotations.ReadOnlyHint != nil {
+				if err := doc.SetInContainer(tableNode, "readOnlyHint", *data.Servers[i].Annotations.ReadOnlyHint); err != nil {
+					return err
+				}
+			}
+			if data.Servers[i].Annotations.DestructiveHint != nil {
+				if err := doc.SetInContainer(tableNode, "destructiveHint", *data.Servers[i].Annotations.DestructiveHint); err != nil {
+					return err
+				}
+			}
+			if data.Servers[i].Annotations.IdempotentHint != nil {
+				if err := doc.SetInContainer(tableNode, "idempotentHint", *data.Servers[i].Annotations.IdempotentHint); err != nil {
+					return err
+				}
+			}
+			if data.Servers[i].Annotations.OpenWorldHint != nil {
+				if err := doc.SetInContainer(tableNode, "openWorldHint", *data.Servers[i].Annotations.OpenWorldHint); err != nil {
+					return err
+				}
+			}
+		}
+		if data.Servers[i].Paginate != false || doc.HasInContainer(container, "paginate") {
+			if err := doc.SetInContainer(container, "paginate", data.Servers[i].Paginate); err != nil {
+				return err
+			}
+		}
+		if data.Servers[i].GenerateResourceTools != nil {
+			if err := doc.SetInContainer(container, "generate-resource-tools", *data.Servers[i].GenerateResourceTools); err != nil {
+				return err
+			}
+		}
+		if data.Servers[i].Ephemeral != nil {
+			if err := doc.SetInContainer(container, "ephemeral", *data.Servers[i].Ephemeral); err != nil {
+				return err
+			}
+		}
+		if data.Servers[i].ProgressiveDisclosure != nil {
+			if err := doc.SetInContainer(container, "progressive-disclosure", *data.Servers[i].ProgressiveDisclosure); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

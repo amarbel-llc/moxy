@@ -654,3 +654,74 @@ func TestMergeEphemeral(t *testing.T) {
 		t.Error("expected base ephemeral to be preserved")
 	}
 }
+
+func TestParseProgressiveDisclosureGlobal(t *testing.T) {
+	input := `
+progressive-disclosure = true
+
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ProgressiveDisclosure == nil || !*cfg.ProgressiveDisclosure {
+		t.Error("expected global progressive-disclosure = true")
+	}
+}
+
+func TestParseProgressiveDisclosurePerServer(t *testing.T) {
+	input := `
+[[servers]]
+name = "echo"
+command = "echo"
+progressive-disclosure = true
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].ProgressiveDisclosure == nil || !*cfg.Servers[0].ProgressiveDisclosure {
+		t.Error("expected server progressive-disclosure = true")
+	}
+}
+
+func TestIsProgressiveDisclosureInheritance(t *testing.T) {
+	tests := []struct {
+		name   string
+		global *bool
+		server *bool
+		want   bool
+	}{
+		{"both nil", nil, nil, false},
+		{"global true, server nil", boolPtr(true), nil, true},
+		{"global false, server nil", boolPtr(false), nil, false},
+		{"global nil, server true", nil, boolPtr(true), true},
+		{"global true, server false", boolPtr(true), boolPtr(false), false},
+		{"global false, server true", boolPtr(false), boolPtr(true), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := ServerConfig{ProgressiveDisclosure: tt.server}
+			if got := s.IsProgressiveDisclosure(tt.global); got != tt.want {
+				t.Errorf("IsProgressiveDisclosure() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMergeProgressiveDisclosure(t *testing.T) {
+	base := Config{ProgressiveDisclosure: boolPtr(false)}
+	overlay := Config{ProgressiveDisclosure: boolPtr(true)}
+	merged := Merge(base, overlay)
+	if merged.ProgressiveDisclosure == nil || !*merged.ProgressiveDisclosure {
+		t.Error("expected overlay progressive-disclosure to win")
+	}
+
+	merged2 := Merge(base, Config{})
+	if merged2.ProgressiveDisclosure == nil || *merged2.ProgressiveDisclosure {
+		t.Error("expected base progressive-disclosure to be preserved")
+	}
+}

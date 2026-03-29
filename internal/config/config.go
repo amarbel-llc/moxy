@@ -11,8 +11,9 @@ import (
 
 //go:generate tommy generate
 type Config struct {
-	Ephemeral *bool          `toml:"ephemeral"`
-	Servers   []ServerConfig `toml:"servers"`
+	Ephemeral              *bool          `toml:"ephemeral"`
+	ProgressiveDisclosure  *bool          `toml:"progressive-disclosure"`
+	Servers                []ServerConfig `toml:"servers"`
 }
 
 type ServerConfig struct {
@@ -22,6 +23,7 @@ type ServerConfig struct {
 	Paginate              bool              `toml:"paginate"`
 	GenerateResourceTools *bool             `toml:"generate-resource-tools"`
 	Ephemeral             *bool             `toml:"ephemeral"`
+	ProgressiveDisclosure *bool             `toml:"progressive-disclosure"`
 }
 
 func (s ServerConfig) IsEphemeral(globalEphemeral *bool) bool {
@@ -30,6 +32,16 @@ func (s ServerConfig) IsEphemeral(globalEphemeral *bool) bool {
 	}
 	if globalEphemeral != nil {
 		return *globalEphemeral
+	}
+	return false
+}
+
+func (s ServerConfig) IsProgressiveDisclosure(global *bool) bool {
+	if s.ProgressiveDisclosure != nil {
+		return *s.ProgressiveDisclosure
+	}
+	if global != nil {
+		return *global
 	}
 	return false
 }
@@ -143,6 +155,10 @@ func Merge(base, overlay Config) Config {
 
 	if overlay.Ephemeral != nil {
 		merged.Ephemeral = overlay.Ephemeral
+	}
+
+	if overlay.ProgressiveDisclosure != nil {
+		merged.ProgressiveDisclosure = overlay.ProgressiveDisclosure
 	}
 
 	for _, srv := range overlay.Servers {
