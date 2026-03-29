@@ -17,7 +17,7 @@ automatically.
 just                  # build + test (default target)
 just build-go         # go build only -> build/moxy
 just build-nix        # nix build (runs gomod2nix first)
-just test             # all tests (go + bats)
+just test             # all tests (go + bats + validate-mcp)
 just test-go          # go vet + go test
 just test-bats        # bats integration tests (builds first)
 
@@ -33,7 +33,9 @@ After changing Go dependencies: `just build-gomod2nix` to regenerate
 
 ## Architecture
 
-**Moxyfile hierarchy** -- TOML config files loaded and merged in order:
+### Moxyfile Hierarchy
+
+TOML config files loaded and merged in order:
 
 1.  `~/.config/moxy/moxyfile` (global)
 2.  Each parent directory between `$HOME` and `$CWD`
@@ -41,16 +43,58 @@ After changing Go dependencies: `just build-gomod2nix` to regenerate
 
 Later files override earlier ones by server name. See `internal/config` for the
 merge logic. Comment-preserving edits use `amarbel-llc/tommy` (CST-based TOML
-library) in `internal/config/tommy.go`.
+library) in `internal/config/tommy.go`. The `config_tommy.go` file is generated
+by `//go:generate tommy generate` --- do not edit it directly.
 
-**Proxy flow** -- On startup, moxy loads the merged config, spawns each child
-server via `internal/mcpclient` (stdio JSON-RPC), performs MCP `initialize`
-handshake, then serves as a unified MCP server via `internal/proxy`.
+### Proxy Flow
 
-Namespacing: tools and prompts are prefixed with `<server-name>-`, resources and
-resource templates with `<server-name>/`.
+On startup, moxy loads the merged config, spawns each non-ephemeral child server
+via `internal/mcpclient` (stdio JSON-RPC), performs MCP `initialize` handshake,
+then serves as a unified MCP server via `internal/proxy`.
 
-**Key packages:**
+### Snob-Case Naming Convention
+
+Tool and prompt names from child servers are namespaced as
+`<server-name>-<snob_case_name>`. "Snob case" converts hyphens to underscores in
+the child's tool/prompt name, so hyphens only appear as the server name
+separator. This allows `splitLastPrefix` to unambiguously route
+`server-name-tool_name` back to the correct child. Resources and resource
+templates use `<server-name>/` prefix with a slash separator instead.
+
+### Ephemeral Server Mode
+
+Servers can be configured as ephemeral (`ephemeral = true` per-server or
+globally). Ephemeral servers are not kept running --- moxy probes them at
+startup to discover their capabilities/tools/resources/prompts, then shuts them
+down. They are re-spawned on demand for each tool call and shut down again
+after. The `restart` meta tool re-probes ephemeral servers to refresh cached
+capabilities.
+
+### Meta Tools
+
+Moxy injects a `restart` tool (namespaced as `moxy-restart`) that restarts any
+configured child server by name. For persistent children, it closes and
+re-spawns the process. For ephemeral children, it re-probes capabilities.
+
+### Synthetic Resource Tools
+
+When `generate-resource-tools = true` on a server config, moxy generates
+`resource-read` and `resource-templates` tools for that child, allowing clients
+that only support tools (not resources) to access resources.
+
+### Annotation Filtering
+
+Server configs can include `[servers.annotations]` filters (`readOnlyHint`,
+`destructiveHint`, `idempotentHint`, `openWorldHint`) to expose only tools
+matching specific annotation values from a child server.
+
+### Pagination
+
+The `internal/paginate` package provides cursor-based pagination for resource
+lists. Servers with `paginate = true` in their config get paginated resource
+responses using `?offset=N&limit=M` query parameters on resource URIs.
+
+### Key Packages
 
 - `internal/config` -- moxyfile parsing, hierarchy loading, merge semantics
 - `internal/mcpclient` -- JSON-RPC client that spawns and manages child
@@ -59,8 +103,11 @@ resource templates with `<server-name>/`.
   `ResourceProviderV1`, and `PromptProviderV1`
 - `internal/validate` -- TAP-14 output validation of moxyfile hierarchy
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
+- `internal/paginate` -- cursor-based pagination for resource lists
 
-**CLI subcommands** (dispatched in `cmd/moxy/main.go`):
+### CLI Subcommands
+
+Dispatched in `cmd/moxy/main.go`:
 
 - (default) -- run as MCP proxy server
 - `validate` -- validate moxyfile hierarchy, output TAP-14
@@ -79,4 +126,8 @@ for Nix builds.
 - Bats integration tests in `zz-tests_bats/` use a temp `$HOME` and test the
   actual binary. Helper functions are in `common.bash`
 - Bats tests use `bats-assert`, `bats-island`, and `bats-emo` helper libraries
+- `run_moxy_mcp` in `common.bash` sends a full JSON-RPC initialize handshake
+  then a method call, returning the result as JSON in `$output`
+- `run_moxy_mcp_two` sends two method calls in one session (for testing restart,
+  etc.)
 - The justfile sets `output-format = "tap"` for TAP output from just itself
