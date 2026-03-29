@@ -1,7 +1,7 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/6d41bc27aaf7b6a3ba6b169db3bd5d6159cfaa47";
-    nixpkgs-master.url = "github:NixOS/nixpkgs/5b7e21f22978c4b740b3907f3251b470f466a9a2";
+    nixpkgs.url = "github:NixOS/nixpkgs/4590696c8693fea477850fe379a01544293ca4e2";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/e2dde111aea2c0699531dc616112a96cd55ab8b5";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     gomod2nix = {
@@ -62,7 +62,7 @@
           src = ./.;
           subPackages = [ "cmd/moxy" ];
           modules = ./gomod2nix.toml;
-          go = pkgs.go_1_25;
+          go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
           postInstall = ''
             $out/bin/moxy generate-plugin $out
@@ -76,11 +76,16 @@
         };
 
         devShells.default = pkgs-master.mkShell {
-          inputsFrom = [
-            purse-first.devShells.${system}.go
-            purse-first.devShells.${system}.shell
-          ];
           packages = [
+            pkgs-master.go_1_26
+            pkgs-master.delve
+            pkgs-master.gofumpt
+            pkgs-master.golangci-lint
+            pkgs-master.golines
+            pkgs-master.gopls
+            pkgs-master.gotools
+            pkgs-master.govulncheck
+            gomod2nix.packages.${system}.default
             pkgs.just
             bob.packages.${system}.batman
             bob.packages.${system}.grit

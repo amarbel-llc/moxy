@@ -1,6 +1,6 @@
 module github.com/amarbel-llc/moxy
 
-go 1.25.6
+go 1.26
 
 require (
 	github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.4
