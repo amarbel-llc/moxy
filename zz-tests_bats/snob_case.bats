@@ -11,7 +11,7 @@ teardown() {
   teardown_test_home
 }
 
-function tool_names_use_snob_case { # @test
+function tool_names_use_dot_separator { # @test
   mkdir -p "$HOME/repo"
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
@@ -22,15 +22,11 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  # Hyphenated tool name should appear with underscores
-  echo "$output" | jq -e '.tools[] | select(.name == "srv-execute_command")'
-  # Original hyphenated form should NOT appear
-  local hyphen_count
-  hyphen_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv-execute-command")] | length')
-  [[ "$hyphen_count" -eq 0 ]]
+  # Tool name should be server.original-name (dot separator, name preserved)
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")'
 }
 
-function snob_case_tool_call_dispatches_correctly { # @test
+function dot_separator_tool_call_dispatches_correctly { # @test
   mkdir -p "$HOME/repo"
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
@@ -39,7 +35,7 @@ command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"srv-execute_command","arguments":{"cmd":"hello"}}'
+  run_moxy_mcp tools/call '{"name":"srv.execute-command","arguments":{"cmd":"hello"}}'
   assert_success
   echo "$output" | jq -e '.content[0].text == "executed: hello"'
 }

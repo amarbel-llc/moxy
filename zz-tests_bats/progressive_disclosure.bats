@@ -25,7 +25,7 @@ EOF
   assert_success
   # Child tools should not appear
   local tool_count
-  tool_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv-execute_command")] | length')
+  tool_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.execute-command")] | length')
   [[ "$tool_count" -eq 0 ]]
 }
 
@@ -134,7 +134,7 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   local tool_count
-  tool_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv-execute_command")] | length')
+  tool_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.execute-command")] | length')
   [[ "$tool_count" -eq 0 ]]
   # exec and restart should still be present
   echo "$output" | jq -e '.tools[] | select(.name == "exec")'
@@ -154,7 +154,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "srv-execute_command")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")'
 }
 
 function moxy_tools_resource_appears_in_resources_list { # @test

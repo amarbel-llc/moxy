@@ -37,7 +37,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "broken.status")'
 }
 
 function broken_server_status_tool_describes_error { # @test
@@ -52,7 +52,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-status") | .description | test("failed to start")'
+  echo "$output" | jq -e '.tools[] | select(.name == "broken.status") | .description | test("failed to start")'
 }
 
 function healthy_server_unaffected_by_broken_sibling { # @test
@@ -73,9 +73,9 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   # grit tools are present
-  echo "$output" | jq -e '.tools[] | select(.name | startswith("grit-"))'
-  # broken-status is present
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-status")'
+  echo "$output" | jq -e '.tools[] | select(.name | startswith("grit."))'
+  # broken.status is present
+  echo "$output" | jq -e '.tools[] | select(.name == "broken.status")'
 }
 
 function all_servers_broken_still_starts { # @test
@@ -97,8 +97,8 @@ EOF
   assert_success
   # 2 status tools + restart + exec = 4
   echo "$output" | jq -e '.tools | length == 4'
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-a-status")'
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-b-status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "broken-a.status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "broken-b.status")'
   echo "$output" | jq -e '.tools[] | select(.name == "restart")'
   echo "$output" | jq -e '.tools[] | select(.name == "exec")'
 }

@@ -22,7 +22,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "res-resource_read")'
+  echo "$output" | jq -e '.tools[] | select(.name == "res.resource-read")'
 }
 
 function synthetic_resource_templates_tool_appears_in_tools_list { # @test
@@ -36,7 +36,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "res-resource_templates")'
+  echo "$output" | jq -e '.tools[] | select(.name == "res.resource-templates")'
 }
 
 function synthetic_resource_read_tool_reads_resource { # @test
@@ -48,7 +48,7 @@ command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"res-resource_read","arguments":{"uri":"test://items"}}'
+  run_moxy_mcp tools/call '{"name":"res.resource-read","arguments":{"uri":"test://items"}}'
   assert_success
   echo "$output" | jq -r '.content[0].text' | jq -e '.[0].text == "[1,2,3,4,5,6,7,8,9,10]"'
 }
@@ -62,7 +62,7 @@ command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"res-resource_templates","arguments":{}}'
+  run_moxy_mcp tools/call '{"name":"res.resource-templates","arguments":{}}'
   assert_success
   echo "$output" | jq -r '.content[0].text' | jq -e '.[0].uriTemplate == "test://items/{id}"'
 }
@@ -80,7 +80,7 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   local count
-  count=$(echo "$output" | jq '[.tools[] | select(.name == "res-resource_read" or .name == "res-resource_templates")] | length')
+  count=$(echo "$output" | jq '[.tools[] | select(.name == "res.resource-read" or .name == "res.resource-templates")] | length')
   [[ "$count" -eq 0 ]]
 }
 
@@ -96,6 +96,6 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   local count
-  count=$(echo "$output" | jq '[.tools[] | select(.name == "test-resource_read" or .name == "test-resource_templates")] | length')
+  count=$(echo "$output" | jq '[.tools[] | select(.name == "test.resource-read" or .name == "test.resource-templates")] | length')
   [[ "$count" -eq 0 ]]
 }

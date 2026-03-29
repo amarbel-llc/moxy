@@ -22,7 +22,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp prompts/list
   assert_success
-  echo "$output" | jq -e '.prompts[] | select(.name == "test-greet")'
+  echo "$output" | jq -e '.prompts[] | select(.name == "test.greet")'
 }
 
 function prompts_list_preserves_description { # @test
@@ -36,7 +36,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp prompts/list
   assert_success
-  echo "$output" | jq -e '.prompts[] | select(.name == "test-greet") | .description == "Generate a greeting"'
+  echo "$output" | jq -e '.prompts[] | select(.name == "test.greet") | .description == "Generate a greeting"'
 }
 
 function prompts_list_preserves_arguments { # @test
@@ -50,7 +50,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp prompts/list
   assert_success
-  echo "$output" | jq -e '.prompts[] | select(.name == "test-greet") | .arguments[0].name == "name"'
+  echo "$output" | jq -e '.prompts[] | select(.name == "test.greet") | .arguments[0].name == "name"'
 }
 
 function prompts_get_dispatches_to_child { # @test
@@ -62,7 +62,7 @@ command = ["bash", "$FIXTURES_DIR/prompt-server.bash"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp prompts/get '{"name":"test-greet","arguments":{"name":"Alice"}}'
+  run_moxy_mcp prompts/get '{"name":"test.greet","arguments":{"name":"Alice"}}'
   assert_success
   echo "$output" | jq -e '.messages[0].content.text == "Hello, Alice!"'
 }

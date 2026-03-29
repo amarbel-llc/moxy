@@ -725,3 +725,27 @@ func TestMergeProgressiveDisclosure(t *testing.T) {
 		t.Error("expected base progressive-disclosure to be preserved")
 	}
 }
+
+func TestParseRejectsDotInServerName(t *testing.T) {
+	input := `
+[[servers]]
+name = "my.server"
+command = "echo"
+`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for server name containing dot")
+	}
+}
+
+func TestParseAllowsHyphenInServerName(t *testing.T) {
+	input := `
+[[servers]]
+name = "my-server"
+command = "echo"
+`
+	_, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

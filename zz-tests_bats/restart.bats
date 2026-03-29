@@ -51,7 +51,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp_two \
     tools/call '{"name":"restart","arguments":{"server":"srv"}}' \
-    tools/call '{"name":"srv-execute_command","arguments":{"cmd":"after-restart"}}'
+    tools/call '{"name":"srv.execute-command","arguments":{"cmd":"after-restart"}}'
   assert_success
   echo "$output" | jq -e '.content[0].text == "executed: after-restart"'
 }
@@ -103,5 +103,5 @@ EOF
   # First verify broken server has a status tool
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "broken.status")'
 }

@@ -136,7 +136,17 @@ func Parse(data []byte) (Config, error) {
 		return Config{}, fmt.Errorf("parsing moxyfile: %w", err)
 	}
 
-	return *doc.Data(), nil
+	cfg := doc.Data()
+	for _, srv := range cfg.Servers {
+		if strings.Contains(srv.Name, ".") {
+			return Config{}, fmt.Errorf(
+				"server name %q must not contain '.' (dots are used as the namespace separator)",
+				srv.Name,
+			)
+		}
+	}
+
+	return *cfg, nil
 }
 
 func Load(path string) (Config, error) {

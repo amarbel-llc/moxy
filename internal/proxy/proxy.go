@@ -301,7 +301,7 @@ func (p *Proxy) ListToolsV1(
 			) {
 				continue
 			}
-			tool.Name = child.Client.Name() + "-" + toSnobCase(tool.Name)
+			tool.Name = child.Client.Name() + "." + tool.Name
 			allTools = append(allTools, tool)
 		}
 	}
@@ -324,17 +324,17 @@ func (p *Proxy) ListToolsV1(
 		hasResourceRead := false
 		hasResourceTemplates := false
 		for _, t := range allTools {
-			if t.Name == serverName+"-resource_read" {
+			if t.Name == serverName+".resource-read" {
 				hasResourceRead = true
 			}
-			if t.Name == serverName+"-resource_templates" {
+			if t.Name == serverName+".resource-templates" {
 				hasResourceTemplates = true
 			}
 		}
 
 		if !hasResourceRead {
 			allTools = append(allTools, protocol.ToolV1{
-				Name:        serverName + "-resource_read",
+				Name:        serverName + ".resource-read",
 				Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
 			})
@@ -342,7 +342,7 @@ func (p *Proxy) ListToolsV1(
 
 		if !hasResourceTemplates {
 			allTools = append(allTools, protocol.ToolV1{
-				Name:        serverName + "-resource_templates",
+				Name:        serverName + ".resource-templates",
 				Description: fmt.Sprintf("List available resource templates for %s", serverName),
 				InputSchema: json.RawMessage(`{"type":"object"}`),
 			})
@@ -356,19 +356,19 @@ func (p *Proxy) ListToolsV1(
 				if !matchesAnnotationFilter(tool.Annotations, meta.Config.Annotations) {
 					continue
 				}
-				tool.Name = serverName + "-" + toSnobCase(tool.Name)
+				tool.Name = serverName + "." + tool.Name
 				allTools = append(allTools, tool)
 			}
 			if meta.Capabilities.Resources != nil {
 				grt := meta.Config.GenerateResourceTools
 				if grt == nil || *grt {
 					allTools = append(allTools, protocol.ToolV1{
-						Name:        serverName + "-resource_read",
+						Name:        serverName + ".resource-read",
 						Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
 						InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
 					})
 					allTools = append(allTools, protocol.ToolV1{
-						Name:        serverName + "-resource_templates",
+						Name:        serverName + ".resource-templates",
 						Description: fmt.Sprintf("List available resource templates for %s", serverName),
 						InputSchema: json.RawMessage(`{"type":"object"}`),
 					})
@@ -379,7 +379,7 @@ func (p *Proxy) ListToolsV1(
 
 	for _, f := range failed {
 		allTools = append(allTools, protocol.ToolV1{
-			Name: f.Name + "-status",
+			Name: f.Name + ".status",
 			Description: fmt.Sprintf(
 				"Server %q failed to start: %s",
 				f.Name,
@@ -422,7 +422,7 @@ func (p *Proxy) CallToolV1(
 	failed := p.failed
 	p.mu.RUnlock()
 
-	serverName, toolName, ok := splitLastPrefix(name, "-")
+	serverName, toolName, ok := splitPrefix(name, ".")
 	if !ok {
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("invalid tool name %q: missing server prefix", name),
@@ -454,16 +454,16 @@ func (p *Proxy) CallToolV1(
 		), nil
 	}
 
-	if toolName == "resource_read" {
+	if toolName == "resource-read" {
 		return p.callResourceRead(ctx, child, args)
 	}
 
-	if toolName == "resource_templates" {
+	if toolName == "resource-templates" {
 		return p.callResourceTemplates(ctx, child)
 	}
 
 	params := protocol.ToolCallParams{
-		Name:      fromSnobCase(toolName),
+		Name:      toolName,
 		Arguments: args,
 	}
 
@@ -818,14 +818,14 @@ func (p *Proxy) ListPromptsV1(
 		}
 
 		for _, pr := range prompts {
-			pr.Name = child.Client.Name() + "-" + toSnobCase(pr.Name)
+			pr.Name = child.Client.Name() + "." + pr.Name
 			allPrompts = append(allPrompts, pr)
 		}
 	}
 
 	for serverName, meta := range p.ephemeral {
 		for _, pr := range meta.Prompts {
-			pr.Name = serverName + "-" + toSnobCase(pr.Name)
+			pr.Name = serverName + "." + pr.Name
 			allPrompts = append(allPrompts, pr)
 		}
 	}
@@ -838,7 +838,7 @@ func (p *Proxy) GetPromptV1(
 	name string,
 	args map[string]string,
 ) (*protocol.PromptGetResultV1, error) {
-	serverName, promptName, ok := splitLastPrefix(name, "-")
+	serverName, promptName, ok := splitPrefix(name, ".")
 	if !ok {
 		return nil, fmt.Errorf(
 			"invalid prompt name %q: missing server prefix",
@@ -855,7 +855,7 @@ func (p *Proxy) GetPromptV1(
 	}
 
 	params := protocol.PromptGetParams{
-		Name:      fromSnobCase(promptName),
+		Name:      promptName,
 		Arguments: args,
 	}
 
@@ -1121,7 +1121,7 @@ func (p *Proxy) getPromptEphemeral(
 	defer client.Close()
 
 	params := protocol.PromptGetParams{
-		Name:      fromSnobCase(promptName),
+		Name:      promptName,
 		Arguments: args,
 	}
 
@@ -1182,16 +1182,16 @@ func (p *Proxy) callToolEphemeral(
 	}
 	defer client.Close()
 
-	if toolName == "resource_read" {
+	if toolName == "resource-read" {
 		return p.callResourceReadOn(ctx, client, serverName, args)
 	}
 
-	if toolName == "resource_templates" {
+	if toolName == "resource-templates" {
 		return p.callResourceTemplatesOn(ctx, client, serverName)
 	}
 
 	params := protocol.ToolCallParams{
-		Name:      fromSnobCase(toolName),
+		Name:      toolName,
 		Arguments: args,
 	}
 
@@ -1225,7 +1225,7 @@ func (p *Proxy) callResourceReadOn(
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return protocol.ErrorResultV1(
-			fmt.Sprintf("invalid resource_read args: %v", err),
+			fmt.Sprintf("invalid resource-read args: %v", err),
 		), nil
 	}
 
@@ -1292,7 +1292,7 @@ func (p *Proxy) callResourceRead(
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return protocol.ErrorResultV1(
-			fmt.Sprintf("invalid resource_read args: %v", err),
+			fmt.Sprintf("invalid resource-read args: %v", err),
 		), nil
 	}
 
@@ -1385,26 +1385,8 @@ func findChildIn(children []ChildEntry, name string) (ChildEntry, bool) {
 	return ChildEntry{}, false
 }
 
-func toSnobCase(name string) string {
-	return strings.ReplaceAll(name, "-", "_")
-}
-
-func fromSnobCase(name string) string {
-	return strings.ReplaceAll(name, "_", "-")
-}
-
 func splitPrefix(s, sep string) (prefix, rest string, ok bool) {
 	i := strings.Index(s, sep)
-	if i < 0 {
-		return "", "", false
-	}
-	return s[:i], s[i+len(sep):], true
-}
-
-// splitLastPrefix splits on the last occurrence of sep. Used for tool and
-// prompt routing where snobcase guarantees the suffix contains no hyphens.
-func splitLastPrefix(s, sep string) (prefix, rest string, ok bool) {
-	i := strings.LastIndex(s, sep)
 	if i < 0 {
 		return "", "", false
 	}

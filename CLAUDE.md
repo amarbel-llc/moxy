@@ -52,14 +52,15 @@ On startup, moxy loads the merged config, spawns each non-ephemeral child server
 via `internal/mcpclient` (stdio JSON-RPC), performs MCP `initialize` handshake,
 then serves as a unified MCP server via `internal/proxy`.
 
-### Snob-Case Naming Convention
+### Dot-Separator Naming Convention
 
 Tool and prompt names from child servers are namespaced as
-`<server-name>-<snob_case_name>`. "Snob case" converts hyphens to underscores in
-the child's tool/prompt name, so hyphens only appear as the server name
-separator. This allows `splitLastPrefix` to unambiguously route
-`server-name-tool_name` back to the correct child. Resources and resource
-templates use `<server-name>/` prefix with a slash separator instead.
+`<server-name>.<original-tool-name>`. The dot separator is unambiguous because
+server names must not contain dots (validated at config load). `splitPrefix` on
+the first dot recovers the server name and original tool/prompt name exactly ---
+no encoding or decoding is needed. Resources and resource templates use
+`<server-name>/` prefix with a slash separator instead. Server names may contain
+hyphens (e.g., `just-us-agents.list-recipes`).
 
 ### Ephemeral Server Mode
 

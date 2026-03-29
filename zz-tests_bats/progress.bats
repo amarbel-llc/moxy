@@ -23,7 +23,7 @@ EOF
 
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
-  local call='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"srv-slow_task","arguments":{}}}'
+  local call='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"srv.slow-task","arguments":{}}}'
 
   # Capture ALL output lines (not just the response) to see notifications
   run timeout --preserve-status "10s" bash -c \
@@ -50,7 +50,7 @@ EOF
 
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
-  local call='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"srv-slow_task","arguments":{}}}'
+  local call='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"srv.slow-task","arguments":{}}}'
 
   run timeout --preserve-status "10s" bash -c \
     '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy 2>/dev/null' \
