@@ -69,15 +69,31 @@
           '';
         };
 
-        manpage = pkgs.buildGoApplication {
+        manpage-unwrapped = pkgs.buildGoApplication {
           pname = "manpage";
-          version = "0.1.0";
+          version = "0.2.0";
           src = ./.;
           subPackages = [ "cmd/manpage" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
         };
+
+        manpage =
+          pkgs.runCommand "manpage-wrapped"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ];
+            }
+            ''
+              mkdir -p $out/bin
+              makeWrapper ${manpage-unwrapped}/bin/manpage $out/bin/manpage \
+                --prefix PATH : ${
+                  pkgs.lib.makeBinPath [
+                    pkgs.mandoc
+                    pkgs.pandoc
+                  ]
+                }
+            '';
         combined = pkgs.symlinkJoin {
           name = "moxy";
           paths = [
