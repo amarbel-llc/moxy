@@ -78,11 +78,18 @@
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
         };
+        combined = pkgs.symlinkJoin {
+          name = "moxy";
+          paths = [
+            moxy
+            manpage
+          ];
+        };
       in
       {
         packages = {
           inherit moxy manpage;
-          default = moxy;
+          default = combined;
         };
 
         devShells.default = pkgs-master.mkShell {
