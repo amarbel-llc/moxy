@@ -68,10 +68,20 @@
             $out/bin/moxy generate-plugin $out
           '';
         };
+
+        manpage = pkgs.buildGoApplication {
+          pname = "manpage";
+          version = "0.1.0";
+          src = ./.;
+          subPackages = [ "cmd/manpage" ];
+          modules = ./gomod2nix.toml;
+          go = pkgs-master.go_1_26;
+          GOTOOLCHAIN = "local";
+        };
       in
       {
         packages = {
-          inherit moxy;
+          inherit moxy manpage;
           default = moxy;
         };
 
