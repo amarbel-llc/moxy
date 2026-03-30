@@ -749,3 +749,66 @@ command = "echo"
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestParseNixDevshell(t *testing.T) {
+	input := `
+[[servers]]
+name = "srv"
+command = "manpage"
+nix-devshell = "."
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].NixDevshell == nil || *cfg.Servers[0].NixDevshell != "." {
+		t.Errorf("nix-devshell: got %v", cfg.Servers[0].NixDevshell)
+	}
+}
+
+func TestEffectiveCommandWithoutDevshell(t *testing.T) {
+	srv := ServerConfig{Command: makeCommand("manpage", "--verbose")}
+	exe, args := srv.EffectiveCommand()
+	if exe != "manpage" {
+		t.Errorf("exe: got %q, want %q", exe, "manpage")
+	}
+	if len(args) != 1 || args[0] != "--verbose" {
+		t.Errorf("args: got %v, want [--verbose]", args)
+	}
+}
+
+func TestEffectiveCommandWithDevshell(t *testing.T) {
+	ref := "."
+	srv := ServerConfig{
+		Command:     makeCommand("manpage", "--verbose"),
+		NixDevshell: &ref,
+	}
+	exe, args := srv.EffectiveCommand()
+	if exe != "nix" {
+		t.Errorf("exe: got %q, want %q", exe, "nix")
+	}
+	want := []string{"develop", ".", "--command", "manpage", "--verbose"}
+	if len(args) != len(want) {
+		t.Fatalf("args length: got %d, want %d", len(args), len(want))
+	}
+	for i, w := range want {
+		if args[i] != w {
+			t.Errorf("args[%d]: got %q, want %q", i, args[i], w)
+		}
+	}
+}
+
+func TestEffectiveCommandWithFlakeRef(t *testing.T) {
+	ref := "github:amarbel-llc/eng?dir=devenvs/go"
+	srv := ServerConfig{
+		Command:     makeCommand("grit"),
+		NixDevshell: &ref,
+	}
+	exe, args := srv.EffectiveCommand()
+	if exe != "nix" {
+		t.Errorf("exe: got %q, want %q", exe, "nix")
+	}
+	if args[1] != ref {
+		t.Errorf("flake ref: got %q, want %q", args[1], ref)
+	}
+}

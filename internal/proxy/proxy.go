@@ -85,8 +85,9 @@ func New(
 func (p *Proxy) ProbeEphemeral(ctx context.Context) {
 	for name, meta := range p.ephemeral {
 		cfg := meta.Config
+		exe, cmdArgs := cfg.EffectiveCommand()
 		client, result, err := mcpclient.SpawnAndInitialize(
-			ctx, cfg.Name, cfg.Command.Executable(), cfg.Command.Args(),
+			ctx, cfg.Name, exe, cmdArgs,
 		)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "moxy: failed to probe ephemeral %s: %v\n", name, err)
@@ -137,8 +138,9 @@ func (p *Proxy) ProbeEphemeral(ctx context.Context) {
 
 func (p *Proxy) reprobeEphemeral(ctx context.Context, meta *EphemeralMeta) error {
 	cfg := meta.Config
+	exe, cmdArgs := cfg.EffectiveCommand()
 	client, result, err := mcpclient.SpawnAndInitialize(
-		ctx, cfg.Name, cfg.Command.Executable(), cfg.Command.Args(),
+		ctx, cfg.Name, exe, cmdArgs,
 	)
 	if err != nil {
 		return fmt.Errorf("re-probing ephemeral %s: %w", cfg.Name, err)
@@ -192,8 +194,9 @@ func (p *Proxy) spawnEphemeral(ctx context.Context, serverName string) (*mcpclie
 	if !ok {
 		return nil, fmt.Errorf("unknown server %q", serverName)
 	}
+	exe, cmdArgs := cfg.EffectiveCommand()
 	client, _, err := mcpclient.SpawnAndInitialize(
-		ctx, cfg.Name, cfg.Command.Executable(), cfg.Command.Args(),
+		ctx, cfg.Name, exe, cmdArgs,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("spawning ephemeral %s: %w", serverName, err)
@@ -1085,8 +1088,9 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 	p.mu.Unlock()
 
 	// Spawn fresh (outside lock — this is slow)
+	exe, cmdArgs := cfg.EffectiveCommand()
 	client, result, err := mcpclient.SpawnAndInitialize(
-		ctx, cfg.Name, cfg.Command.Executable(), cfg.Command.Args(),
+		ctx, cfg.Name, exe, cmdArgs,
 	)
 	if err != nil {
 		p.markFailed(serverName, err)

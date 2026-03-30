@@ -2,8 +2,12 @@ default: build test
 
 build: build-go build-nix
 
-build-go:
+build-go: generate
   go build -o build/moxy ./cmd/moxy
+  go build -o build/manpage ./cmd/manpage
+
+generate:
+  go generate ./internal/config/
 
 build-gomod2nix:
   gomod2nix

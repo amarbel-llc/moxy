@@ -24,6 +24,16 @@ type ServerConfig struct {
 	GenerateResourceTools *bool             `toml:"generate-resource-tools"`
 	Ephemeral             *bool             `toml:"ephemeral"`
 	ProgressiveDisclosure *bool             `toml:"progressive-disclosure"`
+	NixDevshell           *string           `toml:"nix-devshell"`
+}
+
+func (s ServerConfig) EffectiveCommand() (executable string, args []string) {
+	if s.NixDevshell != nil {
+		a := []string{"develop", *s.NixDevshell, "--command", s.Command.Executable()}
+		a = append(a, s.Command.Args()...)
+		return "nix", a
+	}
+	return s.Command.Executable(), s.Command.Args()
 }
 
 func (s ServerConfig) IsEphemeral(globalEphemeral *bool) bool {

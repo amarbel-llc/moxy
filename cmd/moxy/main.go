@@ -89,10 +89,6 @@ func runServer() error {
 
 	cfg := hierarchy.Merged
 
-	if len(cfg.Servers) == 0 {
-		return fmt.Errorf("no servers configured in any moxyfile")
-	}
-
 	for _, srv := range cfg.Servers {
 		if srv.Name == "" {
 			return fmt.Errorf("server has no name")
@@ -113,7 +109,8 @@ func runServer() error {
 			continue
 		}
 
-		client, result, err := mcpclient.SpawnAndInitialize(ctx, srvCfg.Name, srvCfg.Command.Executable(), srvCfg.Command.Args())
+		exe, args := srvCfg.EffectiveCommand()
+		client, result, err := mcpclient.SpawnAndInitialize(ctx, srvCfg.Name, exe, args)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "moxy: failed to start %s: %v\n", srvCfg.Name, err)
 			failed = append(failed, proxy.FailedServer{

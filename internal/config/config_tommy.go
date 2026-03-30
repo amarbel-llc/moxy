@@ -121,6 +121,10 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 			d.data.Servers[i].ProgressiveDisclosure = &v
 			d.consumed["servers.progressive-disclosure"] = true
 		}
+		if v, err := document.GetFromContainer[string](d.cstDoc, node, "nix-devshell"); err == nil {
+			d.data.Servers[i].NixDevshell = &v
+			d.consumed["servers.nix-devshell"] = true
+		}
 	}
 
 	return d, nil
@@ -201,6 +205,11 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			}
 			if d.data.Servers[i].ProgressiveDisclosure != nil {
 				if err := d.cstDoc.SetInContainer(container, "progressive-disclosure", *d.data.Servers[i].ProgressiveDisclosure); err != nil {
+					return nil, err
+				}
+			}
+			if d.data.Servers[i].NixDevshell != nil {
+				if err := d.cstDoc.SetInContainer(container, "nix-devshell", *d.data.Servers[i].NixDevshell); err != nil {
 					return nil, err
 				}
 			}
@@ -316,6 +325,10 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 			data.Servers[i].ProgressiveDisclosure = &v
 			consumed[keyPrefix+"servers.progressive-disclosure"] = true
 		}
+		if v, err := document.GetFromContainer[string](doc, node, "nix-devshell"); err == nil {
+			data.Servers[i].NixDevshell = &v
+			consumed[keyPrefix+"servers.nix-devshell"] = true
+		}
 	}
 
 	return nil
@@ -388,6 +401,11 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 		}
 		if data.Servers[i].ProgressiveDisclosure != nil {
 			if err := doc.SetInContainer(container, "progressive-disclosure", *data.Servers[i].ProgressiveDisclosure); err != nil {
+				return err
+			}
+		}
+		if data.Servers[i].NixDevshell != nil {
+			if err := doc.SetInContainer(container, "nix-devshell", *data.Servers[i].NixDevshell); err != nil {
 				return err
 			}
 		}
