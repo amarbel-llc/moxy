@@ -87,6 +87,15 @@
           buildInputs = [ pkgs.llama-cpp ];
         };
 
+        maneater-models-toml = pkgs.writeText "models.toml" ''
+          default = "nomic"
+
+          [models.nomic]
+          path = "${nomic-model}"
+          query-prefix = "search_query: "
+          document-prefix = "search_document: "
+        '';
+
         maneater =
           pkgs.runCommand "maneater-wrapped"
             {
@@ -102,7 +111,7 @@
                     pkgs.tldr
                   ]
                 } \
-                --set MANEATER_MODEL_PATH ${nomic-model}
+                --set MANEATER_CONFIG ${maneater-models-toml}
               cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
             '';
         combined = pkgs.symlinkJoin {

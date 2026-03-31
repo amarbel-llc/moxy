@@ -22,9 +22,11 @@ import (
 )
 
 type manServer struct {
-	mu       sync.Mutex
-	embedder *embedding.Embedder
-	index    *embedding.Index
+	mu        sync.Mutex
+	embedder  *embedding.Embedder
+	index     *embedding.Index
+	modelName string
+	modelCfg  ModelConfig
 }
 
 type pageSection struct {
@@ -185,7 +187,7 @@ func (m *manServer) handleSearch(query string, topK int) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	queryText := "search_query: " + query
+	queryText := m.modelCfg.QueryPrefix + query
 	queryEmb, err := m.embedder.Embed(queryText)
 	if err != nil {
 		return "", fmt.Errorf("embedding query: %w", err)
@@ -210,13 +212,17 @@ func (m *manServer) ensureSearchReady() error {
 		return nil
 	}
 
-	modelPath := os.Getenv("MANEATER_MODEL_PATH")
-	if modelPath == "" {
-		return fmt.Errorf("MANEATER_MODEL_PATH not set; semantic search requires the nomic-embed-text model")
+	if m.modelCfg.Path == "" {
+		name, cfg, err := loadActiveModel()
+		if err != nil {
+			return err
+		}
+		m.modelName = name
+		m.modelCfg = cfg
 	}
 
 	if m.embedder == nil {
-		emb, err := embedding.NewEmbedder(modelPath)
+		emb, err := embedding.NewEmbedder(m.modelCfg.Path)
 		if err != nil {
 			return fmt.Errorf("loading embedding model: %w", err)
 		}
@@ -235,7 +241,7 @@ func (m *manServer) ensureSearchReady() error {
 }
 
 func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
-	cacheDir := indexCacheDir()
+	cacheDir := indexCacheDirForModel(m.modelName)
 
 	idx, err := embedding.LoadIndex(cacheDir)
 	if err == nil {
@@ -258,7 +264,7 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 	for i, page := range pages {
 		synopsis := extractSynopsis(page)
 		if synopsis != "" {
-			docText := "search_document: " + synopsis
+			docText := m.modelCfg.DocumentPrefix + synopsis
 			emb, err := m.embedder.Embed(docText)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "maneater: skipping %s synopsis: %v\n", page, err)
@@ -269,7 +275,7 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 
 		tldr := extractTldr(page)
 		if tldr != "" {
-			docText := "search_document: " + tldr
+			docText := m.modelCfg.DocumentPrefix + tldr
 			emb, err := m.embedder.Embed(docText)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "maneater: skipping %s tldr: %v\n", page, err)
@@ -293,12 +299,15 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 	return idx, nil
 }
 
-func indexCacheDir() string {
+func indexCacheDirForModel(modelName string) string {
+	var base string
 	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
-		return filepath.Join(xdg, "moxy", "man-index")
+		base = filepath.Join(xdg, "moxy", "man-index")
+	} else {
+		home, _ := os.UserHomeDir()
+		base = filepath.Join(home, ".cache", "moxy", "man-index")
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".cache", "moxy", "man-index")
+	return filepath.Join(base, modelName)
 }
 
 func listManPages() ([]string, error) {
@@ -710,13 +719,15 @@ func runServeMCP() {
 }
 
 func runIndex() {
-	modelPath := os.Getenv("MANEATER_MODEL_PATH")
-	if modelPath == "" {
-		fmt.Fprintf(os.Stderr, "maneater: MANEATER_MODEL_PATH not set\n")
+	modelName, modelCfg, err := loadActiveModel()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
 		os.Exit(1)
 	}
 
-	emb, err := embedding.NewEmbedder(modelPath)
+	fmt.Printf("Using model %q from %s\n", modelName, modelCfg.Path)
+
+	emb, err := embedding.NewEmbedder(modelCfg.Path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "maneater: loading model: %v\n", err)
 		os.Exit(1)
@@ -740,7 +751,7 @@ func runIndex() {
 	for i, page := range pages {
 		synopsis := extractSynopsis(page)
 		if synopsis != "" {
-			docText := "search_document: " + synopsis
+			docText := modelCfg.DocumentPrefix + synopsis
 			vec, err := emb.Embed(docText)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  skipping %s synopsis: %v\n", page, err)
@@ -751,7 +762,7 @@ func runIndex() {
 
 		tldr := extractTldr(page)
 		if tldr != "" {
-			docText := "search_document: " + tldr
+			docText := modelCfg.DocumentPrefix + tldr
 			vec, err := emb.Embed(docText)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  skipping %s tldr: %v\n", page, err)
@@ -766,7 +777,7 @@ func runIndex() {
 		}
 	}
 
-	cacheDir := indexCacheDir()
+	cacheDir := indexCacheDirForModel(modelName)
 	if err := idx.Save(cacheDir); err != nil {
 		fmt.Fprintf(os.Stderr, "maneater: saving index: %v\n", err)
 		os.Exit(1)

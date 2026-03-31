@@ -22,9 +22,22 @@ func newTestEmbedder(t *testing.T) *Embedder {
 	return emb
 }
 
+func testPrefixes() (queryPrefix, docPrefix string) {
+	queryPrefix = os.Getenv("MANPAGE_QUERY_PREFIX")
+	if queryPrefix == "" {
+		queryPrefix = "search_query: "
+	}
+	docPrefix = os.Getenv("MANPAGE_DOCUMENT_PREFIX")
+	if docPrefix == "" {
+		docPrefix = "search_document: "
+	}
+	return queryPrefix, docPrefix
+}
+
 func embedDoc(t *testing.T, emb *Embedder, text string) []float32 {
 	t.Helper()
-	vec, err := emb.Embed("search_document: " + text)
+	_, docPrefix := testPrefixes()
+	vec, err := emb.Embed(docPrefix + text)
 	if err != nil {
 		t.Fatalf("Embed doc %q: %v", text, err)
 	}
@@ -33,7 +46,8 @@ func embedDoc(t *testing.T, emb *Embedder, text string) []float32 {
 
 func embedQuery(t *testing.T, emb *Embedder, text string) []float32 {
 	t.Helper()
-	vec, err := emb.Embed("search_query: " + text)
+	queryPrefix, _ := testPrefixes()
+	vec, err := emb.Embed(queryPrefix + text)
 	if err != nil {
 		t.Fatalf("Embed query %q: %v", text, err)
 	}

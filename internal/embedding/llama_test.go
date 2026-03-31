@@ -17,7 +17,8 @@ func TestEmbedProducesNonZeroOutput(t *testing.T) {
 	}
 	defer emb.Close()
 
-	vec, err := emb.Embed("search_query: list files in a directory")
+	queryPrefix, _ := testPrefixes()
+	vec, err := emb.Embed(queryPrefix + "list files in a directory")
 	if err != nil {
 		t.Fatalf("Embed: %v", err)
 	}
@@ -53,17 +54,19 @@ func TestEmbedSimilarQueriesMoreSimilar(t *testing.T) {
 	}
 	defer emb.Close()
 
-	a, err := emb.Embed("search_query: list files")
+	queryPrefix, docPrefix := testPrefixes()
+
+	a, err := emb.Embed(queryPrefix + "list files")
 	if err != nil {
 		t.Fatalf("Embed a: %v", err)
 	}
 
-	b, err := emb.Embed("search_document: ls - list directory contents")
+	b, err := emb.Embed(docPrefix + "ls - list directory contents")
 	if err != nil {
 		t.Fatalf("Embed b: %v", err)
 	}
 
-	c, err := emb.Embed("search_document: gcc - GNU C compiler")
+	c, err := emb.Embed(docPrefix + "gcc - GNU C compiler")
 	if err != nil {
 		t.Fatalf("Embed c: %v", err)
 	}
