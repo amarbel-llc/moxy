@@ -93,7 +93,7 @@
               nativeBuildInputs = [ pkgs.makeWrapper ];
             }
             ''
-              mkdir -p $out/bin
+              mkdir -p $out/bin $out/share/man/man1
               makeWrapper ${maneater-unwrapped}/bin/maneater $out/bin/maneater \
                 --prefix PATH : ${
                   pkgs.lib.makeBinPath [
@@ -103,6 +103,7 @@
                   ]
                 } \
                 --set MANEATER_MODEL_PATH ${nomic-model}
+              cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
             '';
         combined = pkgs.symlinkJoin {
           name = "moxy";
