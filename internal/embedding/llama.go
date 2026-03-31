@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"fmt"
+	"math"
 	"unsafe"
 )
 
@@ -87,13 +88,39 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 		}
 	}
 
-	batch := C.llama_batch_get_one(&tokens[0], nTokens)
+	// Use llama_batch_init so we can set seq_id and logits per token.
+	// llama_batch_get_one does not populate these, which causes
+	// llama_get_embeddings_seq to return zeros.
+	batch := C.llama_batch_init(nTokens, 0, 1)
+	defer C.llama_batch_free(batch)
+
+	batch.n_tokens = nTokens
+	tokenSlice := unsafe.Slice(batch.token, int(nTokens))
+	posSlice := unsafe.Slice(batch.pos, int(nTokens))
+	nSeqSlice := unsafe.Slice(batch.n_seq_id, int(nTokens))
+	seqSlice := unsafe.Slice(batch.seq_id, int(nTokens))
+	logitsSlice := unsafe.Slice(batch.logits, int(nTokens))
+
+	for i := C.int(0); i < nTokens; i++ {
+		tokenSlice[i] = tokens[i]
+		posSlice[i] = C.llama_pos(i)
+		nSeqSlice[i] = 1
+		*seqSlice[i] = 0
+		logitsSlice[i] = 0
+	}
+	// Mark last token for output
+	logitsSlice[nTokens-1] = 1
 
 	if ret := C.llama_encode(e.ctx, batch); ret != 0 {
 		return nil, fmt.Errorf("llama_encode failed: %d", ret)
 	}
 
-	embPtr := C.llama_get_embeddings(e.ctx)
+	// Use pooled sequence embedding for embedding models
+	embPtr := C.llama_get_embeddings_seq(e.ctx, 0)
+	if embPtr == nil {
+		// Fall back to non-pooled embeddings
+		embPtr = C.llama_get_embeddings(e.ctx)
+	}
 	if embPtr == nil {
 		return nil, fmt.Errorf("llama_get_embeddings returned nil")
 	}
@@ -102,6 +129,17 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 	cSlice := unsafe.Slice(embPtr, e.nEmbd)
 	for i := 0; i < e.nEmbd; i++ {
 		result[i] = float32(cSlice[i])
+	}
+
+	// L2-normalize so cosine similarity works correctly
+	var norm float64
+	for _, v := range result {
+		norm += float64(v) * float64(v)
+	}
+	if norm = math.Sqrt(norm); norm > 0 {
+		for i := range result {
+			result[i] = float32(float64(result[i]) / norm)
+		}
 	}
 
 	return result, nil
