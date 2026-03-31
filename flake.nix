@@ -120,6 +120,8 @@
             pkgs-master.govulncheck
             gomod2nix.packages.${system}.default
             pkgs.just
+            pkgs.llama-cpp
+            pkgs.pandoc
             bob.packages.${system}.batman
             bob.packages.${system}.grit
             bob.packages.${system}.lux
