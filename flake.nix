@@ -74,6 +74,11 @@
           hash = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
         };
 
+        snowflake-model = pkgs.fetchurl {
+          url = "https://huggingface.co/Casual-Autopsy/snowflake-arctic-embed-l-v2.0-gguf/resolve/main/snowflake-arctic-embed-l-v2.0-q8_0.gguf";
+          hash = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
+        };
+
         maneater-unwrapped = pkgs.buildGoApplication {
           pname = "maneater";
           version = "0.4.0";
@@ -88,12 +93,17 @@
         };
 
         maneater-models-toml = pkgs.writeText "models.toml" ''
-          default = "nomic"
+          default = "snowflake"
 
           [models.nomic]
           path = "${nomic-model}"
           query-prefix = "search_query: "
           document-prefix = "search_document: "
+
+          [models.snowflake]
+          path = "${snowflake-model}"
+          query-prefix = "query: "
+          document-prefix = ""
         '';
 
         maneater =
