@@ -99,6 +99,7 @@
                   pkgs.lib.makeBinPath [
                     pkgs.mandoc
                     pkgs.pandoc
+                    pkgs.tldr
                   ]
                 } \
                 --set MANPAGE_MODEL_PATH ${nomic-model}

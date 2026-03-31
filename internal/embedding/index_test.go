@@ -76,6 +76,26 @@ func TestLoadIndexMissing(t *testing.T) {
 	}
 }
 
+func TestIndexSearchDeduplicatesByPageName(t *testing.T) {
+	idx := NewIndex(2)
+	// Two entries for "sed" with different embeddings
+	idx.Add("sed", []float32{0.5, 0.5}) // weaker match
+	idx.Add("sed", []float32{1, 0})     // stronger match for query [1,0]
+	idx.Add("ls", []float32{0, 1})      // different page
+
+	results := idx.Search([]float32{1, 0}, 10)
+	if len(results) != 2 {
+		t.Fatalf("got %d results, want 2 (deduped)", len(results))
+	}
+	if results[0].Page != "sed" {
+		t.Errorf("top result: got %q, want %q", results[0].Page, "sed")
+	}
+	// The score should be from the stronger match [1,0], not the weaker [0.5,0.5]
+	if results[0].Score < 0.99 {
+		t.Errorf("sed score %.4f too low — dedup should keep the best match", results[0].Score)
+	}
+}
+
 func TestIndexSearchEmpty(t *testing.T) {
 	idx := NewIndex(3)
 	results := idx.Search([]float32{1, 2, 3}, 5)

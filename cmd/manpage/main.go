@@ -244,34 +244,46 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 
 	fmt.Fprintf(os.Stderr, "manpage: building search index...\n")
 
+	ensureTldrCache()
+
 	pages, err := listManPages()
 	if err != nil {
 		return nil, err
 	}
 
 	idx = embedding.NewIndex(m.embedder.EmbeddingDim())
+	tldrCount := 0
 
 	for i, page := range pages {
 		synopsis := extractSynopsis(page)
-		if synopsis == "" {
-			continue
+		if synopsis != "" {
+			docText := "search_document: " + synopsis
+			emb, err := m.embedder.Embed(docText)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "manpage: skipping %s synopsis: %v\n", page, err)
+			} else {
+				idx.Add(page, emb)
+			}
 		}
 
-		docText := "search_document: " + synopsis
-		emb, err := m.embedder.Embed(docText)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "manpage: skipping %s: %v\n", page, err)
-			continue
+		tldr := extractTldr(page)
+		if tldr != "" {
+			docText := "search_document: " + tldr
+			emb, err := m.embedder.Embed(docText)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "manpage: skipping %s tldr: %v\n", page, err)
+			} else {
+				idx.Add(page, emb)
+				tldrCount++
+			}
 		}
-
-		idx.Add(page, emb)
 
 		if (i+1)%100 == 0 {
 			fmt.Fprintf(os.Stderr, "manpage: indexed %d / %d pages\n", i+1, len(pages))
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "manpage: indexed %d pages\n", len(idx.Entries))
+	fmt.Fprintf(os.Stderr, "manpage: indexed %d entries (%d pages, %d with tldr)\n", len(idx.Entries), len(pages), tldrCount)
 
 	if err := idx.Save(cacheDir); err != nil {
 		fmt.Fprintf(os.Stderr, "manpage: warning: could not cache index: %v\n", err)
@@ -351,6 +363,76 @@ func extractSynopsis(page string) string {
 	}
 
 	return strings.TrimSpace(text)
+}
+
+// extractTldr reads the raw tldr markdown for a page and extracts the
+// description and example descriptions, truncated to 500 chars.
+// Returns empty string if no tldr page exists.
+func extractTldr(page string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	cacheBase := filepath.Join(home, ".cache", "tldr", "pages")
+	var content []byte
+	// Prefer osx-specific pages, fall back to common
+	for _, platform := range []string{"osx", "common"} {
+		path := filepath.Join(cacheBase, platform, page+".md")
+		data, err := os.ReadFile(path)
+		if err == nil {
+			content = data
+			break
+		}
+	}
+	if content == nil {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") {
+			// Page name header
+			b.WriteString(line[2:])
+			b.WriteString(" - ")
+		} else if strings.HasPrefix(line, "> ") {
+			text := line[2:]
+			// Skip "More information:" and "See also:" lines
+			if strings.HasPrefix(text, "More information:") {
+				continue
+			}
+			b.WriteString(text)
+			b.WriteString(" ")
+		} else if strings.HasPrefix(line, "- ") {
+			// Example description
+			b.WriteString(line[2:])
+			b.WriteString(" ")
+		}
+		// Skip code blocks (lines starting with `) and blank lines
+	}
+
+	text := strings.TrimSpace(b.String())
+	if len(text) > 500 {
+		text = text[:500]
+	}
+	return text
+}
+
+// ensureTldrCache runs tldr -u if the cache directory doesn't exist.
+func ensureTldrCache() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	cacheDir := filepath.Join(home, ".cache", "tldr", "pages")
+	if _, err := os.Stat(cacheDir); err == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "manpage: updating tldr cache...\n")
+	cmd := exec.Command("tldr", "-u")
+	cmd.Stderr = os.Stderr
+	cmd.Run()
 }
 
 // parseSearchURI checks if uri is man://search/{query}[?top_k=N]

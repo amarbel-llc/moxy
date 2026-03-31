@@ -102,6 +102,31 @@ func TestSearchQualitySedVsTops(t *testing.T) {
 	}
 }
 
+// TestSearchQualitySedTldrVsSynopsis compares ranking with sed's man
+// page synopsis vs its tldr page. The tldr description ("Edit text in
+// a scriptable manner") and examples ("Replace all apple occurrences
+// with mango") are much closer to "search and replace" than the man
+// page's "stream editor for filtering and transforming text".
+func TestSearchQualitySedTldrVsSynopsis(t *testing.T) {
+	emb := newTestEmbedder(t)
+
+	query := embedQuery(t, emb, "search and replace text in files")
+	synopsis := embedDoc(t, emb, "sed - stream editor for filtering and transforming text")
+	tldr := embedDoc(t, emb, `sed - Edit text in a scriptable manner.
+Replace all apple occurrences with mango in all input lines and print the result to stdout: command | sed 's/apple/mango/g'
+Replace all apple occurrences with mango in a file and save a backup of the original: sed -i bak 's/apple/mango/g' path/to/file`)
+
+	simSynopsis := CosineSimilarity(query, synopsis)
+	simTldr := CosineSimilarity(query, tldr)
+
+	t.Logf("similarity(search and replace, sed synopsis): %.4f", simSynopsis)
+	t.Logf("similarity(search and replace, sed tldr):     %.4f", simTldr)
+
+	if simTldr <= simSynopsis {
+		t.Errorf("expected tldr to score higher than synopsis: %.4f <= %.4f", simTldr, simSynopsis)
+	}
+}
+
 func TestSearchQualityNetworkDownload(t *testing.T) {
 	emb := newTestEmbedder(t)
 

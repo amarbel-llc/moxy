@@ -37,10 +37,18 @@ func (idx *Index) Add(page string, embedding []float32) {
 }
 
 func (idx *Index) Search(query []float32, topK int) []Result {
-	results := make([]Result, 0, len(idx.Entries))
+	// Compute scores, keeping only the best score per page name.
+	best := make(map[string]float64)
 	for _, e := range idx.Entries {
 		score := CosineSimilarity(query, e.Embedding)
-		results = append(results, Result{Page: e.Page, Score: score})
+		if prev, ok := best[e.Page]; !ok || score > prev {
+			best[e.Page] = score
+		}
+	}
+
+	results := make([]Result, 0, len(best))
+	for page, score := range best {
+		results = append(results, Result{Page: page, Score: score})
 	}
 
 	sort.Slice(results, func(i, j int) bool {
