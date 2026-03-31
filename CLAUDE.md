@@ -95,6 +95,44 @@ The `internal/paginate` package provides cursor-based pagination for resource
 lists. Servers with `paginate = true` in their config get paginated resource
 responses using `?offset=N&limit=M` query parameters on resource URIs.
 
+### Maneater (Man Page MCP Server)
+
+Second binary in the repo (`cmd/maneater`). Resource-only MCP server (no tools)
+for Unix man pages with progressive disclosure and embedding-based semantic
+search. Runs as a moxy child server via `command = "maneater serve mcp"`.
+
+**Subcommands:**
+
+- `maneater serve mcp` -- run as MCP server over stdio
+- `maneater index` -- build/rebuild search index with progress output
+
+**Resource templates:**
+
+- `man://{page}` -- table of contents (section names + line counts)
+- `man://{page}/{section_name}` -- read one section
+- `man://{section}/{page}` / `man://{section}/{page}/{section_name}` -- with man
+  section number
+- `man://search/{query}?top_k=N` -- semantic search (default top 10)
+
+**Rendering pipeline:** `mandoc -T man <source> | pandoc -f man -t markdown`,
+then split by `#`/`##` headers into sections.
+
+**Search architecture:** CGo bindings to nixpkgs' libllama
+(`internal/embedding/llama.go`) embed man page synopses and tldr pages using
+nomic-embed-text-v1.5. Key details:
+
+- Must use `llama_batch_init` (not `batch_get_one`) with manual seq_id/logits
+  setup, otherwise embeddings are all zeros
+- Raw embeddings need L2 normalization (unlike llama-server's `/embedding`
+  endpoint)
+- Index deduplicates by page name, keeping the highest cosine similarity score
+- Cached at `$XDG_CACHE_HOME/moxy/man-index/` (regenerable via `maneater index`)
+- Model path from `MANEATER_MODEL_PATH` env var (set by nix wrapper)
+
+**Nix build:** `maneater-unwrapped` uses `CGO_ENABLED = "1"` with `pkg-config`
+and `llama-cpp` in buildInputs. Wrapped binary adds mandoc, pandoc, tldr to
+PATH.
+
 ### Key Packages
 
 - `internal/config` -- moxyfile parsing, hierarchy loading, merge semantics
@@ -105,6 +143,7 @@ responses using `?offset=N&limit=M` query parameters on resource URIs.
 - `internal/validate` -- TAP-14 output validation of moxyfile hierarchy
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
 - `internal/paginate` -- cursor-based pagination for resource lists
+- `internal/embedding` -- vector index, cosine similarity, CGo llama bindings
 
 ### CLI Subcommands
 
@@ -119,7 +158,8 @@ Dispatched in `cmd/moxy/main.go`:
 
 Built with `go-mcp` from `amarbel-llc/purse-first`. The `command.App`, `server`,
 `transport`, and `protocol` packages provide the MCP framework. Uses `gomod2nix`
-for Nix builds.
+for Nix builds. Maneater additionally links against `llama-cpp` via CGo for
+embedding generation.
 
 ## Testing Conventions
 
@@ -132,3 +172,7 @@ for Nix builds.
 - `run_moxy_mcp_two` sends two method calls in one session (for testing restart,
   etc.)
 - The justfile sets `output-format = "tap"` for TAP output from just itself
+- Embedding tests in `internal/embedding/` require `MANPAGE_MODEL_PATH` env var
+  pointing to the nomic GGUF model; they are skipped otherwise
+- `search_quality_test.go` documents expected ranking behavior and known
+  limitations --- update these when changing the embedding pipeline
