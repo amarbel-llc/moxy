@@ -4,17 +4,27 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/amarbel-llc/moxy/internal/embedding"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 )
 
-type manServer struct{}
+type manServer struct {
+	mu       sync.Mutex
+	embedder *embedding.Embedder
+	index    *embedding.Index
+}
 
 type pageSection struct {
 	Name      string
@@ -48,6 +58,12 @@ var templates = []protocol.ResourceTemplate{
 		Description: "Read a specific section of a Unix man page by section number and name",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "man://search/{query}",
+		Name:        "Semantic man page search",
+		Description: "Search for man pages by natural language query. Returns ranked results with page names and scores. Use query parameter top_k to control result count (default 10).",
+		MimeType:    "text/plain",
+	},
 }
 
 var templatesV1 = []protocol.ResourceTemplateV1{
@@ -75,6 +91,12 @@ var templatesV1 = []protocol.ResourceTemplateV1{
 		Description: "Read a specific section of a Unix man page by section number and name",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "man://search/{query}",
+		Name:        "Semantic man page search",
+		Description: "Search for man pages by natural language query. Returns ranked results with page names and scores. Use query parameter top_k to control result count (default 10).",
+		MimeType:    "text/plain",
+	},
 }
 
 // ResourceProvider (base interface)
@@ -84,6 +106,19 @@ func (m *manServer) ListResources(_ context.Context) ([]protocol.Resource, error
 }
 
 func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
+	// Check for search URI first
+	if query, topK, ok := parseSearchURI(uri); ok {
+		text, err := m.handleSearch(query, topK)
+		if err != nil {
+			return nil, err
+		}
+		return &protocol.ResourceReadResult{
+			Contents: []protocol.ResourceContent{
+				{URI: uri, MimeType: "text/plain", Text: text},
+			},
+		}, nil
+	}
+
 	manSection, page, sectionName, err := parseManURI(uri)
 	if err != nil {
 		return nil, err
@@ -137,6 +172,224 @@ func (m *manServer) ListResourcesV1(_ context.Context, _ string) (*protocol.Reso
 
 func (m *manServer) ListResourceTemplatesV1(_ context.Context, _ string) (*protocol.ResourceTemplatesListResultV1, error) {
 	return &protocol.ResourceTemplatesListResultV1{ResourceTemplates: templatesV1}, nil
+}
+
+// Search
+
+func (m *manServer) handleSearch(query string, topK int) (string, error) {
+	if err := m.ensureSearchReady(); err != nil {
+		return "", err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	queryText := "search_query: " + query
+	queryEmb, err := m.embedder.Embed(queryText)
+	if err != nil {
+		return "", fmt.Errorf("embedding query: %w", err)
+	}
+
+	results := m.index.Search(queryEmb, topK)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Search results for %q (%d matches):\n\n", query, len(results))
+	for i, r := range results {
+		fmt.Fprintf(&b, "%d. %s (score: %.4f)\n", i+1, r.Page, r.Score)
+	}
+
+	return b.String(), nil
+}
+
+func (m *manServer) ensureSearchReady() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.embedder != nil && m.index != nil {
+		return nil
+	}
+
+	modelPath := os.Getenv("MANPAGE_MODEL_PATH")
+	if modelPath == "" {
+		return fmt.Errorf("MANPAGE_MODEL_PATH not set; semantic search requires the nomic-embed-text model")
+	}
+
+	if m.embedder == nil {
+		emb, err := embedding.NewEmbedder(modelPath)
+		if err != nil {
+			return fmt.Errorf("loading embedding model: %w", err)
+		}
+		m.embedder = emb
+	}
+
+	if m.index == nil {
+		idx, err := m.loadOrBuildIndex()
+		if err != nil {
+			return fmt.Errorf("building search index: %w", err)
+		}
+		m.index = idx
+	}
+
+	return nil
+}
+
+func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
+	cacheDir := indexCacheDir()
+
+	idx, err := embedding.LoadIndex(cacheDir)
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "manpage: loaded search index (%d entries) from %s\n", len(idx.Entries), cacheDir)
+		return idx, nil
+	}
+
+	fmt.Fprintf(os.Stderr, "manpage: building search index...\n")
+
+	pages, err := listManPages()
+	if err != nil {
+		return nil, err
+	}
+
+	idx = embedding.NewIndex(m.embedder.EmbeddingDim())
+
+	for i, page := range pages {
+		synopsis := extractSynopsis(page)
+		if synopsis == "" {
+			continue
+		}
+
+		docText := "search_document: " + synopsis
+		emb, err := m.embedder.Embed(docText)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "manpage: skipping %s: %v\n", page, err)
+			continue
+		}
+
+		idx.Add(page, emb)
+
+		if (i+1)%100 == 0 {
+			fmt.Fprintf(os.Stderr, "manpage: indexed %d / %d pages\n", i+1, len(pages))
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "manpage: indexed %d pages\n", len(idx.Entries))
+
+	if err := idx.Save(cacheDir); err != nil {
+		fmt.Fprintf(os.Stderr, "manpage: warning: could not cache index: %v\n", err)
+	}
+
+	return idx, nil
+}
+
+func indexCacheDir() string {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "moxy", "man-index")
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".local", "share", "moxy", "man-index")
+}
+
+func listManPages() ([]string, error) {
+	cmd := exec.Command("apropos", "-s", "1", ".")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("apropos: %w", err)
+	}
+
+	seen := make(map[string]bool)
+	var pages []string
+	for _, line := range strings.Split(string(out), "\n") {
+		// Format: "name(1) - description" or "name, alias(1) - description"
+		name := strings.TrimSpace(line)
+		if name == "" {
+			continue
+		}
+		// Strip everything from ( onward
+		if idx := strings.Index(name, "("); idx >= 0 {
+			name = strings.TrimSpace(name[:idx])
+		}
+		// Handle comma-separated aliases
+		if idx := strings.Index(name, ","); idx >= 0 {
+			name = strings.TrimSpace(name[:idx])
+		}
+		if name != "" && !seen[name] {
+			seen[name] = true
+			pages = append(pages, name)
+		}
+	}
+
+	sort.Strings(pages)
+	return pages, nil
+}
+
+// extractSynopsis extracts NAME+SYNOPSIS+DESCRIPTION content from a man page,
+// truncated to 500 chars. Returns empty string on failure.
+func extractSynopsis(page string) string {
+	sourcePath, err := locateSource("", page)
+	if err != nil {
+		return ""
+	}
+
+	markdown, err := renderMarkdown(sourcePath)
+	if err != nil {
+		return ""
+	}
+
+	sections := splitSections(markdown)
+
+	var synopsis strings.Builder
+	for _, s := range sections {
+		upper := strings.ToUpper(strings.TrimSpace(s.Name))
+		if upper == "NAME" || upper == "SYNOPSIS" || upper == "DESCRIPTION" {
+			synopsis.WriteString(s.Content)
+			synopsis.WriteString("\n")
+		}
+	}
+
+	text := synopsis.String()
+	if len(text) > 500 {
+		text = text[:500]
+	}
+
+	return strings.TrimSpace(text)
+}
+
+// parseSearchURI checks if uri is man://search/{query}[?top_k=N]
+// and returns the query, top_k, and whether it matched.
+func parseSearchURI(uri string) (query string, topK int, ok bool) {
+	path := strings.TrimPrefix(uri, "man://")
+
+	// Split query params
+	queryPart := ""
+	if idx := strings.Index(path, "?"); idx >= 0 {
+		queryPart = path[idx+1:]
+		path = path[:idx]
+	}
+
+	if !strings.HasPrefix(path, "search/") {
+		return "", 0, false
+	}
+
+	query = strings.TrimPrefix(path, "search/")
+	if decoded, err := url.PathUnescape(query); err == nil {
+		query = decoded
+	}
+
+	if query == "" {
+		return "", 0, false
+	}
+
+	topK = 10
+	if queryPart != "" {
+		if params, err := url.ParseQuery(queryPart); err == nil {
+			if v := params.Get("top_k"); v != "" {
+				if n, err := strconv.Atoi(v); err == nil && n > 0 {
+					topK = n
+				}
+			}
+		}
+	}
+
+	return query, topK, true
 }
 
 // locateSource uses man -w to find the roff source file path.
@@ -308,8 +561,8 @@ func main() {
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "manpage",
-		ServerVersion: "0.2.0",
-		Instructions:  "Unix man page server with progressive disclosure. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section.",
+		ServerVersion: "0.3.0",
+		Instructions:  "Unix man page server with progressive disclosure and semantic search. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section, man://search/{query} to find pages by natural language.",
 		Resources:     m,
 	})
 	if err != nil {

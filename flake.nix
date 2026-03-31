@@ -69,14 +69,22 @@
           '';
         };
 
+        nomic-model = pkgs.fetchurl {
+          url = "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q8_0.gguf";
+          hash = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
+        };
+
         manpage-unwrapped = pkgs.buildGoApplication {
           pname = "manpage";
-          version = "0.2.0";
+          version = "0.3.0";
           src = ./.;
           subPackages = [ "cmd/manpage" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
+          CGO_ENABLED = "1";
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.llama-cpp ];
         };
 
         manpage =
@@ -92,7 +100,8 @@
                     pkgs.mandoc
                     pkgs.pandoc
                   ]
-                }
+                } \
+                --set MANPAGE_MODEL_PATH ${nomic-model}
             '';
         combined = pkgs.symlinkJoin {
           name = "moxy";
@@ -122,6 +131,7 @@
             pkgs.just
             pkgs.llama-cpp
             pkgs.pandoc
+            pkgs.pkg-config
             bob.packages.${system}.batman
             bob.packages.${system}.grit
             bob.packages.${system}.lux

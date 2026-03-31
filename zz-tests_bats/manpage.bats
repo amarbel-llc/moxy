@@ -143,6 +143,21 @@ EOF
   echo "$output" | jq -e '.error'
 }
 
+function search_template_appears_in_list { # @test
+  mkdir -p "$HOME/repo"
+  cat > "$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "man"
+command = "manpage"
+generate-resource-tools = true
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp resources/templates/list
+  assert_success
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "man/man://search/{query}")'
+}
+
 function man_page_nonexistent_returns_error { # @test
   mkdir -p "$HOME/repo"
   cat > "$HOME/repo/moxyfile" <<EOF
