@@ -74,11 +74,11 @@
           hash = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
         };
 
-        manpage-unwrapped = pkgs.buildGoApplication {
-          pname = "manpage";
-          version = "0.3.0";
+        maneater-unwrapped = pkgs.buildGoApplication {
+          pname = "maneater";
+          version = "0.4.0";
           src = ./.;
-          subPackages = [ "cmd/manpage" ];
+          subPackages = [ "cmd/maneater" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
@@ -87,14 +87,14 @@
           buildInputs = [ pkgs.llama-cpp ];
         };
 
-        manpage =
-          pkgs.runCommand "manpage-wrapped"
+        maneater =
+          pkgs.runCommand "maneater-wrapped"
             {
               nativeBuildInputs = [ pkgs.makeWrapper ];
             }
             ''
               mkdir -p $out/bin
-              makeWrapper ${manpage-unwrapped}/bin/manpage $out/bin/manpage \
+              makeWrapper ${maneater-unwrapped}/bin/maneater $out/bin/maneater \
                 --prefix PATH : ${
                   pkgs.lib.makeBinPath [
                     pkgs.mandoc
@@ -102,19 +102,19 @@
                     pkgs.tldr
                   ]
                 } \
-                --set MANPAGE_MODEL_PATH ${nomic-model}
+                --set MANEATER_MODEL_PATH ${nomic-model}
             '';
         combined = pkgs.symlinkJoin {
           name = "moxy";
           paths = [
             moxy
-            manpage
+            maneater
           ];
         };
       in
       {
         packages = {
-          inherit moxy manpage;
+          inherit moxy maneater;
           default = combined;
         };
 

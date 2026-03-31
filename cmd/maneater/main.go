@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
@@ -209,9 +210,9 @@ func (m *manServer) ensureSearchReady() error {
 		return nil
 	}
 
-	modelPath := os.Getenv("MANPAGE_MODEL_PATH")
+	modelPath := os.Getenv("MANEATER_MODEL_PATH")
 	if modelPath == "" {
-		return fmt.Errorf("MANPAGE_MODEL_PATH not set; semantic search requires the nomic-embed-text model")
+		return fmt.Errorf("MANEATER_MODEL_PATH not set; semantic search requires the nomic-embed-text model")
 	}
 
 	if m.embedder == nil {
@@ -238,11 +239,11 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 
 	idx, err := embedding.LoadIndex(cacheDir)
 	if err == nil {
-		fmt.Fprintf(os.Stderr, "manpage: loaded search index (%d entries) from %s\n", len(idx.Entries), cacheDir)
+		fmt.Fprintf(os.Stderr, "maneater: loaded search index (%d entries) from %s\n", len(idx.Entries), cacheDir)
 		return idx, nil
 	}
 
-	fmt.Fprintf(os.Stderr, "manpage: building search index...\n")
+	fmt.Fprintf(os.Stderr, "maneater: building search index...\n")
 
 	ensureTldrCache()
 
@@ -260,7 +261,7 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 			docText := "search_document: " + synopsis
 			emb, err := m.embedder.Embed(docText)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "manpage: skipping %s synopsis: %v\n", page, err)
+				fmt.Fprintf(os.Stderr, "maneater: skipping %s synopsis: %v\n", page, err)
 			} else {
 				idx.Add(page, emb)
 			}
@@ -271,7 +272,7 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 			docText := "search_document: " + tldr
 			emb, err := m.embedder.Embed(docText)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "manpage: skipping %s tldr: %v\n", page, err)
+				fmt.Fprintf(os.Stderr, "maneater: skipping %s tldr: %v\n", page, err)
 			} else {
 				idx.Add(page, emb)
 				tldrCount++
@@ -279,25 +280,25 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 		}
 
 		if (i+1)%100 == 0 {
-			fmt.Fprintf(os.Stderr, "manpage: indexed %d / %d pages\n", i+1, len(pages))
+			fmt.Fprintf(os.Stderr, "maneater: indexed %d / %d pages\n", i+1, len(pages))
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "manpage: indexed %d entries (%d pages, %d with tldr)\n", len(idx.Entries), len(pages), tldrCount)
+	fmt.Fprintf(os.Stderr, "maneater: indexed %d entries (%d pages, %d with tldr)\n", len(idx.Entries), len(pages), tldrCount)
 
 	if err := idx.Save(cacheDir); err != nil {
-		fmt.Fprintf(os.Stderr, "manpage: warning: could not cache index: %v\n", err)
+		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache index: %v\n", err)
 	}
 
 	return idx, nil
 }
 
 func indexCacheDir() string {
-	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
 		return filepath.Join(xdg, "moxy", "man-index")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "moxy", "man-index")
+	return filepath.Join(home, ".cache", "moxy", "man-index")
 }
 
 func listManPages() ([]string, error) {
@@ -429,7 +430,7 @@ func ensureTldrCache() {
 	if _, err := os.Stat(cacheDir); err == nil {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "manpage: updating tldr cache...\n")
+	fmt.Fprintf(os.Stderr, "maneater: updating tldr cache...\n")
 	cmd := exec.Command("tldr", "-u")
 	cmd.Stderr = os.Stderr
 	cmd.Run()
@@ -635,6 +636,36 @@ func isManSection(s string) bool {
 var _ server.ResourceProviderV1 = (*manServer)(nil)
 
 func main() {
+	flag.Parse()
+
+	if flag.NArg() < 1 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	switch flag.Arg(0) {
+	case "serve":
+		if flag.NArg() < 2 || flag.Arg(1) != "mcp" {
+			fmt.Fprintf(os.Stderr, "usage: maneater serve mcp\n")
+			os.Exit(1)
+		}
+		runServeMCP()
+	case "index":
+		runIndex()
+	default:
+		printUsage()
+		os.Exit(1)
+	}
+}
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "usage: maneater <command>\n\n")
+	fmt.Fprintf(os.Stderr, "commands:\n")
+	fmt.Fprintf(os.Stderr, "  serve mcp    run as MCP server\n")
+	fmt.Fprintf(os.Stderr, "  index        build/rebuild search index\n")
+}
+
+func runServeMCP() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -642,18 +673,84 @@ func main() {
 	m := &manServer{}
 
 	srv, err := server.New(t, server.Options{
-		ServerName:    "manpage",
-		ServerVersion: "0.3.0",
+		ServerName:    "maneater",
+		ServerVersion: "0.4.0",
 		Instructions:  "Unix man page server with progressive disclosure and semantic search. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section, man://search/{query} to find pages by natural language.",
 		Resources:     m,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "manpage: %v\n", err)
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
 		os.Exit(1)
 	}
 
 	if err := srv.Run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "manpage: %v\n", err)
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func runIndex() {
+	modelPath := os.Getenv("MANEATER_MODEL_PATH")
+	if modelPath == "" {
+		fmt.Fprintf(os.Stderr, "maneater: MANEATER_MODEL_PATH not set\n")
+		os.Exit(1)
+	}
+
+	emb, err := embedding.NewEmbedder(modelPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: loading model: %v\n", err)
+		os.Exit(1)
+	}
+	defer emb.Close()
+
+	fmt.Println("Updating tldr cache...")
+	ensureTldrCache()
+
+	fmt.Println("Listing man pages...")
+	pages, err := listManPages()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Found %d man pages\n", len(pages))
+
+	idx := embedding.NewIndex(emb.EmbeddingDim())
+	tldrCount := 0
+
+	for i, page := range pages {
+		synopsis := extractSynopsis(page)
+		if synopsis != "" {
+			docText := "search_document: " + synopsis
+			vec, err := emb.Embed(docText)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  skipping %s synopsis: %v\n", page, err)
+			} else {
+				idx.Add(page, vec)
+			}
+		}
+
+		tldr := extractTldr(page)
+		if tldr != "" {
+			docText := "search_document: " + tldr
+			vec, err := emb.Embed(docText)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  skipping %s tldr: %v\n", page, err)
+			} else {
+				idx.Add(page, vec)
+				tldrCount++
+			}
+		}
+
+		if (i+1)%100 == 0 || i+1 == len(pages) {
+			fmt.Printf("Indexed %d / %d pages\n", i+1, len(pages))
+		}
+	}
+
+	cacheDir := indexCacheDir()
+	if err := idx.Save(cacheDir); err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: saving index: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Done: %d entries (%d pages, %d with tldr) saved to %s\n", len(idx.Entries), len(pages), tldrCount, cacheDir)
 }

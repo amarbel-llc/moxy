@@ -15,11 +15,12 @@ the user needing to pre-enter it or manually wrap the command.
 ``` toml
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 nix-devshell = "."
 ```
 
-Effective command: `nix develop . --command manpage`
+Effective command: `nix develop . --command maneater serve mcp` (moxy splits the
+command string on spaces)
 
 ## Interface
 

@@ -4,7 +4,7 @@ build: build-go build-nix
 
 build-go: generate
   go build -o build/moxy ./cmd/moxy
-  go build -o build/manpage ./cmd/manpage
+  go build -o build/maneater ./cmd/maneater
 
 generate:
   go generate ./internal/config/

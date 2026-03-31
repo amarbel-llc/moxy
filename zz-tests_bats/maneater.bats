@@ -15,7 +15,7 @@ function man_page_templates_appear_in_list { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -33,7 +33,7 @@ function man_page_toc_by_name { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -52,7 +52,7 @@ function man_page_toc_with_section { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -71,7 +71,7 @@ function man_page_read_section { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -90,7 +90,7 @@ function man_page_read_section_with_man_section { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -107,7 +107,7 @@ function man_page_toc_includes_subsections { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -126,7 +126,7 @@ function man_page_nonexistent_section_returns_error { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -148,7 +148,7 @@ function search_template_appears_in_list { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
@@ -163,7 +163,7 @@ function man_page_nonexistent_returns_error { # @test
   cat > "$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "man"
-command = "manpage"
+command = "maneater serve mcp"
 generate-resource-tools = true
 EOF
 
