@@ -302,36 +302,56 @@ func indexCacheDir() string {
 }
 
 func listManPages() ([]string, error) {
-	cmd := exec.Command("apropos", "-s", "1", ".")
-	out, err := cmd.Output()
+	manpath, err := resolveManpath()
 	if err != nil {
-		return nil, fmt.Errorf("apropos: %w", err)
+		return nil, err
 	}
 
 	seen := make(map[string]bool)
 	var pages []string
-	for _, line := range strings.Split(string(out), "\n") {
-		// Format: "name(1) - description" or "name, alias(1) - description"
-		name := strings.TrimSpace(line)
-		if name == "" {
+
+	for _, dir := range manpath {
+		man1 := filepath.Join(dir, "man1")
+		entries, err := os.ReadDir(man1)
+		if err != nil {
 			continue
 		}
-		// Strip everything from ( onward
-		if idx := strings.Index(name, "("); idx >= 0 {
-			name = strings.TrimSpace(name[:idx])
-		}
-		// Handle comma-separated aliases
-		if idx := strings.Index(name, ","); idx >= 0 {
-			name = strings.TrimSpace(name[:idx])
-		}
-		if name != "" && !seen[name] {
-			seen[name] = true
-			pages = append(pages, name)
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			// Strip .1, .1.gz, etc.
+			name = strings.TrimSuffix(name, ".gz")
+			if ext := filepath.Ext(name); ext == ".1" {
+				name = strings.TrimSuffix(name, ext)
+			} else {
+				continue
+			}
+			if name != "" && !seen[name] {
+				seen[name] = true
+				pages = append(pages, name)
+			}
 		}
 	}
 
 	sort.Strings(pages)
 	return pages, nil
+}
+
+func resolveManpath() ([]string, error) {
+	// manpath(1) resolves MANPATH, /etc/man.conf, and platform defaults
+	cmd := exec.Command("manpath")
+	out, err := cmd.Output()
+	if err != nil {
+		// Fallback: common default
+		return []string{"/usr/share/man", "/usr/local/share/man"}, nil
+	}
+	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		return nil, fmt.Errorf("manpath returned empty")
+	}
+	return strings.Split(raw, ":"), nil
 }
 
 // extractSynopsis extracts NAME+SYNOPSIS+DESCRIPTION content from a man page,
