@@ -258,45 +258,118 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 		return nil, err
 	}
 
-	idx = embedding.NewIndex(m.embedder.EmbeddingDim())
-	tldrCount := 0
+	idx, stats := buildIndex(m.embedder, m.modelCfg, pages, os.Stderr)
 
-	for i, page := range pages {
-		synopsis := extractSynopsis(page)
-		if synopsis != "" {
-			docText := m.modelCfg.DocumentPrefix + synopsis
-			emb, err := m.embedder.Embed(docText)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "maneater: skipping %s synopsis: %v\n", page, err)
-			} else {
-				idx.Add(page, emb)
-			}
-		}
-
-		tldr := extractTldr(page)
-		if tldr != "" {
-			docText := m.modelCfg.DocumentPrefix + tldr
-			emb, err := m.embedder.Embed(docText)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "maneater: skipping %s tldr: %v\n", page, err)
-			} else {
-				idx.Add(page, emb)
-				tldrCount++
-			}
-		}
-
-		if (i+1)%100 == 0 {
-			fmt.Fprintf(os.Stderr, "maneater: indexed %d / %d pages\n", i+1, len(pages))
-		}
-	}
-
-	fmt.Fprintf(os.Stderr, "maneater: indexed %d entries (%d pages, %d with tldr)\n", len(idx.Entries), len(pages), tldrCount)
+	fmt.Fprintf(os.Stderr, "maneater: indexed %d entries (%d pages, %d with tldr)\n",
+		len(idx.Entries), len(pages), stats.tldrCount)
 
 	if err := idx.Save(cacheDir); err != nil {
 		fmt.Fprintf(os.Stderr, "maneater: warning: could not cache index: %v\n", err)
 	}
 
 	return idx, nil
+}
+
+type pageText struct {
+	index    int
+	page     string
+	synopsis string
+	tldr     string
+}
+
+type indexStats struct {
+	tldrCount int
+}
+
+func buildIndex(emb *embedding.Embedder, cfg ModelConfig, pages []string, logw *os.File) (*embedding.Index, indexStats) {
+	// Extract text concurrently, embed serially.
+	// Workers run mandoc|pandoc pipelines in parallel; results are
+	// sent in order to the main goroutine for embedding.
+	texts := make(chan pageText, 32)
+
+	go func() {
+		defer close(texts)
+
+		type indexed struct {
+			pt  pageText
+			seq int
+		}
+
+		workers := 8
+		sem := make(chan struct{}, workers)
+		results := make(chan indexed, 32)
+
+		go func() {
+			defer close(results)
+			var wg sync.WaitGroup
+			for i, page := range pages {
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(seq int, page string) {
+					defer wg.Done()
+					defer func() { <-sem }()
+					results <- indexed{
+						pt: pageText{
+							index:    seq,
+							page:     page,
+							synopsis: extractSynopsis(page),
+							tldr:     extractTldr(page),
+						},
+						seq: seq,
+					}
+				}(i, page)
+			}
+			wg.Wait()
+		}()
+
+		// Reorder results to preserve deterministic index order.
+		pending := make(map[int]pageText)
+		next := 0
+		for r := range results {
+			pending[r.seq] = r.pt
+			for {
+				pt, ok := pending[next]
+				if !ok {
+					break
+				}
+				delete(pending, next)
+				texts <- pt
+				next++
+			}
+		}
+	}()
+
+	idx := embedding.NewIndex(emb.EmbeddingDim())
+	var stats indexStats
+
+	for pt := range texts {
+		if pt.synopsis != "" {
+			docText := cfg.DocumentPrefix + pt.synopsis
+			vec, err := emb.Embed(docText)
+			if err != nil {
+				fmt.Fprintf(logw, "maneater: skipping %s synopsis: %v\n", pt.page, err)
+			} else {
+				idx.Add(pt.page, vec)
+			}
+		}
+
+		if pt.tldr != "" {
+			docText := cfg.DocumentPrefix + pt.tldr
+			vec, err := emb.Embed(docText)
+			if err != nil {
+				fmt.Fprintf(logw, "maneater: skipping %s tldr: %v\n", pt.page, err)
+			} else {
+				idx.Add(pt.page, vec)
+				stats.tldrCount++
+			}
+		}
+
+		if (pt.index+1)%100 == 0 {
+			fmt.Fprintf(logw, "maneater: indexed %d / %d pages\n", pt.index+1, len(pages))
+		}
+	}
+
+	return idx, stats
 }
 
 func indexCacheDirForModel(modelName string) string {
@@ -745,37 +818,7 @@ func runIndex() {
 	}
 	fmt.Printf("Found %d man pages\n", len(pages))
 
-	idx := embedding.NewIndex(emb.EmbeddingDim())
-	tldrCount := 0
-
-	for i, page := range pages {
-		synopsis := extractSynopsis(page)
-		if synopsis != "" {
-			docText := modelCfg.DocumentPrefix + synopsis
-			vec, err := emb.Embed(docText)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "  skipping %s synopsis: %v\n", page, err)
-			} else {
-				idx.Add(page, vec)
-			}
-		}
-
-		tldr := extractTldr(page)
-		if tldr != "" {
-			docText := modelCfg.DocumentPrefix + tldr
-			vec, err := emb.Embed(docText)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "  skipping %s tldr: %v\n", page, err)
-			} else {
-				idx.Add(page, vec)
-				tldrCount++
-			}
-		}
-
-		if (i+1)%100 == 0 || i+1 == len(pages) {
-			fmt.Printf("Indexed %d / %d pages\n", i+1, len(pages))
-		}
-	}
+	idx, stats := buildIndex(emb, modelCfg, pages, os.Stderr)
 
 	cacheDir := indexCacheDirForModel(modelName)
 	if err := idx.Save(cacheDir); err != nil {
@@ -783,5 +826,6 @@ func runIndex() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Done: %d entries (%d pages, %d with tldr) saved to %s\n", len(idx.Entries), len(pages), tldrCount, cacheDir)
+	fmt.Printf("Done: %d entries (%d pages, %d with tldr) saved to %s\n",
+		len(idx.Entries), len(pages), stats.tldrCount, cacheDir)
 }
