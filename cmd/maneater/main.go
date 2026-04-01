@@ -577,22 +577,34 @@ func parseSearchURI(uri string) (query string, topK int, ok bool) {
 	return query, topK, true
 }
 
-// locateSource uses man -w to find the roff source file path.
+// locateSource finds the roff source file by scanning MANPATH directories.
+// This avoids a dependency on man-db's "man -w" — only mandoc is needed.
 func locateSource(section, page string) (string, error) {
-	var args []string
-	if section != "" {
-		args = []string{"-w", section, page}
-	} else {
-		args = []string{"-w", page}
-	}
-
-	cmd := exec.Command("man", args...)
-	out, err := cmd.Output()
+	manpath, err := resolveManpath()
 	if err != nil {
-		return "", fmt.Errorf("man -w %s: %w", page, err)
+		return "", err
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	// If section is specified, only search that section dir; otherwise search
+	// common sections in priority order.
+	sections := []string{"1", "8", "5", "7", "6", "2", "3", "4"}
+	if section != "" {
+		sections = []string{section}
+	}
+
+	for _, dir := range manpath {
+		for _, sec := range sections {
+			manDir := filepath.Join(dir, "man"+sec)
+			for _, ext := range []string{".gz", ""} {
+				candidate := filepath.Join(manDir, page+"."+sec+ext)
+				if _, err := os.Stat(candidate); err == nil {
+					return candidate, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no manual entry for %s", page)
 }
 
 // renderMarkdown converts a roff source file to markdown via mandoc and pandoc.

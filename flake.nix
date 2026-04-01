@@ -151,6 +151,7 @@
             gomod2nix.packages.${system}.default
             pkgs.just
             pkgs.llama-cpp
+            pkgs.mandoc
             pkgs.pandoc
             pkgs.pkg-config
             bob.packages.${system}.batman
