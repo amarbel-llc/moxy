@@ -19,17 +19,11 @@ type serverConfigHandle struct {
 	node *cst.Node
 }
 
-type execRuleHandle struct {
-	node *cst.Node
-}
-
 type ConfigDocument struct {
 	data     Config
 	cstDoc   *document.Document
 	consumed map[string]bool
 	servers  []serverConfigHandle
-	allow    []execRuleHandle
-	deny     []execRuleHandle
 }
 
 func DecodeConfig(input []byte) (*ConfigDocument, error) {
@@ -55,11 +49,9 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		if len(allowNodes) > 0 {
 			found = true
 			d.consumed["exec"] = true
-			d.allow = make([]execRuleHandle, len(allowNodes))
 			execVal.Allow = make([]ExecRule, len(allowNodes))
 			d.consumed["exec.allow"] = true
 			for i, node := range allowNodes {
-				d.allow[i] = execRuleHandle{node: node}
 				if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
 					execVal.Allow[i].Binary = v
 					d.consumed["exec.allow.binary"] = true
@@ -83,11 +75,9 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		if len(denyNodes) > 0 {
 			found = true
 			d.consumed["exec"] = true
-			d.deny = make([]execRuleHandle, len(denyNodes))
 			execVal.Deny = make([]ExecRule, len(denyNodes))
 			d.consumed["exec.deny"] = true
 			for i, node := range denyNodes {
-				d.deny[i] = execRuleHandle{node: node}
 				if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
 					execVal.Deny[i].Binary = v
 					d.consumed["exec.deny.binary"] = true
@@ -213,64 +203,65 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 		}
 	}
 	if d.data.Exec != nil {
-		for i := range d.data.Exec.Allow {
-			var entry *cst.Node
-			if i < len(d.allow) {
-				entry = d.allow[i].node
-			} else {
-				entry = d.cstDoc.AppendArrayTableEntry("exec.allow")
-			}
-			if d.data.Exec.Allow[i].Binary != "" || d.cstDoc.HasInContainer(entry, "binary") {
-				if err := d.cstDoc.SetInContainer(entry, "binary", d.data.Exec.Allow[i].Binary); err != nil {
-					return nil, err
+		_ = d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "exec")
+		{
+			allowExisting := d.cstDoc.FindArrayTableNodes("exec.allow")
+			for i := range d.data.Exec.Allow {
+				var container *cst.Node
+				if i < len(allowExisting) {
+					container = allowExisting[i]
+				} else {
+					container = d.cstDoc.AppendArrayTableEntry("exec.allow")
 				}
-			}
-			if len(d.data.Exec.Allow[i].Args) > 0 {
-				if err := d.cstDoc.SetInContainer(entry, "args", d.data.Exec.Allow[i].Args); err != nil {
-					return nil, err
-				}
-			}
-			if len(d.data.Exec.Allow[i].Cwd) > 0 {
-				if err := d.cstDoc.SetInContainer(entry, "cwd", d.data.Exec.Allow[i].Cwd); err != nil {
-					return nil, err
-				}
-			}
-			if len(d.data.Exec.Allow[i].Env) > 0 {
-				envNode := d.cstDoc.EnsureTableInContainer(entry, "env")
-				for k, v := range d.data.Exec.Allow[i].Env {
-					if err := d.cstDoc.SetInContainer(envNode, k, v); err != nil {
+				if d.data.Exec.Allow[i].Binary != "" || d.cstDoc.HasInContainer(container, "binary") {
+					if err := d.cstDoc.SetInContainer(container, "binary", d.data.Exec.Allow[i].Binary); err != nil {
 						return nil, err
+					}
+				}
+				if err := d.cstDoc.SetInContainer(container, "args", d.data.Exec.Allow[i].Args); err != nil {
+					return nil, err
+				}
+				if err := d.cstDoc.SetInContainer(container, "cwd", d.data.Exec.Allow[i].Cwd); err != nil {
+					return nil, err
+				}
+				if len(d.data.Exec.Allow[i].Env) > 0 {
+					tableNode := d.cstDoc.EnsureTable("env")
+					document.DeleteAllInContainer(tableNode)
+					for k, v := range d.data.Exec.Allow[i].Env {
+						if err := d.cstDoc.SetInContainer(tableNode, k, v); err != nil {
+							return nil, err
+						}
 					}
 				}
 			}
 		}
-		for i := range d.data.Exec.Deny {
-			var entry *cst.Node
-			if i < len(d.deny) {
-				entry = d.deny[i].node
-			} else {
-				entry = d.cstDoc.AppendArrayTableEntry("exec.deny")
-			}
-			if d.data.Exec.Deny[i].Binary != "" || d.cstDoc.HasInContainer(entry, "binary") {
-				if err := d.cstDoc.SetInContainer(entry, "binary", d.data.Exec.Deny[i].Binary); err != nil {
-					return nil, err
+		{
+			denyExisting := d.cstDoc.FindArrayTableNodes("exec.deny")
+			for i := range d.data.Exec.Deny {
+				var container *cst.Node
+				if i < len(denyExisting) {
+					container = denyExisting[i]
+				} else {
+					container = d.cstDoc.AppendArrayTableEntry("exec.deny")
 				}
-			}
-			if len(d.data.Exec.Deny[i].Args) > 0 {
-				if err := d.cstDoc.SetInContainer(entry, "args", d.data.Exec.Deny[i].Args); err != nil {
-					return nil, err
-				}
-			}
-			if len(d.data.Exec.Deny[i].Cwd) > 0 {
-				if err := d.cstDoc.SetInContainer(entry, "cwd", d.data.Exec.Deny[i].Cwd); err != nil {
-					return nil, err
-				}
-			}
-			if len(d.data.Exec.Deny[i].Env) > 0 {
-				envNode := d.cstDoc.EnsureTableInContainer(entry, "env")
-				for k, v := range d.data.Exec.Deny[i].Env {
-					if err := d.cstDoc.SetInContainer(envNode, k, v); err != nil {
+				if d.data.Exec.Deny[i].Binary != "" || d.cstDoc.HasInContainer(container, "binary") {
+					if err := d.cstDoc.SetInContainer(container, "binary", d.data.Exec.Deny[i].Binary); err != nil {
 						return nil, err
+					}
+				}
+				if err := d.cstDoc.SetInContainer(container, "args", d.data.Exec.Deny[i].Args); err != nil {
+					return nil, err
+				}
+				if err := d.cstDoc.SetInContainer(container, "cwd", d.data.Exec.Deny[i].Cwd); err != nil {
+					return nil, err
+				}
+				if len(d.data.Exec.Deny[i].Env) > 0 {
+					tableNode := d.cstDoc.EnsureTable("env")
+					document.DeleteAllInContainer(tableNode)
+					for k, v := range d.data.Exec.Deny[i].Env {
+						if err := d.cstDoc.SetInContainer(tableNode, k, v); err != nil {
+							return nil, err
+						}
 					}
 				}
 			}
@@ -539,54 +530,64 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 	}
 	if data.Exec != nil {
 		_ = doc.EnsureTableInContainer(container, "exec")
-		for i := range data.Exec.Allow {
-			entry := doc.AppendArrayTableEntry("exec.allow")
-			if data.Exec.Allow[i].Binary != "" {
-				if err := doc.SetInContainer(entry, "binary", data.Exec.Allow[i].Binary); err != nil {
-					return err
+		{
+			allowExisting := doc.FindArrayTableNodes("exec.allow")
+			for i := range data.Exec.Allow {
+				var container *cst.Node
+				if i < len(allowExisting) {
+					container = allowExisting[i]
+				} else {
+					container = doc.AppendArrayTableEntry("exec.allow")
 				}
-			}
-			if len(data.Exec.Allow[i].Args) > 0 {
-				if err := doc.SetInContainer(entry, "args", data.Exec.Allow[i].Args); err != nil {
-					return err
-				}
-			}
-			if len(data.Exec.Allow[i].Cwd) > 0 {
-				if err := doc.SetInContainer(entry, "cwd", data.Exec.Allow[i].Cwd); err != nil {
-					return err
-				}
-			}
-			if len(data.Exec.Allow[i].Env) > 0 {
-				envNode := doc.EnsureTableInContainer(entry, "env")
-				for k, v := range data.Exec.Allow[i].Env {
-					if err := doc.SetInContainer(envNode, k, v); err != nil {
+				if data.Exec.Allow[i].Binary != "" || doc.HasInContainer(container, "binary") {
+					if err := doc.SetInContainer(container, "binary", data.Exec.Allow[i].Binary); err != nil {
 						return err
+					}
+				}
+				if err := doc.SetInContainer(container, "args", data.Exec.Allow[i].Args); err != nil {
+					return err
+				}
+				if err := doc.SetInContainer(container, "cwd", data.Exec.Allow[i].Cwd); err != nil {
+					return err
+				}
+				if len(data.Exec.Allow[i].Env) > 0 {
+					tableNode := doc.EnsureTable("env")
+					document.DeleteAllInContainer(tableNode)
+					for k, v := range data.Exec.Allow[i].Env {
+						if err := doc.SetInContainer(tableNode, k, v); err != nil {
+							return err
+						}
 					}
 				}
 			}
 		}
-		for i := range data.Exec.Deny {
-			entry := doc.AppendArrayTableEntry("exec.deny")
-			if data.Exec.Deny[i].Binary != "" {
-				if err := doc.SetInContainer(entry, "binary", data.Exec.Deny[i].Binary); err != nil {
-					return err
+		{
+			denyExisting := doc.FindArrayTableNodes("exec.deny")
+			for i := range data.Exec.Deny {
+				var container *cst.Node
+				if i < len(denyExisting) {
+					container = denyExisting[i]
+				} else {
+					container = doc.AppendArrayTableEntry("exec.deny")
 				}
-			}
-			if len(data.Exec.Deny[i].Args) > 0 {
-				if err := doc.SetInContainer(entry, "args", data.Exec.Deny[i].Args); err != nil {
-					return err
-				}
-			}
-			if len(data.Exec.Deny[i].Cwd) > 0 {
-				if err := doc.SetInContainer(entry, "cwd", data.Exec.Deny[i].Cwd); err != nil {
-					return err
-				}
-			}
-			if len(data.Exec.Deny[i].Env) > 0 {
-				envNode := doc.EnsureTableInContainer(entry, "env")
-				for k, v := range data.Exec.Deny[i].Env {
-					if err := doc.SetInContainer(envNode, k, v); err != nil {
+				if data.Exec.Deny[i].Binary != "" || doc.HasInContainer(container, "binary") {
+					if err := doc.SetInContainer(container, "binary", data.Exec.Deny[i].Binary); err != nil {
 						return err
+					}
+				}
+				if err := doc.SetInContainer(container, "args", data.Exec.Deny[i].Args); err != nil {
+					return err
+				}
+				if err := doc.SetInContainer(container, "cwd", data.Exec.Deny[i].Cwd); err != nil {
+					return err
+				}
+				if len(data.Exec.Deny[i].Env) > 0 {
+					tableNode := doc.EnsureTable("env")
+					document.DeleteAllInContainer(tableNode)
+					for k, v := range data.Exec.Deny[i].Env {
+						if err := doc.SetInContainer(tableNode, k, v); err != nil {
+							return err
+						}
 					}
 				}
 			}

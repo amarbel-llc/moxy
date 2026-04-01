@@ -90,12 +90,12 @@ function exec_allow_with_args_restricts_subcommands { # @test
   cat > "$HOME/repo/moxyfile" <<'EOF'
 [[exec.allow]]
 binary = "git"
-args = ["status", "diff"]
+args = ["--version", "diff"]
 EOF
 
   cd "$HOME/repo"
   # Allowed subcommand.
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"git status"}}'
+  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"git --version"}}'
   assert_success
   echo "$output" | jq -e '.isError // false | not'
 

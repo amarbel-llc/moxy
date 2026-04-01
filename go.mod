@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.4
-	github.com/amarbel-llc/tommy v0.0.0-20260326203518-8ebebb5d2759
+	github.com/amarbel-llc/tommy v0.0.0-20260401200242-bbfa2b773751
 	github.com/charmbracelet/huh v1.0.0
 )
 
