@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -399,9 +401,15 @@ func (p *Proxy) ListToolsV1(
 	})
 
 	allTools = append(allTools, protocol.ToolV1{
-		Name:        "exec",
+		Name:        "exec-mcp",
 		Description: "Execute a tool on a child server by name. Use moxy:// resources to discover available tools and schemas.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name"},"tool":{"type":"string","description":"Tool name"},"arguments":{"type":"object","description":"Tool arguments"}},"required":["server","tool"]}`),
+	})
+
+	allTools = append(allTools, protocol.ToolV1{
+		Name:        "exec",
+		Description: "Execute a shell command. Runs via sh -c.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute"},"cwd":{"type":"string","description":"Working directory"},"env":{"type":"object","description":"Additional environment variables","additionalProperties":{"type":"string"}},"timeout":{"type":"number","description":"Timeout in milliseconds"}},"required":["command"]}`),
 	})
 
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
@@ -414,6 +422,10 @@ func (p *Proxy) CallToolV1(
 ) (*protocol.ToolCallResultV1, error) {
 	if name == "restart" {
 		return p.handleRestart(ctx, args)
+	}
+
+	if name == "exec-mcp" {
+		return p.handleExecMCP(ctx, args)
 	}
 
 	if name == "exec" {
@@ -913,7 +925,7 @@ func (p *Proxy) handleRestart(
 	}, nil
 }
 
-func (p *Proxy) handleExec(
+func (p *Proxy) handleExecMCP(
 	ctx context.Context,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
@@ -924,7 +936,7 @@ func (p *Proxy) handleExec(
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return protocol.ErrorResultV1(
-			fmt.Sprintf("invalid exec args: %v", err),
+			fmt.Sprintf("invalid exec-mcp args: %v", err),
 		), nil
 	}
 	if params.Server == "" {
@@ -968,6 +980,62 @@ func (p *Proxy) handleExec(
 		return nil, fmt.Errorf("calling tool %s on %s: %w", params.Tool, params.Server, err)
 	}
 	return decodeToolCallResult(raw)
+}
+
+func (p *Proxy) handleExec(
+	ctx context.Context,
+	args json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
+	var params struct {
+		Command string            `json:"command"`
+		Cwd     string            `json:"cwd"`
+		Env     map[string]string `json:"env"`
+		Timeout float64           `json:"timeout"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("invalid exec args: %v", err),
+		), nil
+	}
+	if params.Command == "" {
+		return protocol.ErrorResultV1("command is required"), nil
+	}
+
+	if params.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(params.Timeout)*time.Millisecond)
+		defer cancel()
+	}
+
+	cmd := osexec.CommandContext(ctx, "sh", "-c", params.Command)
+
+	if params.Cwd != "" {
+		cmd.Dir = params.Cwd
+	}
+
+	if len(params.Env) > 0 {
+		cmd.Env = os.Environ()
+		for k, v := range params.Env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+	}
+
+	out, err := cmd.CombinedOutput()
+	text := string(out)
+
+	if err != nil {
+		if text != "" {
+			text += "\n"
+		}
+		text += fmt.Sprintf("error: %v", err)
+		return protocol.ErrorResultV1(text), nil
+	}
+
+	return &protocol.ToolCallResultV1{
+		Content: []protocol.ContentBlockV1{
+			{Type: "text", Text: text},
+		},
+	}, nil
 }
 
 func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]protocol.ToolV1, error) {

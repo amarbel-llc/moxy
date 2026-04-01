@@ -41,6 +41,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
+  echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp")'
   echo "$output" | jq -e '.tools[] | select(.name == "exec")'
   echo "$output" | jq -e '.tools[] | select(.name == "restart")'
 }
@@ -99,7 +100,7 @@ progressive-disclosure = true
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"server":"srv","tool":"execute-command","arguments":{"cmd":"hello"}}}'
+  run_moxy_mcp tools/call '{"name":"exec-mcp","arguments":{"server":"srv","tool":"execute-command","arguments":{"cmd":"hello"}}}'
   assert_success
   echo "$output" | jq -e '.content[0].text == "executed: hello"'
 }
@@ -115,7 +116,7 @@ progressive-disclosure = true
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"server":"srv","tool":"execute-command","arguments":{"cmd":"eph-test"}}}'
+  run_moxy_mcp tools/call '{"name":"exec-mcp","arguments":{"server":"srv","tool":"execute-command","arguments":{"cmd":"eph-test"}}}'
   assert_success
   echo "$output" | jq -e '.content[0].text == "executed: eph-test"'
 }
@@ -136,8 +137,8 @@ EOF
   local tool_count
   tool_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.execute-command")] | length')
   [[ "$tool_count" -eq 0 ]]
-  # exec and restart should still be present
-  echo "$output" | jq -e '.tools[] | select(.name == "exec")'
+  # exec-mcp, exec, and restart should still be present
+  echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp")'
 }
 
 function per_server_override_disables_progressive_disclosure { # @test
