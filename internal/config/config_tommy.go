@@ -42,59 +42,107 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		d.data.ProgressiveDisclosure = &v
 		d.consumed["progressive-disclosure"] = true
 	}
-	{
+	if tableNode := d.cstDoc.FindTableInContainer(d.cstDoc.Root(), "exec"); tableNode != nil {
+		d.consumed["exec"] = true
+		execVal := &ExecConfig{}
+		allowNodes := d.cstDoc.FindArrayTableNodes("exec.allow")
+		execVal.Allow = make([]ExecRule, len(allowNodes))
+		d.consumed["exec.allow"] = true
+		for i, node := range allowNodes {
+			if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
+				execVal.Allow[i].Binary = v
+				d.consumed["exec.allow.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
+				execVal.Allow[i].Args = v
+				d.consumed["exec.allow.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
+				execVal.Allow[i].Cwd = v
+				d.consumed["exec.allow.cwd"] = true
+			}
+			if tableNode := d.cstDoc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Allow[i].Env = document.GetStringMapFromTable(tableNode)
+				d.consumed["exec.allow.env"] = true
+				document.MarkAllConsumed(tableNode, "exec.allow.env", d.consumed)
+			}
+		}
+		denyNodes := d.cstDoc.FindArrayTableNodes("exec.deny")
+		execVal.Deny = make([]ExecRule, len(denyNodes))
+		d.consumed["exec.deny"] = true
+		for i, node := range denyNodes {
+			if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
+				execVal.Deny[i].Binary = v
+				d.consumed["exec.deny.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
+				execVal.Deny[i].Args = v
+				d.consumed["exec.deny.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
+				execVal.Deny[i].Cwd = v
+				d.consumed["exec.deny.cwd"] = true
+			}
+			if tableNode := d.cstDoc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Deny[i].Env = document.GetStringMapFromTable(tableNode)
+				d.consumed["exec.deny.env"] = true
+				document.MarkAllConsumed(tableNode, "exec.deny.env", d.consumed)
+			}
+		}
+		d.data.Exec = execVal
+	} else {
 		execVal := &ExecConfig{}
 		found := false
 		allowNodes := d.cstDoc.FindArrayTableNodes("exec.allow")
 		if len(allowNodes) > 0 {
 			found = true
-			d.consumed["exec"] = true
-			execVal.Allow = make([]ExecRule, len(allowNodes))
-			d.consumed["exec.allow"] = true
-			for i, node := range allowNodes {
-				if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
-					execVal.Allow[i].Binary = v
-					d.consumed["exec.allow.binary"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
-					execVal.Allow[i].Args = v
-					d.consumed["exec.allow.args"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
-					execVal.Allow[i].Cwd = v
-					d.consumed["exec.allow.cwd"] = true
-				}
-				if envNode := d.cstDoc.FindTableInContainer(node, "env"); envNode != nil {
-					execVal.Allow[i].Env = document.GetStringMapFromTable(envNode)
-					d.consumed["exec.allow.env"] = true
-					document.MarkAllConsumed(envNode, "exec.allow.env", d.consumed)
-				}
+		}
+		execVal.Allow = make([]ExecRule, len(allowNodes))
+		d.consumed["exec.allow"] = true
+		for i, node := range allowNodes {
+			if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
+				execVal.Allow[i].Binary = v
+				found = true
+				d.consumed["exec.allow.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
+				execVal.Allow[i].Args = v
+				d.consumed["exec.allow.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
+				execVal.Allow[i].Cwd = v
+				d.consumed["exec.allow.cwd"] = true
+			}
+			if tableNode := d.cstDoc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Allow[i].Env = document.GetStringMapFromTable(tableNode)
+				d.consumed["exec.allow.env"] = true
+				document.MarkAllConsumed(tableNode, "exec.allow.env", d.consumed)
 			}
 		}
 		denyNodes := d.cstDoc.FindArrayTableNodes("exec.deny")
 		if len(denyNodes) > 0 {
 			found = true
-			d.consumed["exec"] = true
-			execVal.Deny = make([]ExecRule, len(denyNodes))
-			d.consumed["exec.deny"] = true
-			for i, node := range denyNodes {
-				if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
-					execVal.Deny[i].Binary = v
-					d.consumed["exec.deny.binary"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
-					execVal.Deny[i].Args = v
-					d.consumed["exec.deny.args"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
-					execVal.Deny[i].Cwd = v
-					d.consumed["exec.deny.cwd"] = true
-				}
-				if envNode := d.cstDoc.FindTableInContainer(node, "env"); envNode != nil {
-					execVal.Deny[i].Env = document.GetStringMapFromTable(envNode)
-					d.consumed["exec.deny.env"] = true
-					document.MarkAllConsumed(envNode, "exec.deny.env", d.consumed)
-				}
+		}
+		execVal.Deny = make([]ExecRule, len(denyNodes))
+		d.consumed["exec.deny"] = true
+		for i, node := range denyNodes {
+			if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
+				execVal.Deny[i].Binary = v
+				found = true
+				d.consumed["exec.deny.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
+				execVal.Deny[i].Args = v
+				d.consumed["exec.deny.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
+				execVal.Deny[i].Cwd = v
+				d.consumed["exec.deny.cwd"] = true
+			}
+			if tableNode := d.cstDoc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Deny[i].Env = document.GetStringMapFromTable(tableNode)
+				d.consumed["exec.deny.env"] = true
+				document.MarkAllConsumed(tableNode, "exec.deny.env", d.consumed)
 			}
 		}
 		if found {
@@ -225,7 +273,7 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 					return nil, err
 				}
 				if len(d.data.Exec.Allow[i].Env) > 0 {
-					tableNode := d.cstDoc.EnsureTable("env")
+					tableNode := d.cstDoc.EnsureTableInContainer(container, "env")
 					document.DeleteAllInContainer(tableNode)
 					for k, v := range d.data.Exec.Allow[i].Env {
 						if err := d.cstDoc.SetInContainer(tableNode, k, v); err != nil {
@@ -256,7 +304,7 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 					return nil, err
 				}
 				if len(d.data.Exec.Deny[i].Env) > 0 {
-					tableNode := d.cstDoc.EnsureTable("env")
+					tableNode := d.cstDoc.EnsureTableInContainer(container, "env")
 					document.DeleteAllInContainer(tableNode)
 					for k, v := range d.data.Exec.Deny[i].Env {
 						if err := d.cstDoc.SetInContainer(tableNode, k, v); err != nil {
@@ -372,66 +420,114 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 		data.ProgressiveDisclosure = &v
 		consumed[keyPrefix+"progressive-disclosure"] = true
 	}
-	{
+	if tableNode := doc.FindTableInContainer(container, "exec"); tableNode != nil {
+		consumed[keyPrefix+"exec"] = true
 		execVal := &ExecConfig{}
-		found := false
-		allowNodes := doc.FindArrayTableNodes("exec.allow")
-		if len(allowNodes) > 0 {
-			found = true
-			consumed[keyPrefix+"exec"] = true
-			execVal.Allow = make([]ExecRule, len(allowNodes))
-			consumed[keyPrefix+"exec.allow"] = true
-			for i, node := range allowNodes {
-				if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
-					execVal.Allow[i].Binary = v
-					consumed[keyPrefix+"exec.allow.binary"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
-					execVal.Allow[i].Args = v
-					consumed[keyPrefix+"exec.allow.args"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
-					execVal.Allow[i].Cwd = v
-					consumed[keyPrefix+"exec.allow.cwd"] = true
-				}
-				if envNode := doc.FindTableInContainer(node, "env"); envNode != nil {
-					execVal.Allow[i].Env = document.GetStringMapFromTable(envNode)
-					consumed[keyPrefix+"exec.allow.env"] = true
-					document.MarkAllConsumed(envNode, keyPrefix+"exec.allow.env", consumed)
-				}
+		allowNodes := doc.FindArrayTableNodes(keyPrefix + "exec.allow")
+		execVal.Allow = make([]ExecRule, len(allowNodes))
+		consumed[keyPrefix+"exec.allow"] = true
+		for i, node := range allowNodes {
+			if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
+				execVal.Allow[i].Binary = v
+				consumed[keyPrefix+"exec.allow.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
+				execVal.Allow[i].Args = v
+				consumed[keyPrefix+"exec.allow.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
+				execVal.Allow[i].Cwd = v
+				consumed[keyPrefix+"exec.allow.cwd"] = true
+			}
+			if tableNode := doc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Allow[i].Env = document.GetStringMapFromTable(tableNode)
+				consumed[keyPrefix+"exec.allow.env"] = true
+				document.MarkAllConsumed(tableNode, keyPrefix+"exec.allow.env", consumed)
 			}
 		}
-		denyNodes := doc.FindArrayTableNodes("exec.deny")
+		denyNodes := doc.FindArrayTableNodes(keyPrefix + "exec.deny")
+		execVal.Deny = make([]ExecRule, len(denyNodes))
+		consumed[keyPrefix+"exec.deny"] = true
+		for i, node := range denyNodes {
+			if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
+				execVal.Deny[i].Binary = v
+				consumed[keyPrefix+"exec.deny.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
+				execVal.Deny[i].Args = v
+				consumed[keyPrefix+"exec.deny.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
+				execVal.Deny[i].Cwd = v
+				consumed[keyPrefix+"exec.deny.cwd"] = true
+			}
+			if tableNode := doc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Deny[i].Env = document.GetStringMapFromTable(tableNode)
+				consumed[keyPrefix+"exec.deny.env"] = true
+				document.MarkAllConsumed(tableNode, keyPrefix+"exec.deny.env", consumed)
+			}
+		}
+		data.Exec = execVal
+	} else {
+		execVal := &ExecConfig{}
+		found := false
+		allowNodes := doc.FindArrayTableNodes(keyPrefix + "exec.allow")
+		if len(allowNodes) > 0 {
+			found = true
+		}
+		execVal.Allow = make([]ExecRule, len(allowNodes))
+		consumed[keyPrefix+"exec.allow"] = true
+		for i, node := range allowNodes {
+			if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
+				execVal.Allow[i].Binary = v
+				found = true
+				consumed[keyPrefix+"exec.allow.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
+				execVal.Allow[i].Args = v
+				consumed[keyPrefix+"exec.allow.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
+				execVal.Allow[i].Cwd = v
+				consumed[keyPrefix+"exec.allow.cwd"] = true
+			}
+			if tableNode := doc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Allow[i].Env = document.GetStringMapFromTable(tableNode)
+				consumed[keyPrefix+"exec.allow.env"] = true
+				document.MarkAllConsumed(tableNode, keyPrefix+"exec.allow.env", consumed)
+			}
+		}
+		denyNodes := doc.FindArrayTableNodes(keyPrefix + "exec.deny")
 		if len(denyNodes) > 0 {
 			found = true
-			consumed[keyPrefix+"exec"] = true
-			execVal.Deny = make([]ExecRule, len(denyNodes))
-			consumed[keyPrefix+"exec.deny"] = true
-			for i, node := range denyNodes {
-				if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
-					execVal.Deny[i].Binary = v
-					consumed[keyPrefix+"exec.deny.binary"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
-					execVal.Deny[i].Args = v
-					consumed[keyPrefix+"exec.deny.args"] = true
-				}
-				if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
-					execVal.Deny[i].Cwd = v
-					consumed[keyPrefix+"exec.deny.cwd"] = true
-				}
-				if envNode := doc.FindTableInContainer(node, "env"); envNode != nil {
-					execVal.Deny[i].Env = document.GetStringMapFromTable(envNode)
-					consumed[keyPrefix+"exec.deny.env"] = true
-					document.MarkAllConsumed(envNode, keyPrefix+"exec.deny.env", consumed)
-				}
+		}
+		execVal.Deny = make([]ExecRule, len(denyNodes))
+		consumed[keyPrefix+"exec.deny"] = true
+		for i, node := range denyNodes {
+			if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
+				execVal.Deny[i].Binary = v
+				found = true
+				consumed[keyPrefix+"exec.deny.binary"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
+				execVal.Deny[i].Args = v
+				consumed[keyPrefix+"exec.deny.args"] = true
+			}
+			if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
+				execVal.Deny[i].Cwd = v
+				consumed[keyPrefix+"exec.deny.cwd"] = true
+			}
+			if tableNode := doc.FindTableInContainer(node, "env"); tableNode != nil {
+				execVal.Deny[i].Env = document.GetStringMapFromTable(tableNode)
+				consumed[keyPrefix+"exec.deny.env"] = true
+				document.MarkAllConsumed(tableNode, keyPrefix+"exec.deny.env", consumed)
 			}
 		}
 		if found {
 			data.Exec = execVal
 		}
 	}
-	serversNodes := doc.FindArrayTableNodes("servers")
+	serversNodes := doc.FindArrayTableNodes(keyPrefix + "servers")
 	data.Servers = make([]ServerConfig, len(serversNodes))
 	consumed[keyPrefix+"servers"] = true
 	for i, node := range serversNodes {
@@ -551,7 +647,7 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 					return err
 				}
 				if len(data.Exec.Allow[i].Env) > 0 {
-					tableNode := doc.EnsureTable("env")
+					tableNode := doc.EnsureTableInContainer(container, "env")
 					document.DeleteAllInContainer(tableNode)
 					for k, v := range data.Exec.Allow[i].Env {
 						if err := doc.SetInContainer(tableNode, k, v); err != nil {
@@ -582,7 +678,7 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 					return err
 				}
 				if len(data.Exec.Deny[i].Env) > 0 {
-					tableNode := doc.EnsureTable("env")
+					tableNode := doc.EnsureTableInContainer(container, "env")
 					document.DeleteAllInContainer(tableNode)
 					for k, v := range data.Exec.Deny[i].Env {
 						if err := doc.SetInContainer(tableNode, k, v); err != nil {
@@ -593,68 +689,76 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 			}
 		}
 	}
-	for i := range data.Servers {
-		container := doc.AppendArrayTableEntry("servers")
-		if data.Servers[i].Name != "" || doc.HasInContainer(container, "name") {
-			if err := doc.SetInContainer(container, "name", data.Servers[i].Name); err != nil {
-				return err
+	{
+		serversExisting := doc.FindArrayTableNodes("servers")
+		for i := range data.Servers {
+			var container *cst.Node
+			if i < len(serversExisting) {
+				container = serversExisting[i]
+			} else {
+				container = doc.AppendArrayTableEntry("servers")
 			}
-		}
-		{
-			v, err := data.Servers[i].Command.MarshalTOML()
-			if err != nil {
-				return fmt.Errorf("command: %w", err)
-			}
-			if err := doc.SetInContainer(container, "command", v); err != nil {
-				return err
-			}
-		}
-		if data.Servers[i].Annotations != nil {
-			tableNode := doc.EnsureTableInContainer(container, "annotations")
-			if data.Servers[i].Annotations.ReadOnlyHint != nil {
-				if err := doc.SetInContainer(tableNode, "readOnlyHint", *data.Servers[i].Annotations.ReadOnlyHint); err != nil {
+			if data.Servers[i].Name != "" || doc.HasInContainer(container, "name") {
+				if err := doc.SetInContainer(container, "name", data.Servers[i].Name); err != nil {
 					return err
 				}
 			}
-			if data.Servers[i].Annotations.DestructiveHint != nil {
-				if err := doc.SetInContainer(tableNode, "destructiveHint", *data.Servers[i].Annotations.DestructiveHint); err != nil {
+			{
+				v, err := data.Servers[i].Command.MarshalTOML()
+				if err != nil {
+					return fmt.Errorf("command: %w", err)
+				}
+				if err := doc.SetInContainer(container, "command", v); err != nil {
 					return err
 				}
 			}
-			if data.Servers[i].Annotations.IdempotentHint != nil {
-				if err := doc.SetInContainer(tableNode, "idempotentHint", *data.Servers[i].Annotations.IdempotentHint); err != nil {
+			if data.Servers[i].Annotations != nil {
+				tableNode := doc.EnsureTableInContainer(container, "annotations")
+				if data.Servers[i].Annotations.ReadOnlyHint != nil {
+					if err := doc.SetInContainer(tableNode, "readOnlyHint", *data.Servers[i].Annotations.ReadOnlyHint); err != nil {
+						return err
+					}
+				}
+				if data.Servers[i].Annotations.DestructiveHint != nil {
+					if err := doc.SetInContainer(tableNode, "destructiveHint", *data.Servers[i].Annotations.DestructiveHint); err != nil {
+						return err
+					}
+				}
+				if data.Servers[i].Annotations.IdempotentHint != nil {
+					if err := doc.SetInContainer(tableNode, "idempotentHint", *data.Servers[i].Annotations.IdempotentHint); err != nil {
+						return err
+					}
+				}
+				if data.Servers[i].Annotations.OpenWorldHint != nil {
+					if err := doc.SetInContainer(tableNode, "openWorldHint", *data.Servers[i].Annotations.OpenWorldHint); err != nil {
+						return err
+					}
+				}
+			}
+			if data.Servers[i].Paginate != false || doc.HasInContainer(container, "paginate") {
+				if err := doc.SetInContainer(container, "paginate", data.Servers[i].Paginate); err != nil {
 					return err
 				}
 			}
-			if data.Servers[i].Annotations.OpenWorldHint != nil {
-				if err := doc.SetInContainer(tableNode, "openWorldHint", *data.Servers[i].Annotations.OpenWorldHint); err != nil {
+			if data.Servers[i].GenerateResourceTools != nil {
+				if err := doc.SetInContainer(container, "generate-resource-tools", *data.Servers[i].GenerateResourceTools); err != nil {
 					return err
 				}
 			}
-		}
-		if data.Servers[i].Paginate != false || doc.HasInContainer(container, "paginate") {
-			if err := doc.SetInContainer(container, "paginate", data.Servers[i].Paginate); err != nil {
-				return err
+			if data.Servers[i].Ephemeral != nil {
+				if err := doc.SetInContainer(container, "ephemeral", *data.Servers[i].Ephemeral); err != nil {
+					return err
+				}
 			}
-		}
-		if data.Servers[i].GenerateResourceTools != nil {
-			if err := doc.SetInContainer(container, "generate-resource-tools", *data.Servers[i].GenerateResourceTools); err != nil {
-				return err
+			if data.Servers[i].ProgressiveDisclosure != nil {
+				if err := doc.SetInContainer(container, "progressive-disclosure", *data.Servers[i].ProgressiveDisclosure); err != nil {
+					return err
+				}
 			}
-		}
-		if data.Servers[i].Ephemeral != nil {
-			if err := doc.SetInContainer(container, "ephemeral", *data.Servers[i].Ephemeral); err != nil {
-				return err
-			}
-		}
-		if data.Servers[i].ProgressiveDisclosure != nil {
-			if err := doc.SetInContainer(container, "progressive-disclosure", *data.Servers[i].ProgressiveDisclosure); err != nil {
-				return err
-			}
-		}
-		if data.Servers[i].NixDevshell != nil {
-			if err := doc.SetInContainer(container, "nix-devshell", *data.Servers[i].NixDevshell); err != nil {
-				return err
+			if data.Servers[i].NixDevshell != nil {
+				if err := doc.SetInContainer(container, "nix-devshell", *data.Servers[i].NixDevshell); err != nil {
+					return err
+				}
 			}
 		}
 	}
