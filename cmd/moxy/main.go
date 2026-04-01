@@ -130,7 +130,7 @@ func runServer() error {
 			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
 	}
 
-	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure)
+	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure, cfg.Exec)
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 	p.SetNotifier(t.Write)
@@ -166,6 +166,8 @@ func runServer() error {
 	return err
 }
 
-var _ server.ToolProviderV1 = (*proxy.Proxy)(nil)
-var _ server.ResourceProviderV1 = (*proxy.Proxy)(nil)
-var _ server.PromptProviderV1 = (*proxy.Proxy)(nil)
+var (
+	_ server.ToolProviderV1     = (*proxy.Proxy)(nil)
+	_ server.ResourceProviderV1 = (*proxy.Proxy)(nil)
+	_ server.PromptProviderV1   = (*proxy.Proxy)(nil)
+)

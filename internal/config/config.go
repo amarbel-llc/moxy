@@ -11,9 +11,10 @@ import (
 
 //go:generate tommy generate
 type Config struct {
-	Ephemeral              *bool          `toml:"ephemeral"`
-	ProgressiveDisclosure  *bool          `toml:"progressive-disclosure"`
-	Servers                []ServerConfig `toml:"servers"`
+	Ephemeral             *bool          `toml:"ephemeral"`
+	ProgressiveDisclosure *bool          `toml:"progressive-disclosure"`
+	Exec                  *ExecConfig    `toml:"exec"`
+	Servers               []ServerConfig `toml:"servers"`
 }
 
 type ServerConfig struct {
@@ -179,6 +180,18 @@ func Merge(base, overlay Config) Config {
 
 	if overlay.ProgressiveDisclosure != nil {
 		merged.ProgressiveDisclosure = overlay.ProgressiveDisclosure
+	}
+
+	if overlay.Exec != nil {
+		if merged.Exec == nil {
+			cp := *overlay.Exec
+			merged.Exec = &cp
+		} else {
+			mergedExec := *merged.Exec
+			mergedExec.Allow = append(mergedExec.Allow, overlay.Exec.Allow...)
+			mergedExec.Deny = append(mergedExec.Deny, overlay.Exec.Deny...)
+			merged.Exec = &mergedExec
+		}
 	}
 
 	for _, srv := range overlay.Servers {

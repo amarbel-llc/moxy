@@ -43,6 +43,7 @@ type Proxy struct {
 	failed                      []FailedServer
 	configs                     map[string]config.ServerConfig
 	ephemeral                   map[string]*EphemeralMeta
+	execConfig                  *config.ExecConfig
 	globalEphemeral             *bool
 	globalProgressiveDisclosure *bool
 	notifier                    func(*jsonrpc.Message) error
@@ -65,6 +66,7 @@ func New(
 	allConfigs []config.ServerConfig,
 	globalEphemeral *bool,
 	globalProgressiveDisclosure *bool,
+	execConfig *config.ExecConfig,
 ) *Proxy {
 	configs := make(map[string]config.ServerConfig, len(allConfigs))
 	ephemeral := make(map[string]*EphemeralMeta)
@@ -79,6 +81,7 @@ func New(
 		failed:                      failed,
 		configs:                     configs,
 		ephemeral:                   ephemeral,
+		execConfig:                  execConfig,
 		globalEphemeral:             globalEphemeral,
 		globalProgressiveDisclosure: globalProgressiveDisclosure,
 	}
@@ -999,6 +1002,23 @@ func (p *Proxy) handleExec(
 	}
 	if params.Command == "" {
 		return protocol.ErrorResultV1("command is required"), nil
+	}
+
+	injectedEnv, err := p.execConfig.CheckPermission(
+		params.Command, params.Cwd, params.Env,
+	)
+	if err != nil {
+		return protocol.ErrorResultV1(err.Error()), nil
+	}
+	if len(injectedEnv) > 0 {
+		if params.Env == nil {
+			params.Env = make(map[string]string)
+		}
+		for k, v := range injectedEnv {
+			if _, exists := params.Env[k]; !exists {
+				params.Env[k] = v
+			}
+		}
 	}
 
 	if params.Timeout > 0 {

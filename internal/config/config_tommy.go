@@ -19,11 +19,17 @@ type serverConfigHandle struct {
 	node *cst.Node
 }
 
+type execRuleHandle struct {
+	node *cst.Node
+}
+
 type ConfigDocument struct {
 	data     Config
 	cstDoc   *document.Document
 	consumed map[string]bool
 	servers  []serverConfigHandle
+	allow    []execRuleHandle
+	deny     []execRuleHandle
 }
 
 func DecodeConfig(input []byte) (*ConfigDocument, error) {
@@ -41,6 +47,69 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "progressive-disclosure"); err == nil {
 		d.data.ProgressiveDisclosure = &v
 		d.consumed["progressive-disclosure"] = true
+	}
+	{
+		execVal := &ExecConfig{}
+		found := false
+		allowNodes := d.cstDoc.FindArrayTableNodes("exec.allow")
+		if len(allowNodes) > 0 {
+			found = true
+			d.consumed["exec"] = true
+			d.allow = make([]execRuleHandle, len(allowNodes))
+			execVal.Allow = make([]ExecRule, len(allowNodes))
+			d.consumed["exec.allow"] = true
+			for i, node := range allowNodes {
+				d.allow[i] = execRuleHandle{node: node}
+				if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
+					execVal.Allow[i].Binary = v
+					d.consumed["exec.allow.binary"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
+					execVal.Allow[i].Args = v
+					d.consumed["exec.allow.args"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
+					execVal.Allow[i].Cwd = v
+					d.consumed["exec.allow.cwd"] = true
+				}
+				if envNode := d.cstDoc.FindTableInContainer(node, "env"); envNode != nil {
+					execVal.Allow[i].Env = document.GetStringMapFromTable(envNode)
+					d.consumed["exec.allow.env"] = true
+					document.MarkAllConsumed(envNode, "exec.allow.env", d.consumed)
+				}
+			}
+		}
+		denyNodes := d.cstDoc.FindArrayTableNodes("exec.deny")
+		if len(denyNodes) > 0 {
+			found = true
+			d.consumed["exec"] = true
+			d.deny = make([]execRuleHandle, len(denyNodes))
+			execVal.Deny = make([]ExecRule, len(denyNodes))
+			d.consumed["exec.deny"] = true
+			for i, node := range denyNodes {
+				d.deny[i] = execRuleHandle{node: node}
+				if v, err := document.GetFromContainer[string](d.cstDoc, node, "binary"); err == nil {
+					execVal.Deny[i].Binary = v
+					d.consumed["exec.deny.binary"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "args"); err == nil {
+					execVal.Deny[i].Args = v
+					d.consumed["exec.deny.args"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](d.cstDoc, node, "cwd"); err == nil {
+					execVal.Deny[i].Cwd = v
+					d.consumed["exec.deny.cwd"] = true
+				}
+				if envNode := d.cstDoc.FindTableInContainer(node, "env"); envNode != nil {
+					execVal.Deny[i].Env = document.GetStringMapFromTable(envNode)
+					d.consumed["exec.deny.env"] = true
+					document.MarkAllConsumed(envNode, "exec.deny.env", d.consumed)
+				}
+			}
+		}
+		if found {
+			d.data.Exec = execVal
+		}
 	}
 	serversNodes := d.cstDoc.FindArrayTableNodes("servers")
 	d.servers = make([]serverConfigHandle, len(serversNodes))
@@ -141,6 +210,70 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 	if d.data.ProgressiveDisclosure != nil {
 		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "progressive-disclosure", *d.data.ProgressiveDisclosure); err != nil {
 			return nil, err
+		}
+	}
+	if d.data.Exec != nil {
+		for i := range d.data.Exec.Allow {
+			var entry *cst.Node
+			if i < len(d.allow) {
+				entry = d.allow[i].node
+			} else {
+				entry = d.cstDoc.AppendArrayTableEntry("exec.allow")
+			}
+			if d.data.Exec.Allow[i].Binary != "" || d.cstDoc.HasInContainer(entry, "binary") {
+				if err := d.cstDoc.SetInContainer(entry, "binary", d.data.Exec.Allow[i].Binary); err != nil {
+					return nil, err
+				}
+			}
+			if len(d.data.Exec.Allow[i].Args) > 0 {
+				if err := d.cstDoc.SetInContainer(entry, "args", d.data.Exec.Allow[i].Args); err != nil {
+					return nil, err
+				}
+			}
+			if len(d.data.Exec.Allow[i].Cwd) > 0 {
+				if err := d.cstDoc.SetInContainer(entry, "cwd", d.data.Exec.Allow[i].Cwd); err != nil {
+					return nil, err
+				}
+			}
+			if len(d.data.Exec.Allow[i].Env) > 0 {
+				envNode := d.cstDoc.EnsureTableInContainer(entry, "env")
+				for k, v := range d.data.Exec.Allow[i].Env {
+					if err := d.cstDoc.SetInContainer(envNode, k, v); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+		for i := range d.data.Exec.Deny {
+			var entry *cst.Node
+			if i < len(d.deny) {
+				entry = d.deny[i].node
+			} else {
+				entry = d.cstDoc.AppendArrayTableEntry("exec.deny")
+			}
+			if d.data.Exec.Deny[i].Binary != "" || d.cstDoc.HasInContainer(entry, "binary") {
+				if err := d.cstDoc.SetInContainer(entry, "binary", d.data.Exec.Deny[i].Binary); err != nil {
+					return nil, err
+				}
+			}
+			if len(d.data.Exec.Deny[i].Args) > 0 {
+				if err := d.cstDoc.SetInContainer(entry, "args", d.data.Exec.Deny[i].Args); err != nil {
+					return nil, err
+				}
+			}
+			if len(d.data.Exec.Deny[i].Cwd) > 0 {
+				if err := d.cstDoc.SetInContainer(entry, "cwd", d.data.Exec.Deny[i].Cwd); err != nil {
+					return nil, err
+				}
+			}
+			if len(d.data.Exec.Deny[i].Env) > 0 {
+				envNode := d.cstDoc.EnsureTableInContainer(entry, "env")
+				for k, v := range d.data.Exec.Deny[i].Env {
+					if err := d.cstDoc.SetInContainer(envNode, k, v); err != nil {
+						return nil, err
+					}
+				}
+			}
 		}
 	}
 	{
@@ -248,6 +381,65 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 		data.ProgressiveDisclosure = &v
 		consumed[keyPrefix+"progressive-disclosure"] = true
 	}
+	{
+		execVal := &ExecConfig{}
+		found := false
+		allowNodes := doc.FindArrayTableNodes("exec.allow")
+		if len(allowNodes) > 0 {
+			found = true
+			consumed[keyPrefix+"exec"] = true
+			execVal.Allow = make([]ExecRule, len(allowNodes))
+			consumed[keyPrefix+"exec.allow"] = true
+			for i, node := range allowNodes {
+				if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
+					execVal.Allow[i].Binary = v
+					consumed[keyPrefix+"exec.allow.binary"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
+					execVal.Allow[i].Args = v
+					consumed[keyPrefix+"exec.allow.args"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
+					execVal.Allow[i].Cwd = v
+					consumed[keyPrefix+"exec.allow.cwd"] = true
+				}
+				if envNode := doc.FindTableInContainer(node, "env"); envNode != nil {
+					execVal.Allow[i].Env = document.GetStringMapFromTable(envNode)
+					consumed[keyPrefix+"exec.allow.env"] = true
+					document.MarkAllConsumed(envNode, keyPrefix+"exec.allow.env", consumed)
+				}
+			}
+		}
+		denyNodes := doc.FindArrayTableNodes("exec.deny")
+		if len(denyNodes) > 0 {
+			found = true
+			consumed[keyPrefix+"exec"] = true
+			execVal.Deny = make([]ExecRule, len(denyNodes))
+			consumed[keyPrefix+"exec.deny"] = true
+			for i, node := range denyNodes {
+				if v, err := document.GetFromContainer[string](doc, node, "binary"); err == nil {
+					execVal.Deny[i].Binary = v
+					consumed[keyPrefix+"exec.deny.binary"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](doc, node, "args"); err == nil {
+					execVal.Deny[i].Args = v
+					consumed[keyPrefix+"exec.deny.args"] = true
+				}
+				if v, err := document.GetFromContainer[[]string](doc, node, "cwd"); err == nil {
+					execVal.Deny[i].Cwd = v
+					consumed[keyPrefix+"exec.deny.cwd"] = true
+				}
+				if envNode := doc.FindTableInContainer(node, "env"); envNode != nil {
+					execVal.Deny[i].Env = document.GetStringMapFromTable(envNode)
+					consumed[keyPrefix+"exec.deny.env"] = true
+					document.MarkAllConsumed(envNode, keyPrefix+"exec.deny.env", consumed)
+				}
+			}
+		}
+		if found {
+			data.Exec = execVal
+		}
+	}
 	serversNodes := doc.FindArrayTableNodes("servers")
 	data.Servers = make([]ServerConfig, len(serversNodes))
 	consumed[keyPrefix+"servers"] = true
@@ -343,6 +535,61 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 	if data.ProgressiveDisclosure != nil {
 		if err := doc.SetInContainer(container, "progressive-disclosure", *data.ProgressiveDisclosure); err != nil {
 			return err
+		}
+	}
+	if data.Exec != nil {
+		_ = doc.EnsureTableInContainer(container, "exec")
+		for i := range data.Exec.Allow {
+			entry := doc.AppendArrayTableEntry("exec.allow")
+			if data.Exec.Allow[i].Binary != "" {
+				if err := doc.SetInContainer(entry, "binary", data.Exec.Allow[i].Binary); err != nil {
+					return err
+				}
+			}
+			if len(data.Exec.Allow[i].Args) > 0 {
+				if err := doc.SetInContainer(entry, "args", data.Exec.Allow[i].Args); err != nil {
+					return err
+				}
+			}
+			if len(data.Exec.Allow[i].Cwd) > 0 {
+				if err := doc.SetInContainer(entry, "cwd", data.Exec.Allow[i].Cwd); err != nil {
+					return err
+				}
+			}
+			if len(data.Exec.Allow[i].Env) > 0 {
+				envNode := doc.EnsureTableInContainer(entry, "env")
+				for k, v := range data.Exec.Allow[i].Env {
+					if err := doc.SetInContainer(envNode, k, v); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		for i := range data.Exec.Deny {
+			entry := doc.AppendArrayTableEntry("exec.deny")
+			if data.Exec.Deny[i].Binary != "" {
+				if err := doc.SetInContainer(entry, "binary", data.Exec.Deny[i].Binary); err != nil {
+					return err
+				}
+			}
+			if len(data.Exec.Deny[i].Args) > 0 {
+				if err := doc.SetInContainer(entry, "args", data.Exec.Deny[i].Args); err != nil {
+					return err
+				}
+			}
+			if len(data.Exec.Deny[i].Cwd) > 0 {
+				if err := doc.SetInContainer(entry, "cwd", data.Exec.Deny[i].Cwd); err != nil {
+					return err
+				}
+			}
+			if len(data.Exec.Deny[i].Env) > 0 {
+				envNode := doc.EnsureTableInContainer(entry, "env")
+				for k, v := range data.Exec.Deny[i].Env {
+					if err := doc.SetInContainer(envNode, k, v); err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 	for i := range data.Servers {
