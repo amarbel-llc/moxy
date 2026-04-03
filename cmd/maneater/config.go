@@ -144,7 +144,19 @@ func LoadManeaterHierarchy(home, dir string) (ManeaterConfig, error) {
 		return ManeaterConfig{}, err
 	}
 
+	expandEnvInModels(&merged)
+
 	return merged, nil
+}
+
+// expandEnvInModels expands $VAR and ${VAR} references in model path fields.
+func expandEnvInModels(cfg *ManeaterConfig) {
+	for k, m := range cfg.Models {
+		if m.Path != "" {
+			m.Path = os.ExpandEnv(m.Path)
+			cfg.Models[k] = m
+		}
+	}
 }
 
 // LoadDefaultManeaterHierarchy is a convenience wrapper using the real home

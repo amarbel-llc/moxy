@@ -190,6 +190,74 @@ func TestLoadManeaterHierarchyNoConfigsIsEmpty(t *testing.T) {
 	}
 }
 
+func TestLoadManeaterHierarchyExpandsEnvInModelPath(t *testing.T) {
+	tmpHome := t.TempDir()
+
+	globalDir := filepath.Join(tmpHome, ".config", "maneater")
+	if err := os.MkdirAll(globalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "maneater.toml"), []byte(`
+default = "test"
+
+[models.test]
+path = "$MANEATER_TEST_MODEL_DIR/model.gguf"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	projectDir := filepath.Join(tmpHome, "project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("MANEATER_TEST_MODEL_DIR", "/tmp/models")
+
+	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	if err != nil {
+		t.Fatalf("LoadManeaterHierarchy: %v", err)
+	}
+
+	want := "/tmp/models/model.gguf"
+	if cfg.Models["test"].Path != want {
+		t.Errorf("Model test path = %q, want %q", cfg.Models["test"].Path, want)
+	}
+}
+
+func TestLoadManeaterHierarchyExpandsEnvBraceSyntax(t *testing.T) {
+	tmpHome := t.TempDir()
+
+	globalDir := filepath.Join(tmpHome, ".config", "maneater")
+	if err := os.MkdirAll(globalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "maneater.toml"), []byte(`
+default = "test"
+
+[models.test]
+path = "${MANEATER_TEST_DATA}/maneater/models/nomic.gguf"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	projectDir := filepath.Join(tmpHome, "project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("MANEATER_TEST_DATA", "/home/user/.local/share")
+
+	cfg, err := LoadManeaterHierarchy(tmpHome, projectDir)
+	if err != nil {
+		t.Fatalf("LoadManeaterHierarchy: %v", err)
+	}
+
+	want := "/home/user/.local/share/maneater/models/nomic.gguf"
+	if cfg.Models["test"].Path != want {
+		t.Errorf("Model test path = %q, want %q", cfg.Models["test"].Path, want)
+	}
+}
+
 func TestParseManeaterExecConfig(t *testing.T) {
 	input := []byte(`
 [[exec.allow]]
