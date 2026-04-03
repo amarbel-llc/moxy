@@ -8,6 +8,7 @@ build-go: generate
 
 generate:
   go generate ./internal/config/
+  go generate ./cmd/maneater/
 
 build-gomod2nix:
   gomod2nix

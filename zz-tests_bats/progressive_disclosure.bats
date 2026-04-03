@@ -13,7 +13,7 @@ teardown() {
 
 function tools_hidden_when_progressive_disclosure_enabled { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -26,12 +26,12 @@ EOF
   # Child tools should not appear
   local tool_count
   tool_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.execute-command")] | length')
-  [[ "$tool_count" -eq 0 ]]
+  [[ $tool_count -eq 0 ]]
 }
 
-function exec_and_restart_tools_visible_when_progressive_disclosure_enabled { # @test
+function exec_mcp_and_restart_tools_visible_when_progressive_disclosure_enabled { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -42,13 +42,12 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp")'
-  echo "$output" | jq -e '.tools[] | select(.name == "exec")'
   echo "$output" | jq -e '.tools[] | select(.name == "restart")'
 }
 
 function moxy_tools_resource_template_appears { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -63,7 +62,7 @@ EOF
 
 function moxy_tools_resource_lists_tools { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -77,7 +76,7 @@ EOF
 
 function moxy_tools_resource_returns_single_tool_schema { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -92,7 +91,7 @@ EOF
 
 function exec_tool_calls_hidden_tool { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -107,7 +106,7 @@ EOF
 
 function exec_tool_with_ephemeral_and_progressive_disclosure { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -123,7 +122,7 @@ EOF
 
 function global_progressive_disclosure_hides_all_server_tools { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 progressive-disclosure = true
 
 [[servers]]
@@ -136,14 +135,14 @@ EOF
   assert_success
   local tool_count
   tool_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.execute-command")] | length')
-  [[ "$tool_count" -eq 0 ]]
-  # exec-mcp, exec, and restart should still be present
+  [[ $tool_count -eq 0 ]]
+  # exec-mcp and restart should still be present
   echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp")'
 }
 
 function per_server_override_disables_progressive_disclosure { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 progressive-disclosure = true
 
 [[servers]]
@@ -160,7 +159,7 @@ EOF
 
 function moxy_tools_resource_appears_in_resources_list { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]

@@ -12,37 +12,37 @@ teardown() {
 
 function exec_no_rules_allows_everything { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"echo hello"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"echo hello"}}'
   assert_success
   echo "$output" | jq -e '.content[0].text == "hello\n"'
 }
 
 function exec_allow_rule_permits_matching_command { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 [[exec.allow]]
 binary = "echo"
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"echo allowed"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"echo allowed"}}'
   assert_success
   echo "$output" | jq -e '.content[0].text == "allowed\n"'
 }
 
 function exec_allow_rule_denies_unmatched_binary { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 [[exec.allow]]
 binary = "echo"
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"ls /tmp"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"ls /tmp"}}'
   assert_success
   echo "$output" | jq -e '.isError == true'
   echo "$output" | jq -e '.content[0].text | test("no allow rule")'
@@ -50,13 +50,13 @@ EOF
 
 function exec_deny_rule_blocks_matching_command { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 [[exec.deny]]
 binary = "rm"
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"rm -rf /tmp/test"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"rm -rf /tmp/test"}}'
   assert_success
   echo "$output" | jq -e '.isError == true'
   echo "$output" | jq -e '.content[0].text | test("deny rule")'
@@ -64,7 +64,7 @@ EOF
 
 function exec_deny_wins_over_allow { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 [[exec.allow]]
 binary = "git"
 
@@ -75,19 +75,19 @@ EOF
 
   cd "$HOME/repo"
   # Allowed subcommand.
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"git --version"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"git --version"}}'
   assert_success
   echo "$output" | jq -e '.isError // false | not'
 
   # Denied subcommand.
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"git push --force origin master"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"git push --force origin master"}}'
   assert_success
   echo "$output" | jq -e '.isError == true'
 }
 
 function exec_allow_with_args_restricts_subcommands { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 [[exec.allow]]
 binary = "git"
 args = ["--version", "diff"]
@@ -95,23 +95,23 @@ EOF
 
   cd "$HOME/repo"
   # Allowed subcommand.
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"git --version"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"git --version"}}'
   assert_success
   echo "$output" | jq -e '.isError // false | not'
 
   # Denied subcommand — binary allowed but args don't match.
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"git push"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"git push"}}'
   assert_success
   echo "$output" | jq -e '.isError == true'
 }
 
 function exec_empty_stdout_returns_empty_content { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"true"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"true"}}'
   assert_success
 
   # Empty stdout must not produce a content block with an empty text field,
@@ -122,13 +122,13 @@ EOF
 
 function exec_deny_only_allows_other_binaries { # @test
   mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
 [[exec.deny]]
 binary = "sudo"
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"echo works"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"echo works"}}'
   assert_success
   echo "$output" | jq -e '.content[0].text == "works\n"'
 }

@@ -12,7 +12,7 @@ teardown() {
 
 function broken_server_does_not_block_startup { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "broken"
 command = "echo"
@@ -27,7 +27,7 @@ EOF
 
 function broken_server_exposes_status_tool { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "broken"
 command = "echo"
@@ -42,7 +42,7 @@ EOF
 
 function broken_server_status_tool_describes_error { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "broken"
 command = "echo"
@@ -58,7 +58,7 @@ EOF
 function healthy_server_unaffected_by_broken_sibling { # @test
   command -v grit >/dev/null 2>&1 || skip "grit not in PATH"
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "grit"
 command = "grit"
@@ -80,7 +80,7 @@ EOF
 
 function all_servers_broken_still_starts { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "broken-a"
 command = "echo"
@@ -95,11 +95,10 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  # 2 status tools + restart + exec-mcp + exec = 5
-  echo "$output" | jq -e '.tools | length == 5'
+  # 2 status tools + restart + exec-mcp = 4
+  echo "$output" | jq -e '.tools | length == 4'
   echo "$output" | jq -e '.tools[] | select(.name == "broken-a.status")'
   echo "$output" | jq -e '.tools[] | select(.name == "broken-b.status")'
   echo "$output" | jq -e '.tools[] | select(.name == "restart")'
   echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp")'
-  echo "$output" | jq -e '.tools[] | select(.name == "exec")'
 }

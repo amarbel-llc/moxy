@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/amarbel-llc/moxy/internal/embedding"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -22,11 +24,12 @@ import (
 )
 
 type manServer struct {
-	mu        sync.Mutex
-	embedder  *embedding.Embedder
-	index     *embedding.Index
-	modelName string
-	modelCfg  ModelConfig
+	mu         sync.Mutex
+	embedder   *embedding.Embedder
+	index      *embedding.Index
+	modelName  string
+	modelCfg   ModelConfig
+	execConfig *ExecConfig
 }
 
 type pageSection struct {
@@ -747,7 +750,138 @@ func isManSection(s string) bool {
 	return len(s) <= 2 && len(s) > 0 && s[0] >= '1' && s[0] <= '9'
 }
 
-var _ server.ResourceProviderV1 = (*manServer)(nil)
+// ToolProvider (base interface)
+
+var execToolSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute"},"cwd":{"type":"string","description":"Working directory"},"env":{"type":"object","description":"Additional environment variables","additionalProperties":{"type":"string"}},"timeout":{"type":"number","description":"Timeout in milliseconds"}},"required":["command"]}`)
+
+func (m *manServer) ListTools(_ context.Context) ([]protocol.Tool, error) {
+	return []protocol.Tool{
+		{
+			Name:        "exec",
+			Description: "Execute a shell command. Runs via sh -c.",
+			InputSchema: execToolSchema,
+		},
+	}, nil
+}
+
+func (m *manServer) CallTool(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResult, error) {
+	resultV1, err := m.CallToolV1(ctx, name, args)
+	if err != nil {
+		return nil, err
+	}
+	// Downgrade V1 result to V0.
+	result := &protocol.ToolCallResult{IsError: resultV1.IsError}
+	for _, block := range resultV1.Content {
+		result.Content = append(result.Content, protocol.ContentBlock{
+			Type: block.Type,
+			Text: block.Text,
+		})
+	}
+	return result, nil
+}
+
+// ToolProviderV1 (V1 extensions)
+
+func (m *manServer) ListToolsV1(_ context.Context, _ string) (*protocol.ToolsListResultV1, error) {
+	return &protocol.ToolsListResultV1{
+		Tools: []protocol.ToolV1{
+			{
+				Name:        "exec",
+				Description: "Execute a shell command. Runs via sh -c.",
+				InputSchema: execToolSchema,
+			},
+		},
+	}, nil
+}
+
+func (m *manServer) CallToolV1(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+	if name != "exec" {
+		return protocol.ErrorResultV1(fmt.Sprintf("unknown tool %q", name)), nil
+	}
+	return m.handleExec(ctx, args)
+}
+
+func (m *manServer) handleExec(
+	ctx context.Context,
+	args json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
+	var params struct {
+		Command string            `json:"command"`
+		Cwd     string            `json:"cwd"`
+		Env     map[string]string `json:"env"`
+		Timeout float64           `json:"timeout"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("invalid exec args: %v", err),
+		), nil
+	}
+	if params.Command == "" {
+		return protocol.ErrorResultV1("command is required"), nil
+	}
+
+	injectedEnv, err := m.execConfig.CheckPermission(
+		params.Command, params.Cwd, params.Env,
+	)
+	if err != nil {
+		return protocol.ErrorResultV1(err.Error()), nil
+	}
+	if len(injectedEnv) > 0 {
+		if params.Env == nil {
+			params.Env = make(map[string]string)
+		}
+		for k, v := range injectedEnv {
+			if _, exists := params.Env[k]; !exists {
+				params.Env[k] = v
+			}
+		}
+	}
+
+	if params.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(params.Timeout)*time.Millisecond)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(ctx, "sh", "-c", params.Command)
+
+	if params.Cwd != "" {
+		cmd.Dir = params.Cwd
+	}
+
+	if len(params.Env) > 0 {
+		cmd.Env = os.Environ()
+		for k, v := range params.Env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+	}
+
+	out, err := cmd.CombinedOutput()
+	text := string(out)
+
+	if err != nil {
+		if text != "" {
+			text += "\n"
+		}
+		text += fmt.Sprintf("error: %v", err)
+		return protocol.ErrorResultV1(text), nil
+	}
+
+	if text == "" {
+		return &protocol.ToolCallResultV1{}, nil
+	}
+
+	return &protocol.ToolCallResultV1{
+		Content: []protocol.ContentBlockV1{
+			{Type: "text", Text: text},
+		},
+	}, nil
+}
+
+var (
+	_ server.ResourceProviderV1 = (*manServer)(nil)
+	_ server.ToolProviderV1     = (*manServer)(nil)
+)
 
 func main() {
 	flag.Parse()
@@ -783,14 +917,21 @@ func runServeMCP() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
+	cfg, err := LoadDefaultManeaterHierarchy()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: loading config: %v\n", err)
+		os.Exit(1)
+	}
+
 	t := transport.NewStdio(os.Stdin, os.Stdout)
-	m := &manServer{}
+	m := &manServer{execConfig: cfg.Exec}
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "maneater",
 		ServerVersion: "0.4.0",
-		Instructions:  "Unix man page server with progressive disclosure and semantic search. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section, man://search/{query} to find pages by natural language.",
+		Instructions:  "Unix man page server with progressive disclosure, semantic search, and shell execution. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section, man://search/{query} to find pages by natural language.",
 		Resources:     m,
+		Tools:         m,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)

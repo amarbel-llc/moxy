@@ -1,4 +1,4 @@
-package config
+package main
 
 import (
 	"testing"
@@ -253,99 +253,5 @@ func TestCheckPermissionEnvInjection(t *testing.T) {
 	}
 	if env == nil || env["GIT_AUTHOR_NAME"] != "bot" {
 		t.Errorf("expected injected env, got %v", env)
-	}
-}
-
-func TestMergeExecRulesAccumulate(t *testing.T) {
-	base := Config{
-		Exec: &ExecConfig{
-			Allow: []ExecRule{{Binary: "git"}},
-			Deny:  []ExecRule{{Binary: "sudo"}},
-		},
-	}
-	overlay := Config{
-		Exec: &ExecConfig{
-			Allow: []ExecRule{{Binary: "jq"}},
-			Deny:  []ExecRule{{Binary: "rm"}},
-		},
-	}
-
-	merged := Merge(base, overlay)
-
-	if merged.Exec == nil {
-		t.Fatal("merged exec should not be nil")
-	}
-	if len(merged.Exec.Allow) != 2 {
-		t.Errorf("expected 2 allow rules, got %d", len(merged.Exec.Allow))
-	}
-	if len(merged.Exec.Deny) != 2 {
-		t.Errorf("expected 2 deny rules, got %d", len(merged.Exec.Deny))
-	}
-}
-
-func TestMergeExecBaseOnlyPreserved(t *testing.T) {
-	base := Config{
-		Exec: &ExecConfig{
-			Allow: []ExecRule{{Binary: "git"}},
-		},
-	}
-	overlay := Config{}
-
-	merged := Merge(base, overlay)
-	if merged.Exec == nil || len(merged.Exec.Allow) != 1 {
-		t.Error("base exec rules should be preserved when overlay has no exec")
-	}
-}
-
-func TestMergeExecOverlayOnlyAdded(t *testing.T) {
-	base := Config{}
-	overlay := Config{
-		Exec: &ExecConfig{
-			Allow: []ExecRule{{Binary: "git"}},
-		},
-	}
-
-	merged := Merge(base, overlay)
-	if merged.Exec == nil || len(merged.Exec.Allow) != 1 {
-		t.Error("overlay exec rules should be added when base has no exec")
-	}
-}
-
-func TestParseExecConfig(t *testing.T) {
-	input := `
-[[exec.allow]]
-binary = "git"
-args = ["status", "diff"]
-
-[[exec.allow]]
-binary = "jq"
-
-[[exec.deny]]
-binary = "sudo"
-`
-	cfg, err := Parse([]byte(input))
-	if err != nil {
-		t.Fatalf("parse error: %v", err)
-	}
-	if cfg.Exec == nil {
-		t.Fatal("exec config should not be nil")
-	}
-	if len(cfg.Exec.Allow) != 2 {
-		t.Fatalf("expected 2 allow rules, got %d", len(cfg.Exec.Allow))
-	}
-	if cfg.Exec.Allow[0].Binary != "git" {
-		t.Errorf("first allow binary = %q, want git", cfg.Exec.Allow[0].Binary)
-	}
-	if len(cfg.Exec.Allow[0].Args) != 2 {
-		t.Errorf("first allow args len = %d, want 2", len(cfg.Exec.Allow[0].Args))
-	}
-	if cfg.Exec.Allow[1].Binary != "jq" {
-		t.Errorf("second allow binary = %q, want jq", cfg.Exec.Allow[1].Binary)
-	}
-	if len(cfg.Exec.Deny) != 1 {
-		t.Fatalf("expected 1 deny rule, got %d", len(cfg.Exec.Deny))
-	}
-	if cfg.Exec.Deny[0].Binary != "sudo" {
-		t.Errorf("deny binary = %q, want sudo", cfg.Exec.Deny[0].Binary)
 	}
 }
