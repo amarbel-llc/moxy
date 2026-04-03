@@ -1051,6 +1051,10 @@ func (p *Proxy) handleExec(
 		return protocol.ErrorResultV1(text), nil
 	}
 
+	if text == "" {
+		return &protocol.ToolCallResultV1{}, nil
+	}
+
 	return &protocol.ToolCallResultV1{
 		Content: []protocol.ContentBlockV1{
 			{Type: "text", Text: text},

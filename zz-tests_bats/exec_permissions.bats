@@ -12,7 +12,7 @@ teardown() {
 
 function exec_no_rules_allows_everything { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 EOF
 
   cd "$HOME/repo"
@@ -23,7 +23,7 @@ EOF
 
 function exec_allow_rule_permits_matching_command { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[exec.allow]]
 binary = "echo"
 EOF
@@ -36,7 +36,7 @@ EOF
 
 function exec_allow_rule_denies_unmatched_binary { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[exec.allow]]
 binary = "echo"
 EOF
@@ -50,7 +50,7 @@ EOF
 
 function exec_deny_rule_blocks_matching_command { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[exec.deny]]
 binary = "rm"
 EOF
@@ -64,7 +64,7 @@ EOF
 
 function exec_deny_wins_over_allow { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[exec.allow]]
 binary = "git"
 
@@ -87,7 +87,7 @@ EOF
 
 function exec_allow_with_args_restricts_subcommands { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[exec.allow]]
 binary = "git"
 args = ["--version", "diff"]
@@ -105,9 +105,24 @@ EOF
   echo "$output" | jq -e '.isError == true'
 }
 
+function exec_empty_stdout_returns_empty_content { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<'EOF'
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp tools/call '{"name":"exec","arguments":{"command":"true"}}'
+  assert_success
+
+  # Empty stdout must not produce a content block with an empty text field,
+  # because omitempty drops it and MCP clients reject {"type":"text"} without
+  # a "text" key. Return empty/null content instead.
+  echo "$output" | jq -e '(.content // []) | length == 0'
+}
+
 function exec_deny_only_allows_other_binaries { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[exec.deny]]
 binary = "sudo"
 EOF
