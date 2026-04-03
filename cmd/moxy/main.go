@@ -124,6 +124,7 @@ func runServer() error {
 			Client:       client,
 			Config:       srvCfg,
 			Capabilities: result.Capabilities,
+			ServerInfo:   result.ServerInfo,
 		})
 
 		fmt.Fprintf(os.Stderr, "moxy: connected to %s (%s %s)\n",
@@ -142,10 +143,13 @@ func runServer() error {
 
 	p.ProbeEphemeral(ctx)
 
+	summaries := p.CollectServerSummaries(ctx)
+	instructions := proxy.FormatInstructions(summaries)
+
 	srv, err := server.New(t, server.Options{
 		ServerName:    "moxy",
 		ServerVersion: "0.1.0",
-		Instructions:  "MCP proxy aggregating tools, resources, and prompts from child servers.",
+		Instructions:  instructions,
 		Tools:         p,
 		Resources:     p,
 		Prompts:       p,

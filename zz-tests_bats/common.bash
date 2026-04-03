@@ -83,6 +83,17 @@ run_moxy_mcp_with_stderr() {
   rm -f "$stderr_file"
 }
 
+# Send a V1 JSON-RPC initialize handshake, capture the initialize result in
+# $output. Uses V1 protocol to get instructions field.
+run_moxy_mcp_init() {
+  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+  run timeout --preserve-status "10s" bash -c \
+    '(echo "$1"; echo "$2"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 1) | .result" | head -1' \
+    -- "$init" "$initialized"
+}
+
 # Send a JSON-RPC initialize handshake followed by a method call to maneater,
 # capture the method's result as JSON in $output.
 run_maneater_mcp() {

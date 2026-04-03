@@ -84,6 +84,23 @@ When `generate-resource-tools = true` on a server config, moxy generates
 `resource-read` and `resource-templates` tools for that child, allowing clients
 that only support tools (not resources) to access resources.
 
+### Discovery Resources
+
+Moxy provides built-in `moxy://` resources for agent discovery:
+
+- `moxy://servers` --- JSON array of all child servers with capability counts
+  and status (running/failed)
+- `moxy://servers/{server}` --- single server details
+- `moxy://tools/{server}` --- tool names and descriptions for a child server
+- `moxy://tools/{server}/{tool}` --- full JSON schema for a specific tool
+
+The `Instructions` field in the initialize response is dynamic, built from child
+server capability counts at startup. It lists each server with tool/resource
+counts so agents know what's available before making any calls.
+
+Unknown resource reads return structured JSON hints pointing agents to
+`moxy://servers` or `moxy://tools/{server}` instead of raw error messages.
+
 ### Annotation Filtering
 
 Server configs can include `[servers.annotations]` filters (`readOnlyHint`,
