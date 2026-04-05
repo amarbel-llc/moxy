@@ -125,6 +125,7 @@ func runServer() error {
 			Config:       srvCfg,
 			Capabilities: result.Capabilities,
 			ServerInfo:   result.ServerInfo,
+			Instructions: result.Instructions,
 		})
 
 		fmt.Fprintf(os.Stderr, "moxy: connected to %s (%s %s)\n",

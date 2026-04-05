@@ -44,13 +44,13 @@ var templates = []protocol.ResourceTemplate{
 	{
 		URITemplate: "man://{page}",
 		Name:        "Man page TOC",
-		Description: "List all sections and subsections of a Unix man page",
+		Description: "Start here: list all sections and subsections of a Unix man page to discover what it covers",
 		MimeType:    "text/plain",
 	},
 	{
 		URITemplate: "man://{section}/{page}",
 		Name:        "Man page TOC (specific section)",
-		Description: "List all sections and subsections of a Unix man page by section number and name",
+		Description: "Start here: list all sections and subsections of a Unix man page by section number and name",
 		MimeType:    "text/plain",
 	},
 	{
@@ -83,13 +83,13 @@ var templatesV1 = []protocol.ResourceTemplateV1{
 	{
 		URITemplate: "man://{page}",
 		Name:        "Man page TOC",
-		Description: "List all sections and subsections of a Unix man page",
+		Description: "Start here: list all sections and subsections of a Unix man page to discover what it covers",
 		MimeType:    "text/plain",
 	},
 	{
 		URITemplate: "man://{section}/{page}",
 		Name:        "Man page TOC (specific section)",
-		Description: "List all sections and subsections of a Unix man page by section number and name",
+		Description: "Start here: list all sections and subsections of a Unix man page by section number and name",
 		MimeType:    "text/plain",
 	},
 	{
@@ -784,7 +784,7 @@ func (m *manServer) ListTools(_ context.Context) ([]protocol.Tool, error) {
 	return []protocol.Tool{
 		{
 			Name:        "exec",
-			Description: "Execute a shell command. Runs via sh -c.",
+			Description: "Execute a shell command. Runs via sh -c. Prefer reading man pages first to understand flags and behavior before executing.",
 			InputSchema: execToolSchema,
 		},
 	}, nil
@@ -813,7 +813,7 @@ func (m *manServer) ListToolsV1(_ context.Context, _ string) (*protocol.ToolsLis
 		Tools: []protocol.ToolV1{
 			{
 				Name:        "exec",
-				Description: "Execute a shell command. Runs via sh -c.",
+				Description: "Execute a shell command. Runs via sh -c. Prefer reading man pages first to understand flags and behavior before executing.",
 				InputSchema: execToolSchema,
 			},
 		},
@@ -977,7 +977,7 @@ func runServeMCP() {
 	srv, err := server.New(t, server.Options{
 		ServerName:    "maneater",
 		ServerVersion: "0.4.0",
-		Instructions:  "Unix man page server with progressive disclosure, semantic search, and shell execution. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section, man://search/{query} to find pages by natural language. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{id} resource URI is returned instead of the full output.",
+		Instructions:  "Unix man page server. Before running a command, read its man page to understand flags, exit codes, and caveats. Start with man://{page} for a table of contents, then man://{page}/{section_name} to read specific sections. Use man://search/{query} to find relevant pages by natural language. The exec tool is available for running commands after you understand their interface. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{id} resource URI is returned instead of the full output.",
 		Resources:     m,
 		Tools:         m,
 	})

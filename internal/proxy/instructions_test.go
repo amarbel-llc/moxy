@@ -110,6 +110,36 @@ func TestFormatInstructionsEmptyList(t *testing.T) {
 	}
 }
 
+func TestFormatInstructionsWithChildInstructions(t *testing.T) {
+	summaries := []ServerSummary{
+		{
+			Name:         "maneater",
+			Version:      "0.4.0",
+			Status:       "running",
+			Instructions: "Read man pages before executing commands.",
+			Tools:        1,
+		},
+		{
+			Name:   "git",
+			Status: "running",
+			Tools:  15,
+		},
+	}
+
+	result := FormatInstructions(summaries)
+
+	if !strings.Contains(result, "## maneater") {
+		t.Error("expected child instructions section header")
+	}
+	if !strings.Contains(result, "Read man pages before executing commands.") {
+		t.Error("expected child instructions content")
+	}
+	// Server without instructions should not get a section
+	if strings.Contains(result, "## git") {
+		t.Error("should not create section for server without instructions")
+	}
+}
+
 func TestFormatInstructionsNoVersion(t *testing.T) {
 	summaries := []ServerSummary{
 		{

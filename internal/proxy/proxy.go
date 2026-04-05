@@ -21,6 +21,7 @@ type ChildEntry struct {
 	Config       config.ServerConfig
 	Capabilities protocol.ServerCapabilitiesV1
 	ServerInfo   protocol.ImplementationV1
+	Instructions string
 }
 
 type FailedServer struct {
@@ -32,6 +33,7 @@ type EphemeralMeta struct {
 	Config       config.ServerConfig
 	Capabilities protocol.ServerCapabilitiesV1
 	ServerInfo   protocol.ImplementationV1
+	Instructions string
 	Tools        []protocol.ToolV1
 	Resources    []protocol.ResourceV1
 	Templates    []protocol.ResourceTemplateV1
@@ -99,6 +101,7 @@ func (p *Proxy) ProbeEphemeral(ctx context.Context) {
 
 		meta.Capabilities = result.Capabilities
 		meta.ServerInfo = result.ServerInfo
+		meta.Instructions = result.Instructions
 
 		if result.Capabilities.Tools != nil {
 			raw, err := client.Call(ctx, protocol.MethodToolsList, nil)
@@ -152,6 +155,7 @@ func (p *Proxy) reprobeEphemeral(ctx context.Context, meta *EphemeralMeta) error
 
 	meta.Capabilities = result.Capabilities
 	meta.ServerInfo = result.ServerInfo
+	meta.Instructions = result.Instructions
 	meta.Tools = nil
 	meta.Resources = nil
 	meta.Templates = nil
@@ -235,9 +239,10 @@ func (p *Proxy) CollectServerSummaries(ctx context.Context) []ServerSummary {
 
 	for _, child := range children {
 		s := ServerSummary{
-			Name:    child.Config.Name,
-			Version: child.ServerInfo.Version,
-			Status:  "running",
+			Name:         child.Config.Name,
+			Version:      child.ServerInfo.Version,
+			Instructions: child.Instructions,
+			Status:       "running",
 		}
 
 		if child.Capabilities.Tools != nil {
@@ -280,6 +285,7 @@ func (p *Proxy) CollectServerSummaries(ctx context.Context) []ServerSummary {
 		summaries = append(summaries, ServerSummary{
 			Name:              name,
 			Version:           meta.ServerInfo.Version,
+			Instructions:      meta.Instructions,
 			Status:            "running",
 			Tools:             len(meta.Tools),
 			Resources:         len(meta.Resources),
@@ -1314,6 +1320,8 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 		Client:       client,
 		Config:       cfg,
 		Capabilities: result.Capabilities,
+		ServerInfo:   result.ServerInfo,
+		Instructions: result.Instructions,
 	})
 	p.mu.Unlock()
 

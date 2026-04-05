@@ -10,6 +10,7 @@ type ServerSummary struct {
 	Version           string `json:"version,omitempty"`
 	Status            string `json:"status"`
 	Error             string `json:"error,omitempty"`
+	Instructions      string `json:"instructions,omitempty"`
 	Tools             int    `json:"tools"`
 	Resources         int    `json:"resources"`
 	ResourceTemplates int    `json:"resource_templates"`
@@ -43,6 +44,13 @@ func FormatInstructions(servers []ServerSummary) string {
 
 	b.WriteString("\nUse moxy://tools/{server} to discover available tools.\n")
 	b.WriteString("Use {server}.resource-templates to discover available resource URI patterns.")
+
+	for _, s := range servers {
+		if s.Instructions == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "\n\n## %s\n\n%s", s.Name, s.Instructions)
+	}
 
 	return b.String()
 }
