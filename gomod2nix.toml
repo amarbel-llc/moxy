@@ -65,6 +65,10 @@ schema = 3
     version = 'v0.0.0-20211004153227-1c3628e74d0f'
     hash = 'sha256-OWSqN1+IoL73rWXWdbbcahZu8n2al90Y3eT5Z0vgHvU='
 
+  [mod.'github.com/google/uuid']
+    version = 'v1.6.0'
+    hash = 'sha256-VWl9sqUzdOuhW0KzQlv0gwwUQClYkmZwSydHG2sALYw='
+
   [mod.'github.com/lucasb-eyer/go-colorful']
     version = 'v1.2.0'
     hash = 'sha256-Gg9dDJFCTaHrKHRR1SrJgZ8fWieJkybljybkI9x0gyE='

@@ -30,6 +30,7 @@ type manServer struct {
 	modelName  string
 	modelCfg   ModelConfig
 	execConfig *ExecConfig
+	execCache  *execResultCache
 }
 
 type pageSection struct {
@@ -70,6 +71,12 @@ var templates = []protocol.ResourceTemplate{
 		Description: "Search for man pages by natural language query. Returns ranked results with page names and scores. Use query parameter top_k to control result count (default 10).",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "maneater.exec://results/{id}",
+		Name:        "Exec result",
+		Description: "Full output of a cached exec command result. Returned when exec output exceeds the token threshold.",
+		MimeType:    "text/plain",
+	},
 }
 
 var templatesV1 = []protocol.ResourceTemplateV1{
@@ -103,6 +110,12 @@ var templatesV1 = []protocol.ResourceTemplateV1{
 		Description: "Search for man pages by natural language query. Returns ranked results with page names and scores. Use query parameter top_k to control result count (default 10).",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "maneater.exec://results/{id}",
+		Name:        "Exec result",
+		Description: "Full output of a cached exec command result. Returned when exec output exceeds the token threshold.",
+		MimeType:    "text/plain",
+	},
 }
 
 // ResourceProvider (base interface)
@@ -112,7 +125,20 @@ func (m *manServer) ListResources(_ context.Context) ([]protocol.Resource, error
 }
 
 func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
-	// Check for search URI first
+	// Check for exec result URI first.
+	if id, ok := parseExecResultURI(uri); ok {
+		cached, err := m.execCache.load(id)
+		if err != nil {
+			return nil, err
+		}
+		return &protocol.ResourceReadResult{
+			Contents: []protocol.ResourceContent{
+				{URI: uri, MimeType: "text/plain", Text: cached.Output},
+			},
+		}, nil
+	}
+
+	// Check for search URI.
 	if query, topK, ok := parseSearchURI(uri); ok {
 		text, err := m.handleSearch(query, topK)
 		if err != nil {
@@ -871,6 +897,28 @@ func (m *manServer) handleExec(
 		return &protocol.ToolCallResultV1{}, nil
 	}
 
+	tokens := estimateTokens(text)
+	if tokens > execTokenThreshold {
+		id, idErr := newExecResultID()
+		if idErr == nil {
+			cached := cachedExecResult{
+				ID:         id,
+				Command:    params.Command,
+				Output:     text,
+				LineCount:  strings.Count(text, "\n"),
+				TokenCount: tokens,
+			}
+			if storeErr := m.execCache.store(cached); storeErr == nil {
+				summary := formatSummary(cached)
+				return &protocol.ToolCallResultV1{
+					Content: []protocol.ContentBlockV1{
+						{Type: "text", Text: summary},
+					},
+				}, nil
+			}
+		}
+	}
+
 	return &protocol.ToolCallResultV1{
 		Content: []protocol.ContentBlockV1{
 			{Type: "text", Text: text},
@@ -924,12 +972,12 @@ func runServeMCP() {
 	}
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
-	m := &manServer{execConfig: cfg.Exec}
+	m := &manServer{execConfig: cfg.Exec, execCache: newExecResultCache()}
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "maneater",
 		ServerVersion: "0.4.0",
-		Instructions:  "Unix man page server with progressive disclosure, semantic search, and shell execution. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section, man://search/{query} to find pages by natural language.",
+		Instructions:  "Unix man page server with progressive disclosure, semantic search, and shell execution. Use man://{page} for a table of contents, man://{page}/{section_name} to read a specific section, man://search/{query} to find pages by natural language. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{id} resource URI is returned instead of the full output.",
 		Resources:     m,
 		Tools:         m,
 	})
