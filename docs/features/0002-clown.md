@@ -2,7 +2,7 @@
 date: 2026-04-05
 promotion-criteria: folio server replaces Read/Write/Edit/Grep/Glob for at least
   one user's full Claude Code session without fallback to built-ins
-status: exploring
+status: experimental
 ---
 
 # Clown: MCP replacements for Claude Code built-in tools
@@ -39,11 +39,11 @@ Replacing the rest would give users:
   Bash                maneater          shipped
   git (via Bash)      grit              shipped
   GitHub (via Bash)   get-hubbed        shipped
-  Read                folio             planned
-  Write               folio             planned
-  Edit                folio             planned
-  Grep                folio             planned
-  Glob                folio             planned
+  Read                folio             shipped
+  Write               folio             shipped
+  Edit                folio             shipped
+  Grep                folio             shipped
+  Glob                folio             shipped
 
 ### Folio
 
@@ -80,8 +80,9 @@ prefer built-in tools. Without a mechanism to disable them (e.g.,
 `disable_tools` in settings.json), the MCP versions will always compete with
 built-ins for attention. This is the primary external blocker.
 
-**Workaround:** CLAUDE.md instructions to prefer folio over built-ins. Fragile
-but functional for testing.
+**Workaround:** The permissions deny list in settings.local.json blocks built-in
+tools (`"deny": ["Read", "Edit", "Write", "Grep", "Glob", "Bash"]`), forcing
+Claude to use MCP equivalents. Verified working in a full session on 2026-04-05.
 
 ### Harness-level guardrails
 
