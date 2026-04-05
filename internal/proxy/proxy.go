@@ -1463,7 +1463,23 @@ func (p *Proxy) callResourceReadOn(
 		return nil, fmt.Errorf("decoding resource read result from %s: %w", serverName, err)
 	}
 
-	text, err := json.Marshal(result.Contents)
+	return resourceContentsToToolResult(result.Contents)
+}
+
+// resourceContentsToToolResult converts MCP resource contents into a tool call
+// result. When there is exactly one text content item, the text is returned
+// directly as a plain text block (no JSON wrapping). Otherwise, the contents
+// array is JSON-marshaled for structured access.
+func resourceContentsToToolResult(contents []protocol.ResourceContent) (*protocol.ToolCallResultV1, error) {
+	if len(contents) == 1 && contents[0].Text != "" {
+		return &protocol.ToolCallResultV1{
+			Content: []protocol.ContentBlockV1{
+				protocol.TextContentV1(contents[0].Text),
+			},
+		}, nil
+	}
+
+	text, err := json.Marshal(contents)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling resource contents: %w", err)
 	}
@@ -1539,16 +1555,7 @@ func (p *Proxy) callResourceRead(
 		)
 	}
 
-	text, err := json.Marshal(result.Contents)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling resource contents: %w", err)
-	}
-
-	return &protocol.ToolCallResultV1{
-		Content: []protocol.ContentBlockV1{
-			{Type: "text", Text: string(text)},
-		},
-	}, nil
+	return resourceContentsToToolResult(result.Contents)
 }
 
 func (p *Proxy) callResourceTemplates(

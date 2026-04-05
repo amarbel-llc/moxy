@@ -166,6 +166,36 @@ allow and deny lists are appended across hierarchy levels). The
 and `llama-cpp` in buildInputs. Wrapped binary adds mandoc, pandoc, tldr to
 PATH.
 
+### Folio (File I/O MCP Server)
+
+Third binary in the repo (`cmd/folio`). MCP server providing file
+read/write/edit operations. Runs as a moxy child server via
+`command = "folio serve mcp"`.
+
+**Resources:**
+
+- `folio://read/{path}` -- read file with line numbers, optional
+  `?offset=N&limit=M` for line-based pagination (1-indexed). Large files trigger
+  progressive disclosure (head + tail summary with resource URI for full
+  content).
+
+**Tools:**
+
+- `write` -- create or overwrite a file (atomic write via tempfile+rename,
+  creates parent directories)
+- `edit` -- exact string replacement (unique match required unless `replace_all`
+  is true)
+
+**folio.toml hierarchy:** Config files loaded and merged in order:
+
+1.  `~/.config/folio/folio.toml` (global)
+2.  Each parent directory between `$HOME` and `$CWD`
+3.  `./folio.toml` (project-local)
+
+Permissions use path-based allow/deny glob patterns (deny always wins). Read
+config controls progressive disclosure thresholds (`max-lines`, `head-lines`,
+`tail-lines`).
+
 ### Key Packages
 
 - `internal/config` -- moxyfile parsing, hierarchy loading, merge semantics

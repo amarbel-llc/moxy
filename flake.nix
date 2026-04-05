@@ -124,17 +124,28 @@
                 --set MANEATER_CONFIG ${maneater-models-toml}
               cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
             '';
+        folio = pkgs.buildGoApplication {
+          pname = "folio";
+          version = "0.1.0";
+          src = ./.;
+          subPackages = [ "cmd/folio" ];
+          modules = ./gomod2nix.toml;
+          go = pkgs-master.go_1_26;
+          GOTOOLCHAIN = "local";
+        };
+
         combined = pkgs.symlinkJoin {
           name = "moxy";
           paths = [
             moxy
             maneater
+            folio
           ];
         };
       in
       {
         packages = {
-          inherit moxy maneater;
+          inherit moxy maneater folio;
           default = combined;
         };
 
