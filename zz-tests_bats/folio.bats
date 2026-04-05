@@ -14,6 +14,8 @@ function resource_templates_listed { # @test
   run_folio_mcp resources/templates/list
   assert_success
   echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate | contains("folio://read/"))'
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate | contains("folio://glob/"))'
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate | contains("folio://grep/"))'
 }
 
 function tools_listed { # @test
@@ -140,4 +142,66 @@ function edit_replace_all { # @test
   assert_success
   echo "$output" | jq -e '.content[0].text | contains("2 replacement")'
   [[ "$(cat "$testfile")" == "qux bar qux baz" ]]
+}
+
+function glob_finds_matching_files { # @test
+  mkdir -p "$HOME/project/src"
+  printf "a" >"$HOME/project/main.go"
+  printf "b" >"$HOME/project/src/util.go"
+  printf "c" >"$HOME/project/readme.txt"
+
+  run_folio_mcp resources/read "{\"uri\":\"folio://glob/**/*.go?path=${HOME}/project\"}"
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "main.go"
+  echo "$text" | grep -q "util.go"
+  ! echo "$text" | grep -q "readme.txt"
+}
+
+function glob_no_matches { # @test
+  mkdir -p "$HOME/project"
+  printf "a" >"$HOME/project/readme.txt"
+
+  run_folio_mcp resources/read "{\"uri\":\"folio://glob/*.rs?path=${HOME}/project\"}"
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "No files found"
+}
+
+function grep_finds_matching_content { # @test
+  mkdir -p "$HOME/project"
+  printf "func main() {\n\tfmt.Println(\"hello\")\n}\n" >"$HOME/project/main.go"
+  printf "just text\n" >"$HOME/project/readme.txt"
+
+  run_folio_mcp resources/read "{\"uri\":\"folio://grep/Println?path=${HOME}/project\"}"
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "main.go"
+}
+
+function grep_no_matches { # @test
+  mkdir -p "$HOME/project"
+  printf "hello world\n" >"$HOME/project/file.txt"
+
+  run_folio_mcp resources/read "{\"uri\":\"folio://grep/nonexistent_pattern_xyz?path=${HOME}/project\"}"
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "No matches"
+}
+
+function grep_content_mode_with_context { # @test
+  mkdir -p "$HOME/project"
+  printf "line1\nline2\ntarget\nline4\nline5\n" >"$HOME/project/file.txt"
+
+  run_folio_mcp resources/read "{\"uri\":\"folio://grep/target?path=${HOME}/project&output_mode=content&context=1\"}"
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "line2"
+  echo "$text" | grep -q "target"
+  echo "$text" | grep -q "line4"
 }

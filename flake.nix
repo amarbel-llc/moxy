@@ -124,7 +124,7 @@
                 --set MANEATER_CONFIG ${maneater-models-toml}
               cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
             '';
-        folio = pkgs.buildGoApplication {
+        folio-unwrapped = pkgs.buildGoApplication {
           pname = "folio";
           version = "0.1.0";
           src = ./.;
@@ -133,6 +133,17 @@
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
         };
+
+        folio =
+          pkgs.runCommand "folio-wrapped"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ];
+            }
+            ''
+              mkdir -p $out/bin
+              makeWrapper ${folio-unwrapped}/bin/folio $out/bin/folio \
+                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.ripgrep ]}
+            '';
 
         combined = pkgs.symlinkJoin {
           name = "moxy";
@@ -165,6 +176,7 @@
             pkgs.mandoc
             pkgs.pandoc
             pkgs.pkg-config
+            pkgs.ripgrep
             bob.packages.${system}.batman
             bob.packages.${system}.grit
             bob.packages.${system}.lux

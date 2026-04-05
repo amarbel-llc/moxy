@@ -31,6 +31,18 @@ var templates = []protocol.ResourceTemplate{
 		Description: "Read a file with line numbers. Use ?offset=N (1-indexed) and ?limit=M for pagination.",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "folio://glob/{+pattern}",
+		Name:        "Glob files",
+		Description: "Find files matching a glob pattern. Supports ** for recursive matching. Use ?path={dir} to set the search root. Results sorted by modification time (newest first).",
+		MimeType:    "text/plain",
+	},
+	{
+		URITemplate: "folio://grep/{+pattern}",
+		Name:        "Grep content",
+		Description: "Search file contents using ripgrep. Use ?path={dir}, ?glob={filter} (e.g. *.go), ?type={lang} (e.g. go, py), ?output_mode={files_with_matches|content|count}, ?context=N (lines around matches), ?case_insensitive=true.",
+		MimeType:    "text/plain",
+	},
 }
 
 // Resource templates (V1).
@@ -42,6 +54,18 @@ var templatesV1 = []protocol.ResourceTemplateV1{
 		Description: "Read a file with line numbers. Use ?offset=N (1-indexed) and ?limit=M for pagination.",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "folio://glob/{+pattern}",
+		Name:        "Glob files",
+		Description: "Find files matching a glob pattern. Supports ** for recursive matching. Use ?path={dir} to set the search root. Results sorted by modification time (newest first).",
+		MimeType:    "text/plain",
+	},
+	{
+		URITemplate: "folio://grep/{+pattern}",
+		Name:        "Grep content",
+		Description: "Search file contents using ripgrep. Use ?path={dir}, ?glob={filter} (e.g. *.go), ?type={lang} (e.g. go, py), ?output_mode={files_with_matches|content|count}, ?context=N (lines around matches), ?case_insensitive=true.",
+		MimeType:    "text/plain",
+	},
 }
 
 // ResourceProvider (base interface)
@@ -51,6 +75,14 @@ func (s *folioServer) ListResources(_ context.Context) ([]protocol.Resource, err
 }
 
 func (s *folioServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
+	// Dispatch by URI scheme.
+	if strings.HasPrefix(uri, "folio://glob/") {
+		return s.handleGlobResource(uri)
+	}
+	if strings.HasPrefix(uri, "folio://grep/") {
+		return s.handleGrepResource(uri)
+	}
+
 	path, offset, limit, err := parseReadURI(uri)
 	if err != nil {
 		return nil, err
@@ -310,6 +342,116 @@ func parseReadURI(uri string) (path string, offset, limit int, err error) {
 	return pathPart, offset, limit, nil
 }
 
+// Glob resource handler
+
+func (s *folioServer) handleGlobResource(uri string) (*protocol.ResourceReadResult, error) {
+	pattern, dir, err := parseGlobURI(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+
+	matches, err := globFiles(pattern, dir)
+	if err != nil {
+		return nil, err
+	}
+
+	text := formatGlobResults(matches)
+	return &protocol.ResourceReadResult{
+		Contents: []protocol.ResourceContent{
+			{URI: uri, MimeType: "text/plain", Text: text},
+		},
+	}, nil
+}
+
+func parseGlobURI(uri string) (pattern, dir string, err error) {
+	rest := strings.TrimPrefix(uri, "folio://glob/")
+
+	pathPart := rest
+	queryPart := ""
+	if idx := strings.Index(rest, "?"); idx >= 0 {
+		pathPart = rest[:idx]
+		queryPart = rest[idx+1:]
+	}
+
+	if pathPart == "" {
+		return "", "", fmt.Errorf("empty pattern in glob URI: %s", uri)
+	}
+
+	if queryPart != "" {
+		values, parseErr := url.ParseQuery(queryPart)
+		if parseErr != nil {
+			return "", "", fmt.Errorf("invalid query params: %w", parseErr)
+		}
+		dir = values.Get("path")
+	}
+
+	return pathPart, dir, nil
+}
+
+// Grep resource handler
+
+func (s *folioServer) handleGrepResource(uri string) (*protocol.ResourceReadResult, error) {
+	params, err := parseGrepURI(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	if params.Path == "" {
+		params.Path, _ = os.Getwd()
+	}
+
+	text, err := runGrep(params)
+	if err != nil {
+		return nil, err
+	}
+
+	return &protocol.ResourceReadResult{
+		Contents: []protocol.ResourceContent{
+			{URI: uri, MimeType: "text/plain", Text: text},
+		},
+	}, nil
+}
+
+func parseGrepURI(uri string) (grepParams, error) {
+	rest := strings.TrimPrefix(uri, "folio://grep/")
+
+	pathPart := rest
+	queryPart := ""
+	if idx := strings.Index(rest, "?"); idx >= 0 {
+		pathPart = rest[:idx]
+		queryPart = rest[idx+1:]
+	}
+
+	if pathPart == "" {
+		return grepParams{}, fmt.Errorf("empty pattern in grep URI: %s", uri)
+	}
+
+	params := grepParams{Pattern: pathPart}
+
+	if queryPart != "" {
+		values, parseErr := url.ParseQuery(queryPart)
+		if parseErr != nil {
+			return grepParams{}, fmt.Errorf("invalid query params: %w", parseErr)
+		}
+		params.Path = values.Get("path")
+		params.Glob = values.Get("glob")
+		params.FileType = values.Get("type")
+		params.OutputMode = values.Get("output_mode")
+		if v := values.Get("context"); v != "" {
+			params.Context, _ = strconv.Atoi(v)
+		}
+		if values.Get("case_insensitive") == "true" {
+			params.CaseInsensitive = true
+		}
+	}
+
+	return params, nil
+}
+
 func boolPtr(b bool) *bool { return &b }
 
 // Interface assertions.
@@ -364,7 +506,7 @@ func runServeMCP() {
 	srv, err := server.New(t, server.Options{
 		ServerName:    "folio",
 		ServerVersion: "0.1.0",
-		Instructions:  "File I/O server. Read files via folio://read/{path} resource with optional ?offset=N&limit=M for line-based pagination. Use the write tool to create or overwrite files, and the edit tool for exact string replacements within existing files.",
+		Instructions:  "File I/O server. Read files via folio://read/{path} with optional ?offset=N&limit=M. Find files via folio://glob/{pattern} with optional ?path={dir} (supports **). Search content via folio://grep/{pattern} with ?path, ?glob, ?type, ?output_mode, ?context, ?case_insensitive. Use the write tool to create/overwrite files, and the edit tool for exact string replacements.",
 		Resources:     f,
 		Tools:         f,
 	})

@@ -178,6 +178,13 @@ read/write/edit operations. Runs as a moxy child server via
   `?offset=N&limit=M` for line-based pagination (1-indexed). Large files trigger
   progressive disclosure (head + tail summary with resource URI for full
   content).
+- `folio://glob/{pattern}` -- find files matching a glob pattern. Supports `**`
+  for recursive matching. Optional `?path={dir}` to set search root. Results
+  sorted by modification time (newest first).
+- `folio://grep/{pattern}` -- search file contents via ripgrep. Optional params:
+  `?path={dir}`, `?glob={filter}`, `?type={lang}`,
+  `?output_mode={files_with_matches|content|count}`, `?context=N`,
+  `?case_insensitive=true`.
 
 **Tools:**
 
