@@ -38,10 +38,10 @@ type cachedExecResult struct {
 func newExecResultCache() *execResultCache {
 	var base string
 	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
-		base = filepath.Join(xdg, "moxy", "exec-results")
+		base = filepath.Join(xdg, "maneater", "exec-results")
 	} else {
 		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".cache", "moxy", "exec-results")
+		base = filepath.Join(home, ".cache", "maneater", "exec-results")
 	}
 	return &execResultCache{dir: base}
 }

@@ -144,7 +144,8 @@ nomic-embed-text-v1.5. Key details:
 - Raw embeddings need L2 normalization (unlike llama-server's `/embedding`
   endpoint)
 - Index deduplicates by page name, keeping the highest cosine similarity score
-- Cached at `$XDG_CACHE_HOME/moxy/man-index/` (regenerable via `maneater index`)
+- Cached at `$XDG_CACHE_HOME/maneater/man-index/` (regenerable via
+  `maneater index`)
 - Model path from `MANEATER_MODEL_PATH` env var (set by nix wrapper)
 
 **Exec tool:** Maneater provides a shell execution tool (`exec`) with permission

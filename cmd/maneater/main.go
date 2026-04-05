@@ -404,10 +404,10 @@ func buildIndex(emb *embedding.Embedder, cfg ModelConfig, pages []string, logw *
 func indexCacheDirForModel(modelName string) string {
 	var base string
 	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
-		base = filepath.Join(xdg, "moxy", "man-index")
+		base = filepath.Join(xdg, "maneater", "man-index")
 	} else {
 		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".cache", "moxy", "man-index")
+		base = filepath.Join(home, ".cache", "maneater", "man-index")
 	}
 	return filepath.Join(base, modelName)
 }

@@ -5,7 +5,7 @@ QUERY="${1:?usage: man-search-embed.bash <query> [top_k]}"
 TOP_K="${2:-10}"
 LLAMA_PORT="${LLAMA_PORT:-8922}"
 LLAMA_URL="http://localhost:${LLAMA_PORT}/v1/embeddings"
-INDEX_DIR="${HOME}/.local/share/moxy/man-index"
+INDEX_DIR="${HOME}/.local/share/maneater/man-index"
 
 if ! curl -sf "http://localhost:${LLAMA_PORT}/health" >/dev/null 2>&1; then
   echo "error: llama-server not running on port $LLAMA_PORT" >&2

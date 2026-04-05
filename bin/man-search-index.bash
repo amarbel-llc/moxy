@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LLAMA_PORT="${LLAMA_PORT:-8922}"
 LLAMA_URL="http://localhost:${LLAMA_PORT}/v1/embeddings"
-INDEX_DIR="${HOME}/.local/share/moxy/man-index"
+INDEX_DIR="${HOME}/.local/share/maneater/man-index"
 BATCH_SIZE="${BATCH_SIZE:-8}"
 PARALLELISM="${PARALLELISM:-8}"
 LIMIT="${1:-0}"
