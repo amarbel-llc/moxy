@@ -9,10 +9,13 @@ import (
 	"strings"
 )
 
-// readFileWithLineNumbers reads a file and returns its content with line
-// numbers. offset is 1-indexed (first line is 1). limit is the max number of
-// lines to return (0 = all). Returns the formatted content and total line count.
-func readFileWithLineNumbers(path string, offset, limit int) (string, int, error) {
+// readFileFiltered reads a file and returns its content with line numbers.
+// offset is 1-indexed (first line is 1). limit is the max number of lines to
+// return (0 = all). deleteStart and deleteEnd specify an inclusive range of
+// lines to omit from the output (equivalent to `sed 'N,Md'`); both 0 disables
+// the exclusion. Returns the formatted content and total line count of the
+// underlying file (before filtering).
+func readFileFiltered(path string, offset, limit, deleteStart, deleteEnd int) (string, int, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", 0, err
@@ -46,12 +49,24 @@ func readFileWithLineNumbers(path string, offset, limit int) (string, int, error
 		endIdx = startIdx + limit
 	}
 
+	excludeActive := deleteStart > 0 && deleteEnd > 0
+
 	var b strings.Builder
 	for i := startIdx; i < endIdx; i++ {
-		fmt.Fprintf(&b, "%6d\t%s\n", i+1, lines[i])
+		lineNum := i + 1
+		if excludeActive && lineNum >= deleteStart && lineNum <= deleteEnd {
+			continue
+		}
+		fmt.Fprintf(&b, "%6d\t%s\n", lineNum, lines[i])
 	}
 
 	return b.String(), totalLines, nil
+}
+
+// readFileWithLineNumbers is a convenience wrapper for the common offset+limit
+// case. Kept for callers that don't care about the exclude range.
+func readFileWithLineNumbers(path string, offset, limit int) (string, int, error) {
+	return readFileFiltered(path, offset, limit, 0, 0)
 }
 
 // detectBinary checks if a file appears to be binary by scanning the first 8KB

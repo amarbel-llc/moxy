@@ -174,10 +174,13 @@ read/write/edit operations. Runs as a moxy child server via
 
 **Resources:**
 
-- `folio://read/{path}` -- read file with line numbers, optional
-  `?offset=N&limit=M` for line-based pagination (1-indexed). Large files trigger
-  progressive disclosure (head + tail summary with resource URI for full
-  content).
+- `folio://read/{path}` -- read file with line numbers. Optional
+  `?offset=N&limit=M` for line-based pagination (1-indexed), `?offset=N&end=M`
+  for an inclusive line range (equivalent to `sed -n 'N,Mp'`; `end` without
+  `offset` starts at line 1), or `?delete=N-M` to omit an inclusive range
+  (equivalent to `sed 'N,Md'`). Large files trigger progressive disclosure
+  (head + tail summary with resource URI for full content). Also available as
+  the `read`, `read_range`, and `read_excluding` tools.
 - `folio://glob/{pattern}` -- find files matching a glob pattern. Supports `**`
   for recursive matching. Optional `?path={dir}` to set search root. Results
   sorted by modification time (newest first).
@@ -188,6 +191,15 @@ read/write/edit operations. Runs as a moxy child server via
 
 **Tools:**
 
+- `read` -- read an entire file with line numbers (progressive disclosure for
+  large files). Output format: first line is the `folio://read/<path>` resource
+  URI, subsequent lines are `N\tcontent`.
+- `read_range` -- read an inclusive line range, equivalent to
+  `sed -n 'start,end p' <file>`. Output format same as `read` with
+  `?offset=start&end=end` on the URI.
+- `read_excluding` -- read a file with an inclusive line range omitted,
+  equivalent to `sed 'delete_start,delete_end d' <file>`. Output format same as
+  `read` with `?delete=start-end` on the URI.
 - `write` -- create or overwrite a file (atomic write via tempfile+rename,
   creates parent directories)
 - `edit` -- exact string replacement (unique match required unless `replace_all`
