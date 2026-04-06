@@ -1,0 +1,498 @@
+'\" t
+.\"     Title: pivy-tool
+.\"    Author: [see the "AUTHOR(S)" section]
+.\" Generator: Asciidoctor 2.0.26
+.\"      Date: 1980-01-01
+.\"    Manual: pivy
+.\"    Source: pivy 0.12.1
+.\"  Language: English
+.\"
+.TH "PIVY\-TOOL" "1" "1980-01-01" "pivy 0.12.1" "pivy"
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.ss \n[.ss] 0
+.nh
+.ad l
+.de URL
+\fI\\$2\fP <\\$1>\\$3
+..
+.als MTO URL
+.if \n[.g] \{\
+.  mso www.tmac
+.  am URL
+.    ad l
+.  .
+.  am MTO
+.    ad l
+.  .
+.  LINKSTYLE blue R < >
+.\}
+.SH "NAME"
+pivy-tool \- perform operations on PIV tokens and smart cards
+.SH "SYNOPSIS"
+.sp
+\fBpivy\-tool\fP [\fIoptions\fP] \fIoperation\fP [\fIargs\fP]
+.SH "DESCRIPTION"
+.sp
+The \fBpivy\-tool\fP command performs basic operations on PIV\-compatible smart cards
+and tokens, such as Yubico YubiKeys.
+It can list available tokens, generate and import keys, manage certificates,
+change PINs and PUKs, and perform cryptographic operations (signing, ECDH,
+box encrypt/decrypt).
+.sp
+PIV (Personal Identity Verification) is a US federal standard (NIST SP 800\-73)
+for smart card authentication.
+YubiKeys implement PIV and are the most common device used with pivy.
+.SH "OPERATIONS"
+.SS "Informational"
+.sp
+\fBlist\fP
+.RS 4
+List PIV tokens present on the system.
+Output includes GUID, device name, slot inventory, and authentication state.
+.RE
+.sp
+\fBpinfo\fP
+.RS 4
+Display the contents of the Printed Information data object on the token.
+.RE
+.sp
+\fBpubkey\fP \fIslot\fP
+.RS 4
+Output the public key stored in \fIslot\fP in OpenSSH format.
+.RE
+.sp
+\fBcert\fP \fIslot\fP
+.RS 4
+Output the X.509 certificate stored in \fIslot\fP in PEM format.
+.RE
+.sp
+\fBversion\fP
+.RS 4
+Print the pivy version string.
+.RE
+.SS "Setup"
+.sp
+\fBinit\fP
+.RS 4
+Write a new GUID and card capability container to the token.
+Used to initialize a fresh Yubico PIV applet.
+.RE
+.sp
+\fBsetup\fP
+.RS 4
+Quick setup procedure for a new YubiKey.
+Equivalent to running \fBinit\fP, \fBgenerate\fP (for standard slots),
+\fBchange\-pin\fP, \fBchange\-puk\fP, and \fBset\-admin\fP in sequence.
+Prompts interactively for PIN and PUK values.
+.RE
+.SS "Key Management"
+.sp
+\fBgenerate\fP \fIslot\fP
+.RS 4
+Generate a new private key in \fIslot\fP and create a self\-signed certificate
+for it.
+The algorithm defaults to ECDSA P\-256; use \fB\-a\fP to override.
+.RE
+.sp
+\fBimport\fP \fIslot\fP
+.RS 4
+Read an OpenSSH private key from standard input and import it into \fIslot\fP
+on the YubiKey.
+Generates a self\-signed certificate to accompany it.
+.RE
+.sp
+\fBwrite\-cert\fP \fIslot\fP
+.RS 4
+Read a DER\-encoded X.509 certificate from standard input and write it to
+\fIslot\fP, replacing any existing certificate.
+.RE
+.sp
+\fBreq\-cert\fP \fIslot\fP
+.RS 4
+Generate an X.509 Certificate Signing Request (CSR) for the key in \fIslot\fP.
+Output is PEM\-encoded on standard output.
+.RE
+.sp
+\fBdelete\-cert\fP \fIslot\fP
+.RS 4
+Clear the certificate from \fIslot\fP without affecting the private key.
+.RE
+.SS "PIN and PUK"
+.sp
+\fBchange\-pin\fP
+.RS 4
+Change the PIV PIN.
+Prompts for the current and new PIN interactively unless \fB\-P\fP is given.
+.RE
+.sp
+\fBchange\-puk\fP
+.RS 4
+Change the PIV PUK (PIN Unblocking Key).
+.RE
+.sp
+\fBreset\-pin\fP
+.RS 4
+Reset a locked PIN using the PUK.
+.RE
+.sp
+\fBfactory\-reset\fP
+.RS 4
+Factory reset the PIV applet on a YubiKey.
+Both the PIN and PUK must already be locked (maximum retry attempts
+exhausted) before this operation will succeed.
+All private keys are destroyed.
+.RE
+.SS "Administration"
+.sp
+\fBset\-admin\fP \fIhex\fP|\fI@file\fP
+.RS 4
+Set the PIV admin (management) key.
+The key may be given as a hex string or as a path prefixed with \fB@\fP.
+.RE
+.sp
+\fBupdate\-keyhist\fP
+.RS 4
+Scan all retired key slots and regenerate the PIV Key History data object.
+.RE
+.SS "Cryptographic Operations"
+.sp
+\fBsign\fP \fIslot\fP
+.RS 4
+Read data from standard input and produce a signature using the key in
+\fIslot\fP.
+Requires PIN authentication.
+.RE
+.sp
+\fBecdh\fP \fIslot\fP
+.RS 4
+Read a public key from standard input and perform ECDH key agreement using
+the key in \fIslot\fP.
+.RE
+.sp
+\fBauth\fP \fIslot\fP
+.RS 4
+Read a public key from standard input and perform a round\-trip signature
+test to verify that it matches the key stored in \fIslot\fP.
+.RE
+.sp
+\fBattest\fP \fIslot\fP
+.RS 4
+Output the YubiKey attestation certificate and chain for \fIslot\fP.
+Only supported on YubiKeys with firmware that implements attestation.
+.RE
+.SS "Box Operations"
+.sp
+Box operations provide simple public\-key encryption using ECDH.
+Data is encrypted to a recipient\(cqs public key and can be decrypted by the
+corresponding PIV token.
+.sp
+\fBbox\fP [\fIslot\fP]
+.RS 4
+Encrypt data from standard input.
+If \fIslot\fP is given, encrypt to the public key in that slot on the local
+token.
+Use \fB\-k\fP to specify an arbitrary public key instead.
+.RE
+.sp
+\fBunbox\fP
+.RS 4
+Decrypt box\-encrypted data from standard input.
+Automatically selects the appropriate token and slot.
+.RE
+.sp
+\fBbox\-info\fP
+.RS 4
+Print metadata about box\-encrypted data from standard input (recipient key,
+cipher, etc.) without decrypting.
+.RE
+.SH "OPTIONS"
+.SS "General Options"
+.sp
+\fB\-g\fP \fIhex\fP
+.RS 4
+GUID (or prefix) of the PIV token to use.
+Required if more than one token is present on the system.
+.RE
+.sp
+\fB\-P\fP \fIcode\fP
+.RS 4
+PIN code to authenticate with.
+If not given, the PIN is read interactively from the terminal.
+May be specified twice for operations that require both a current and new
+PIN (e.g., \fBchange\-pin\fP).
+.RE
+.sp
+\fB\-f\fP
+.RS 4
+Attempt to unlock with the PIN even if only one retry attempt remains
+before the card locks.
+.RE
+.sp
+\fB\-A\fP \fIalgorithm\fP
+.RS 4
+Admin key algorithm.
+One of \fB3des\fP, \fBaes128\fP, \fBaes192\fP, or \fBaes256\fP.
+Must appear before \fB\-K\fP on the command line.
+.RE
+.sp
+\fB\-K\fP \fIhex\fP|\fI@file\fP
+.RS 4
+Admin key for authenticating to the card for privileged operations
+(e.g., \fBgenerate\fP, \fBinit\fP).
+Accepts a hex string, a file path prefixed with \fB@\fP, or the literal string
+\fBdefault\fP to use the factory default key.
+.RE
+.sp
+\fB\-d\fP
+.RS 4
+Enable debug output on standard error.
+Specify twice to include full APDU traces.
+.RE
+.sp
+\fB\-X\fP
+.RS 4
+Enumerate all retired key slots instead of consulting the PIV Key History
+object.
+Slower but ensures no slots are missed.
+.RE
+.SS "Options for list"
+.sp
+\fB\-p\fP
+.RS 4
+Generate parseable (machine\-readable) output.
+.RE
+.sp
+\fB\-j\fP
+.RS 4
+Generate JSON output.
+.RE
+.SS "Options for generate and req\-cert"
+.sp
+\fB\-a\fP \fIalgorithm\fP
+.RS 4
+Key algorithm to use.
+EC algorithms: \fBeccp256\fP, \fBeccp384\fP.
+RSA algorithms: \fBrsa1024\fP, \fBrsa2048\fP, \fBrsa3072\fP.
+.RE
+.sp
+\fB\-n\fP \fIcn\fP
+.RS 4
+Set the Common Name (CN) attribute on the generated certificate.
+.RE
+.sp
+\fB\-u\fP \fIupn\fP
+.RS 4
+Set a UPN (User Principal Name) attribute on the certificate.
+.RE
+.sp
+\fB\-r\fP \fIprincipal\fP
+.RS 4
+Set a Kerberos 5 PKINIT principal name on the certificate.
+.RE
+.sp
+\fB\-D\fP \fIparam\fP=\fIvalue\fP
+.RS 4
+Define a certificate template parameter.
+May be specified multiple times.
+.RE
+.sp
+\fB\-T\fP \fItemplate\fP
+.RS 4
+Use a named certificate template.
+.RE
+.sp
+\fB\-t\fP \fIpolicy\fP
+.RS 4
+Set the touch policy (YubiKey only).
+One of \fBnever\fP, \fBalways\fP, or \fBcached\fP.
+.RE
+.sp
+\fB\-i\fP \fIpolicy\fP
+.RS 4
+Set the PIN policy (YubiKey only).
+One of \fBnever\fP, \fBalways\fP, or \fBonce\fP.
+.RE
+.SS "Options for box and unbox"
+.sp
+\fB\-k\fP \fIpubkey\fP
+.RS 4
+Use the specified public key (in OpenSSH format) for the box operation
+instead of reading from a slot on the local token.
+.RE
+.SS "Options for set\-admin and setup"
+.sp
+\fB\-R\fP
+.RS 4
+Do not save the admin key in the PIV Printed Information object.
+Required for compatibility with Yubico PIV Manager.
+.RE
+.sp
+\fB\-N\fP \fIalgorithm\fP
+.RS 4
+Change the admin key algorithm type.
+Same values as \fB\-A\fP.
+.RE
+.SH "PIV SLOTS"
+.sp
+PIV tokens organize keys into numbered slots.
+The standard slots are:
+.sp
+\fB9E\fP (Card Authentication)
+.RS 4
+Authenticates the device, not the user.
+Does not require a PIN by default.
+Used by \fBpivy\-agent\fP to verify the token\(cqs identity.
+.RE
+.sp
+\fB9A\fP (PIV Authentication)
+.RS 4
+Primary user authentication key.
+Protected by PIN.
+Recommended for SSH authorized_keys and similar.
+.RE
+.sp
+\fB9C\fP (Digital Signature)
+.RS 4
+Intended for signing documents and certificates.
+Also usable as a fallback authentication key.
+Protected by PIN.
+.RE
+.sp
+\fB9D\fP (Key Management)
+.RS 4
+Used for key agreement (ECDH) and data encryption.
+Requires PIN and touch confirmation on YubiKeys.
+.RE
+.sp
+\fB82\fP\-\fB95\fP (Retired Key Management)
+.RS 4
+Additional key slots for historical or backup keys.
+Use \fB\-X\fP to enumerate these slots.
+.RE
+.sp
+Slot arguments to operations may be given as bare hex (e.g., \fB9a\fP) or with a
+\fB0x\fP prefix.
+.SH "EXAMPLES"
+.sp
+List all PIV tokens on the system:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool list
+.fam
+.fi
+.if n .RE
+.sp
+List tokens with JSON output:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool \-j list
+.fam
+.fi
+.if n .RE
+.sp
+Show the SSH public key in slot 9a:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool pubkey 9a
+.fam
+.fi
+.if n .RE
+.sp
+Initialize and set up a new YubiKey interactively:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool setup
+.fam
+.fi
+.if n .RE
+.sp
+Generate an ECDSA P\-384 key in the authentication slot:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool \-a eccp384 generate 9a
+.fam
+.fi
+.if n .RE
+.sp
+Generate a key with touch\-always policy on a YubiKey:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool \-a eccp256 \-t always generate 9a
+.fam
+.fi
+.if n .RE
+.sp
+Import an existing SSH key to a YubiKey:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool import 9a < ~/.ssh/id_ecdsa
+.fam
+.fi
+.if n .RE
+.sp
+Encrypt data to a specific public key:
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ echo "secret" | pivy\-tool \-k "ecdsa\-sha2\-nistp256 AAAA..." box
+.fam
+.fi
+.if n .RE
+.sp
+Decrypt box\-encrypted data (auto\-selects token):
+.sp
+.if n .RS 4
+.nf
+.fam C
+$ pivy\-tool unbox < encrypted.box
+.fam
+.fi
+.if n .RE
+.SH "EXIT STATUS"
+.sp
+\fB0\fP
+.RS 4
+Success.
+.RE
+.sp
+\fB1\fP
+.RS 4
+General error.
+.RE
+.sp
+\fB3\fP
+.RS 4
+Invalid arguments.
+.RE
+.sp
+\fB4\fP
+.RS 4
+PIN required or incorrect.
+.RE
+.sp
+\fB6\fP
+.RS 4
+PIN locked.
+.RE
+.SH "SEE ALSO"
+.sp
+\fBpivy\-agent\fP(1), \fBpivy\-box\fP(1), \fBpivy\-ca\fP(1), \fBpivy\-zfs\fP(1), \fBssh\-agent\fP(1)
+.SH "AUTHORS"
+.sp
+pivy was written by Alex Wilson and contributors.

@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -638,7 +640,20 @@ func locateSource(section, page string) (string, error) {
 
 // renderMarkdown converts a roff source file to markdown via mandoc and pandoc.
 // Pipeline: mandoc -T man <path> | pandoc -f man -t markdown
+//
+// If the mandoc pipeline fails (e.g. asciidoctor-generated roff that mandoc
+// transforms into something pandoc can't parse), falls back to feeding the raw
+// roff directly to pandoc.
 func renderMarkdown(sourcePath string) (string, error) {
+	result, err := renderMarkdownViaMandoc(sourcePath)
+	if err == nil {
+		return result, nil
+	}
+
+	return renderMarkdownDirect(sourcePath)
+}
+
+func renderMarkdownViaMandoc(sourcePath string) (string, error) {
 	mandoc := exec.Command("mandoc", "-T", "man", sourcePath)
 	pandoc := exec.Command("pandoc", "-f", "man", "-t", "markdown")
 
@@ -666,6 +681,42 @@ func renderMarkdown(sourcePath string) (string, error) {
 	mandoc.Wait()
 
 	if err := pandoc.Wait(); err != nil {
+		return "", fmt.Errorf("pandoc: %w: %s", err, pandocErr.String())
+	}
+
+	return pandocOut.String(), nil
+}
+
+// renderMarkdownDirect feeds roff source directly to pandoc, decompressing
+// gzipped files first.
+func renderMarkdownDirect(sourcePath string) (string, error) {
+	var reader io.Reader
+
+	f, err := os.Open(sourcePath)
+	if err != nil {
+		return "", fmt.Errorf("opening source: %w", err)
+	}
+	defer f.Close()
+
+	if strings.HasSuffix(sourcePath, ".gz") {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return "", fmt.Errorf("decompressing source: %w", err)
+		}
+		defer gz.Close()
+		reader = gz
+	} else {
+		reader = f
+	}
+
+	pandoc := exec.Command("pandoc", "-f", "man", "-t", "markdown")
+	pandoc.Stdin = reader
+
+	var pandocOut, pandocErr bytes.Buffer
+	pandoc.Stdout = &pandocOut
+	pandoc.Stderr = &pandocErr
+
+	if err := pandoc.Run(); err != nil {
 		return "", fmt.Errorf("pandoc: %w: %s", err, pandocErr.String())
 	}
 

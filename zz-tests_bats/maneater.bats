@@ -158,6 +158,47 @@ EOF
   echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "man/man://search/{query}")'
 }
 
+function asciidoctor_generated_man_page_renders_successfully { # @test
+  local fixture_dir
+  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
+
+  # Set up a fake man directory containing the pivy-tool fixture (asciidoctor-
+  # generated roff that triggers a pandoc parse error through maneater's
+  # mandoc -T man pipeline). See https://github.com/amarbel-llc/moxy/issues/27
+  mkdir -p "$HOME/man/man1"
+  cp "$fixture_dir/pivy-tool.1" "$HOME/man/man1/pivy-tool.1"
+  export MANPATH="$HOME/man"
+
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/read '{"uri":"man://pivy-tool"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "NAME"
+  echo "$text" | grep -q "DESCRIPTION"
+  echo "$text" | grep -q "lines)"
+}
+
+function asciidoctor_generated_man_page_reads_section { # @test
+  local fixture_dir
+  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
+
+  mkdir -p "$HOME/man/man1"
+  cp "$fixture_dir/pivy-tool.1" "$HOME/man/man1/pivy-tool.1"
+  export MANPATH="$HOME/man"
+
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/read '{"uri":"man://pivy-tool/DESCRIPTION"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -qi "piv"
+}
+
 function man_page_nonexistent_returns_error { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF
