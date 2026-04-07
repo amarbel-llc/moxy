@@ -829,13 +829,19 @@ func isManSection(s string) bool {
 
 // ToolProvider (base interface)
 
-var execToolSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute"},"cwd":{"type":"string","description":"Working directory"},"env":{"type":"object","description":"Additional environment variables","additionalProperties":{"type":"string"}},"timeout":{"type":"number","description":"Timeout in milliseconds"}},"required":["command"]}`)
+var execToolSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute. Any maneater.exec://results/{id} substring is rewritten to /dev/fd/N, streaming the cached output via that fd. Multiple distinct results in one command are supported."},"stdin":{"type":"string","description":"Content written to the subprocess's stdin. Either literal text, or a maneater.exec://results/{id} URI to feed cached output."},"cwd":{"type":"string","description":"Working directory"},"env":{"type":"object","description":"Additional environment variables","additionalProperties":{"type":"string"}},"timeout":{"type":"number","description":"Timeout in milliseconds"}},"required":["command"]}`)
+
+const execToolDescription = "Execute a shell command via sh -c. Prefer reading man pages first to understand flags and behavior before executing.\n\n" +
+	"Cached output reuse: when a previous exec call returned a maneater.exec://results/{id} URI (because its output exceeded the token threshold), feed that cached output back into a new command without re-reading the resource into context:\n" +
+	"  - Pass the URI as the stdin parameter to write the cached output to the subprocess's stdin (e.g. {\"command\": \"wc -l\", \"stdin\": \"maneater.exec://results/abc\"}).\n" +
+	"  - Embed the URI anywhere inside command to have it rewritten to /dev/fd/N with the cached output streamed via that fd (e.g. {\"command\": \"grep ERROR maneater.exec://results/abc\"} or {\"command\": \"diff maneater.exec://results/abc maneater.exec://results/def\"}). Multiple distinct results in one command are supported.\n\n" +
+	"The stdin parameter also accepts literal text when not a maneater.exec://results/... URI."
 
 func (m *manServer) ListTools(_ context.Context) ([]protocol.Tool, error) {
 	return []protocol.Tool{
 		{
 			Name:        "exec",
-			Description: "Execute a shell command. Runs via sh -c. Prefer reading man pages first to understand flags and behavior before executing.",
+			Description: execToolDescription,
 			InputSchema: execToolSchema,
 		},
 	}, nil
@@ -864,7 +870,7 @@ func (m *manServer) ListToolsV1(_ context.Context, _ string) (*protocol.ToolsLis
 		Tools: []protocol.ToolV1{
 			{
 				Name:        "exec",
-				Description: "Execute a shell command. Runs via sh -c. Prefer reading man pages first to understand flags and behavior before executing.",
+				Description: execToolDescription,
 				InputSchema: execToolSchema,
 			},
 		},
@@ -884,6 +890,7 @@ func (m *manServer) handleExec(
 ) (*protocol.ToolCallResultV1, error) {
 	var params struct {
 		Command string            `json:"command"`
+		Stdin   string            `json:"stdin"`
 		Cwd     string            `json:"cwd"`
 		Env     map[string]string `json:"env"`
 		Timeout float64           `json:"timeout"`
@@ -914,13 +921,22 @@ func (m *manServer) handleExec(
 		}
 	}
 
+	sub, err := substituteExecURIs(params.Command, m.execCache)
+	if err != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("resolving exec result references: %v", err),
+		), nil
+	}
+	defer sub.Cleanup()
+
 	if params.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(params.Timeout)*time.Millisecond)
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", params.Command)
+	cmd := exec.CommandContext(ctx, "sh", "-c", sub.Command)
+	cmd.ExtraFiles = sub.ExtraFiles
 
 	if params.Cwd != "" {
 		cmd.Dir = params.Cwd
@@ -933,8 +949,35 @@ func (m *manServer) handleExec(
 		}
 	}
 
-	out, err := cmd.CombinedOutput()
-	text := string(out)
+	if params.Stdin != "" {
+		stdinText := params.Stdin
+		if id, ok := parseExecResultURI(params.Stdin); ok {
+			cached, lerr := m.execCache.load(id)
+			if lerr != nil {
+				return protocol.ErrorResultV1(
+					fmt.Sprintf("loading stdin from %s: %v", params.Stdin, lerr),
+				), nil
+			}
+			stdinText = cached.Output
+		}
+		cmd.Stdin = strings.NewReader(stdinText)
+	}
+
+	var combined bytes.Buffer
+	cmd.Stdout = &combined
+	cmd.Stderr = &combined
+
+	if startErr := cmd.Start(); startErr != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("starting command: %v", startErr),
+		), nil
+	}
+	sub.StartWriters()
+	// Close the parent's read-end copies now that the child has them, so
+	// the child sees EOF when the writer goroutines finish.
+	sub.Cleanup()
+	err = cmd.Wait()
+	text := combined.String()
 
 	if err != nil {
 		if text != "" {
