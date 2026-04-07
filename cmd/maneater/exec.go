@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	defaultSessionEnvVar  = "CLAUDE_SESSION_ID"
+	defaultSessionEnvVar   = "CLAUDE_SESSION_ID"
 	defaultSessionFallback = "no-session"
 )
 
