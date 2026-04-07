@@ -175,11 +175,6 @@
             pkgs.llama-cpp
             pkgs.mandoc
             pkgs.pandoc
-            # GNU parallel: required by `bats --jobs N` for parallel test
-            # execution. Without it bats silently runs zero tests on hosts
-            # that don't preinstall parallel (e.g. the macos-15 GitHub
-            # Actions runner). Linux runners happen to have it on PATH.
-            pkgs.parallel
             pkgs.pkg-config
             pkgs.ripgrep
             # Pinned inputs for deterministic bats man-page tests. Without
