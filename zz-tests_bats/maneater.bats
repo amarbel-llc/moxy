@@ -252,6 +252,84 @@ EOF
   echo "$output" | jq -e '.error'
 }
 
+function godoc_templates_appear_in_list { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "man"
+command = "maneater serve mcp"
+generate-resource-tools = true
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp resources/templates/list
+  assert_success
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "man/godoc://packages/{package}")'
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "man/godoc://packages/{package}/{symbol}")'
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "man/godoc://packages/{package}/{symbol}/src")'
+}
+
+function godoc_package_overview { # @test
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/read '{"uri":"godoc://packages/fmt"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "package fmt"
+  echo "$text" | grep -q "Println"
+}
+
+function godoc_symbol_documentation { # @test
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/read '{"uri":"godoc://packages/fmt/Println"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "func Println"
+}
+
+function godoc_symbol_source { # @test
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/read '{"uri":"godoc://packages/fmt/Println/src"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "func Println"
+}
+
+function godoc_multi_segment_package { # @test
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/read '{"uri":"godoc://packages/encoding/json"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "package json"
+  echo "$text" | grep -q "Marshal"
+}
+
+function godoc_nonexistent_package_returns_error { # @test
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  local req='{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"godoc://packages/nonexistent-pkg-xyz-12345"}}'
+
+  run timeout --preserve-status "10s" bash -c \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | maneater serve mcp 2>/dev/null | jq -c "select(.id == 2)" | head -1' \
+    -- "$init" "$initialized" "$req"
+  assert_success
+  echo "$output" | jq -e '.error'
+}
+
 function man_page_nonexistent_returns_error { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF

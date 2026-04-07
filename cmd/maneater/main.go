@@ -129,6 +129,23 @@ func (m *manServer) ListResources(_ context.Context) ([]protocol.Resource, error
 }
 
 func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
+	// Check for godoc URI.
+	if strings.HasPrefix(uri, godocPrefix) {
+		pkg, symbol, src, err := parseGodocURI(uri)
+		if err != nil {
+			return nil, err
+		}
+		text, err := handleGodocRead(pkg, symbol, src)
+		if err != nil {
+			return nil, err
+		}
+		return &protocol.ResourceReadResult{
+			Contents: []protocol.ResourceContent{
+				{URI: uri, MimeType: "text/plain", Text: text},
+			},
+		}, nil
+	}
+
 	// Check for exec result URI first.
 	if session, id, ok := parseExecResultURI(uri); ok {
 		cached, err := m.execCache.load(session, id)
@@ -197,7 +214,7 @@ func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.Resou
 }
 
 func (m *manServer) ListResourceTemplates(_ context.Context) ([]protocol.ResourceTemplate, error) {
-	return templates, nil
+	return append(templates, godocTemplates...), nil
 }
 
 // ResourceProviderV1 (V1 extensions)
@@ -207,7 +224,7 @@ func (m *manServer) ListResourcesV1(_ context.Context, _ string) (*protocol.Reso
 }
 
 func (m *manServer) ListResourceTemplatesV1(_ context.Context, _ string) (*protocol.ResourceTemplatesListResultV1, error) {
-	return &protocol.ResourceTemplatesListResultV1{ResourceTemplates: templatesV1}, nil
+	return &protocol.ResourceTemplatesListResultV1{ResourceTemplates: append(templatesV1, godocTemplatesV1...)}, nil
 }
 
 // Search
@@ -1117,8 +1134,8 @@ func runServeMCP() {
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "maneater",
-		ServerVersion: "0.4.0",
-		Instructions:  "Unix man page server. Before running a command, read its man page to understand flags, exit codes, and caveats. Start with man://{page} for a table of contents, then man://{page}/{section_name} to read specific sections. Use man://search/{query} to find relevant pages by natural language. The exec tool is available for running commands after you understand their interface. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{session}/{id} resource URI is returned instead of the full output; the session segment namespaces results per Claude session for cleanup.",
+		ServerVersion: "0.5.0",
+		Instructions:  "Unix man page server. Before running a command, read its man page to understand flags, exit codes, and caveats. Start with man://{page} for a table of contents, then man://{page}/{section_name} to read specific sections. Use man://search/{query} to find relevant pages by natural language. The exec tool is available for running commands after you understand their interface. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{session}/{id} resource URI is returned instead of the full output; the session segment namespaces results per Claude session for cleanup. Go package documentation is available via godoc://packages/{package} for a package overview, godoc://packages/{package}/{symbol} for symbol docs, and godoc://packages/{package}/{symbol}/src for source code.",
 		Resources:     m,
 		Tools:         m,
 	})
