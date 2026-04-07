@@ -1,0 +1,40 @@
+#! /usr/bin/env bats
+
+setup() {
+  load "$(dirname "$BATS_TEST_FILE")/common.bash"
+  setup_test_home
+  export output
+  FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILE")/test-fixtures" && pwd)"
+}
+
+teardown() {
+  teardown_test_home
+}
+
+function tool_with_space_in_name_is_listed { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/space-tool-server.bash"]
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp tools/list
+  assert_success
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.my tool")'
+}
+
+function tool_with_space_in_name_can_be_called { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/space-tool-server.bash"]
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp tools/call '{"name":"srv.my tool","arguments":{"arg":"hello"}}'
+  assert_success
+  echo "$output" | jq -e '.content[0].text == "got: hello"'
+}

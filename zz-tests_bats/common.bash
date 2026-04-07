@@ -94,6 +94,49 @@ run_moxy_mcp_with_stderr() {
   rm -f "$stderr_file"
 }
 
+# Like run_moxy_mcp but uses V1 protocol version (2025-11-25).
+# Waits for the initialize response before sending the method request
+# so the server has completed V1 negotiation.
+run_moxy_mcp_v1() {
+  local method="$1"
+  shift
+  local params="${1:-}"
+
+  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  local method_req
+  if [[ -n $params ]]; then
+    method_req=$(jq -cn --arg m "$method" --argjson p "$params" '{"jsonrpc":"2.0","id":2,"method":$m,"params":$p}')
+  else
+    method_req=$(jq -cn --arg m "$method" '{"jsonrpc":"2.0","id":2,"method":$m}')
+  fi
+
+  local gate
+  gate=$(mktemp -u)
+  mkfifo "$gate"
+
+  run timeout --preserve-status "10s" bash -c '
+    gate="$4"
+    {
+      echo "$1"
+      echo "$2"
+      # Block until the reader signals that the init response arrived.
+      read -r < "$gate"
+      echo "$3"
+      sleep 2
+    } | moxy serve mcp 2>/dev/null | while IFS= read -r line; do
+      id=$(echo "$line" | jq -r ".id // empty")
+      if [[ "$id" == "1" ]]; then
+        echo ready > "$gate"
+      elif [[ "$id" == "2" ]]; then
+        echo "$line" | jq -c ".result"
+      fi
+    done
+  ' -- "$init" "$initialized" "$method_req" "$gate"
+
+  rm -f "$gate"
+}
+
 # Send a V1 JSON-RPC initialize handshake, capture the initialize result in
 # $output. Uses V1 protocol to get instructions field.
 run_moxy_mcp_init() {

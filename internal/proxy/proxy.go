@@ -389,6 +389,7 @@ func (p *Proxy) ListToolsV1(
 				continue
 			}
 			tool.Name = child.Client.Name() + "." + tool.Name
+			prefixToolTitle(&tool, child.Client.Name())
 			allTools = append(allTools, tool)
 		}
 	}
@@ -422,6 +423,7 @@ func (p *Proxy) ListToolsV1(
 		if !hasResourceRead {
 			allTools = append(allTools, protocol.ToolV1{
 				Name:        serverName + ".resource-read",
+				Title:       serverName + ": Read Resource",
 				Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
 				Annotations: readOnlyAnnotations(),
@@ -431,6 +433,7 @@ func (p *Proxy) ListToolsV1(
 		if !hasResourceTemplates {
 			allTools = append(allTools, protocol.ToolV1{
 				Name:        serverName + ".resource-templates",
+				Title:       serverName + ": List Resource Templates",
 				Description: fmt.Sprintf("List available resource templates for %s", serverName),
 				InputSchema: json.RawMessage(`{"type":"object"}`),
 				Annotations: readOnlyAnnotations(),
@@ -446,6 +449,7 @@ func (p *Proxy) ListToolsV1(
 					continue
 				}
 				tool.Name = serverName + "." + tool.Name
+				prefixToolTitle(&tool, serverName)
 				allTools = append(allTools, tool)
 			}
 			if meta.Capabilities.Resources != nil {
@@ -453,12 +457,14 @@ func (p *Proxy) ListToolsV1(
 				if grt == nil || *grt {
 					allTools = append(allTools, protocol.ToolV1{
 						Name:        serverName + ".resource-read",
+						Title:       serverName + ": Read Resource",
 						Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
 						InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
 						Annotations: readOnlyAnnotations(),
 					})
 					allTools = append(allTools, protocol.ToolV1{
 						Name:        serverName + ".resource-templates",
+						Title:       serverName + ": List Resource Templates",
 						Description: fmt.Sprintf("List available resource templates for %s", serverName),
 						InputSchema: json.RawMessage(`{"type":"object"}`),
 						Annotations: readOnlyAnnotations(),
@@ -470,7 +476,8 @@ func (p *Proxy) ListToolsV1(
 
 	for _, f := range failed {
 		allTools = append(allTools, protocol.ToolV1{
-			Name: f.Name + ".status",
+			Name:  f.Name + ".status",
+			Title: f.Name + ": Server Status",
 			Description: fmt.Sprintf(
 				"Server %q failed to start: %s",
 				f.Name,
@@ -483,9 +490,11 @@ func (p *Proxy) ListToolsV1(
 
 	allTools = append(allTools, protocol.ToolV1{
 		Name:        "restart",
+		Title:       "Restart Server",
 		Description: "Restart an MCP server by name. Closes and re-spawns the server process.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name to restart"}},"required":["server"]}`),
 		Annotations: &protocol.ToolAnnotations{
+			Title:           "Restart Server",
 			DestructiveHint: boolPtr(true),
 			IdempotentHint:  boolPtr(true),
 		},
@@ -493,9 +502,11 @@ func (p *Proxy) ListToolsV1(
 
 	allTools = append(allTools, protocol.ToolV1{
 		Name:        "exec-mcp",
+		Title:       "Execute Tool on Server",
 		Description: "Execute a tool on a child server by name. Use moxy:// resources to discover available tools and schemas.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name"},"tool":{"type":"string","description":"Tool name"},"arguments":{"type":"object","description":"Tool arguments"}},"required":["server","tool"]}`),
 		Annotations: &protocol.ToolAnnotations{
+			Title:         "Execute Tool on Server",
 			OpenWorldHint: boolPtr(true),
 		},
 	})
@@ -1641,6 +1652,15 @@ func boolPtr(b bool) *bool { return &b }
 func readOnlyAnnotations() *protocol.ToolAnnotations {
 	return &protocol.ToolAnnotations{
 		ReadOnlyHint: boolPtr(true),
+	}
+}
+
+func prefixToolTitle(tool *protocol.ToolV1, serverName string) {
+	if tool.Title != "" {
+		tool.Title = serverName + ": " + tool.Title
+	}
+	if tool.Annotations != nil && tool.Annotations.Title != "" {
+		tool.Annotations.Title = serverName + ": " + tool.Annotations.Title
 	}
 }
 
