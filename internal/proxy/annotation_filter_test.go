@@ -7,8 +7,6 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
 
-func boolPtr(b bool) *bool { return &b }
-
 // Issue #29: annotation filters should use OR semantics, not AND.
 
 func TestAnnotationFilter_ORSemantics_ReadOnlyOnly(t *testing.T) {

@@ -424,6 +424,7 @@ func (p *Proxy) ListToolsV1(
 				Name:        serverName + ".resource-read",
 				Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
+				Annotations: readOnlyAnnotations(),
 			})
 		}
 
@@ -432,6 +433,7 @@ func (p *Proxy) ListToolsV1(
 				Name:        serverName + ".resource-templates",
 				Description: fmt.Sprintf("List available resource templates for %s", serverName),
 				InputSchema: json.RawMessage(`{"type":"object"}`),
+				Annotations: readOnlyAnnotations(),
 			})
 		}
 	}
@@ -453,11 +455,13 @@ func (p *Proxy) ListToolsV1(
 						Name:        serverName + ".resource-read",
 						Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
 						InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
+						Annotations: readOnlyAnnotations(),
 					})
 					allTools = append(allTools, protocol.ToolV1{
 						Name:        serverName + ".resource-templates",
 						Description: fmt.Sprintf("List available resource templates for %s", serverName),
 						InputSchema: json.RawMessage(`{"type":"object"}`),
+						Annotations: readOnlyAnnotations(),
 					})
 				}
 			}
@@ -473,6 +477,7 @@ func (p *Proxy) ListToolsV1(
 				f.Error,
 			),
 			InputSchema: json.RawMessage(`{"type":"object"}`),
+			Annotations: readOnlyAnnotations(),
 		})
 	}
 
@@ -480,12 +485,19 @@ func (p *Proxy) ListToolsV1(
 		Name:        "restart",
 		Description: "Restart an MCP server by name. Closes and re-spawns the server process.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name to restart"}},"required":["server"]}`),
+		Annotations: &protocol.ToolAnnotations{
+			DestructiveHint: boolPtr(true),
+			IdempotentHint:  boolPtr(true),
+		},
 	})
 
 	allTools = append(allTools, protocol.ToolV1{
 		Name:        "exec-mcp",
 		Description: "Execute a tool on a child server by name. Use moxy:// resources to discover available tools and schemas.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name"},"tool":{"type":"string","description":"Tool name"},"arguments":{"type":"object","description":"Tool arguments"}},"required":["server","tool"]}`),
+		Annotations: &protocol.ToolAnnotations{
+			OpenWorldHint: boolPtr(true),
+		},
 	})
 
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
@@ -1622,6 +1634,14 @@ func findChildIn(children []ChildEntry, name string) (ChildEntry, bool) {
 		}
 	}
 	return ChildEntry{}, false
+}
+
+func boolPtr(b bool) *bool { return &b }
+
+func readOnlyAnnotations() *protocol.ToolAnnotations {
+	return &protocol.ToolAnnotations{
+		ReadOnlyHint: boolPtr(true),
+	}
 }
 
 func splitPrefix(s, sep string) (prefix, rest string, ok bool) {
