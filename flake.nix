@@ -112,7 +112,7 @@
               nativeBuildInputs = [ pkgs.makeWrapper ];
             }
             ''
-              mkdir -p $out/bin $out/share/man/man1
+              mkdir -p $out/bin $out/share/man/man1 $out/share/man/man5
               makeWrapper ${maneater-unwrapped}/bin/maneater $out/bin/maneater \
                 --prefix PATH : ${
                   pkgs.lib.makeBinPath [
@@ -123,6 +123,7 @@
                 } \
                 --set MANEATER_CONFIG ${maneater-models-toml}
               cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
+              cp ${./cmd/maneater/maneater.toml.5} $out/share/man/man5/maneater.toml.5
             '';
         folio-unwrapped = pkgs.buildGoApplication {
           pname = "folio";
