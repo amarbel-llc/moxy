@@ -121,6 +121,7 @@
                     pkgs.mandoc
                     pkgs.pandoc
                     pkgs.tldr
+                    pkgs-master.go_1_26
                   ]
                 } \
                 --set MANEATER_CONFIG ${maneater-models-toml}
