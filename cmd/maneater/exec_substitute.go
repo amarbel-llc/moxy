@@ -8,10 +8,11 @@ import (
 	"strings"
 )
 
-// execURIPattern matches maneater.exec://results/{id} substrings inside an
-// exec command. The id stops at any character outside [A-Za-z0-9-], which is
-// sufficient for the UUIDv7 form newExecResultID() produces.
-var execURIPattern = regexp.MustCompile(`maneater\.exec://results/[A-Za-z0-9-]+`)
+// execURIPattern matches maneater.exec://results/{session}/{id} substrings
+// inside an exec command. The session segment allows underscores and dots so
+// common env-var-derived values pass through unchanged; the id is the
+// UUIDv7 form newExecResultID() produces.
+var execURIPattern = regexp.MustCompile(`maneater\.exec://results/[A-Za-z0-9._-]+/[A-Za-z0-9-]+`)
 
 // execSubstitution is the result of rewriting maneater.exec://results/{id}
 // references inside an exec command. The caller must:
@@ -90,7 +91,9 @@ func substituteExecURIs(
 	}
 
 	sub := &execSubstitution{}
-	fdByID := make(map[string]int)
+	// Dedupe key is "session/id" so two distinct sessions with the same
+	// uuid stay separate (defensive — uuids shouldn't collide anyway).
+	fdByKey := make(map[string]int)
 
 	failf := func(format string, args ...any) (*execSubstitution, error) {
 		sub.Cleanup()
@@ -102,14 +105,15 @@ func substituteExecURIs(
 	for _, m := range matches {
 		start, end := m[0], m[1]
 		uri := command[start:end]
-		id, ok := parseExecResultURI(uri)
+		session, id, ok := parseExecResultURI(uri)
 		if !ok {
 			return failf("invalid exec result URI: %s", uri)
 		}
 
-		fd, seen := fdByID[id]
+		key := session + "/" + id
+		fd, seen := fdByKey[key]
 		if !seen {
-			cached, err := cache.load(id)
+			cached, err := cache.load(session, id)
 			if err != nil {
 				return failf("loading %s: %w", uri, err)
 			}
@@ -120,7 +124,7 @@ func substituteExecURIs(
 			}
 
 			fd = 3 + len(sub.ExtraFiles)
-			fdByID[id] = fd
+			fdByKey[key] = fd
 			sub.ExtraFiles = append(sub.ExtraFiles, pr)
 			sub.pipeReads = append(sub.pipeReads, pr)
 			sub.pipeWrites = append(sub.pipeWrites, pipeWrite{

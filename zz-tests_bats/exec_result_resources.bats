@@ -53,7 +53,7 @@ EOF
   assert_success
 
   local uri
-  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[a-f0-9-]+')
+  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[A-Za-z0-9._-]+/[a-f0-9-]+')
 
   # Read the resource via a second maneater session.
   local read_params
@@ -76,7 +76,7 @@ EOF
   assert_success
 
   local uri
-  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[a-f0-9-]+')
+  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[A-Za-z0-9._-]+/[a-f0-9-]+')
 
   local call_params
   call_params=$(jq -cn --arg uri "$uri" '{"name":"exec","arguments":{"command":"wc -l","stdin":$uri}}')
@@ -105,7 +105,7 @@ EOF
   run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"seq 1 100"}}'
   assert_success
   local uri
-  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[a-f0-9-]+')
+  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[A-Za-z0-9._-]+/[a-f0-9-]+')
 
   local cmd="grep -x 42 $uri"
   local call_params
@@ -124,7 +124,7 @@ EOF
   run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"seq 1 100"}}'
   assert_success
   local uri
-  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[a-f0-9-]+')
+  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'maneater\.exec://results/[A-Za-z0-9._-]+/[a-f0-9-]+')
 
   # diffing the same cached result against itself must produce no output
   # and must not deadlock — both references share fd 3.
@@ -145,7 +145,7 @@ function exec_stdin_missing_cached_id_errors { # @test
 EOF
 
   cd "$HOME/repo"
-  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"cat","stdin":"maneater.exec://results/does-not-exist"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"cat","stdin":"maneater.exec://results/no-session/does-not-exist"}}'
   assert_success
   echo "$output" | jq -e '.isError == true'
   echo "$output" | jq -er '.content[0].text' | grep -q 'does-not-exist'
@@ -157,7 +157,43 @@ function exec_command_missing_cached_id_errors { # @test
 EOF
 
   cd "$HOME/repo"
-  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"cat maneater.exec://results/does-not-exist"}}'
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"cat maneater.exec://results/no-session/does-not-exist"}}'
   assert_success
   echo "$output" | jq -e '.isError == true'
+}
+
+function exec_cache_layout_includes_session_directory { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
+EOF
+
+  cd "$HOME/repo"
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"seq 1 100"}}'
+  assert_success
+
+  # bats has no CLAUDE_SESSION_ID, so the fallback bucket "no-session" should
+  # exist with at least one cached entry inside.
+  [[ -d $XDG_CACHE_HOME/maneater/exec-results/no-session ]]
+  ls "$XDG_CACHE_HOME/maneater/exec-results/no-session"/*.json >/dev/null
+  ls "$XDG_CACHE_HOME/maneater/exec-results/no-session"/*.txt >/dev/null
+}
+
+function exec_custom_session_env_var { # @test
+  mkdir -p "$HOME/repo"
+  # Note: explicit [exec] header is required so the tommy-generated parser
+  # creates the exec sub-tree before processing [exec.session].
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
+[exec]
+
+[exec.session]
+env = "MY_SESSION"
+EOF
+
+  cd "$HOME/repo"
+  export MY_SESSION="custom-bucket"
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"seq 1 100"}}'
+  assert_success
+
+  echo "$output" | jq -er '.content[0].text' | grep -q 'maneater.exec://results/custom-bucket/'
+  [[ -d $XDG_CACHE_HOME/maneater/exec-results/custom-bucket ]]
 }

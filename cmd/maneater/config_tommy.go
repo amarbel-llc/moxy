@@ -105,6 +105,35 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 				document.MarkAllConsumed(tableNode, "exec.deny.env", d.consumed)
 			}
 		}
+		if tableNode := d.cstDoc.FindTableInContainer(tableNode, "session"); tableNode != nil {
+			d.consumed["exec.session"] = true
+			sessionVal := &ExecSessionConfig{}
+			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "env"); err == nil {
+				sessionVal.Env = v
+				d.consumed["exec.session.env"] = true
+			}
+			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "fallback"); err == nil {
+				sessionVal.Fallback = v
+				d.consumed["exec.session.fallback"] = true
+			}
+			execVal.Session = sessionVal
+		} else {
+			sessionVal := &ExecSessionConfig{}
+			found := false
+			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "env"); err == nil {
+				sessionVal.Env = v
+				found = true
+				d.consumed["exec.env"] = true
+			}
+			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "fallback"); err == nil {
+				sessionVal.Fallback = v
+				found = true
+				d.consumed["exec.fallback"] = true
+			}
+			if found {
+				execVal.Session = sessionVal
+			}
+		}
 		d.data.Exec = execVal
 	} else {
 		execVal := &ExecConfig{}
@@ -161,6 +190,37 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 				document.MarkAllConsumed(tableNode, "exec.deny.env", d.consumed)
 			}
 		}
+		if tableNode := d.cstDoc.FindTableInContainer(d.cstDoc.Root(), "session"); tableNode != nil {
+			d.consumed["session"] = true
+			sessionVal := &ExecSessionConfig{}
+			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "env"); err == nil {
+				sessionVal.Env = v
+				found = true
+				d.consumed["session.env"] = true
+			}
+			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "fallback"); err == nil {
+				sessionVal.Fallback = v
+				found = true
+				d.consumed["session.fallback"] = true
+			}
+			execVal.Session = sessionVal
+		} else {
+			sessionVal := &ExecSessionConfig{}
+			found := false
+			if v, err := document.GetFromContainer[string](d.cstDoc, d.cstDoc.Root(), "env"); err == nil {
+				sessionVal.Env = v
+				found = true
+				d.consumed["env"] = true
+			}
+			if v, err := document.GetFromContainer[string](d.cstDoc, d.cstDoc.Root(), "fallback"); err == nil {
+				sessionVal.Fallback = v
+				found = true
+				d.consumed["fallback"] = true
+			}
+			if found {
+				execVal.Session = sessionVal
+			}
+		}
 		if found {
 			d.data.Exec = execVal
 		}
@@ -198,7 +258,7 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 		}
 	}
 	if d.data.Exec != nil {
-		_ = d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "exec")
+		tableNode := d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "exec")
 		{
 			allowExisting := d.cstDoc.FindArrayTableNodes("exec.allow")
 			for i := range d.data.Exec.Allow {
@@ -258,6 +318,19 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 							return nil, err
 						}
 					}
+				}
+			}
+		}
+		if d.data.Exec.Session != nil {
+			tableNode := d.cstDoc.EnsureTableInContainer(tableNode, "session")
+			if d.data.Exec.Session.Env != "" || d.cstDoc.HasInContainer(tableNode, "env") {
+				if err := d.cstDoc.SetInContainer(tableNode, "env", d.data.Exec.Session.Env); err != nil {
+					return nil, err
+				}
+			}
+			if d.data.Exec.Session.Fallback != "" || d.cstDoc.HasInContainer(tableNode, "fallback") {
+				if err := d.cstDoc.SetInContainer(tableNode, "fallback", d.data.Exec.Session.Fallback); err != nil {
+					return nil, err
 				}
 			}
 		}
@@ -363,6 +436,35 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 				document.MarkAllConsumed(tableNode, keyPrefix+"exec.deny.env", consumed)
 			}
 		}
+		if tableNode := doc.FindTableInContainer(tableNode, "session"); tableNode != nil {
+			consumed[keyPrefix+"exec.session"] = true
+			sessionVal := &ExecSessionConfig{}
+			if v, err := document.GetFromContainer[string](doc, tableNode, "env"); err == nil {
+				sessionVal.Env = v
+				consumed[keyPrefix+"exec.session.env"] = true
+			}
+			if v, err := document.GetFromContainer[string](doc, tableNode, "fallback"); err == nil {
+				sessionVal.Fallback = v
+				consumed[keyPrefix+"exec.session.fallback"] = true
+			}
+			execVal.Session = sessionVal
+		} else {
+			sessionVal := &ExecSessionConfig{}
+			found := false
+			if v, err := document.GetFromContainer[string](doc, tableNode, "env"); err == nil {
+				sessionVal.Env = v
+				found = true
+				consumed[keyPrefix+"exec.env"] = true
+			}
+			if v, err := document.GetFromContainer[string](doc, tableNode, "fallback"); err == nil {
+				sessionVal.Fallback = v
+				found = true
+				consumed[keyPrefix+"exec.fallback"] = true
+			}
+			if found {
+				execVal.Session = sessionVal
+			}
+		}
 		data.Exec = execVal
 	} else {
 		execVal := &ExecConfig{}
@@ -419,6 +521,37 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 				document.MarkAllConsumed(tableNode, keyPrefix+"exec.deny.env", consumed)
 			}
 		}
+		if tableNode := doc.FindTableInContainer(container, "session"); tableNode != nil {
+			consumed[keyPrefix+"session"] = true
+			sessionVal := &ExecSessionConfig{}
+			if v, err := document.GetFromContainer[string](doc, tableNode, "env"); err == nil {
+				sessionVal.Env = v
+				found = true
+				consumed[keyPrefix+"session.env"] = true
+			}
+			if v, err := document.GetFromContainer[string](doc, tableNode, "fallback"); err == nil {
+				sessionVal.Fallback = v
+				found = true
+				consumed[keyPrefix+"session.fallback"] = true
+			}
+			execVal.Session = sessionVal
+		} else {
+			sessionVal := &ExecSessionConfig{}
+			found := false
+			if v, err := document.GetFromContainer[string](doc, container, "env"); err == nil {
+				sessionVal.Env = v
+				found = true
+				consumed[keyPrefix+"env"] = true
+			}
+			if v, err := document.GetFromContainer[string](doc, container, "fallback"); err == nil {
+				sessionVal.Fallback = v
+				found = true
+				consumed[keyPrefix+"fallback"] = true
+			}
+			if found {
+				execVal.Session = sessionVal
+			}
+		}
 		if found {
 			data.Exec = execVal
 		}
@@ -454,7 +587,7 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 		}
 	}
 	if data.Exec != nil {
-		_ = doc.EnsureTableInContainer(container, "exec")
+		tableNode := doc.EnsureTableInContainer(container, "exec")
 		{
 			allowExisting := doc.FindArrayTableNodes("exec.allow")
 			for i := range data.Exec.Allow {
@@ -514,6 +647,19 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 							return err
 						}
 					}
+				}
+			}
+		}
+		if data.Exec.Session != nil {
+			tableNode := doc.EnsureTableInContainer(tableNode, "session")
+			if data.Exec.Session.Env != "" || doc.HasInContainer(tableNode, "env") {
+				if err := doc.SetInContainer(tableNode, "env", data.Exec.Session.Env); err != nil {
+					return err
+				}
+			}
+			if data.Exec.Session.Fallback != "" || doc.HasInContainer(tableNode, "fallback") {
+				if err := doc.SetInContainer(tableNode, "fallback", data.Exec.Session.Fallback); err != nil {
+					return err
 				}
 			}
 		}

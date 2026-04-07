@@ -4,6 +4,63 @@ import (
 	"testing"
 )
 
+func TestSanitizeSessionSegment(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"abc-123", "abc-123"},
+		{"sess.1_a", "sess.1_a"},
+		{"with/slash", "withslash"},
+		{"with space", "withspace"},
+		{"a/b/c", "abc"},
+		{"!!!", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		got := sanitizeSessionSegment(tt.in)
+		if got != tt.want {
+			t.Errorf("sanitizeSessionSegment(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestResolveExecSession(t *testing.T) {
+	t.Setenv("CLAUDE_SESSION_ID", "")
+	t.Setenv("MY_CUSTOM_SESSION", "")
+
+	// Default fallback when env unset and no config.
+	if got := resolveExecSession(nil); got != "no-session" {
+		t.Errorf("nil cfg, no env: got %q, want %q", got, "no-session")
+	}
+
+	// Default env var when set.
+	t.Setenv("CLAUDE_SESSION_ID", "abc-123")
+	if got := resolveExecSession(nil); got != "abc-123" {
+		t.Errorf("CLAUDE_SESSION_ID set: got %q, want %q", got, "abc-123")
+	}
+
+	// Sanitization of env var value.
+	t.Setenv("CLAUDE_SESSION_ID", "abc/def 123")
+	if got := resolveExecSession(nil); got != "abcdef123" {
+		t.Errorf("dirty env: got %q, want %q", got, "abcdef123")
+	}
+
+	// Custom env var name from config.
+	t.Setenv("CLAUDE_SESSION_ID", "")
+	t.Setenv("MY_CUSTOM_SESSION", "custom")
+	cfg := &ExecConfig{Session: &ExecSessionConfig{Env: "MY_CUSTOM_SESSION"}}
+	if got := resolveExecSession(cfg); got != "custom" {
+		t.Errorf("custom env: got %q, want %q", got, "custom")
+	}
+
+	// Custom fallback.
+	t.Setenv("MY_CUSTOM_SESSION", "")
+	cfg = &ExecConfig{Session: &ExecSessionConfig{Env: "MY_CUSTOM_SESSION", Fallback: "orphan"}}
+	if got := resolveExecSession(cfg); got != "orphan" {
+		t.Errorf("custom fallback: got %q, want %q", got, "orphan")
+	}
+}
+
 func TestParseCommand(t *testing.T) {
 	tests := []struct {
 		name       string

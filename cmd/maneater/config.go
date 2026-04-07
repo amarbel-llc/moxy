@@ -68,7 +68,7 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 		}
 	}
 
-	// Accumulate exec rules.
+	// Accumulate exec rules; overlay's session sub-table replaces base's.
 	if overlay.Exec != nil {
 		if merged.Exec == nil {
 			cp := *overlay.Exec
@@ -77,6 +77,10 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 			mergedExec := *merged.Exec
 			mergedExec.Allow = append(mergedExec.Allow, overlay.Exec.Allow...)
 			mergedExec.Deny = append(mergedExec.Deny, overlay.Exec.Deny...)
+			if overlay.Exec.Session != nil {
+				cp := *overlay.Exec.Session
+				mergedExec.Session = &cp
+			}
 			merged.Exec = &mergedExec
 		}
 	}

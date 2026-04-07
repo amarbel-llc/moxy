@@ -34,6 +34,7 @@ func TestExecResultCacheStoreAndLoad(t *testing.T) {
 
 	original := cachedExecResult{
 		ID:         "01964abc-def0-7000-8000-000000000001",
+		Session:    "test-session",
 		Command:    "ls -la",
 		Output:     "total 48\ndrwxr-xr-x 5 user staff 160\n",
 		LineCount:  2,
@@ -44,15 +45,16 @@ func TestExecResultCacheStoreAndLoad(t *testing.T) {
 		t.Fatalf("store: %v", err)
 	}
 
-	// Verify files exist.
-	if _, err := os.Stat(filepath.Join(dir, original.ID+".txt")); err != nil {
+	// Verify files exist under the session subdirectory.
+	sessionDir := filepath.Join(dir, original.Session)
+	if _, err := os.Stat(filepath.Join(sessionDir, original.ID+".txt")); err != nil {
 		t.Fatalf("output file missing: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, original.ID+".json")); err != nil {
+	if _, err := os.Stat(filepath.Join(sessionDir, original.ID+".json")); err != nil {
 		t.Fatalf("metadata file missing: %v", err)
 	}
 
-	loaded, err := cache.load(original.ID)
+	loaded, err := cache.load(original.Session, original.ID)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -78,7 +80,7 @@ func TestExecResultCacheLoadMissing(t *testing.T) {
 	dir := t.TempDir()
 	cache := &execResultCache{dir: dir}
 
-	_, err := cache.load("nonexistent")
+	_, err := cache.load("test-session", "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for missing ID")
 	}
@@ -94,6 +96,7 @@ func TestFormatSummary(t *testing.T) {
 
 	result := cachedExecResult{
 		ID:         "01964abc-def0-7000-8000-000000000002",
+		Session:    "sess-x",
 		Command:    "generate-stuff",
 		Output:     output,
 		LineCount:  30,
@@ -117,8 +120,9 @@ func TestFormatSummary(t *testing.T) {
 	if !strings.Contains(summary, "Last 10 lines") {
 		t.Error("summary missing tail section")
 	}
-	if !strings.Contains(summary, "maneater.exec://results/"+result.ID) {
-		t.Error("summary missing resource URI")
+	wantURI := "maneater.exec://results/" + result.Session + "/" + result.ID
+	if !strings.Contains(summary, wantURI) {
+		t.Errorf("summary missing resource URI %q", wantURI)
 	}
 }
 
@@ -128,6 +132,7 @@ func TestFormatSummaryShortOutput(t *testing.T) {
 
 	result := cachedExecResult{
 		ID:         "01964abc-def0-7000-8000-000000000003",
+		Session:    "sess-y",
 		Command:    "echo short",
 		Output:     output,
 		LineCount:  3,
@@ -150,22 +155,30 @@ func TestFormatSummaryShortOutput(t *testing.T) {
 
 func TestParseExecResultURI(t *testing.T) {
 	tests := []struct {
-		name   string
-		uri    string
-		wantID string
-		wantOK bool
+		name        string
+		uri         string
+		wantSession string
+		wantID      string
+		wantOK      bool
 	}{
-		{"valid", "maneater.exec://results/abc-123", "abc-123", true},
-		{"with query", "maneater.exec://results/abc-123?foo=bar", "abc-123", true},
-		{"wrong scheme", "man://results/abc-123", "", false},
-		{"empty id", "maneater.exec://results/", "", false},
-		{"no prefix", "something-else", "", false},
+		{"valid", "maneater.exec://results/sess1/abc-123", "sess1", "abc-123", true},
+		{"valid with dots", "maneater.exec://results/sess.1_a/abc-123", "sess.1_a", "abc-123", true},
+		{"with query", "maneater.exec://results/sess1/abc-123?foo=bar", "sess1", "abc-123", true},
+		{"wrong scheme", "man://results/sess1/abc-123", "", "", false},
+		{"missing id segment", "maneater.exec://results/sess1", "", "", false},
+		{"trailing slash", "maneater.exec://results/sess1/", "", "", false},
+		{"empty session", "maneater.exec://results//abc-123", "", "", false},
+		{"no segments", "maneater.exec://results/", "", "", false},
+		{"no prefix", "something-else", "", "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id, ok := parseExecResultURI(tt.uri)
+			session, id, ok := parseExecResultURI(tt.uri)
 			if ok != tt.wantOK {
 				t.Errorf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if session != tt.wantSession {
+				t.Errorf("session = %q, want %q", session, tt.wantSession)
 			}
 			if id != tt.wantID {
 				t.Errorf("id = %q, want %q", id, tt.wantID)

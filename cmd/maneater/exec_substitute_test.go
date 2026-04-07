@@ -5,15 +5,22 @@ import (
 	"testing"
 )
 
+const testSession = "test-session"
+
 func storeFixture(t *testing.T, cache *execResultCache, id, output string) {
 	t.Helper()
 	if err := cache.store(cachedExecResult{
 		ID:      id,
+		Session: testSession,
 		Command: "fixture",
 		Output:  output,
 	}); err != nil {
 		t.Fatalf("store fixture %s: %v", id, err)
 	}
+}
+
+func fixtureURI(id string) string {
+	return "maneater.exec://results/" + testSession + "/" + id
 }
 
 func TestSubstituteExecURIsNoMatch(t *testing.T) {
@@ -35,7 +42,7 @@ func TestSubstituteExecURIsSingle(t *testing.T) {
 	cache := &execResultCache{dir: t.TempDir()}
 	storeFixture(t, cache, "abc-1", "hello\nworld\n")
 
-	sub, err := substituteExecURIs("wc -l maneater.exec://results/abc-1", cache)
+	sub, err := substituteExecURIs("wc -l "+fixtureURI("abc-1"), cache)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,7 +61,7 @@ func TestSubstituteExecURIsTwoDistinct(t *testing.T) {
 	storeFixture(t, cache, "id-a", "a\n")
 	storeFixture(t, cache, "id-b", "b\n")
 
-	cmd := "diff maneater.exec://results/id-a maneater.exec://results/id-b"
+	cmd := "diff " + fixtureURI("id-a") + " " + fixtureURI("id-b")
 	sub, err := substituteExecURIs(cmd, cache)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -74,7 +81,7 @@ func TestSubstituteExecURIsRepeatedSameID(t *testing.T) {
 	cache := &execResultCache{dir: t.TempDir()}
 	storeFixture(t, cache, "shared", "x\n")
 
-	cmd := "diff maneater.exec://results/shared maneater.exec://results/shared"
+	cmd := "diff " + fixtureURI("shared") + " " + fixtureURI("shared")
 	sub, err := substituteExecURIs(cmd, cache)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -98,7 +105,7 @@ func TestSubstituteExecURIsRepeatedSameID(t *testing.T) {
 
 func TestSubstituteExecURIsMissingID(t *testing.T) {
 	cache := &execResultCache{dir: t.TempDir()}
-	_, err := substituteExecURIs("cat maneater.exec://results/nope", cache)
+	_, err := substituteExecURIs("cat "+fixtureURI("nope"), cache)
 	if err == nil {
 		t.Fatal("expected error for missing id")
 	}

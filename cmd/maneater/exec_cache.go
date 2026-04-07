@@ -29,6 +29,7 @@ type execResultCache struct {
 
 type cachedExecResult struct {
 	ID         string `json:"id"`
+	Session    string `json:"session"`
 	Command    string `json:"command"`
 	Output     string `json:"-"`
 	LineCount  int    `json:"line_count"`
@@ -47,16 +48,20 @@ func newExecResultCache() *execResultCache {
 }
 
 func (c *execResultCache) store(result cachedExecResult) error {
-	if err := os.MkdirAll(c.dir, 0o755); err != nil {
+	if result.Session == "" {
+		return fmt.Errorf("store: missing session")
+	}
+	sessionDir := filepath.Join(c.dir, result.Session)
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		return fmt.Errorf("creating cache dir: %w", err)
 	}
 
-	outputPath := filepath.Join(c.dir, result.ID+".txt")
+	outputPath := filepath.Join(sessionDir, result.ID+".txt")
 	if err := os.WriteFile(outputPath, []byte(result.Output), 0o644); err != nil {
 		return fmt.Errorf("writing output: %w", err)
 	}
 
-	metaPath := filepath.Join(c.dir, result.ID+".json")
+	metaPath := filepath.Join(sessionDir, result.ID+".json")
 	meta, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("marshaling metadata: %w", err)
@@ -68,8 +73,9 @@ func (c *execResultCache) store(result cachedExecResult) error {
 	return nil
 }
 
-func (c *execResultCache) load(id string) (*cachedExecResult, error) {
-	metaPath := filepath.Join(c.dir, id+".json")
+func (c *execResultCache) load(session, id string) (*cachedExecResult, error) {
+	sessionDir := filepath.Join(c.dir, session)
+	metaPath := filepath.Join(sessionDir, id+".json")
 	metaData, err := os.ReadFile(metaPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading metadata: %w", err)
@@ -80,7 +86,7 @@ func (c *execResultCache) load(id string) (*cachedExecResult, error) {
 		return nil, fmt.Errorf("parsing metadata: %w", err)
 	}
 
-	outputPath := filepath.Join(c.dir, id+".txt")
+	outputPath := filepath.Join(sessionDir, id+".txt")
 	output, err := os.ReadFile(outputPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading output: %w", err)
@@ -137,7 +143,7 @@ func formatSummary(result cachedExecResult) string {
 		}
 	}
 
-	fmt.Fprintf(&b, "\nFull output: maneater.exec://results/%s", result.ID)
+	fmt.Fprintf(&b, "\nFull output: maneater.exec://results/%s/%s", result.Session, result.ID)
 	return b.String()
 }
 
@@ -149,17 +155,21 @@ func newExecResultID() (string, error) {
 	return id.String(), nil
 }
 
-func parseExecResultURI(uri string) (id string, ok bool) {
+// parseExecResultURI extracts the session and id segments from a
+// maneater.exec://results/{session}/{id} URI. Returns ok=false for any URI
+// that does not match the two-segment form.
+func parseExecResultURI(uri string) (session, id string, ok bool) {
 	const prefix = "maneater.exec://results/"
 	if !strings.HasPrefix(uri, prefix) {
-		return "", false
+		return "", "", false
 	}
-	id = uri[len(prefix):]
-	if idx := strings.Index(id, "?"); idx >= 0 {
-		id = id[:idx]
+	rest := uri[len(prefix):]
+	if idx := strings.Index(rest, "?"); idx >= 0 {
+		rest = rest[:idx]
 	}
-	if id == "" {
-		return "", false
+	slash := strings.Index(rest, "/")
+	if slash <= 0 || slash == len(rest)-1 {
+		return "", "", false
 	}
-	return id, true
+	return rest[:slash], rest[slash+1:], true
 }

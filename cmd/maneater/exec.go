@@ -2,13 +2,73 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
 
+const (
+	defaultSessionEnvVar  = "CLAUDE_SESSION_ID"
+	defaultSessionFallback = "no-session"
+)
+
+// resolveExecSession determines the session string used to namespace cached
+// exec results. It reads the env var named by ExecSessionConfig.Env (default
+// CLAUDE_SESSION_ID) and falls back to ExecSessionConfig.Fallback (default
+// "no-session") when unset or empty. The result is sanitized to a single
+// path segment.
+func resolveExecSession(ec *ExecConfig) string {
+	envName := defaultSessionEnvVar
+	fallback := defaultSessionFallback
+	if ec != nil && ec.Session != nil {
+		if ec.Session.Env != "" {
+			envName = ec.Session.Env
+		}
+		if ec.Session.Fallback != "" {
+			fallback = ec.Session.Fallback
+		}
+	}
+	if v := sanitizeSessionSegment(os.Getenv(envName)); v != "" {
+		return v
+	}
+	return sanitizeSessionSegment(fallback)
+}
+
+// sanitizeSessionSegment strips any characters outside [A-Za-z0-9._-] so the
+// resulting string is safe to use as both a single path segment and a URI
+// segment. Returns empty string if nothing usable remains.
+func sanitizeSessionSegment(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z',
+			r >= 'a' && r <= 'z',
+			r >= '0' && r <= '9',
+			r == '.', r == '_', r == '-':
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 type ExecConfig struct {
-	Allow []ExecRule `toml:"allow"`
-	Deny  []ExecRule `toml:"deny"`
+	Allow   []ExecRule         `toml:"allow"`
+	Deny    []ExecRule         `toml:"deny"`
+	Session *ExecSessionConfig `toml:"session"`
+}
+
+// ExecSessionConfig controls how cached exec result URIs are namespaced.
+// The resolved session string becomes the first segment of every result URI
+// (maneater.exec://results/{session}/{id}) and the first directory level of
+// the on-disk cache layout, so a future cleanup hook can wipe a session's
+// results with a single rm -rf.
+type ExecSessionConfig struct {
+	// Env names the environment variable read at startup to determine the
+	// session bucket. Default: "CLAUDE_SESSION_ID".
+	Env string `toml:"env"`
+	// Fallback is used when the env var is unset or empty. Default:
+	// "no-session".
+	Fallback string `toml:"fallback"`
 }
 
 type ExecRule struct {

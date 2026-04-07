@@ -33,6 +33,7 @@ type manServer struct {
 	modelCfg   ModelConfig
 	execConfig *ExecConfig
 	execCache  *execResultCache
+	session    string
 }
 
 type pageSection struct {
@@ -74,7 +75,7 @@ var templates = []protocol.ResourceTemplate{
 		MimeType:    "text/plain",
 	},
 	{
-		URITemplate: "maneater.exec://results/{id}",
+		URITemplate: "maneater.exec://results/{session}/{id}",
 		Name:        "Exec result",
 		Description: "Full output of a cached exec command result. Returned when exec output exceeds the token threshold.",
 		MimeType:    "text/plain",
@@ -113,7 +114,7 @@ var templatesV1 = []protocol.ResourceTemplateV1{
 		MimeType:    "text/plain",
 	},
 	{
-		URITemplate: "maneater.exec://results/{id}",
+		URITemplate: "maneater.exec://results/{session}/{id}",
 		Name:        "Exec result",
 		Description: "Full output of a cached exec command result. Returned when exec output exceeds the token threshold.",
 		MimeType:    "text/plain",
@@ -128,8 +129,8 @@ func (m *manServer) ListResources(_ context.Context) ([]protocol.Resource, error
 
 func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
 	// Check for exec result URI first.
-	if id, ok := parseExecResultURI(uri); ok {
-		cached, err := m.execCache.load(id)
+	if session, id, ok := parseExecResultURI(uri); ok {
+		cached, err := m.execCache.load(session, id)
 		if err != nil {
 			return nil, err
 		}
@@ -829,13 +830,14 @@ func isManSection(s string) bool {
 
 // ToolProvider (base interface)
 
-var execToolSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute. Any maneater.exec://results/{id} substring is rewritten to /dev/fd/N, streaming the cached output via that fd. Multiple distinct results in one command are supported."},"stdin":{"type":"string","description":"Content written to the subprocess's stdin. Either literal text, or a maneater.exec://results/{id} URI to feed cached output."},"cwd":{"type":"string","description":"Working directory"},"env":{"type":"object","description":"Additional environment variables","additionalProperties":{"type":"string"}},"timeout":{"type":"number","description":"Timeout in milliseconds"}},"required":["command"]}`)
+var execToolSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute. Any maneater.exec://results/{session}/{id} substring is rewritten to /dev/fd/N, streaming the cached output via that fd. Multiple distinct results in one command are supported."},"stdin":{"type":"string","description":"Content written to the subprocess's stdin. Either literal text, or a maneater.exec://results/{session}/{id} URI to feed cached output."},"cwd":{"type":"string","description":"Working directory"},"env":{"type":"object","description":"Additional environment variables","additionalProperties":{"type":"string"}},"timeout":{"type":"number","description":"Timeout in milliseconds"}},"required":["command"]}`)
 
 const execToolDescription = "Execute a shell command via sh -c. Prefer reading man pages first to understand flags and behavior before executing.\n\n" +
-	"Cached output reuse: when a previous exec call returned a maneater.exec://results/{id} URI (because its output exceeded the token threshold), feed that cached output back into a new command without re-reading the resource into context:\n" +
-	"  - Pass the URI as the stdin parameter to write the cached output to the subprocess's stdin (e.g. {\"command\": \"wc -l\", \"stdin\": \"maneater.exec://results/abc\"}).\n" +
-	"  - Embed the URI anywhere inside command to have it rewritten to /dev/fd/N with the cached output streamed via that fd (e.g. {\"command\": \"grep ERROR maneater.exec://results/abc\"} or {\"command\": \"diff maneater.exec://results/abc maneater.exec://results/def\"}). Multiple distinct results in one command are supported.\n\n" +
-	"The stdin parameter also accepts literal text when not a maneater.exec://results/... URI."
+	"Cached output reuse: when a previous exec call returned a maneater.exec://results/{session}/{id} URI (because its output exceeded the token threshold), feed that cached output back into a new command without re-reading the resource into context:\n" +
+	"  - Pass the URI as the stdin parameter to write the cached output to the subprocess's stdin (e.g. {\"command\": \"wc -l\", \"stdin\": \"maneater.exec://results/sess/abc\"}).\n" +
+	"  - Embed the URI anywhere inside command to have it rewritten to /dev/fd/N with the cached output streamed via that fd (e.g. {\"command\": \"grep ERROR maneater.exec://results/sess/abc\"} or {\"command\": \"diff maneater.exec://results/sess/abc maneater.exec://results/sess/def\"}). Multiple distinct results in one command are supported.\n\n" +
+	"The stdin parameter also accepts literal text when not a maneater.exec://results/... URI.\n\n" +
+	"Cached results are namespaced by session (read from $CLAUDE_SESSION_ID at maneater startup, falling back to \"no-session\"); the session segment is part of every URI and the on-disk cache layout."
 
 func (m *manServer) ListTools(_ context.Context) ([]protocol.Tool, error) {
 	return []protocol.Tool{
@@ -951,8 +953,8 @@ func (m *manServer) handleExec(
 
 	if params.Stdin != "" {
 		stdinText := params.Stdin
-		if id, ok := parseExecResultURI(params.Stdin); ok {
-			cached, lerr := m.execCache.load(id)
+		if session, id, ok := parseExecResultURI(params.Stdin); ok {
+			cached, lerr := m.execCache.load(session, id)
 			if lerr != nil {
 				return protocol.ErrorResultV1(
 					fmt.Sprintf("loading stdin from %s: %v", params.Stdin, lerr),
@@ -997,6 +999,7 @@ func (m *manServer) handleExec(
 		if idErr == nil {
 			cached := cachedExecResult{
 				ID:         id,
+				Session:    m.session,
 				Command:    params.Command,
 				Output:     text,
 				LineCount:  strings.Count(text, "\n"),
@@ -1066,12 +1069,16 @@ func runServeMCP() {
 	}
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
-	m := &manServer{execConfig: cfg.Exec, execCache: newExecResultCache()}
+	m := &manServer{
+		execConfig: cfg.Exec,
+		execCache:  newExecResultCache(),
+		session:    resolveExecSession(cfg.Exec),
+	}
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "maneater",
 		ServerVersion: "0.4.0",
-		Instructions:  "Unix man page server. Before running a command, read its man page to understand flags, exit codes, and caveats. Start with man://{page} for a table of contents, then man://{page}/{section_name} to read specific sections. Use man://search/{query} to find relevant pages by natural language. The exec tool is available for running commands after you understand their interface. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{id} resource URI is returned instead of the full output.",
+		Instructions:  "Unix man page server. Before running a command, read its man page to understand flags, exit codes, and caveats. Start with man://{page} for a table of contents, then man://{page}/{section_name} to read specific sections. Use man://search/{query} to find relevant pages by natural language. The exec tool is available for running commands after you understand their interface. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{session}/{id} resource URI is returned instead of the full output; the session segment namespaces results per Claude session for cleanup.",
 		Resources:     m,
 		Tools:         m,
 	})
