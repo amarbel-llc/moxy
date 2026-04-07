@@ -20,7 +20,7 @@ args = ["hello"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy
+  run_moxy serve mcp
   assert_success
   assert_output --partial "failed to start broken"
 }

@@ -36,7 +36,7 @@ run_moxy_mcp() {
   fi
 
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
     -- "$init" "$initialized" "$method_req"
 }
 
@@ -64,7 +64,7 @@ run_moxy_mcp_two() {
   fi
 
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 1; echo "$4"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 1; echo "$4"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
     -- "$init" "$initialized" "$req1" "$req2"
 }
 
@@ -87,7 +87,7 @@ run_moxy_mcp_with_stderr() {
   stderr_file=$(mktemp)
 
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy 2>"$4" | jq -c "select(.id == 2) | .result" | head -1' \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>"$4" | jq -c "select(.id == 2) | .result" | head -1' \
     -- "$init" "$initialized" "$method_req" "$stderr_file"
 
   MOXY_STDERR=$(cat "$stderr_file")
@@ -101,7 +101,7 @@ run_moxy_mcp_init() {
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
 
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 1) | .result" | head -1' \
+    '(echo "$1"; echo "$2"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 1) | .result" | head -1' \
     -- "$init" "$initialized"
 }
 

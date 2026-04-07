@@ -137,7 +137,7 @@ EOF
   local req='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"man.resource-read","arguments":{"uri":"man://ls/NONEXISTENT"}}}'
 
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 2)" | head -1' \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 2)" | head -1' \
     -- "$init" "$initialized" "$req"
   assert_success
   echo "$output" | jq -e '.error'
@@ -346,7 +346,7 @@ EOF
   local req='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"man.resource-read","arguments":{"uri":"man://nonexistent-page-xyz-12345"}}}'
 
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy 2>/dev/null | jq -c "select(.id == 2)" | head -1' \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 2)" | head -1' \
     -- "$init" "$initialized" "$req"
   assert_success
   echo "$output" | jq -e '.error'

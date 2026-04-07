@@ -33,7 +33,7 @@ test-go:
   go test ./... -v
 
 test-validate-mcp: build-go
-  purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy
+  purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
 mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
 
@@ -41,7 +41,7 @@ test-mcp: build-go
   #!/usr/bin/env nix
   #! nix shell nixpkgs#nodejs --command bash
   set -euo pipefail
-  tools=$({{mcp-inspect}} --method tools/list {{justfile_directory()}}/{{dir_build}}/moxy)
+  tools=$({{mcp-inspect}} --method tools/list {{justfile_directory()}}/{{dir_build}}/moxy serve mcp)
   echo "$tools" | jq .
 
 run-nix *ARGS:

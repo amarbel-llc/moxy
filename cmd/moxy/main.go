@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"flag"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -22,60 +22,131 @@ import (
 func newApp() *command.App {
 	app := command.NewApp("moxy", "MCP proxy that aggregates child MCP servers")
 	app.Version = "0.1.0"
+	app.MCPArgs = []string{"serve", "mcp"}
+	app.Description.Long = "Moxy spawns child MCP servers as subprocesses, communicates with them " +
+		"via JSON-RPC over stdio, and presents their tools, resources, and prompts " +
+		"through a single unified MCP server. Child server capabilities are namespaced " +
+		"with a dot separator (e.g. grit.status, lux.hover). Configuration is loaded " +
+		"from a hierarchy of TOML moxyfiles: global (~/.config/moxy/moxyfile), " +
+		"per-directory, and project-local."
+
+	app.Examples = []command.Example{
+		{
+			Description: "Start the MCP proxy server",
+			Command:     "moxy serve mcp",
+		},
+		{
+			Description: "Validate moxyfile configuration hierarchy",
+			Command:     "moxy validate",
+		},
+		{
+			Description: "Interactively add a server to the local moxyfile",
+			Command:     "moxy add",
+		},
+	}
+
+	app.AddCommand(&command.Command{
+		Name: "serve-mcp",
+		Description: command.Description{
+			Short: "Run as MCP proxy server over stdio",
+			Long: "Loads the moxyfile hierarchy, spawns child MCP servers, performs " +
+				"initialize handshakes, probes ephemeral servers, and serves as a " +
+				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT.",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			return runServer()
+		},
+	})
+
+	app.AddCommand(&command.Command{
+		Name: "validate",
+		Description: command.Description{
+			Short: "Validate moxyfile hierarchy and output TAP-14",
+			Long: "Loads all moxyfiles in the hierarchy, checks TOML syntax, " +
+				"validates server names and commands, verifies executables exist " +
+				"on $PATH, and outputs results in TAP version 14 format.",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("getting home dir: %w", err)
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting cwd: %w", err)
+			}
+			os.Exit(validate.Run(os.Stdout, home, cwd))
+			return nil
+		},
+	})
+
+	app.AddCommand(&command.Command{
+		Name: "add",
+		Description: command.Description{
+			Short: "Interactively add a server to a moxyfile",
+			Long: "Opens a terminal form to configure a new MCP server entry " +
+				"(name, command, annotations) and appends it to the specified moxyfile.",
+		},
+		Params: []command.Param{
+			{
+				Name:        "path",
+				Type:        command.String,
+				Description: "Path to the moxyfile to modify",
+				Default:     "moxyfile",
+			},
+		},
+		RunCLI: func(_ context.Context, argsJSON json.RawMessage) error {
+			var args struct {
+				Path string `json:"path"`
+			}
+			if err := json.Unmarshal(argsJSON, &args); err != nil {
+				return err
+			}
+			path := args.Path
+			if path == "" {
+				path = "moxyfile"
+			}
+			return add.Run(path)
+		},
+	})
+
+	app.AddCommand(&command.Command{
+		Name: "hook",
+		Description: command.Description{
+			Short: "Handle MCP hook protocol",
+		},
+		Hidden: true,
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			return app.HandleHook(os.Stdin, os.Stdout)
+		},
+	})
+
 	return app
 }
 
 func main() {
-	flag.Parse()
+	app := newApp()
 
-	if flag.NArg() >= 1 && flag.Arg(0) == "install-mcp" {
-		app := newApp()
-		if err := app.InstallMCP(); err != nil {
-			log.Fatalf("installing MCP: %v", err)
+	// install-mcp and generate-plugin use App methods directly.
+	if len(os.Args) >= 2 {
+		switch os.Args[1] {
+		case "install-mcp":
+			if err := app.InstallMCP(); err != nil {
+				log.Fatalf("installing MCP: %v", err)
+			}
+			return
+		case "generate-plugin":
+			if err := app.HandleGeneratePlugin(os.Args[2:], os.Stdout); err != nil {
+				log.Fatalf("generating plugin: %v", err)
+			}
+			return
 		}
-		return
 	}
 
-	if flag.NArg() >= 1 && flag.Arg(0) == "generate-plugin" {
-		app := newApp()
-		if err := app.HandleGeneratePlugin(flag.Args()[1:], os.Stdout); err != nil {
-			log.Fatalf("generating plugin: %v", err)
-		}
-		return
-	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
-	if flag.NArg() >= 1 && flag.Arg(0) == "validate" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			log.Fatalf("getting home dir: %v", err)
-		}
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Fatalf("getting cwd: %v", err)
-		}
-		os.Exit(validate.Run(os.Stdout, home, cwd))
-	}
-
-	if flag.NArg() >= 1 && flag.Arg(0) == "add" {
-		path := "moxyfile"
-		if flag.NArg() >= 2 {
-			path = flag.Arg(1)
-		}
-		if err := add.Run(path); err != nil {
-			log.Fatalf("add: %v", err)
-		}
-		return
-	}
-
-	if flag.NArg() >= 1 && flag.Arg(0) == "hook" {
-		app := newApp()
-		if err := app.HandleHook(os.Stdin, os.Stdout); err != nil {
-			log.Fatalf("handling hook: %v", err)
-		}
-		return
-	}
-
-	if err := runServer(); err != nil {
+	if err := app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}); err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
 		os.Exit(1)
 	}

@@ -66,6 +66,8 @@
           GOTOOLCHAIN = "local";
           postInstall = ''
             $out/bin/moxy generate-plugin $out
+            mkdir -p $out/share/man/man5
+            cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
           '';
         };
 

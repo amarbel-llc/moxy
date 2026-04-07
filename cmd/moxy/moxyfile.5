@@ -1,0 +1,234 @@
+.Dd April 7, 2026
+.Dt MOXYFILE 5
+.Os
+.Sh NAME
+.Nm moxyfile
+.Nd configuration file for moxy
+.Sh DESCRIPTION
+.Nm
+is the configuration file for
+.Xr moxy 1 .
+It uses TOML format and controls which child MCP servers are spawned,
+how their capabilities are aggregated, and per-server behavior options
+like ephemeral mode, annotation filtering, and pagination.
+.Sh FILE HIERARCHY
+Configuration files are loaded and merged in order:
+.Bl -enum
+.It
+.Pa ~/.config/moxy/moxyfile
+(global).
+.It
+Each parent directory between
+.Ev HOME
+and the current working directory.
+.It
+.Pa ./moxyfile
+(project-local).
+.El
+.Pp
+Later files override earlier ones.
+Servers are matched by name: a same-named server in an overlay replaces
+the base server entirely.
+New servers from overlays are appended.
+Top-level boolean flags are replaced if present in the overlay.
+.Sh TOP-LEVEL KEYS
+.Bl -tag -width "progressive-disclosure"
+.It Va ephemeral
+When set to
+.Cm true ,
+servers without an explicit
+.Va ephemeral
+setting are treated as ephemeral by default.
+Optional.
+Default:
+.Cm false .
+.It Va progressive-disclosure
+When set to
+.Cm true ,
+enables progressive disclosure for servers without an explicit setting.
+Optional.
+Default:
+.Cm false .
+.El
+.Sh SERVERS
+Each server is defined as an array-of-tables entry:
+.Bd -literal -offset indent
+[[servers]]
+name = "grit"
+command = "grit mcp"
+.Ed
+.Ss Required fields
+.Bl -tag -width "command"
+.It Va name
+Unique identifier for the server.
+Must not contain dots
+.Pq dots are used as the namespace separator .
+May contain hyphens.
+.It Va command
+Shell command to spawn the server.
+See
+.Sx COMMAND FORMAT
+below.
+.El
+.Ss Optional fields
+.Bl -tag -width "progressive-disclosure"
+.It Va ephemeral
+When
+.Cm true ,
+the server is not kept running.
+Moxy probes it at startup to discover capabilities, shuts it down,
+and re-spawns it on demand for each tool call.
+Overrides the global
+.Va ephemeral
+setting.
+.It Va progressive-disclosure
+Overrides the global
+.Va progressive-disclosure
+setting for this server.
+.It Va paginate
+When
+.Cm true ,
+enables cursor-based pagination for this server's resource lists.
+Default:
+.Cm false .
+.It Va generate-resource-tools
+When
+.Cm true ,
+generates synthetic
+.Cm resource-read
+and
+.Cm resource-templates
+tools for this server, allowing tool-only clients to access resources.
+.It Va nix-devshell
+Flake reference to a Nix devshell.
+When set, the effective command becomes:
+.Dl nix develop Ar ref Li --command Ar command args ...
+.Pp
+See
+.Sx NIX DEVSHELL
+below.
+.El
+.Sh COMMAND FORMAT
+The
+.Va command
+field accepts two forms.
+.Pp
+String form (split on whitespace):
+.Bd -literal -offset indent
+command = "grit mcp --verbose"
+.Ed
+.Pp
+Array form (preserved as-is):
+.Bd -literal -offset indent
+command = ["grit", "mcp", "--verbose"]
+.Ed
+.Pp
+The first element is the executable; remaining elements are arguments.
+Empty commands are invalid.
+.Sh ANNOTATIONS
+Annotation filters restrict which tools are exposed from a child server
+based on MCP tool annotation hints.
+They can be specified as a sub-table or as flat fields at the server level.
+.Pp
+Sub-table form:
+.Bd -literal -offset indent
+[[servers]]
+name = "grit"
+command = "grit mcp"
+
+[servers.annotations]
+readOnlyHint = true
+.Ed
+.Pp
+Flat form:
+.Bd -literal -offset indent
+[[servers]]
+name = "grit"
+command = "grit mcp"
+readOnlyHint = true
+.Ed
+.Pp
+Available annotation fields:
+.Bl -tag -width "destructiveHint"
+.It Va readOnlyHint
+Only expose tools marked as read-only.
+.It Va destructiveHint
+Only expose tools marked as destructive.
+.It Va idempotentHint
+Only expose tools marked as idempotent.
+.It Va openWorldHint
+Only expose tools marked as open-world.
+.El
+.Pp
+All annotation fields are optional.
+When set, only tools whose annotations match the specified value are exposed.
+.Sh NIX DEVSHELL
+The
+.Va nix-devshell
+field wraps the server command inside a Nix development shell.
+.Pp
+Given:
+.Bd -literal -offset indent
+[[servers]]
+name = "example"
+command = "myserver --verbose"
+nix-devshell = "github:org/repo"
+.Ed
+.Pp
+The effective command becomes:
+.Bd -literal -offset indent
+nix develop github:org/repo --command myserver --verbose
+.Ed
+.Pp
+Valid flake references include
+.Dq \&.
+(current directory),
+.Dq github:org/repo ,
+and
+.Dq github:org/repo?dir=path/to/subflake .
+.Sh EXAMPLES
+Minimal configuration with a single server:
+.Bd -literal -offset indent
+[[servers]]
+name = "grit"
+command = "grit mcp"
+.Ed
+.Pp
+Multiple servers with annotation filtering:
+.Bd -literal -offset indent
+[[servers]]
+name = "grit"
+command = "grit mcp"
+paginate = true
+
+[servers.annotations]
+readOnlyHint = true
+
+[[servers]]
+name = "lux"
+command = ["lux", "mcp"]
+generate-resource-tools = true
+.Ed
+.Pp
+Ephemeral servers spawned on demand:
+.Bd -literal -offset indent
+ephemeral = true
+
+[[servers]]
+name = "chix"
+command = "chix serve"
+
+[[servers]]
+name = "grit"
+command = "grit mcp"
+ephemeral = false
+.Ed
+.Pp
+In this example,
+.Dq chix
+inherits the global ephemeral setting while
+.Dq grit
+overrides it to stay persistent.
+.Sh SEE ALSO
+.Xr moxy 1 ,
+.Xr toml 5
