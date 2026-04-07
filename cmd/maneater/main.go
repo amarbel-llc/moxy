@@ -34,6 +34,7 @@ type manServer struct {
 	execConfig *ExecConfig
 	execCache  *execResultCache
 	session    string
+	manpath    []string
 }
 
 type pageSection struct {
@@ -159,7 +160,7 @@ func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.Resou
 		return nil, err
 	}
 
-	sourcePath, err := locateSource(manSection, page)
+	sourcePath, err := locateSource(m.manpath, manSection, page)
 	if err != nil {
 		return nil, err
 	}
@@ -285,12 +286,12 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 
 	ensureTldrCache()
 
-	pages, err := listManPages()
+	pages, err := listManPages(m.manpath)
 	if err != nil {
 		return nil, err
 	}
 
-	idx, stats := buildIndex(m.embedder, m.modelCfg, pages, os.Stderr)
+	idx, stats := buildIndex(m.embedder, m.modelCfg, pages, m.manpath, os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "maneater: indexed %d entries (%d pages, %d with tldr)\n",
 		len(idx.Entries), len(pages), stats.tldrCount)
@@ -313,7 +314,7 @@ type indexStats struct {
 	tldrCount int
 }
 
-func buildIndex(emb *embedding.Embedder, cfg ModelConfig, pages []string, logw *os.File) (*embedding.Index, indexStats) {
+func buildIndex(emb *embedding.Embedder, cfg ModelConfig, pages []string, manpath []string, logw *os.File) (*embedding.Index, indexStats) {
 	// Extract text concurrently, embed serially.
 	// Workers run mandoc|pandoc pipelines in parallel; results are
 	// sent in order to the main goroutine for embedding.
@@ -344,7 +345,7 @@ func buildIndex(emb *embedding.Embedder, cfg ModelConfig, pages []string, logw *
 						pt: pageText{
 							index:    seq,
 							page:     page,
-							synopsis: extractSynopsis(page),
+							synopsis: extractSynopsis(manpath, page),
 							tldr:     extractTldr(page),
 						},
 						seq: seq,
@@ -415,12 +416,7 @@ func indexCacheDirForModel(modelName string) string {
 	return filepath.Join(base, modelName)
 }
 
-func listManPages() ([]string, error) {
-	manpath, err := resolveManpath()
-	if err != nil {
-		return nil, err
-	}
-
+func listManPages(manpath []string) ([]string, error) {
 	seen := make(map[string]bool)
 	var pages []string
 
@@ -453,7 +449,43 @@ func listManPages() ([]string, error) {
 	return pages, nil
 }
 
-func resolveManpath() ([]string, error) {
+// heuristicManDirs are common in-repo locations for man pages, probed in order.
+var heuristicManDirs = []string{"man", "doc/man", "share/man"}
+
+func resolveManpath(mpCfg *ManpathConfig, cwd string) ([]string, error) {
+	// System manpath via manpath(1).
+	systemPaths, err := systemManpath()
+	if err != nil {
+		return nil, err
+	}
+
+	var prepend []string
+
+	// Heuristic: probe common in-repo locations in cwd.
+	if mpCfg == nil || !mpCfg.NoAuto {
+		for _, rel := range heuristicManDirs {
+			candidate := filepath.Join(cwd, rel)
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				prepend = append(prepend, candidate)
+			}
+		}
+	}
+
+	// Config include paths.
+	if mpCfg != nil {
+		for _, inc := range mpCfg.Include {
+			inc = os.ExpandEnv(inc)
+			if !filepath.IsAbs(inc) {
+				inc = filepath.Join(cwd, inc)
+			}
+			prepend = append(prepend, inc)
+		}
+	}
+
+	return append(prepend, systemPaths...), nil
+}
+
+func systemManpath() ([]string, error) {
 	// manpath(1) resolves MANPATH, /etc/man.conf, and platform defaults
 	cmd := exec.Command("manpath")
 	out, err := cmd.Output()
@@ -470,8 +502,8 @@ func resolveManpath() ([]string, error) {
 
 // extractSynopsis extracts NAME+SYNOPSIS+DESCRIPTION content from a man page,
 // truncated to 500 chars. Returns empty string on failure.
-func extractSynopsis(page string) string {
-	sourcePath, err := locateSource("", page)
+func extractSynopsis(manpath []string, page string) string {
+	sourcePath, err := locateSource(manpath, "", page)
 	if err != nil {
 		return ""
 	}
@@ -609,14 +641,9 @@ func parseSearchURI(uri string) (query string, topK int, ok bool) {
 	return query, topK, true
 }
 
-// locateSource finds the roff source file by scanning MANPATH directories.
+// locateSource finds the roff source file by scanning manpath directories.
 // This avoids a dependency on man-db's "man -w" — only mandoc is needed.
-func locateSource(section, page string) (string, error) {
-	manpath, err := resolveManpath()
-	if err != nil {
-		return "", err
-	}
-
+func locateSource(manpath []string, section, page string) (string, error) {
 	// If section is specified, only search that section dir; otherwise search
 	// common sections in priority order.
 	sections := []string{"1", "8", "5", "7", "6", "2", "3", "4"}
@@ -1068,11 +1095,24 @@ func runServeMCP() {
 		os.Exit(1)
 	}
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
+
+	manpath, err := resolveManpath(cfg.Manpath, cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: resolving manpath: %v\n", err)
+		os.Exit(1)
+	}
+
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 	m := &manServer{
 		execConfig: cfg.Exec,
 		execCache:  newExecResultCache(),
 		session:    resolveExecSession(cfg.Exec),
+		manpath:    manpath,
 	}
 
 	srv, err := server.New(t, server.Options{
@@ -1100,6 +1140,24 @@ func runIndex() {
 		os.Exit(1)
 	}
 
+	cfg, err := LoadDefaultManeaterHierarchy()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
+
+	manpath, err := resolveManpath(cfg.Manpath, cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("Using model %q from %s\n", modelName, modelCfg.Path)
 
 	emb, err := embedding.NewEmbedder(modelCfg.Path)
@@ -1113,14 +1171,14 @@ func runIndex() {
 	ensureTldrCache()
 
 	fmt.Println("Listing man pages...")
-	pages, err := listManPages()
+	pages, err := listManPages(manpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Printf("Found %d man pages\n", len(pages))
 
-	idx, stats := buildIndex(emb, modelCfg, pages, os.Stderr)
+	idx, stats := buildIndex(emb, modelCfg, pages, manpath, os.Stderr)
 
 	cacheDir := indexCacheDirForModel(modelName)
 	if err := idx.Save(cacheDir); err != nil {

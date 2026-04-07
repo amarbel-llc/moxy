@@ -199,6 +199,59 @@ function asciidoctor_generated_man_page_reads_section { # @test
   echo "$text" | grep -qi "piv"
 }
 
+function heuristic_manpath_discovers_project_man_pages { # @test
+  local fixture_dir
+  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
+
+  # Place a man page in man/man1/ inside the project dir — no MANPATH needed.
+  mkdir -p "$HOME/repo/man/man1"
+  cp "$fixture_dir/pivy-tool.1" "$HOME/repo/man/man1/pivy-tool.1"
+
+  # Point MANPATH to an empty directory so heuristic is the only way to find it.
+  mkdir -p "$HOME/empty-man"
+  export MANPATH="$HOME/empty-man"
+
+  cd "$HOME/repo"
+  run_maneater_mcp resources/read '{"uri":"man://pivy-tool"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q "NAME"
+}
+
+function heuristic_manpath_no_auto_disables_discovery { # @test
+  local fixture_dir
+  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
+
+  mkdir -p "$HOME/repo/man/man1"
+  cp "$fixture_dir/pivy-tool.1" "$HOME/repo/man/man1/pivy-tool.1"
+
+  # Disable heuristic probing via config.
+  cat >"$HOME/repo/maneater.toml" <<'EOF'
+[manpath]
+no-auto = true
+EOF
+
+  # Point MANPATH to an empty directory so manpath(1) returns only that
+  # (pivy-tool won't be found there or in any system default).
+  mkdir -p "$HOME/empty-man"
+  export MANPATH="$HOME/empty-man"
+
+  cd "$HOME/repo"
+
+  # With heuristics disabled, pivy-tool should not be found (it's only in
+  # the project's man/ directory, not in system manpath).
+  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  local req='{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"man://pivy-tool"}}'
+
+  run timeout --preserve-status "10s" bash -c \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | maneater serve mcp 2>/dev/null | jq -c "select(.id == 2)" | head -1' \
+    -- "$init" "$initialized" "$req"
+  assert_success
+  echo "$output" | jq -e '.error'
+}
+
 function man_page_nonexistent_returns_error { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF

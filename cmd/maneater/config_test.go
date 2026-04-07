@@ -258,6 +258,87 @@ path = "${MANEATER_TEST_DATA}/maneater/models/nomic.gguf"
 	}
 }
 
+func TestMergeConfigManpathIncludeAccumulates(t *testing.T) {
+	base := ManeaterConfig{
+		Manpath: &ManpathConfig{
+			Include: []string{"/base/man"},
+		},
+	}
+	overlay := ManeaterConfig{
+		Manpath: &ManpathConfig{
+			Include: []string{"/overlay/man"},
+		},
+	}
+
+	merged := MergeConfig(base, overlay)
+	if merged.Manpath == nil {
+		t.Fatal("merged manpath should not be nil")
+	}
+	if len(merged.Manpath.Include) != 2 {
+		t.Fatalf("expected 2 include paths, got %d", len(merged.Manpath.Include))
+	}
+	if merged.Manpath.Include[0] != "/base/man" {
+		t.Errorf("first include = %q, want /base/man", merged.Manpath.Include[0])
+	}
+	if merged.Manpath.Include[1] != "/overlay/man" {
+		t.Errorf("second include = %q, want /overlay/man", merged.Manpath.Include[1])
+	}
+}
+
+func TestMergeConfigManpathNoAutoOverlays(t *testing.T) {
+	base := ManeaterConfig{
+		Manpath: &ManpathConfig{NoAuto: false},
+	}
+	overlay := ManeaterConfig{
+		Manpath: &ManpathConfig{NoAuto: true},
+	}
+
+	merged := MergeConfig(base, overlay)
+	if !merged.Manpath.NoAuto {
+		t.Error("overlay no-auto=true should override base no-auto=false")
+	}
+}
+
+func TestMergeConfigManpathBaseOnlyPreserved(t *testing.T) {
+	base := ManeaterConfig{
+		Manpath: &ManpathConfig{
+			Include: []string{"/base/man"},
+			NoAuto:  true,
+		},
+	}
+	overlay := ManeaterConfig{}
+
+	merged := MergeConfig(base, overlay)
+	if merged.Manpath == nil || len(merged.Manpath.Include) != 1 {
+		t.Error("base manpath should be preserved when overlay has none")
+	}
+	if !merged.Manpath.NoAuto {
+		t.Error("base no-auto should be preserved")
+	}
+}
+
+func TestParseManpathConfig(t *testing.T) {
+	input := []byte(`
+[manpath]
+include = ["/extra/man", "vendor/man"]
+no-auto = true
+`)
+	doc, err := DecodeManeaterConfig(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	cfg := doc.Data()
+	if cfg.Manpath == nil {
+		t.Fatal("manpath config should not be nil")
+	}
+	if len(cfg.Manpath.Include) != 2 {
+		t.Fatalf("expected 2 include paths, got %d", len(cfg.Manpath.Include))
+	}
+	if !cfg.Manpath.NoAuto {
+		t.Error("no-auto should be true")
+	}
+}
+
 func TestParseManeaterExecConfig(t *testing.T) {
 	input := []byte(`
 [[exec.allow]]

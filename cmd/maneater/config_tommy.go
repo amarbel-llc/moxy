@@ -225,6 +225,34 @@ func DecodeManeaterConfig(input []byte) (*ManeaterConfigDocument, error) {
 			d.data.Exec = execVal
 		}
 	}
+	if tableNode := d.cstDoc.FindTableInContainer(d.cstDoc.Root(), "manpath"); tableNode != nil {
+		d.consumed["manpath"] = true
+		manpathVal := &ManpathConfig{}
+		if v, err := document.GetFromContainer[[]string](d.cstDoc, tableNode, "include"); err == nil {
+			manpathVal.Include = v
+			d.consumed["manpath.include"] = true
+		}
+		if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "no-auto"); err == nil {
+			manpathVal.NoAuto = v
+			d.consumed["manpath.no-auto"] = true
+		}
+		d.data.Manpath = manpathVal
+	} else {
+		manpathVal := &ManpathConfig{}
+		found := false
+		if v, err := document.GetFromContainer[[]string](d.cstDoc, d.cstDoc.Root(), "include"); err == nil {
+			manpathVal.Include = v
+			d.consumed["include"] = true
+		}
+		if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "no-auto"); err == nil {
+			manpathVal.NoAuto = v
+			found = true
+			d.consumed["no-auto"] = true
+		}
+		if found {
+			d.data.Manpath = manpathVal
+		}
+	}
 
 	return d, nil
 }
@@ -332,6 +360,17 @@ func (d *ManeaterConfigDocument) Encode() ([]byte, error) {
 				if err := d.cstDoc.SetInContainer(tableNode, "fallback", d.data.Exec.Session.Fallback); err != nil {
 					return nil, err
 				}
+			}
+		}
+	}
+	if d.data.Manpath != nil {
+		tableNode := d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "manpath")
+		if err := d.cstDoc.SetInContainer(tableNode, "include", d.data.Manpath.Include); err != nil {
+			return nil, err
+		}
+		if d.data.Manpath.NoAuto != false || d.cstDoc.HasInContainer(tableNode, "no-auto") {
+			if err := d.cstDoc.SetInContainer(tableNode, "no-auto", d.data.Manpath.NoAuto); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -556,6 +595,34 @@ func DecodeManeaterConfigInto(data *ManeaterConfig, doc *document.Document, cont
 			data.Exec = execVal
 		}
 	}
+	if tableNode := doc.FindTableInContainer(container, "manpath"); tableNode != nil {
+		consumed[keyPrefix+"manpath"] = true
+		manpathVal := &ManpathConfig{}
+		if v, err := document.GetFromContainer[[]string](doc, tableNode, "include"); err == nil {
+			manpathVal.Include = v
+			consumed[keyPrefix+"manpath.include"] = true
+		}
+		if v, err := document.GetFromContainer[bool](doc, tableNode, "no-auto"); err == nil {
+			manpathVal.NoAuto = v
+			consumed[keyPrefix+"manpath.no-auto"] = true
+		}
+		data.Manpath = manpathVal
+	} else {
+		manpathVal := &ManpathConfig{}
+		found := false
+		if v, err := document.GetFromContainer[[]string](doc, container, "include"); err == nil {
+			manpathVal.Include = v
+			consumed[keyPrefix+"include"] = true
+		}
+		if v, err := document.GetFromContainer[bool](doc, container, "no-auto"); err == nil {
+			manpathVal.NoAuto = v
+			found = true
+			consumed[keyPrefix+"no-auto"] = true
+		}
+		if found {
+			data.Manpath = manpathVal
+		}
+	}
 
 	return nil
 }
@@ -661,6 +728,17 @@ func EncodeManeaterConfigFrom(data *ManeaterConfig, doc *document.Document, cont
 				if err := doc.SetInContainer(tableNode, "fallback", data.Exec.Session.Fallback); err != nil {
 					return err
 				}
+			}
+		}
+	}
+	if data.Manpath != nil {
+		tableNode := doc.EnsureTableInContainer(container, "manpath")
+		if err := doc.SetInContainer(tableNode, "include", data.Manpath.Include); err != nil {
+			return err
+		}
+		if data.Manpath.NoAuto != false || doc.HasInContainer(tableNode, "no-auto") {
+			if err := doc.SetInContainer(tableNode, "no-auto", data.Manpath.NoAuto); err != nil {
+				return err
 			}
 		}
 	}

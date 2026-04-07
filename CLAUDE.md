@@ -148,6 +148,13 @@ nomic-embed-text-v1.5. Key details:
   `maneater index`)
 - Model path from `MANEATER_MODEL_PATH` env var (set by nix wrapper)
 
+**Manpath discovery:** Maneater automatically probes the current working
+directory for `man/`, `doc/man/`, and `share/man/` subdirectories, prepending
+any that exist to the system manpath. This makes project-bundled man pages
+discoverable without manual `MANPATH` configuration. Controlled via `[manpath]`
+in `maneater.toml` — `include` adds extra dirs, `no-auto = true` disables
+heuristic probing.
+
 **Exec tool:** Maneater provides a shell execution tool (`exec`) with permission
 rules configured via `maneater.toml`. By default, no commands are permitted —
 explicit `[[exec.allow]]` rules are required before any command will execute.

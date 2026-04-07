@@ -112,6 +112,21 @@ delegates to
 to resolve this; if unset,
 .Xr manpath 1
 falls back to platform defaults.
+.Pp
+In addition to the system manpath,
+.Nm
+automatically probes the current working directory for
+.Pa man/ ,
+.Pa doc/man/ ,
+and
+.Pa share/man/
+subdirectories.
+These heuristic paths are prepended to the system manpath so
+project-local man pages shadow system pages.
+This behavior can be disabled or extended via the
+.Va manpath
+section in
+.Xr maneater.toml 5 .
 .It Ev MANEATER_MODEL_PATH
 Path to the nomic-embed-text-v1.5 GGUF model file.
 Required for semantic search.

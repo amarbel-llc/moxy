@@ -31,11 +31,13 @@ and the current working directory.
 Later files override earlier ones.
 Models are merged by name; keys from the overlay replace keys in the base,
 while unset keys are preserved.
-Exec rules accumulate: both allow and deny lists are appended across
+Manpath include lists and exec rules accumulate: both are appended across
 hierarchy levels.
 The
+.Va manpath.no-auto
+and
 .Va exec.session
-sub-table is replaced entirely if present in an overlay.
+fields are replaced entirely if present in an overlay.
 .Sh TOP-LEVEL KEYS
 .Bl -tag -width "default"
 .It Va default
@@ -76,6 +78,65 @@ default = "nomic"
 path = "${MANEATER_MODEL_PATH}"
 query-prefix = "search_query: "
 document-prefix = "search_document: "
+.Ed
+.Sh MANPATH
+The
+.Va manpath
+table controls how
+.Nm maneater
+discovers man pages beyond the system
+.Xr manpath 1 .
+.Pp
+By default,
+.Nm maneater
+probes the current working directory for common in-repo man page locations:
+.Pp
+.Bl -bullet -compact
+.It
+.Pa man/
+.It
+.Pa doc/man/
+.It
+.Pa share/man/
+.El
+.Pp
+Directories that exist are prepended to the system manpath, so project pages
+shadow system pages with the same name.
+.Bl -tag -width "include"
+.It Va include
+Array of additional directories to prepend to the manpath.
+Relative paths are resolved from the current working directory.
+Supports
+.Ev $VAR
+and
+.Ev ${VAR}
+environment variable expansion.
+Include lists accumulate across hierarchy levels.
+.It Va no-auto
+When set to
+.Cm true ,
+disables heuristic probing of
+.Pa man/ ,
+.Pa doc/man/ ,
+and
+.Pa share/man/ .
+Only explicit
+.Va include
+paths and the system manpath are used.
+Default:
+.Cm false .
+.El
+.Pp
+Example:
+.Bd -literal -offset indent
+[manpath]
+include = ["vendor/man", "${PROJECT_ROOT}/result/share/man"]
+.Ed
+.Pp
+To disable heuristic probing in a project:
+.Bd -literal -offset indent
+[manpath]
+no-auto = true
 .Ed
 .Sh EXEC
 The

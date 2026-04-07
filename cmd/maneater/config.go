@@ -14,6 +14,16 @@ type ManeaterConfig struct {
 	Default string                 `toml:"default"`
 	Models  map[string]ModelConfig `toml:"models"`
 	Exec    *ExecConfig            `toml:"exec"`
+	Manpath *ManpathConfig         `toml:"manpath"`
+}
+
+// ManpathConfig controls how maneater discovers man pages beyond the system
+// manpath. Include paths are prepended to the system manpath. When NoAuto is
+// false (the default), maneater also probes common in-repo locations (man/,
+// doc/man/, share/man/) in the current working directory.
+type ManpathConfig struct {
+	Include []string `toml:"include"`
+	NoAuto  bool     `toml:"no-auto"`
 }
 
 type ModelConfig struct {
@@ -65,6 +75,19 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 		}
 		for k, v := range overlay.Models {
 			merged.Models[k] = v
+		}
+	}
+
+	// Accumulate manpath include paths; overlay's no-auto replaces base's.
+	if overlay.Manpath != nil {
+		if merged.Manpath == nil {
+			cp := *overlay.Manpath
+			merged.Manpath = &cp
+		} else {
+			mergedMP := *merged.Manpath
+			mergedMP.Include = append(mergedMP.Include, overlay.Manpath.Include...)
+			mergedMP.NoAuto = overlay.Manpath.NoAuto
+			merged.Manpath = &mergedMP
 		}
 	}
 
