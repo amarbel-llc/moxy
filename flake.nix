@@ -177,12 +177,28 @@
             pkgs.pandoc
             pkgs.pkg-config
             pkgs.ripgrep
+            # Pinned inputs for deterministic bats man-page tests. Without
+            # these, `manpath(1)` falls back to whatever man pages the host
+            # environment provides (Ubuntu 22.04 system jq 1.6 on CI vs
+            # whatever the developer has on PATH locally), and the two
+            # produce different TOC structures.
+            #
+            # Note: pkgs.coreutils does NOT include man pages — coreutils-full
+            # is the variant that ships them. pkgs.jq splits its man page
+            # into a separate `man` output.
+            pkgs.coreutils-full
+            pkgs.jq
             bob.packages.${system}.batman
             bob.packages.${system}.grit
             bob.packages.${system}.lux
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default
           ];
+          # Explicit nix store man page paths for the bats test suite.
+          # zz-tests_bats/common.bash re-exports this as MANPATH so that
+          # maneater's locateSource() resolves to exactly these paths and
+          # nothing else — no host man pages, no host $MANPATH ordering.
+          MANEATER_TEST_MANPATH = "${pkgs.jq.man}/share/man:${pkgs.coreutils-full}/share/man";
         };
       }
     ));
