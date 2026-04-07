@@ -1047,7 +1047,11 @@ func (p *Proxy) handleExecMCP(
 
 	child, ok := findChildIn(children, params.Server)
 	if !ok {
-		if _, isEphemeral := p.ephemeral[params.Server]; isEphemeral {
+		if meta, isEphemeral := p.ephemeral[params.Server]; isEphemeral {
+			if err := validateToolExists(params.Tool, meta.Tools, meta.Config.Annotations); err != nil {
+				return protocol.ErrorResultV1(err.Error()), nil
+			}
+
 			client, err := p.spawnEphemeral(ctx, params.Server)
 			if err != nil {
 				return nil, err
@@ -1063,6 +1067,14 @@ func (p *Proxy) handleExecMCP(
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("unknown server %q", params.Server),
 		), nil
+	}
+
+	tools, err := p.getToolsForServer(ctx, params.Server)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateToolExists(params.Tool, tools, child.Config.Annotations); err != nil {
+		return protocol.ErrorResultV1(err.Error()), nil
 	}
 
 	raw, err := child.Client.Call(ctx, protocol.MethodToolsCall, callParams)
@@ -1627,31 +1639,54 @@ func matchesAnnotationFilter(
 	if filter == nil {
 		return true
 	}
-	if filter.ReadOnlyHint != nil {
-		if annotations == nil || annotations.ReadOnlyHint == nil ||
-			*annotations.ReadOnlyHint != *filter.ReadOnlyHint {
-			return false
+	if annotations == nil {
+		return false
+	}
+
+	// OR semantics: a tool matches if ANY configured hint matches.
+	if filter.ReadOnlyHint != nil &&
+		annotations.ReadOnlyHint != nil &&
+		*annotations.ReadOnlyHint == *filter.ReadOnlyHint {
+		return true
+	}
+	if filter.DestructiveHint != nil &&
+		annotations.DestructiveHint != nil &&
+		*annotations.DestructiveHint == *filter.DestructiveHint {
+		return true
+	}
+	if filter.IdempotentHint != nil &&
+		annotations.IdempotentHint != nil &&
+		*annotations.IdempotentHint == *filter.IdempotentHint {
+		return true
+	}
+	if filter.OpenWorldHint != nil &&
+		annotations.OpenWorldHint != nil &&
+		*annotations.OpenWorldHint == *filter.OpenWorldHint {
+		return true
+	}
+	return false
+}
+
+func validateToolExists(
+	toolName string,
+	tools []protocol.ToolV1,
+	filter *config.AnnotationFilter,
+) error {
+	registered := 0
+	for _, t := range tools {
+		if !matchesAnnotationFilter(t.Annotations, filter) {
+			continue
+		}
+		registered++
+		if t.Name == toolName {
+			return nil
 		}
 	}
-	if filter.DestructiveHint != nil {
-		if annotations == nil || annotations.DestructiveHint == nil ||
-			*annotations.DestructiveHint != *filter.DestructiveHint {
-			return false
-		}
-	}
-	if filter.IdempotentHint != nil {
-		if annotations == nil || annotations.IdempotentHint == nil ||
-			*annotations.IdempotentHint != *filter.IdempotentHint {
-			return false
-		}
-	}
-	if filter.OpenWorldHint != nil {
-		if annotations == nil || annotations.OpenWorldHint == nil ||
-			*annotations.OpenWorldHint != *filter.OpenWorldHint {
-			return false
-		}
-	}
-	return true
+	return fmt.Errorf(
+		"tool %q not found on server (%d tools registered)",
+		toolName,
+		registered,
+	)
 }
 
 func paginateResourceResult(
