@@ -92,18 +92,32 @@ func (c Command) MarshalTOML() (string, error) {
 	return c.String(), nil
 }
 
+func expandPath(s string) string {
+	s = os.ExpandEnv(s)
+	if strings.HasPrefix(s, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			s = home + s[1:]
+		}
+	}
+	return s
+}
+
 func (c Command) Executable() string {
 	if len(c.parts) == 0 {
 		return ""
 	}
-	return c.parts[0]
+	return expandPath(c.parts[0])
 }
 
 func (c Command) Args() []string {
 	if len(c.parts) <= 1 {
 		return nil
 	}
-	return c.parts[1:]
+	expanded := make([]string, len(c.parts)-1)
+	for i, p := range c.parts[1:] {
+		expanded[i] = expandPath(p)
+	}
+	return expanded
 }
 
 func (c Command) IsEmpty() bool {

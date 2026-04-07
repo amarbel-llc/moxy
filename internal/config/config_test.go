@@ -812,3 +812,48 @@ func TestEffectiveCommandWithFlakeRef(t *testing.T) {
 		t.Errorf("flake ref: got %q, want %q", args[1], ref)
 	}
 }
+
+func TestEffectiveCommandDoesNotExpandEnvVars(t *testing.T) {
+	t.Setenv("HOME", "/Users/testuser")
+
+	srv := ServerConfig{Command: makeCommand("$HOME/bin/my-server")}
+	exe, _ := srv.EffectiveCommand()
+
+	want := "/Users/testuser/bin/my-server"
+	if exe == "$HOME/bin/my-server" {
+		t.Errorf("exe was not expanded: got literal %q, want %q", exe, want)
+	}
+}
+
+func TestEffectiveCommandDoesNotExpandTilde(t *testing.T) {
+	t.Setenv("HOME", "/Users/testuser")
+
+	srv := ServerConfig{Command: makeCommand("~/bin/my-server")}
+	exe, _ := srv.EffectiveCommand()
+
+	want := "/Users/testuser/bin/my-server"
+	if exe == "~/bin/my-server" {
+		t.Errorf("exe was not expanded: got literal %q, want %q", exe, want)
+	}
+}
+
+func TestParseCommandDoesNotExpandEnvVars(t *testing.T) {
+	t.Setenv("HOME", "/Users/testuser")
+
+	data := []byte(`
+[[servers]]
+name = "test"
+command = "$HOME/bin/my-server"
+`)
+	cfg, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exe, _ := cfg.Servers[0].EffectiveCommand()
+
+	want := "/Users/testuser/bin/my-server"
+	if exe == "$HOME/bin/my-server" {
+		t.Errorf("exe was not expanded during parse: got literal %q, want %q", exe, want)
+	}
+}
