@@ -4,6 +4,17 @@ bats_load_library bats-assert-additions
 bats_load_library bats-island
 bats_load_library bats-emo
 
+# When running inside the moxy devshell, flake.nix pins explicit nix store
+# man page paths in MANEATER_TEST_MANPATH. Re-export it as MANPATH (with no
+# trailing colon) so `manpath(1)` — which maneater's locateSource() calls —
+# returns exactly those paths and nothing else. This is the only way to
+# make man-page tests reproducible across hosts; otherwise we pick up
+# whatever jq/coreutils the host's $MANPATH happens to expose, and the CI
+# runner's Ubuntu man pages diverge from what's on a developer's machine.
+if [[ -n ${MANEATER_TEST_MANPATH:-} ]]; then
+  export MANPATH="$MANEATER_TEST_MANPATH"
+fi
+
 run_moxy() {
   run timeout --preserve-status "5s" moxy "$@"
 }
