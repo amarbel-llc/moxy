@@ -10,7 +10,7 @@ teardown() {
   teardown_test_home
 }
 
-function exec_no_rules_allows_everything { # @test
+function exec_no_rules_denies_everything { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
 EOF
@@ -18,7 +18,8 @@ EOF
   cd "$HOME/repo"
   run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"echo hello"}}'
   assert_success
-  echo "$output" | jq -e '.content[0].text == "hello\n"'
+  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.content[0].text | test("no allow rules")'
 }
 
 function exec_allow_rule_permits_matching_command { # @test
@@ -108,6 +109,8 @@ EOF
 function exec_empty_stdout_returns_empty_content { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "true"
 EOF
 
   cd "$HOME/repo"
@@ -120,7 +123,7 @@ EOF
   echo "$output" | jq -e '(.content // []) | length == 0'
 }
 
-function exec_deny_only_allows_other_binaries { # @test
+function exec_deny_only_denies_everything { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
 [[exec.deny]]
@@ -128,7 +131,15 @@ binary = "sudo"
 EOF
 
   cd "$HOME/repo"
+  # Explicitly denied.
+  run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"sudo rm -rf /"}}'
+  assert_success
+  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.content[0].text | test("deny rule")'
+
+  # Not explicitly denied, but no allow rules → still denied.
   run_maneater_mcp tools/call '{"name":"exec","arguments":{"command":"echo works"}}'
   assert_success
-  echo "$output" | jq -e '.content[0].text == "works\n"'
+  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.content[0].text | test("no allow rules")'
 }

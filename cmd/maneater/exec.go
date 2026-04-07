@@ -83,7 +83,7 @@ type ExecRule struct {
 // error if the command is denied.
 //
 // Composition:
-//   - No rules at all → permit (backward compatible)
+//   - No allow rules → deny all commands (zero-permission default)
 //   - Any allow rules exist → command must match at least one
 //   - Any deny rule matches → denied (deny always wins over allow)
 func (ec *ExecConfig) CheckPermission(
@@ -91,32 +91,37 @@ func (ec *ExecConfig) CheckPermission(
 	cwd string,
 	env map[string]string,
 ) (injectedEnv map[string]string, err error) {
-	if ec == nil || (len(ec.Allow) == 0 && len(ec.Deny) == 0) {
-		return nil, nil
-	}
-
 	binary, args := parseCommand(command)
 	if binary == "" {
 		return nil, fmt.Errorf("exec denied: unable to parse command %q", command)
 	}
 
 	// Check deny rules first — deny always wins.
-	for _, rule := range ec.Deny {
-		if matchRule(rule, binary, args, cwd, env) {
-			return nil, fmt.Errorf(
-				"exec denied: %q matches deny rule for %s",
-				command, formatRule(rule),
-			)
+	if ec != nil {
+		for _, rule := range ec.Deny {
+			if matchRule(rule, binary, args, cwd, env) {
+				return nil, fmt.Errorf(
+					"exec denied: %q matches deny rule for %s",
+					command, formatRule(rule),
+				)
+			}
 		}
 	}
 
-	// If no allow rules exist, permit by default.
-	if len(ec.Allow) == 0 {
-		return nil, nil
+	// Must match at least one allow rule — no allow rules means deny all.
+	var allow []ExecRule
+	if ec != nil {
+		allow = ec.Allow
 	}
 
-	// Must match at least one allow rule.
-	for _, rule := range ec.Allow {
+	if len(allow) == 0 {
+		return nil, fmt.Errorf(
+			"exec denied: %q — no allow rules configured",
+			command,
+		)
+	}
+
+	for _, rule := range allow {
 		if matchRule(rule, binary, args, cwd, env) {
 			return rule.Env, nil
 		}

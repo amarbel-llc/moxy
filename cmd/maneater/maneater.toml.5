@@ -83,6 +83,15 @@ The
 table controls which shell commands the
 .Cm exec
 tool is allowed to run.
+.Pp
+By default, no commands are permitted.
+The
+.Cm exec
+tool denies all commands until explicit allow rules are configured.
+This applies regardless of whether the
+.Va exec
+table is present: a missing table, an empty table, and a table with
+only deny rules all result in every command being denied.
 .Ss Permission rules
 Rules are defined as arrays of tables under
 .Va exec.allow
@@ -115,11 +124,10 @@ Only applied to matching allow rules; deny rules do not inject variables.
 .Ss Evaluation order
 .Bl -enum
 .It
-If no rules exist at all, all commands are permitted.
-.It
-If allow rules exist, the command must match at least one.
-.It
 If any deny rule matches, the command is denied regardless of allow rules.
+.It
+The command must match at least one allow rule.
+If no allow rules exist, all commands are denied.
 .It
 Within a rule, all non-empty fields must match (AND logic).
 .El

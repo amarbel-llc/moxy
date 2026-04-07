@@ -175,20 +175,17 @@ func TestMatchArgs(t *testing.T) {
 
 func TestCheckPermissionNilConfig(t *testing.T) {
 	var ec *ExecConfig
-	env, err := ec.CheckPermission("git status", "", nil)
-	if err != nil {
-		t.Errorf("nil config should allow everything, got error: %v", err)
-	}
-	if env != nil {
-		t.Errorf("nil config should return nil env, got %v", env)
+	_, err := ec.CheckPermission("git status", "", nil)
+	if err == nil {
+		t.Error("nil config should deny everything")
 	}
 }
 
 func TestCheckPermissionNoRules(t *testing.T) {
 	ec := &ExecConfig{}
 	_, err := ec.CheckPermission("git status", "", nil)
-	if err != nil {
-		t.Errorf("empty config should allow everything, got error: %v", err)
+	if err == nil {
+		t.Error("empty config should deny everything")
 	}
 }
 
@@ -248,23 +245,23 @@ func TestCheckPermissionDenyWinsOverAllow(t *testing.T) {
 	}
 }
 
-func TestCheckPermissionDenyOnlyBlocksSpecific(t *testing.T) {
+func TestCheckPermissionDenyOnlyDeniesEverything(t *testing.T) {
 	ec := &ExecConfig{
 		Deny: []ExecRule{
 			{Binary: "sudo"},
 		},
 	}
 
-	// Denied binary.
+	// Explicitly denied binary.
 	_, err := ec.CheckPermission("sudo rm -rf /", "", nil)
 	if err == nil {
 		t.Error("sudo should be denied")
 	}
 
-	// No allow rules → everything else allowed.
+	// No allow rules → everything denied, not just sudo.
 	_, err = ec.CheckPermission("git status", "", nil)
-	if err != nil {
-		t.Errorf("git should be allowed with deny-only rules: %v", err)
+	if err == nil {
+		t.Error("git should be denied with no allow rules")
 	}
 }
 

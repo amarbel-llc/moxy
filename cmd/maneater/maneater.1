@@ -37,6 +37,13 @@ query parameter (default 10).
 .Pp
 The search index is built lazily on the first search request if no
 cached index exists.
+.Pp
+An
+.Cm exec
+tool is also available for running shell commands.
+By default, no commands are permitted; allow rules must be configured in
+.Xr maneater.toml 5
+before any command will execute.
 .It Cm index
 Build or rebuild the search index with progress output to stdout.
 The index is saved to the cache directory (see
@@ -97,6 +104,14 @@ export MANEATER_MODEL_PATH=/path/to/nomic-embed-text-v1.5.Q8_0.gguf
 .Ed
 .Sh ENVIRONMENT
 .Bl -tag -width "MANEATER_MODEL_PATH"
+.It Ev MANPATH
+Colon-separated list of directories to search for man pages.
+.Nm
+delegates to
+.Xr manpath 1
+to resolve this; if unset,
+.Xr manpath 1
+falls back to platform defaults.
 .It Ev MANEATER_MODEL_PATH
 Path to the nomic-embed-text-v1.5 GGUF model file.
 Required for semantic search.

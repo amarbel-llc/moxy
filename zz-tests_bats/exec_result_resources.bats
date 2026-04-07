@@ -16,6 +16,8 @@ teardown() {
 function exec_small_output_stays_inline { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "echo"
 EOF
 
   cd "$HOME/repo"
@@ -27,6 +29,8 @@ EOF
 function exec_large_output_returns_summary_with_resource_uri { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "seq"
 EOF
 
   cd "$HOME/repo"
@@ -45,6 +49,8 @@ EOF
 function exec_resource_read_returns_full_output { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "seq"
 EOF
 
   cd "$HOME/repo"
@@ -69,6 +75,11 @@ EOF
 function exec_stdin_from_cached_result_uri { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "seq"
+
+[[exec.allow]]
+binary = "wc"
 EOF
 
   cd "$HOME/repo"
@@ -88,6 +99,8 @@ EOF
 function exec_stdin_literal_text { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "cat"
 EOF
 
   cd "$HOME/repo"
@@ -99,6 +112,11 @@ EOF
 function exec_command_arg_substitution_grep { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "seq"
+
+[[exec.allow]]
+binary = "grep"
 EOF
 
   cd "$HOME/repo"
@@ -118,6 +136,11 @@ EOF
 function exec_command_repeated_uri_shares_fd { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "seq"
+
+[[exec.allow]]
+binary = "diff"
 EOF
 
   cd "$HOME/repo"
@@ -142,6 +165,8 @@ EOF
 function exec_stdin_missing_cached_id_errors { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "cat"
 EOF
 
   cd "$HOME/repo"
@@ -154,6 +179,8 @@ EOF
 function exec_command_missing_cached_id_errors { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "cat"
 EOF
 
   cd "$HOME/repo"
@@ -165,6 +192,8 @@ EOF
 function exec_cache_layout_includes_session_directory { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/maneater.toml" <<'EOF'
+[[exec.allow]]
+binary = "seq"
 EOF
 
   cd "$HOME/repo"
@@ -184,6 +213,9 @@ function exec_custom_session_env_var { # @test
   # creates the exec sub-tree before processing [exec.session].
   cat >"$HOME/repo/maneater.toml" <<'EOF'
 [exec]
+
+[[exec.allow]]
+binary = "seq"
 
 [exec.session]
 env = "MY_SESSION"

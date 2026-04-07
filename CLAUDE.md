@@ -149,8 +149,10 @@ nomic-embed-text-v1.5. Key details:
 - Model path from `MANEATER_MODEL_PATH` env var (set by nix wrapper)
 
 **Exec tool:** Maneater provides a shell execution tool (`exec`) with permission
-rules configured via `maneater.toml`. The exec config uses `[[exec.allow]]` and
-`[[exec.deny]]` array-of-tables with `binary`, `args`, `cwd`, and `env` fields.
+rules configured via `maneater.toml`. By default, no commands are permitted —
+explicit `[[exec.allow]]` rules are required before any command will execute.
+The exec config uses `[[exec.allow]]` and `[[exec.deny]]` array-of-tables with
+`binary`, `args`, `cwd`, and `env` fields. Deny rules always win over allow.
 
 **Maneater.toml hierarchy:** Config files loaded and merged in order:
 
