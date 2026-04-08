@@ -93,6 +93,156 @@ function sessions_sorted_by_mtime_desc { # @test
   # Strip any header/footer noise; keep only data lines containing one of
   # our session ids, in order.
   local order
-  order=$(echo "$text" | grep -E 'old|mid|new' | grep -oE 'old|mid|new' | tr '\n' ' ')
+  order=$(echo "$text" | grep -E 'old|mid|new' | grep -v '^SESSION' | grep -oE 'old|mid|new' | tr '\n' ' ')
   [[ $order == "new mid old " ]]
+}
+
+function sessions_columnar_format_has_expected_columns { # @test
+  plant_session "-real-foo" "abc123" \
+    '{"type":"user","cwd":"/real/foo","message":{"role":"user","content":"hi"}}'
+
+  run_freud_mcp resources/read '{"uri":"freud://sessions"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+
+  # Header line carries all five columns.
+  echo "$text" | head -1 | grep -q 'SESSION'
+  echo "$text" | head -1 | grep -q 'LAST ACTIVITY'
+  echo "$text" | head -1 | grep -q 'MSGS'
+  echo "$text" | head -1 | grep -q 'SIZE'
+  echo "$text" | head -1 | grep -q 'PROJECT'
+}
+
+function sessions_message_count_matches_line_count { # @test
+  # Plant a session with exactly 5 lines, then assert MSGS reads 5.
+  plant_session "-msgcount" "fivelines" \
+    '{"type":"permission-mode","permissionMode":"acceptEdits"}' \
+    '{"type":"user","cwd":"/msgcount","message":{"role":"user","content":"a"}}' \
+    '{"type":"assistant","message":{"role":"assistant","content":"b"}}' \
+    '{"type":"user","cwd":"/msgcount","message":{"role":"user","content":"c"}}' \
+    '{"type":"assistant","message":{"role":"assistant","content":"d"}}'
+
+  run_freud_mcp resources/read '{"uri":"freud://sessions"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+
+  # The data row for "fivelines" should have a 5 in the MSGS column.
+  echo "$text" | grep 'fivelines' | grep -qE '\b5\b'
+}
+
+function sessions_unknown_format_returns_error { # @test
+  plant_session "-real-foo" "abc123" \
+    '{"type":"user","cwd":"/real/foo","message":{"role":"user","content":"hi"}}'
+
+  run_freud_mcp_full resources/read '{"uri":"freud://sessions?format=tsv"}'
+  assert_success
+  # The full envelope must be a JSON-RPC error and the message must mention
+  # the reserved-for-future-use language.
+  echo "$output" | jq -e '.error.message | test("reserved")'
+}
+
+function sessions_with_offset_limit_paginates { # @test
+  # Plant 5 sessions with distinct mtimes; request the middle two.
+  for i in 1 2 3 4 5; do
+    plant_session "-p$i" "session$i" \
+      "{\"type\":\"user\",\"cwd\":\"/p$i\",\"message\":{\"role\":\"user\",\"content\":\"x\"}}"
+    touch -d "2026-04-0$i 12:00:00" "$HOME/.claude/projects/-p$i/session$i.jsonl"
+  done
+
+  # Sorted by mtime desc: session5, session4, session3, session2, session1.
+  # offset=1, limit=2 → session4, session3.
+  run_freud_mcp resources/read '{"uri":"freud://sessions?offset=1&limit=2"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+
+  # Exactly two data rows; only session3 and session4 appear.
+  echo "$text" | grep -q 'session4'
+  echo "$text" | grep -q 'session3'
+  ! echo "$text" | grep -q 'session5'
+  ! echo "$text" | grep -q 'session2'
+  ! echo "$text" | grep -q 'session1'
+}
+
+function sessions_head_tail_summary_on_overflow { # @test
+  # Configure tiny thresholds via $HOME/freud.toml so progressive disclosure
+  # kicks in deterministically.
+  cat >"$HOME/freud.toml" <<'EOF'
+[list]
+max-rows = 2
+head-rows = 1
+tail-rows = 1
+EOF
+
+  # Plant 5 sessions with distinct mtimes, no pagination params.
+  for i in 1 2 3 4 5; do
+    plant_session "-q$i" "qsess$i" \
+      "{\"type\":\"user\",\"cwd\":\"/q$i\",\"message\":{\"role\":\"user\",\"content\":\"x\"}}"
+    touch -d "2026-04-0$i 12:00:00" "$HOME/.claude/projects/-q$i/qsess$i.jsonl"
+  done
+
+  run_freud_mcp resources/read '{"uri":"freud://sessions"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+
+  # Newest (qsess5) and oldest (qsess1) should appear; the middle three should not.
+  echo "$text" | grep -q 'qsess5'
+  echo "$text" | grep -q 'qsess1'
+  ! echo "$text" | grep -q 'qsess2'
+  ! echo "$text" | grep -q 'qsess3'
+  ! echo "$text" | grep -q 'qsess4'
+
+  # Truncation marker explains how to retrieve the rest.
+  echo "$text" | grep -q '5 sessions total'
+  echo "$text" | grep -qE 'offset=.*limit='
+}
+
+function sessions_by_project_dirname_filters_correctly { # @test
+  plant_session "-foo" "f1" \
+    '{"type":"user","cwd":"/foo","message":{"role":"user","content":"x"}}'
+  plant_session "-bar" "b1" \
+    '{"type":"user","cwd":"/bar","message":{"role":"user","content":"x"}}'
+
+  run_freud_mcp resources/read '{"uri":"freud://sessions/-foo"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q 'f1'
+  ! echo "$text" | grep -q 'b1'
+}
+
+function sessions_by_project_abspath_filters_correctly { # @test
+  plant_session "-real-foo" "rf1" \
+    '{"type":"user","cwd":"/real/foo","message":{"role":"user","content":"x"}}'
+  plant_session "-real-bar" "rb1" \
+    '{"type":"user","cwd":"/real/bar","message":{"role":"user","content":"x"}}'
+
+  # URL-encoded /real/foo → %2Freal%2Ffoo
+  run_freud_mcp resources/read '{"uri":"freud://sessions/%2Freal%2Ffoo"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q 'rf1'
+  ! echo "$text" | grep -q 'rb1'
+}
+
+function sessions_by_unknown_project_returns_hint { # @test
+  plant_session "-known" "k1" \
+    '{"type":"user","cwd":"/known","message":{"role":"user","content":"x"}}'
+
+  run_freud_mcp_full resources/read '{"uri":"freud://sessions/-nonexistent"}'
+  assert_success
+  # Error message should mention the unknown project and list known ones.
+  echo "$output" | jq -e '.error.message | test("nonexistent")'
+  echo "$output" | jq -e '.error.message | test("-known")'
+}
+
+function unknown_uri_returns_hint { # @test
+  run_freud_mcp_full resources/read '{"uri":"freud://nope"}'
+  assert_success
+  # Error message should suggest the valid entry points.
+  echo "$output" | jq -e '.error.message | test("freud://sessions")'
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -84,26 +83,59 @@ func countLines(path string) int {
 	return count
 }
 
-// formatSessionsMinimal produces the Phase 1a (commit 2) listing: one row
-// per session, tab-separated, with the columns the bats tests need to find.
-// Commit 3 will replace this with a fixed-width columnar formatter.
-func formatSessionsMinimal(rows []sessionRow) string {
-	if len(rows) == 0 {
-		return "(no sessions found)\n"
+// scanProjectSessions returns sessions filtered to a single project. The
+// projectKey is matched first against raw directory names, then against
+// resolved cwd absolute paths. Returns nil with no error when no project
+// matches; the caller is responsible for turning that into a structured
+// "unknown project" hint.
+func scanProjectSessions(projectsDir string, cache *projectCache, projectKey string) ([]sessionRow, []projectInfo, error) {
+	all, err := scanAllSessions(projectsDir, cache)
+	if err != nil {
+		return nil, nil, err
 	}
-	var b strings.Builder
-	for _, r := range rows {
-		project := r.projectPath
-		if r.heuristic {
-			project += " (heuristic)"
+
+	projects, err := cache.scanProjects(projectsDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var matchedDir string
+	for _, p := range projects {
+		if p.dirName == projectKey {
+			matchedDir = p.dirName
+			break
 		}
-		fmt.Fprintf(&b, "%s\t%s\t%d\t%d\t%s\n",
-			r.id,
-			r.lastActivity.UTC().Format(time.RFC3339),
-			r.messages,
-			r.size,
-			project,
-		)
 	}
-	return b.String()
+	if matchedDir == "" {
+		for _, p := range projects {
+			if p.absPath != "" && p.absPath == projectKey {
+				matchedDir = p.dirName
+				break
+			}
+		}
+	}
+	if matchedDir == "" {
+		return nil, projects, nil
+	}
+
+	var filtered []sessionRow
+	for _, r := range all {
+		if r.projectDir == matchedDir {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered, projects, nil
+}
+
+// pageRows applies offset/limit pagination to an already-sorted row slice.
+// A zero limit means "all rows from offset to end".
+func pageRows(rows []sessionRow, offset, limit int) []sessionRow {
+	if offset >= len(rows) {
+		return nil
+	}
+	end := len(rows)
+	if limit > 0 && offset+limit < end {
+		end = offset + limit
+	}
+	return rows[offset:end]
 }
