@@ -246,3 +246,32 @@ function unknown_uri_returns_hint { # @test
   # Error message should suggest the valid entry points.
   echo "$output" | jq -e '.error.message | test("freud://sessions")'
 }
+
+# Integration test: freud running as a child of moxy. Confirms templates and
+# resource reads come through with the moxy "freud/" namespace prefix and
+# that the planted session is visible end-to-end.
+function freud_served_through_moxy_proxy { # @test
+  plant_session "-real-foo" "proxy_id" \
+    '{"type":"user","cwd":"/real/foo","message":{"role":"user","content":"hi"}}'
+
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "freud"
+command = ["freud", "serve", "mcp"]
+EOF
+
+  cd "$HOME/repo"
+
+  run_moxy_mcp resources/templates/list
+  assert_success
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "freud/freud://sessions")'
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "freud/freud://sessions/{project}")'
+
+  run_moxy_mcp resources/read '{"uri":"freud/freud://sessions"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  echo "$text" | grep -q 'proxy_id'
+  echo "$text" | grep -q '/real/foo'
+}

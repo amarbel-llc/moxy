@@ -4,7 +4,7 @@ promotion-criteria: freud serves `freud://sessions` and `freud://sessions/{proje
   from a live `~/.claude/projects/` tree, installed as a moxy child server, with
   project paths correctly resolved from JSONL `cwd` fields in a hand-verified
   session
-status: exploring
+status: experimental
 ---
 
 # Freud: MCP server for past Claude Code sessions
@@ -221,6 +221,34 @@ These were worked through with the user on 2026-04-08:
    it invites questions the phase isn't ready to answer (how to read it,
    how to relate it to messages). Add later only if its absence proves
    confusing in real use.
+
+## Dev Testing
+
+To exercise freud through moxy against your real `~/.claude/projects/`
+without modifying your global moxyfile:
+
+1. Build the binary: `just build-go` (drops `build/freud`).
+2. Drop a project-local moxyfile in any directory under `$HOME` —
+   typically the worktree root:
+
+   ```toml
+   [[servers]]
+   name = "freud"
+   command = ["/absolute/path/to/build/freud", "serve", "mcp"]
+   ```
+
+3. From that directory, restart any Claude Code session that uses moxy as
+   its MCP gateway. The moxyfile hierarchy loader walks parent dirs from
+   `$HOME` to `$CWD`, picks up the local file, and merges freud into your
+   global server set. Resources appear under the `freud/` namespace
+   prefix.
+4. Delete the local moxyfile when done.
+
+The hermetic equivalent for CI lives in `zz-tests_bats/freud.bats` as
+`freud_served_through_moxy_proxy`: it plants both a synthetic
+`~/.claude/projects/` tree and a moxyfile in the bats temp `$HOME`, then
+asserts the templates and resource read come through with the correct
+namespacing.
 
 ## More Information
 
