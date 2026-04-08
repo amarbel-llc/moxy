@@ -21,17 +21,26 @@ read-only MCP resources. It follows the maneater/folio pattern: a single
 binary, `freud serve mcp` as the entry point, resources for reads, progressive
 disclosure for large responses.
 
-## Scope (Phase 1a)
+## Scope
 
-This doc covers the smallest useful slice:
+This doc has landed in two phases.
+
+**Phase 1a** — listing only:
 
 - `freud://sessions` — list all sessions across all projects, most-recent first.
 - `freud://sessions/{project}` — list sessions for one project.
 
-Reading a single session's content (`freud://session/{id}`), grep-style search,
-tools for summarization/diff, and semantic search are **deferred** to later
-phases tracked in #33. This doc will be extended (or a follow-up FDR filed)
-when those land.
+**Phase 1b** — transcript content (see the "Phase 1b: Transcript Read"
+section below):
+
+- `freud://transcript/{session_id}` — return the raw JSONL transcript for a
+  single session, looked up by session id alone.
+
+Grep-style search, tools for summarization/diff, and semantic search are
+still **deferred** to later phases tracked in #33. Individual future-work
+items (filtered rendering, transcript pagination/progressive disclosure,
+role/since filters, a session-id index) are captured in the "Future work"
+subsection at the end of Phase 1b.
 
 ## Data Source
 
@@ -85,11 +94,6 @@ values: `columnar` (default, current), `tsv` (machine-parseable),
 `yaml` (self-describing). Not implemented in Phase 1a, but the parser should
 reject unknown `?format=` values with a clear error so the addition is
 forward-compatible.
-
-**Progressive disclosure:** if the total list exceeds the configured row
-threshold, return a head+tail summary with the full list available via a
-`?offset=N&limit=M` query on the same URI — same pattern folio uses for
-`folio://read`.
 
 **Progressive disclosure:** if the total list exceeds the configured row
 threshold, return a head+tail summary with the full list available via a
@@ -264,13 +268,25 @@ path-based allow/deny like folio.
 
 ## Integration with Moxy
 
-Added to the top-level moxyfile as a persistent child server:
+Added to the top-level moxyfile as a persistent child server. Moxy accepts
+either the single-string form (split on whitespace) or the array form:
 
 ```toml
-[servers.freud]
-command = "freud"
-args = ["serve", "mcp"]
+[[servers]]
+name = "freud"
+command = "freud serve mcp"
 ```
+
+```toml
+[[servers]]
+name = "freud"
+command = ["freud", "serve", "mcp"]
+```
+
+Note that `command` must include the `serve mcp` subcommand — freud's
+default behavior when invoked with no args is to print its usage and exit,
+which moxy surfaces as `child process freud exited unexpectedly` (see #37
+for the opaque-error UX issue).
 
 Built as a separate Nix package (`packages.freud`) alongside `maneater` and
 `folio`, included in the top-level `symlinkJoin` via `repo-packages.nix`.
