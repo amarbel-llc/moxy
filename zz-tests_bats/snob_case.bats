@@ -13,7 +13,7 @@ teardown() {
 
 function tool_names_use_dot_separator { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -28,7 +28,7 @@ EOF
 
 function dot_separator_tool_call_dispatches_correctly { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]

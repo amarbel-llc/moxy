@@ -13,7 +13,7 @@ teardown() {
 
 function restart_tool_appears_in_tools_list { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -28,7 +28,7 @@ EOF
 
 function restart_running_server_succeeds { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -42,7 +42,7 @@ EOF
 
 function restart_then_tool_call_works { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -58,7 +58,7 @@ EOF
 
 function restart_unknown_server_returns_error { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -73,7 +73,7 @@ EOF
 
 function restart_missing_server_param_returns_error { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -88,7 +88,7 @@ EOF
 
 function restart_failed_server_recovers { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]

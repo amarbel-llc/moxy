@@ -13,7 +13,7 @@ teardown() {
 
 function pagination_returns_full_response_without_params { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
@@ -28,7 +28,7 @@ EOF
 
 function pagination_slices_with_offset_and_limit { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
@@ -48,7 +48,7 @@ EOF
 
 function pagination_second_page { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
@@ -66,7 +66,7 @@ EOF
 
 function pagination_last_page_partial { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
@@ -84,7 +84,7 @@ EOF
 
 function pagination_disabled_passes_through { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
@@ -100,7 +100,7 @@ EOF
 
 function pagination_default_limit { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
@@ -119,7 +119,7 @@ EOF
 
 function pagination_non_array_passes_through { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]
@@ -135,7 +135,7 @@ EOF
 
 function pagination_offset_beyond_end_returns_empty { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "res"
 command = ["bash", "$FIXTURES_DIR/resource-server.bash"]

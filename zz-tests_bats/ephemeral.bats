@@ -13,7 +13,7 @@ teardown() {
 
 function ephemeral_server_tools_appear_in_list { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -28,7 +28,7 @@ EOF
 
 function ephemeral_server_tool_call_succeeds { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -43,7 +43,7 @@ EOF
 
 function ephemeral_server_stderr_shows_probed { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -59,7 +59,7 @@ EOF
 
 function global_ephemeral_applies_to_all_servers { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 ephemeral = true
 
 [[servers]]
@@ -76,7 +76,7 @@ EOF
 
 function per_server_ephemeral_overrides_global { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 ephemeral = true
 
 [[servers]]
@@ -94,7 +94,7 @@ EOF
 
 function ephemeral_and_persistent_coexist { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "persistent"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
@@ -114,7 +114,7 @@ EOF
 
 function ephemeral_restart_reprobes { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "srv"
 command = ["bash", "$FIXTURES_DIR/tool-server.bash"]

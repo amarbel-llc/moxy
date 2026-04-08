@@ -13,7 +13,7 @@ teardown() {
 
 function prompts_list_returns_prefixed_names { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "test"
 command = ["bash", "$FIXTURES_DIR/prompt-server.bash"]
@@ -27,7 +27,7 @@ EOF
 
 function prompts_list_preserves_description { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "test"
 command = ["bash", "$FIXTURES_DIR/prompt-server.bash"]
@@ -41,7 +41,7 @@ EOF
 
 function prompts_list_preserves_arguments { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "test"
 command = ["bash", "$FIXTURES_DIR/prompt-server.bash"]
@@ -55,7 +55,7 @@ EOF
 
 function prompts_get_dispatches_to_child { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<EOF
+  cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
 name = "test"
 command = ["bash", "$FIXTURES_DIR/prompt-server.bash"]
@@ -69,7 +69,7 @@ EOF
 
 function prompts_list_skips_servers_without_capability { # @test
   mkdir -p "$HOME/repo"
-  cat > "$HOME/repo/moxyfile" <<'EOF'
+  cat >"$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
 name = "broken"
 command = ["echo", "hello"]
