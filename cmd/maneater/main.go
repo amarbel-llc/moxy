@@ -122,10 +122,43 @@ var templatesV1 = []protocol.ResourceTemplateV1{
 	},
 }
 
+// Static resources advertise well-known entry points so agents can discover
+// man page search and Go package documentation without knowing the URI
+// templates upfront.
+var staticResources = []protocol.Resource{
+	{
+		URI:         "man://search/",
+		Name:        "Semantic man page search",
+		Description: "Search for man pages by natural language query. Append your query to the URI (e.g. man://search/list+files). Optional ?top_k=N parameter (default 10).",
+		MimeType:    "text/plain",
+	},
+	{
+		URI:         "godoc://packages/",
+		Name:        "Go package documentation",
+		Description: "Look up Go package docs. Append a package path (e.g. godoc://packages/encoding/json), a symbol (godoc://packages/fmt/Println), or source (godoc://packages/fmt/Println/src).",
+		MimeType:    "text/plain",
+	},
+}
+
+var staticResourcesV1 = []protocol.ResourceV1{
+	{
+		URI:         "man://search/",
+		Name:        "Semantic man page search",
+		Description: "Search for man pages by natural language query. Append your query to the URI (e.g. man://search/list+files). Optional ?top_k=N parameter (default 10).",
+		MimeType:    "text/plain",
+	},
+	{
+		URI:         "godoc://packages/",
+		Name:        "Go package documentation",
+		Description: "Look up Go package docs. Append a package path (e.g. godoc://packages/encoding/json), a symbol (godoc://packages/fmt/Println), or source (godoc://packages/fmt/Println/src).",
+		MimeType:    "text/plain",
+	},
+}
+
 // ResourceProvider (base interface)
 
 func (m *manServer) ListResources(_ context.Context) ([]protocol.Resource, error) {
-	return nil, nil
+	return staticResources, nil
 }
 
 func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
@@ -220,7 +253,7 @@ func (m *manServer) ListResourceTemplates(_ context.Context) ([]protocol.Resourc
 // ResourceProviderV1 (V1 extensions)
 
 func (m *manServer) ListResourcesV1(_ context.Context, _ string) (*protocol.ResourcesListResultV1, error) {
-	return &protocol.ResourcesListResultV1{}, nil
+	return &protocol.ResourcesListResultV1{Resources: staticResourcesV1}, nil
 }
 
 func (m *manServer) ListResourceTemplatesV1(_ context.Context, _ string) (*protocol.ResourceTemplatesListResultV1, error) {

@@ -1,7 +1,7 @@
 #! /usr/bin/env bats
 
 setup() {
-  load "$(dirname "$BATS_TEST_FILE")/common.bash"
+  load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
   export output
 

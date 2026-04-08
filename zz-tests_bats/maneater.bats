@@ -1,9 +1,10 @@
 #! /usr/bin/env bats
 
 setup() {
-  load "$(dirname "$BATS_TEST_FILE")/common.bash"
+  load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
   export output
+  FIXTURES_DIR="$(cd "$BATS_TEST_DIRNAME/test-fixtures" && pwd)"
 }
 
 teardown() {
@@ -159,14 +160,11 @@ EOF
 }
 
 function asciidoctor_generated_man_page_renders_successfully { # @test
-  local fixture_dir
-  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
-
   # Set up a fake man directory containing the pivy-tool fixture (asciidoctor-
   # generated roff that triggers a pandoc parse error through maneater's
   # mandoc -T man pipeline). See https://github.com/amarbel-llc/moxy/issues/27
   mkdir -p "$HOME/man/man1"
-  cp "$fixture_dir/pivy-tool.1" "$HOME/man/man1/pivy-tool.1"
+  cp "$FIXTURES_DIR/pivy-tool.1" "$HOME/man/man1/pivy-tool.1"
   export MANPATH="$HOME/man"
 
   mkdir -p "$HOME/repo"
@@ -182,11 +180,8 @@ function asciidoctor_generated_man_page_renders_successfully { # @test
 }
 
 function asciidoctor_generated_man_page_reads_section { # @test
-  local fixture_dir
-  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
-
   mkdir -p "$HOME/man/man1"
-  cp "$fixture_dir/pivy-tool.1" "$HOME/man/man1/pivy-tool.1"
+  cp "$FIXTURES_DIR/pivy-tool.1" "$HOME/man/man1/pivy-tool.1"
   export MANPATH="$HOME/man"
 
   mkdir -p "$HOME/repo"
@@ -200,12 +195,9 @@ function asciidoctor_generated_man_page_reads_section { # @test
 }
 
 function heuristic_manpath_discovers_project_man_pages { # @test
-  local fixture_dir
-  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
-
   # Place a man page in man/man1/ inside the project dir — no MANPATH needed.
   mkdir -p "$HOME/repo/man/man1"
-  cp "$fixture_dir/pivy-tool.1" "$HOME/repo/man/man1/pivy-tool.1"
+  cp "$FIXTURES_DIR/pivy-tool.1" "$HOME/repo/man/man1/pivy-tool.1"
 
   # Point MANPATH to an empty directory so heuristic is the only way to find it.
   mkdir -p "$HOME/empty-man"
@@ -220,11 +212,8 @@ function heuristic_manpath_discovers_project_man_pages { # @test
 }
 
 function heuristic_manpath_no_auto_disables_discovery { # @test
-  local fixture_dir
-  fixture_dir="$(dirname "$BATS_TEST_FILE")/test-fixtures"
-
   mkdir -p "$HOME/repo/man/man1"
-  cp "$fixture_dir/pivy-tool.1" "$HOME/repo/man/man1/pivy-tool.1"
+  cp "$FIXTURES_DIR/pivy-tool.1" "$HOME/repo/man/man1/pivy-tool.1"
 
   # Disable heuristic probing via config.
   cat >"$HOME/repo/maneater.toml" <<'EOF'
@@ -328,6 +317,40 @@ function godoc_nonexistent_package_returns_error { # @test
     -- "$init" "$initialized" "$req"
   assert_success
   echo "$output" | jq -e '.error'
+}
+
+function static_resources_include_search_entry_point { # @test
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/list
+  assert_success
+  echo "$output" | jq -e '.resources[] | select(.uri == "man://search/")'
+}
+
+function static_resources_include_godoc_entry_point { # @test
+  mkdir -p "$HOME/repo"
+  cd "$HOME/repo"
+
+  run_maneater_mcp resources/list
+  assert_success
+  echo "$output" | jq -e '.resources[] | select(.uri == "godoc://packages/")'
+}
+
+function moxy_proxies_maneater_static_resources { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "man"
+command = "maneater serve mcp"
+generate-resource-tools = true
+EOF
+
+  cd "$HOME/repo"
+  run_moxy_mcp resources/list
+  assert_success
+  echo "$output" | jq -e '.resources[] | select(.uri == "man/man://search/")'
+  echo "$output" | jq -e '.resources[] | select(.uri == "man/godoc://packages/")'
 }
 
 function man_page_nonexistent_returns_error { # @test
