@@ -125,6 +125,27 @@ server process:
 Cache is invalidated when a project dir's mtime changes. Cheap enough to
 re-scan on demand for phase 1a — no index file, no background watcher.
 
+**Known cache-staleness edge case:** keying on directory mtime assumes any
+relevant change inside the dir bumps the dir mtime. This holds on standard
+Linux filesystems (ext4, btrfs, xfs, tmpfs) for file create/delete/rename,
+which covers everything Claude Code does. Failure modes:
+
+- Some network and FUSE filesystems coalesce or skip directory mtime updates;
+  on those, a newly added JSONL might not trigger re-resolution.
+- The `cwd` for a project dir is invariant in practice (every session in
+  `~/.claude/projects/-home-sasha-eng-repos-moxy` has `cwd:
+  /home/sasha/eng/repos/moxy`), so a stale cache returns the *correct*
+  answer in the realistic case.
+- The one scenario where staleness becomes visible: the first session in a
+  dir has no usable `cwd` (system-only messages), the cache stores a
+  `(heuristic)` answer, and a later session in the same dir contains a real
+  `cwd`. The cache never upgrades from heuristic → resolved until something
+  else touches the dir mtime.
+
+Phase 1a accepts this — degraded resolution on a rare edge case, never
+missing data. If it bites, fixes range from per-file mtime caching (more
+stat syscalls) to periodic full invalidation to dropping the cache entirely.
+
 ## Non-Goals (Phase 1a)
 
 - Reading session content (`freud://session/{id}`)

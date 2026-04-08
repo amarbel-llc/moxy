@@ -12,6 +12,7 @@ import (
 type freudServer struct {
 	projectsDir string
 	listCfg     ListConfig
+	cache       *projectCache
 }
 
 // Resource templates (V0).
@@ -52,7 +53,22 @@ func (s *freudServer) ListResources(_ context.Context) ([]protocol.Resource, err
 }
 
 func (s *freudServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
+	if uri == "freud://sessions" {
+		return s.handleSessionsList(uri)
+	}
 	return nil, unknownURIError(uri)
+}
+
+func (s *freudServer) handleSessionsList(uri string) (*protocol.ResourceReadResult, error) {
+	rows, err := scanAllSessions(s.projectsDir, s.cache)
+	if err != nil {
+		return nil, fmt.Errorf("scanning sessions: %w", err)
+	}
+	return &protocol.ResourceReadResult{
+		Contents: []protocol.ResourceContent{
+			{URI: uri, MimeType: "text/plain", Text: formatSessionsMinimal(rows)},
+		},
+	}, nil
 }
 
 func (s *freudServer) ListResourceTemplates(_ context.Context) ([]protocol.ResourceTemplate, error) {

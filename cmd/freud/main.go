@@ -58,6 +58,7 @@ func runServeMCP() {
 	f := &freudServer{
 		projectsDir: effectiveProjectsDir(cfg, home),
 		listCfg:     effectiveListConfig(cfg.List),
+		cache:       newProjectCache(),
 	}
 
 	srv, err := server.New(t, server.Options{
