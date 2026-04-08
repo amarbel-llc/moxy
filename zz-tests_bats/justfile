@@ -6,10 +6,12 @@ _bats_args := if bin_dir != "" { "--bin-dir " + bin_dir } else { "" }
 
 test-targets *targets="*.bats":
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
+  PARALLEL_HOME="$(mktemp -d)" \
     bats {{_bats_args}} --jobs {{num_cpus()}} {{targets}}
 
 test-tags *tags:
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
+  PARALLEL_HOME="$(mktemp -d)" \
     bats {{_bats_args}} --jobs {{num_cpus()}} --filter-tags {{tags}} *.bats
 
 test: (test-targets "*.bats")

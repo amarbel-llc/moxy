@@ -33,6 +33,18 @@ test-go:
   go test ./... -v
 
 test-validate-mcp: build-go
+  #!/usr/bin/env bash
+  set -euo pipefail
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  export HOME="$tmpdir/home"
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+  [[servers]]
+  name = "test"
+  command = ["bash", "{{justfile_directory()}}/zz-tests_bats/test-fixtures/tool-server.bash"]
+  EOF
+  cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
 mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
