@@ -4,27 +4,46 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/amarbel-llc/moxy/internal/credentials"
 )
 
 //go:generate tommy generate
 type Config struct {
-	Ephemeral             *bool          `toml:"ephemeral"`
-	ProgressiveDisclosure *bool          `toml:"progressive-disclosure"`
-	Servers               []ServerConfig `toml:"servers"`
+	Ephemeral             *bool                      `toml:"ephemeral"`
+	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
+	Credentials           *credentials.CommandConfig `toml:"credentials"`
+	Servers               []ServerConfig             `toml:"servers"`
 }
 
 type ServerConfig struct {
 	Name                  string            `toml:"name"`
 	Command               Command           `toml:"command"`
+	URL                   string            `toml:"url"`
+	Headers               map[string]string `toml:"headers"`
+	HeadersHelper         *string           `toml:"headers-helper"`
+	OAuth                 *OAuthConfig      `toml:"oauth"`
 	Annotations           *AnnotationFilter `toml:"annotations"`
 	Paginate              bool              `toml:"paginate"`
 	GenerateResourceTools *bool             `toml:"generate-resource-tools"`
 	Ephemeral             *bool             `toml:"ephemeral"`
 	ProgressiveDisclosure *bool             `toml:"progressive-disclosure"`
 	NixDevshell           *string           `toml:"nix-devshell"`
+}
+
+// OAuthConfig holds OAuth 2.1 configuration for HTTP servers.
+type OAuthConfig struct {
+	ClientID     string `toml:"client-id"`
+	CallbackPort int    `toml:"callback-port"`
+}
+
+// IsHTTP reports whether this server is an HTTP (URL-based) server.
+func (s ServerConfig) IsHTTP() bool {
+	return s.URL != ""
 }
 
 func (s ServerConfig) EffectiveCommand() (executable string, args []string) {
@@ -167,6 +186,63 @@ func Parse(data []byte) (Config, error) {
 				"server name %q must not contain '.' (dots are used as the namespace separator)",
 				srv.Name,
 			)
+		}
+
+		hasCommand := !srv.Command.IsEmpty()
+		hasURL := srv.URL != ""
+
+		if hasCommand && hasURL {
+			return Config{}, fmt.Errorf(
+				"server %q has both command and url (only one is allowed)",
+				srv.Name,
+			)
+		}
+
+		if hasURL {
+			if _, err := url.ParseRequestURI(srv.URL); err != nil {
+				return Config{}, fmt.Errorf(
+					"server %q has invalid url %q: %w",
+					srv.Name, srv.URL, err,
+				)
+			}
+			if srv.NixDevshell != nil {
+				return Config{}, fmt.Errorf(
+					"server %q: nix-devshell is not valid for url servers",
+					srv.Name,
+				)
+			}
+			if srv.Ephemeral != nil && *srv.Ephemeral {
+				return Config{}, fmt.Errorf(
+					"server %q: ephemeral is not supported for url servers",
+					srv.Name,
+				)
+			}
+		}
+
+		if !hasURL {
+			if srv.Headers != nil {
+				return Config{}, fmt.Errorf(
+					"server %q: headers is only valid for url servers",
+					srv.Name,
+				)
+			}
+			if srv.HeadersHelper != nil {
+				return Config{}, fmt.Errorf(
+					"server %q: headers-helper is only valid for url servers",
+					srv.Name,
+				)
+			}
+			if srv.OAuth != nil {
+				return Config{}, fmt.Errorf(
+					"server %q: oauth is only valid for url servers",
+					srv.Name,
+				)
+			}
+		}
+
+		// Expand environment variables in header values
+		for k, v := range srv.Headers {
+			srv.Headers[k] = os.ExpandEnv(v)
 		}
 	}
 

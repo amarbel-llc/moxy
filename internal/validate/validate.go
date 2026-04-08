@@ -3,6 +3,7 @@ package validate
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 
@@ -54,13 +55,19 @@ func checkServers(servers []config.ServerConfig, checkPath bool) []string {
 		if srv.Name == "" {
 			issues = append(issues, "server has no name")
 		}
-		if srv.Command.IsEmpty() {
-			issues = append(issues, fmt.Sprintf("server %q has no command", srv.Name))
+
+		if srv.IsHTTP() {
+			if _, err := url.ParseRequestURI(srv.URL); err != nil {
+				issues = append(issues, fmt.Sprintf("server %q has invalid url %q", srv.Name, srv.URL))
+			}
+		} else if srv.Command.IsEmpty() {
+			issues = append(issues, fmt.Sprintf("server %q has no command or url", srv.Name))
 		} else if checkPath {
 			if _, err := exec.LookPath(srv.Command.Executable()); err != nil {
 				issues = append(issues, fmt.Sprintf("server %q command %q not found on $PATH", srv.Name, srv.Command.Executable()))
 			}
 		}
+
 		if seen[srv.Name] {
 			issues = append(issues, fmt.Sprintf("duplicate server name %q", srv.Name))
 		}

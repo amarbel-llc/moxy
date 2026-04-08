@@ -57,6 +57,10 @@ schema = 3
     version = 'v0.2.1'
     hash = 'sha256-VBkCZLI90PhMasftGw3403IqoV7d3E5WEGAIVrN5xQM='
 
+  [mod.'github.com/danieljoos/wincred']
+    version = 'v1.2.3'
+    hash = 'sha256-lDRkd1rU5EIyhzzCB0yIuQUpSdvMM2jjUsCg7rQaHMQ='
+
   [mod.'github.com/dustin/go-humanize']
     version = 'v1.0.1'
     hash = 'sha256-yuvxYYngpfVkUg9yAmG99IUVmADTQA0tMbBXe0Fq0Mc='
@@ -64,6 +68,10 @@ schema = 3
   [mod.'github.com/erikgeiser/coninput']
     version = 'v0.0.0-20211004153227-1c3628e74d0f'
     hash = 'sha256-OWSqN1+IoL73rWXWdbbcahZu8n2al90Y3eT5Z0vgHvU='
+
+  [mod.'github.com/godbus/dbus/v5']
+    version = 'v5.2.2'
+    hash = 'sha256-j+LicPlXcB1R3oVFPa8cd4yVJLpBx+ca5gXmHqOJSN8='
 
   [mod.'github.com/google/uuid']
     version = 'v1.6.0'
@@ -108,6 +116,10 @@ schema = 3
   [mod.'github.com/xo/terminfo']
     version = 'v0.0.0-20220910002029-abceb7e1c41e'
     hash = 'sha256-GyCDxxMQhXA3Pi/TsWXpA8cX5akEoZV7CFx4RO3rARU='
+
+  [mod.'github.com/zalando/go-keyring']
+    version = 'v0.2.8'
+    hash = 'sha256-TnsYicaHuDBFITZGWiAW9L7OxvpQ4XbBFpLpOI7NteI='
 
   [mod.'golang.org/x/sync']
     version = 'v0.20.0'

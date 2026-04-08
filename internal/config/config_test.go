@@ -857,3 +857,222 @@ command = "$HOME/bin/my-server"
 		t.Errorf("exe was not expanded during parse: got literal %q, want %q", exe, want)
 	}
 }
+
+func TestParseURLServer(t *testing.T) {
+	input := `
+[[servers]]
+name = "remote"
+url = "https://api.example.com/mcp"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Servers[0].IsHTTP() {
+		t.Error("expected IsHTTP() = true")
+	}
+	if cfg.Servers[0].URL != "https://api.example.com/mcp" {
+		t.Errorf("url: got %q", cfg.Servers[0].URL)
+	}
+}
+
+func TestParseRejectsCommandAndURL(t *testing.T) {
+	input := `
+[[servers]]
+name = "both"
+command = "echo"
+url = "https://example.com/mcp"
+`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for server with both command and url")
+	}
+}
+
+func TestParseRejectsHeadersOnCommandServer(t *testing.T) {
+	input := `
+[[servers]]
+name = "local"
+command = "echo"
+
+[servers.headers]
+Authorization = "Bearer token"
+`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for headers on command server")
+	}
+}
+
+func TestParseRejectsOAuthOnCommandServer(t *testing.T) {
+	input := `
+[[servers]]
+name = "local"
+command = "echo"
+
+[servers.oauth]
+client-id = "abc"
+`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for oauth on command server")
+	}
+}
+
+func TestParseRejectsEphemeralOnURLServer(t *testing.T) {
+	input := `
+[[servers]]
+name = "remote"
+url = "https://example.com/mcp"
+ephemeral = true
+`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for ephemeral url server")
+	}
+}
+
+func TestParseRejectsNixDevshellOnURLServer(t *testing.T) {
+	input := `
+[[servers]]
+name = "remote"
+url = "https://example.com/mcp"
+nix-devshell = "."
+`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for nix-devshell on url server")
+	}
+}
+
+func TestParseURLServerWithHeaders(t *testing.T) {
+	input := `
+[[servers]]
+name = "api"
+url = "https://api.example.com/mcp"
+
+[servers.headers]
+X-Custom = "value"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].Headers["X-Custom"] != "value" {
+		t.Errorf("header: got %q", cfg.Servers[0].Headers["X-Custom"])
+	}
+}
+
+func TestParseURLServerWithOAuth(t *testing.T) {
+	input := `
+[[servers]]
+name = "slack"
+url = "https://mcp.slack.com/mcp"
+
+[servers.oauth]
+client-id = "123456"
+callback-port = 3118
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].OAuth == nil {
+		t.Fatal("expected oauth config")
+	}
+	if cfg.Servers[0].OAuth.ClientID != "123456" {
+		t.Errorf("client-id: got %q", cfg.Servers[0].OAuth.ClientID)
+	}
+	if cfg.Servers[0].OAuth.CallbackPort != 3118 {
+		t.Errorf("callback-port: got %d", cfg.Servers[0].OAuth.CallbackPort)
+	}
+}
+
+func TestParseURLServerWithHeadersHelper(t *testing.T) {
+	input := `
+[[servers]]
+name = "sso"
+url = "https://internal.corp/mcp"
+headers-helper = "get-auth-headers"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].HeadersHelper == nil || *cfg.Servers[0].HeadersHelper != "get-auth-headers" {
+		t.Error("expected headers-helper")
+	}
+}
+
+func TestParseRejectsInvalidURL(t *testing.T) {
+	input := `
+[[servers]]
+name = "bad"
+url = "not a url"
+`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for invalid url")
+	}
+}
+
+func TestIsHTTP(t *testing.T) {
+	tests := []struct {
+		name string
+		srv  ServerConfig
+		want bool
+	}{
+		{"command only", ServerConfig{Command: makeCommand("echo")}, false},
+		{"url only", ServerConfig{URL: "https://example.com"}, true},
+		{"neither", ServerConfig{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.srv.IsHTTP(); got != tt.want {
+				t.Errorf("IsHTTP() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseCredentials(t *testing.T) {
+	input := `
+[credentials]
+read = "vault read moxy/{name}"
+write = "vault write moxy/{name}"
+delete = "vault delete moxy/{name}"
+
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Credentials == nil {
+		t.Fatal("expected credentials config")
+	}
+	if cfg.Credentials.Read != "vault read moxy/{name}" {
+		t.Errorf("read: got %q", cfg.Credentials.Read)
+	}
+}
+
+func TestParseHeadersExpandEnvVars(t *testing.T) {
+	t.Setenv("TEST_TOKEN", "secret123")
+	input := `
+[[servers]]
+name = "api"
+url = "https://api.example.com/mcp"
+
+[servers.headers]
+Authorization = "Bearer $TEST_TOKEN"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Servers[0].Headers["Authorization"] != "Bearer secret123" {
+		t.Errorf("header not expanded: got %q", cfg.Servers[0].Headers["Authorization"])
+	}
+}

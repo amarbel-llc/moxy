@@ -17,8 +17,8 @@ import (
 
 type Client struct {
 	name           string
-	cmd            *exec.Cmd
-	transport      *transport.Stdio
+	cmd            *exec.Cmd // nil for HTTP servers
+	transport      transport.Transport
 	pending        map[string]chan *jsonrpc.Message
 	mu             sync.Mutex
 	nextID         atomic.Int64
@@ -52,6 +52,26 @@ func SpawnAndInitialize(ctx context.Context, name, command string, args []string
 		name:      name,
 		cmd:       cmd,
 		transport: transport.NewStdioWithCloser(stdout, stdin, stdin),
+		pending:   make(map[string]chan *jsonrpc.Message),
+		done:      make(chan struct{}),
+	}
+
+	go c.readLoop()
+
+	result, err := c.initialize(ctx)
+	if err != nil {
+		c.Close()
+		return nil, nil, fmt.Errorf("initializing %s: %w", name, err)
+	}
+
+	return c, result, nil
+}
+
+// ConnectAndInitialize creates a Client that connects to a remote HTTP MCP server.
+func ConnectAndInitialize(ctx context.Context, name string, t transport.Transport) (*Client, *protocol.InitializeResultV1, error) {
+	c := &Client{
+		name:      name,
+		transport: t,
 		pending:   make(map[string]chan *jsonrpc.Message),
 		done:      make(chan struct{}),
 	}
@@ -178,7 +198,10 @@ func (c *Client) Notify(method string, params any) error {
 
 func (c *Client) Close() error {
 	c.transport.Close()
-	return c.cmd.Wait()
+	if c.cmd != nil {
+		return c.cmd.Wait()
+	}
+	return nil
 }
 
 func (c *Client) Name() string {

@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 
+	"github.com/amarbel-llc/moxy/internal/credentials"
 	"github.com/amarbel-llc/tommy/pkg/cst"
 	"github.com/amarbel-llc/tommy/pkg/document"
 )
@@ -42,6 +43,14 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		d.data.ProgressiveDisclosure = &v
 		d.consumed["progressive-disclosure"] = true
 	}
+	if tableNode := d.cstDoc.FindTableInContainer(d.cstDoc.Root(), "credentials"); tableNode != nil {
+		d.consumed["credentials"] = true
+		credentialsVal := &credentials.CommandConfig{}
+		if err := credentials.DecodeCommandConfigInto(credentialsVal, d.cstDoc, tableNode, d.consumed, "credentials."); err != nil {
+			return nil, fmt.Errorf("credentials: %w", err)
+		}
+		d.data.Credentials = credentialsVal
+	}
 	serversNodes := d.cstDoc.FindArrayTableNodes("servers")
 	d.servers = make([]serverConfigHandle, len(serversNodes))
 	d.data.Servers = make([]ServerConfig, len(serversNodes))
@@ -57,6 +66,48 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 				return nil, fmt.Errorf("command: %w", err)
 			}
 			d.consumed["servers.command"] = true
+		}
+		if v, err := document.GetFromContainer[string](d.cstDoc, node, "url"); err == nil {
+			d.data.Servers[i].URL = v
+			d.consumed["servers.url"] = true
+		}
+		if tableNode := d.cstDoc.FindTableInContainer(node, "headers"); tableNode != nil {
+			d.data.Servers[i].Headers = document.GetStringMapFromTable(tableNode)
+			d.consumed["servers.headers"] = true
+			document.MarkAllConsumed(tableNode, "servers.headers", d.consumed)
+		}
+		if v, err := document.GetFromContainer[string](d.cstDoc, node, "headers-helper"); err == nil {
+			d.data.Servers[i].HeadersHelper = &v
+			d.consumed["servers.headers-helper"] = true
+		}
+		if tableNode := d.cstDoc.FindTableInContainer(node, "oauth"); tableNode != nil {
+			d.consumed["servers.oauth"] = true
+			oAuthVal := &OAuthConfig{}
+			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "client-id"); err == nil {
+				oAuthVal.ClientID = v
+				d.consumed["servers.oauth.client-id"] = true
+			}
+			if v, err := document.GetFromContainer[int](d.cstDoc, tableNode, "callback-port"); err == nil {
+				oAuthVal.CallbackPort = v
+				d.consumed["servers.oauth.callback-port"] = true
+			}
+			d.data.Servers[i].OAuth = oAuthVal
+		} else {
+			oAuthVal := &OAuthConfig{}
+			found := false
+			if v, err := document.GetFromContainer[string](d.cstDoc, node, "client-id"); err == nil {
+				oAuthVal.ClientID = v
+				found = true
+				d.consumed["servers.client-id"] = true
+			}
+			if v, err := document.GetFromContainer[int](d.cstDoc, node, "callback-port"); err == nil {
+				oAuthVal.CallbackPort = v
+				found = true
+				d.consumed["servers.callback-port"] = true
+			}
+			if found {
+				d.data.Servers[i].OAuth = oAuthVal
+			}
 		}
 		if tableNode := d.cstDoc.FindTableInContainer(node, "annotations"); tableNode != nil {
 			d.consumed["servers.annotations"] = true
@@ -143,6 +194,12 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			return nil, err
 		}
 	}
+	if d.data.Credentials != nil {
+		tableNode := d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "credentials")
+		if err := credentials.EncodeCommandConfigFrom(d.data.Credentials, d.cstDoc, tableNode); err != nil {
+			return nil, fmt.Errorf("credentials: %w", err)
+		}
+	}
 	{
 		for i := range d.data.Servers {
 			var container *cst.Node
@@ -163,6 +220,38 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 				}
 				if err := d.cstDoc.SetInContainer(container, "command", v); err != nil {
 					return nil, err
+				}
+			}
+			if d.data.Servers[i].URL != "" || d.cstDoc.HasInContainer(container, "url") {
+				if err := d.cstDoc.SetInContainer(container, "url", d.data.Servers[i].URL); err != nil {
+					return nil, err
+				}
+			}
+			if len(d.data.Servers[i].Headers) > 0 {
+				tableNode := d.cstDoc.EnsureTableInContainer(container, "headers")
+				document.DeleteAllInContainer(tableNode)
+				for k, v := range d.data.Servers[i].Headers {
+					if err := d.cstDoc.SetInContainer(tableNode, k, v); err != nil {
+						return nil, err
+					}
+				}
+			}
+			if d.data.Servers[i].HeadersHelper != nil {
+				if err := d.cstDoc.SetInContainer(container, "headers-helper", *d.data.Servers[i].HeadersHelper); err != nil {
+					return nil, err
+				}
+			}
+			if d.data.Servers[i].OAuth != nil {
+				tableNode := d.cstDoc.EnsureTableInContainer(container, "oauth")
+				if d.data.Servers[i].OAuth.ClientID != "" || d.cstDoc.HasInContainer(tableNode, "client-id") {
+					if err := d.cstDoc.SetInContainer(tableNode, "client-id", d.data.Servers[i].OAuth.ClientID); err != nil {
+						return nil, err
+					}
+				}
+				if d.data.Servers[i].OAuth.CallbackPort != 0 || d.cstDoc.HasInContainer(tableNode, "callback-port") {
+					if err := d.cstDoc.SetInContainer(tableNode, "callback-port", d.data.Servers[i].OAuth.CallbackPort); err != nil {
+						return nil, err
+					}
 				}
 			}
 			if d.data.Servers[i].Annotations != nil {
@@ -248,6 +337,14 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 		data.ProgressiveDisclosure = &v
 		consumed[keyPrefix+"progressive-disclosure"] = true
 	}
+	if tableNode := doc.FindTableInContainer(container, "credentials"); tableNode != nil {
+		consumed[keyPrefix+"credentials"] = true
+		credentialsVal := &credentials.CommandConfig{}
+		if err := credentials.DecodeCommandConfigInto(credentialsVal, doc, tableNode, consumed, keyPrefix+"credentials."); err != nil {
+			return fmt.Errorf("credentials: %w", err)
+		}
+		data.Credentials = credentialsVal
+	}
 	serversNodes := doc.FindArrayTableNodes(keyPrefix + "servers")
 	data.Servers = make([]ServerConfig, len(serversNodes))
 	consumed[keyPrefix+"servers"] = true
@@ -261,6 +358,48 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 				return fmt.Errorf("command: %w", err)
 			}
 			consumed[keyPrefix+"servers.command"] = true
+		}
+		if v, err := document.GetFromContainer[string](doc, node, "url"); err == nil {
+			data.Servers[i].URL = v
+			consumed[keyPrefix+"servers.url"] = true
+		}
+		if tableNode := doc.FindTableInContainer(node, "headers"); tableNode != nil {
+			data.Servers[i].Headers = document.GetStringMapFromTable(tableNode)
+			consumed[keyPrefix+"servers.headers"] = true
+			document.MarkAllConsumed(tableNode, keyPrefix+"servers.headers", consumed)
+		}
+		if v, err := document.GetFromContainer[string](doc, node, "headers-helper"); err == nil {
+			data.Servers[i].HeadersHelper = &v
+			consumed[keyPrefix+"servers.headers-helper"] = true
+		}
+		if tableNode := doc.FindTableInContainer(node, "oauth"); tableNode != nil {
+			consumed[keyPrefix+"servers.oauth"] = true
+			oAuthVal := &OAuthConfig{}
+			if v, err := document.GetFromContainer[string](doc, tableNode, "client-id"); err == nil {
+				oAuthVal.ClientID = v
+				consumed[keyPrefix+"servers.oauth.client-id"] = true
+			}
+			if v, err := document.GetFromContainer[int](doc, tableNode, "callback-port"); err == nil {
+				oAuthVal.CallbackPort = v
+				consumed[keyPrefix+"servers.oauth.callback-port"] = true
+			}
+			data.Servers[i].OAuth = oAuthVal
+		} else {
+			oAuthVal := &OAuthConfig{}
+			found := false
+			if v, err := document.GetFromContainer[string](doc, node, "client-id"); err == nil {
+				oAuthVal.ClientID = v
+				found = true
+				consumed[keyPrefix+"servers.client-id"] = true
+			}
+			if v, err := document.GetFromContainer[int](doc, node, "callback-port"); err == nil {
+				oAuthVal.CallbackPort = v
+				found = true
+				consumed[keyPrefix+"servers.callback-port"] = true
+			}
+			if found {
+				data.Servers[i].OAuth = oAuthVal
+			}
 		}
 		if tableNode := doc.FindTableInContainer(node, "annotations"); tableNode != nil {
 			consumed[keyPrefix+"servers.annotations"] = true
@@ -345,6 +484,12 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 			return err
 		}
 	}
+	if data.Credentials != nil {
+		tableNode := doc.EnsureTableInContainer(container, "credentials")
+		if err := credentials.EncodeCommandConfigFrom(data.Credentials, doc, tableNode); err != nil {
+			return fmt.Errorf("credentials: %w", err)
+		}
+	}
 	{
 		serversExisting := doc.FindArrayTableNodes("servers")
 		for i := range data.Servers {
@@ -366,6 +511,38 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 				}
 				if err := doc.SetInContainer(container, "command", v); err != nil {
 					return err
+				}
+			}
+			if data.Servers[i].URL != "" || doc.HasInContainer(container, "url") {
+				if err := doc.SetInContainer(container, "url", data.Servers[i].URL); err != nil {
+					return err
+				}
+			}
+			if len(data.Servers[i].Headers) > 0 {
+				tableNode := doc.EnsureTableInContainer(container, "headers")
+				document.DeleteAllInContainer(tableNode)
+				for k, v := range data.Servers[i].Headers {
+					if err := doc.SetInContainer(tableNode, k, v); err != nil {
+						return err
+					}
+				}
+			}
+			if data.Servers[i].HeadersHelper != nil {
+				if err := doc.SetInContainer(container, "headers-helper", *data.Servers[i].HeadersHelper); err != nil {
+					return err
+				}
+			}
+			if data.Servers[i].OAuth != nil {
+				tableNode := doc.EnsureTableInContainer(container, "oauth")
+				if data.Servers[i].OAuth.ClientID != "" || doc.HasInContainer(tableNode, "client-id") {
+					if err := doc.SetInContainer(tableNode, "client-id", data.Servers[i].OAuth.ClientID); err != nil {
+						return err
+					}
+				}
+				if data.Servers[i].OAuth.CallbackPort != 0 || doc.HasInContainer(tableNode, "callback-port") {
+					if err := doc.SetInContainer(tableNode, "callback-port", data.Servers[i].OAuth.CallbackPort); err != nil {
+						return err
+					}
 				}
 			}
 			if data.Servers[i].Annotations != nil {

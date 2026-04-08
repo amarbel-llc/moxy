@@ -7,7 +7,7 @@ import (
 )
 
 func TestBuildServerConfigNoAnnotations(t *testing.T) {
-	srv := buildServerConfig("grit", "grit mcp", nil)
+	srv := buildCommandServerConfig("grit", "grit mcp", nil)
 	if srv.Name != "grit" {
 		t.Errorf("expected name grit, got %q", srv.Name)
 	}
@@ -20,7 +20,7 @@ func TestBuildServerConfigNoAnnotations(t *testing.T) {
 }
 
 func TestBuildServerConfigWithAnnotations(t *testing.T) {
-	srv := buildServerConfig("grit", "grit", []string{"readOnlyHint", "destructiveHint"})
+	srv := buildCommandServerConfig("grit", "grit", []string{"readOnlyHint", "destructiveHint"})
 	if srv.Annotations == nil {
 		t.Fatal("expected annotations")
 	}
