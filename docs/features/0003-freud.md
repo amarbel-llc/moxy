@@ -148,12 +148,83 @@ stat syscalls) to periodic full invalidation to dropping the cache entirely.
 
 ## Non-Goals (Phase 1a)
 
-- Reading session content (`freud://session/{id}`)
+- Reading session content (`freud://session/{id}`) — landed in Phase 1b
 - Search, grep, or semantic retrieval
 - Write access or mutation of session files
 - Watching for live session updates (each resource read re-scans)
 - Decoding `tool-results/` subdirectories
 - Any tools — resources only
+
+## Phase 1b: Transcript Read
+
+Tracked as amarbel-llc/moxy#35. Adds a single resource for reading the
+content of one past session, completing the minimum viable workflow that
+freud's problem statement promises ("look back at prior sessions").
+
+### Resource
+
+- `freud://transcript/{session_id}` — return the raw JSONL transcript for a
+  single session, looked up by session id alone.
+
+The `transcript/` root is intentionally separate from `sessions/`. Reusing
+`freud://sessions/{thing}` for both project filters and session reads would
+require disambiguating the segment as "looks like a UUID vs looks like a
+project name," which is fragile.
+
+### Lookup
+
+Session ids are UUIDs and (empirically) globally unique across
+`~/.claude/projects/*`. Phase 1b walks the project cache on each read,
+opening directories until it finds one containing `<id>.jsonl`. This is
+O(N projects) per read but cheap enough for the realistic case (a few
+hundred dirs, single stat per dir). A session-id index can be added later
+if reads become hot — premature now.
+
+### Rendering
+
+Phase 1b returns the **raw, untransformed JSONL** as a single text content
+block. No filtering, no rendering, no markdown, no message-type triage.
+The agent gets the file as it exists on disk.
+
+This deliberately punts on the rendering question. From inspecting a real
+session JSONL, transcripts contain seven distinct message types:
+`user`, `assistant`, `system`, `permission-mode`, `file-history-snapshot`,
+`attachment`, `queue-operation`. Of these, the metadata types
+(`file-history-snapshot`, `system`, `permission-mode`, etc.) are pure
+noise for the "review past session" use case and account for ~15% of
+lines in a typical transcript. `user` messages themselves are bimodal:
+real human input as plain strings, vs tool results as embedded JSON
+blobs. `assistant` content blocks split into `text`, `thinking`, and
+`tool_use`.
+
+A future revision should ship a filtered or rendered view as the default,
+keeping `?format=raw` as the escape hatch. The rendering choices need
+real-world feedback to get right, so deferring is correct.
+
+### Future work
+
+- **Filtered or rendered default view.** Markdown with role headers,
+  tool_use as one-line summaries, tool_result elided. Add `?format=`
+  values: `raw` (current), `filtered` (drop metadata types), `markdown`
+  (rendered).
+- **Pagination and progressive disclosure.** Phase 1b reads the entire
+  file. Large transcripts (multi-MB JSONL) will blow context. Examine
+  the patterns already used elsewhere in the moxy ecosystem before
+  picking one:
+  - Folio's `folio://read`: head N lines + tail M lines + a continuation
+    URI with `?offset/&limit` for paged access.
+  - Maneater's `exec`: stash full output to a session-scoped on-disk
+    cache, return a summary plus a `maneater.exec://results/{session}/{id}`
+    URI the agent can fetch on demand.
+  - Built-in cursor pagination via `?offset=N&limit=M` (what
+    `freud://sessions` already uses for listings).
+  Each has different tradeoffs (latency, hit rate, namespace pollution,
+  cache GC). Don't pick one in advance — let real usage tell us which
+  matches the read pattern.
+- **Filters.** `?role=user|assistant`, `?include=text,tool_use,thinking`,
+  `?since=<timestamp>`. Cheap to add once rendering is settled.
+- **Session-id index.** Built lazily during `scanProjects` for O(1)
+  lookups. Only worth it if transcript reads become hot.
 
 ## Architecture Sketch
 

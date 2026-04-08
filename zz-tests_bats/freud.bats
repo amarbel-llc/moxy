@@ -247,6 +247,57 @@ function unknown_uri_returns_hint { # @test
   echo "$output" | jq -e '.error.message | test("freud://sessions")'
 }
 
+function transcript_template_listed { # @test
+  run_freud_mcp resources/templates/list
+  assert_success
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "freud://transcript/{session_id}")'
+}
+
+function transcript_returns_raw_jsonl_content { # @test
+  plant_session "-tx-foo" "txid1" \
+    '{"type":"user","cwd":"/tx/foo","message":{"role":"user","content":"first"}}' \
+    '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"reply one"}]}}' \
+    '{"type":"user","cwd":"/tx/foo","message":{"role":"user","content":"second"}}'
+
+  run_freud_mcp resources/read '{"uri":"freud://transcript/txid1"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+
+  # Raw passthrough: every planted line should appear verbatim.
+  echo "$text" | grep -q '"content":"first"'
+  echo "$text" | grep -q '"text":"reply one"'
+  echo "$text" | grep -q '"content":"second"'
+}
+
+function transcript_unknown_id_returns_hint { # @test
+  plant_session "-tx-foo" "knownid" \
+    '{"type":"user","cwd":"/tx/foo","message":{"role":"user","content":"x"}}'
+
+  run_freud_mcp_full resources/read '{"uri":"freud://transcript/nonexistent-id"}'
+  assert_success
+  # Error must name the missing id and point at the discovery entry point.
+  echo "$output" | jq -e '.error.message | test("nonexistent-id")'
+  echo "$output" | jq -e '.error.message | test("freud://sessions")'
+}
+
+function transcript_finds_session_across_projects { # @test
+  # Plant the same session id under two different project dirs to confirm
+  # the lookup walks all projects, not just the first one alphabetically.
+  plant_session "-aaa-first" "sentinel-1" \
+    '{"type":"user","cwd":"/aaa/first","message":{"role":"user","content":"alpha"}}'
+  plant_session "-zzz-second" "sentinel-2" \
+    '{"type":"user","cwd":"/zzz/second","message":{"role":"user","content":"omega"}}'
+
+  run_freud_mcp resources/read '{"uri":"freud://transcript/sentinel-2"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+  # Must find the second session, not the first.
+  echo "$text" | grep -q 'omega'
+  ! echo "$text" | grep -q 'alpha'
+}
+
 # Integration test: freud running as a child of moxy. Confirms templates and
 # resource reads come through with the moxy "freud/" namespace prefix and
 # that the planted session is visible end-to-end.

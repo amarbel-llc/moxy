@@ -29,6 +29,12 @@ var templates = []protocol.ResourceTemplate{
 		Description: "List Claude Code sessions for a single project. The {project} segment accepts either the raw project directory name (as it appears under ~/.claude/projects) or a URL-encoded absolute path, which is matched against each project's resolved cwd. Same format and pagination params as freud://sessions.",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "freud://transcript/{session_id}",
+		Name:        "Read a session transcript",
+		Description: "Return the raw JSONL transcript for a single past Claude Code session, looked up by session id alone (UUIDs are unique across all projects). Phase 1b: returns the unfiltered file contents — no rendering, no pagination, no filters. Discover ids via freud://sessions.",
+		MimeType:    "application/x-ndjson",
+	},
 }
 
 var templatesV1 = []protocol.ResourceTemplateV1{
@@ -44,6 +50,12 @@ var templatesV1 = []protocol.ResourceTemplateV1{
 		Description: "List Claude Code sessions for a single project. The {project} segment accepts either the raw project directory name (as it appears under ~/.claude/projects) or a URL-encoded absolute path, which is matched against each project's resolved cwd. Same format and pagination params as freud://sessions.",
 		MimeType:    "text/plain",
 	},
+	{
+		URITemplate: "freud://transcript/{session_id}",
+		Name:        "Read a session transcript",
+		Description: "Return the raw JSONL transcript for a single past Claude Code session, looked up by session id alone (UUIDs are unique across all projects). Phase 1b: returns the unfiltered file contents — no rendering, no pagination, no filters. Discover ids via freud://sessions.",
+		MimeType:    "application/x-ndjson",
+	},
 }
 
 // ResourceProvider (base interface).
@@ -53,10 +65,14 @@ func (s *freudServer) ListResources(_ context.Context) ([]protocol.Resource, err
 }
 
 func (s *freudServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
-	if !strings.HasPrefix(uri, "freud://sessions") {
+	switch {
+	case strings.HasPrefix(uri, "freud://transcript/"):
+		return s.handleTranscriptRead(uri)
+	case strings.HasPrefix(uri, "freud://sessions"):
+		return s.handleSessionsList(uri)
+	default:
 		return nil, unknownURIError(uri)
 	}
-	return s.handleSessionsList(uri)
 }
 
 func (s *freudServer) handleSessionsList(uri string) (*protocol.ResourceReadResult, error) {
