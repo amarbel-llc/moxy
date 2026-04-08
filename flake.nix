@@ -149,18 +149,34 @@
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.ripgrep ]}
             '';
 
+        freud = pkgs.buildGoApplication {
+          pname = "freud";
+          version = "0.1.0";
+          src = ./.;
+          subPackages = [ "cmd/freud" ];
+          modules = ./gomod2nix.toml;
+          go = pkgs-master.go_1_26;
+          GOTOOLCHAIN = "local";
+        };
+
         combined = pkgs.symlinkJoin {
           name = "moxy";
           paths = [
             moxy
             maneater
             folio
+            freud
           ];
         };
       in
       {
         packages = {
-          inherit moxy maneater folio;
+          inherit
+            moxy
+            maneater
+            folio
+            freud
+            ;
           default = combined;
         };
 
