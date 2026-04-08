@@ -97,6 +97,24 @@ function sessions_sorted_by_mtime_desc { # @test
   [[ $order == "new mid old " ]]
 }
 
+function sessions_columnar_format_preserves_full_uuid { # @test
+  # Real session ids are 36-char UUIDs. The SESSION column must be wide
+  # enough to hold one without truncation — otherwise agents can't copy a
+  # full id out of a listing for a subsequent freud://transcript/{id} call.
+  local full_uuid="83aad109-1171-4259-8845-ae3b12c3eafc"
+  plant_session "-uuid-test" "$full_uuid" \
+    '{"type":"user","cwd":"/uuid/test","message":{"role":"user","content":"x"}}'
+
+  run_freud_mcp resources/read '{"uri":"freud://sessions"}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.contents[0].text')
+
+  # Full 36-char UUID must appear verbatim, with no "…" truncation marker.
+  echo "$text" | grep -q "$full_uuid"
+  ! echo "$text" | grep -q "83aad109-1171-4259-8845-ae3b1…"
+}
+
 function sessions_columnar_format_has_expected_columns { # @test
   plant_session "-real-foo" "abc123" \
     '{"type":"user","cwd":"/real/foo","message":{"role":"user","content":"hi"}}'

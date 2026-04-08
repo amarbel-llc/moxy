@@ -7,8 +7,12 @@ import (
 
 // Column width caps for the columnar format. Real widths are computed from
 // the data and clamped to these maxima; longer values are truncated with "…".
+//
+// colSessionMax is sized to hold a full 36-char UUID (Claude Code's session
+// id format) without truncation — otherwise agents can't copy ids out of a
+// listing to feed into freud://transcript/{id}.
 const (
-	colSessionMax = 30
+	colSessionMax = 36
 	colTimeWidth  = 16 // YYYY-MM-DD HH:MM
 	colProjectMax = 60
 	timeFormat    = "2006-01-02 15:04"
