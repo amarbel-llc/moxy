@@ -30,13 +30,16 @@ func DiscoverConfigs(home, dir string) ([]*NativeConfig, error) {
 			if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
 				continue
 			}
-			data, err := os.ReadFile(filepath.Join(moxyDir, e.Name()))
+			path := filepath.Join(moxyDir, e.Name())
+			data, err := os.ReadFile(path)
 			if err != nil {
-				return fmt.Errorf("reading %s: %w", e.Name(), err)
+				fmt.Fprintf(os.Stderr, "moxy: skipping native config %s: %v\n", path, err)
+				continue
 			}
 			cfg, err := ParseConfig(data)
 			if err != nil {
-				return fmt.Errorf("%s/%s: %w", moxyDir, e.Name(), err)
+				fmt.Fprintf(os.Stderr, "moxy: skipping native config %s: %v\n", path, err)
+				continue
 			}
 			if _, exists := byName[cfg.Name]; !exists {
 				order = append(order, cfg.Name)

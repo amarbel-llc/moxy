@@ -54,6 +54,45 @@ args = ["world"]
 	}
 }
 
+func TestDiscoverConfigsBrokenSymlink(t *testing.T) {
+	// A broken symlink in the servers/ directory should not prevent
+	// other valid configs from being discovered.
+	home := t.TempDir()
+	project := filepath.Join(home, "project")
+
+	globalServers := filepath.Join(home, ".config", "moxy", "servers")
+	os.MkdirAll(globalServers, 0o755)
+
+	// Valid config
+	os.WriteFile(filepath.Join(globalServers, "valid.toml"), []byte(`
+name = "valid-tool"
+[[tools]]
+name = "hello"
+command = "echo"
+args = ["hello"]
+`), 0o644)
+
+	// Broken symlink pointing to a non-existent target
+	os.Symlink(
+		filepath.Join(home, "nonexistent", "ghost.toml"),
+		filepath.Join(globalServers, "broken.toml"),
+	)
+
+	os.MkdirAll(project, 0o755)
+
+	configs, err := DiscoverConfigs(home, project)
+	if err != nil {
+		t.Fatalf("broken symlink caused discovery to fail: %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Fatalf("len(configs) = %d, want 1", len(configs))
+	}
+	if configs[0].Name != "valid-tool" {
+		t.Errorf("expected valid-tool, got %q", configs[0].Name)
+	}
+}
+
 func TestDiscoverConfigsOverride(t *testing.T) {
 	// Later servers/ directory overrides earlier by server name
 	home := t.TempDir()
