@@ -25,7 +25,6 @@ type resultCache struct {
 type cachedResult struct {
 	ID         string `json:"id"`
 	Session    string `json:"session"`
-	Command    string `json:"command"`
 	Output     string `json:"-"`
 	LineCount  int    `json:"line_count"`
 	TokenCount int    `json:"token_count"`
@@ -110,9 +109,8 @@ func formatSummary(result cachedResult) string {
 
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "Command: %s\n", result.Command)
-	fmt.Fprintf(&b, "Lines: %d | Tokens: ~%d (exceeds threshold of %d)\n",
-		result.LineCount, result.TokenCount, resultTokenThreshold)
+	fmt.Fprintf(&b, "Full output: moxy.native://results/%s/%s\n", result.Session, result.ID)
+	fmt.Fprintf(&b, "Lines: %d\n", result.LineCount)
 	b.WriteString("\n")
 
 	totalLines := len(lines)
@@ -138,8 +136,6 @@ func formatSummary(result cachedResult) string {
 			b.WriteString("\n")
 		}
 	}
-
-	fmt.Fprintf(&b, "\nFull output: moxy.native://results/%s/%s", result.Session, result.ID)
 	return b.String()
 }
 

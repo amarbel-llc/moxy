@@ -35,7 +35,6 @@ func TestResultCacheStoreAndLoad(t *testing.T) {
 	original := cachedResult{
 		ID:         "01964abc-def0-7000-8000-000000000001",
 		Session:    "test-session",
-		Command:    "ls -la",
 		Output:     "total 48\ndrwxr-xr-x 5 user staff 160\n",
 		LineCount:  2,
 		TokenCount: 12,
@@ -64,9 +63,6 @@ func TestResultCacheStoreAndLoad(t *testing.T) {
 	}
 	if loaded.Session != original.Session {
 		t.Errorf("Session = %q, want %q", loaded.Session, original.Session)
-	}
-	if loaded.Command != original.Command {
-		t.Errorf("Command = %q, want %q", loaded.Command, original.Command)
 	}
 	if loaded.Output != original.Output {
 		t.Errorf("Output = %q, want %q", loaded.Output, original.Output)
@@ -100,7 +96,6 @@ func TestFormatSummary(t *testing.T) {
 	result := cachedResult{
 		ID:         "01964abc-def0-7000-8000-000000000002",
 		Session:    "sess-x",
-		Command:    "generate-stuff",
 		Output:     output,
 		LineCount:  30,
 		TokenCount: 82,
@@ -108,14 +103,11 @@ func TestFormatSummary(t *testing.T) {
 
 	summary := formatSummary(result)
 
-	if !strings.Contains(summary, "Command: generate-stuff") {
-		t.Error("summary missing command")
-	}
 	if !strings.Contains(summary, "Lines: 30") {
 		t.Error("summary missing line count")
 	}
-	if !strings.Contains(summary, "Tokens: ~82") {
-		t.Error("summary missing token count")
+	if strings.Contains(summary, "Tokens") {
+		t.Error("summary should not contain token count")
 	}
 	if !strings.Contains(summary, "First 10 lines") {
 		t.Error("summary missing head section")
@@ -136,7 +128,6 @@ func TestFormatSummaryShortOutput(t *testing.T) {
 	result := cachedResult{
 		ID:         "01964abc-def0-7000-8000-000000000003",
 		Session:    "sess-y",
-		Command:    "echo short",
 		Output:     output,
 		LineCount:  3,
 		TokenCount: 5,

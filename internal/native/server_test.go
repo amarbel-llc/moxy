@@ -234,7 +234,6 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 	if err := srv.cache.store(cachedResult{
 		ID:      "test-abc",
 		Session: "test-session",
-		Command: "seq 1 5",
 		Output:  "1\n2\n3\n4\n5\n",
 	}); err != nil {
 		t.Fatalf("store: %v", err)

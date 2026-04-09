@@ -138,13 +138,6 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	allArgs = append(allArgs, spec.Args...)
 	allArgs = append(allArgs, extraArgs...)
 
-	// Build a human-readable command string for the cache summary before
-	// substitution rewrites URIs to /dev/fd/N paths.
-	cmdStr := spec.Command
-	if len(allArgs) > 0 {
-		cmdStr += " " + strings.Join(allArgs, " ")
-	}
-
 	// Apply URI substitution to each extra arg individually so that
 	// moxy.native://results/{session}/{id} references are rewritten to
 	// /dev/fd/N with pipes backed by cached output.
@@ -224,7 +217,6 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 			cached := cachedResult{
 				ID:         id,
 				Session:    s.session,
-				Command:    cmdStr,
 				Output:     output,
 				LineCount:  strings.Count(output, "\n"),
 				TokenCount: tokens,
