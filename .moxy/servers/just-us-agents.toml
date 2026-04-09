@@ -1,0 +1,113 @@
+name = "just-us-agents"
+description = "Justfile recipe runner. Lists, shows, and executes recipes from the project's justfile."
+
+# === Discovery ================================================================
+
+[[tools]]
+name = "list-recipes"
+description = "List available recipes with their descriptions, grouped by category. Shows recipe names, parameters, and doc comments."
+command = "just"
+args = ["--list", "--list-heading=", "--unsorted"]
+
+[tools.input]
+type = "object"
+
+# ---
+
+[[tools]]
+name = "show-recipe"
+description = "Show the full source of a recipe including its body, parameters, dependencies, and any doc comments."
+command = "just"
+arg_order = ["recipe"]
+args = ["--show"]
+
+[tools.input]
+type = "object"
+required = ["recipe"]
+
+[tools.input.properties.recipe]
+type = "string"
+description = "Recipe name to show"
+
+# === Inspection ===============================================================
+
+[[tools]]
+name = "list-variables"
+description = "List all variables defined in the justfile with their values."
+command = "just"
+args = ["--evaluate"]
+
+[tools.input]
+type = "object"
+
+# ---
+
+[[tools]]
+name = "dump-justfile"
+description = "Output the entire justfile contents."
+command = "just"
+args = ["--dump"]
+
+[tools.input]
+type = "object"
+
+# === Execution ================================================================
+
+[[tools]]
+name = "run-recipe"
+description = "Execute a justfile recipe with optional arguments. Use list-recipes first to discover available recipes."
+command = "sh"
+arg_order = ["recipe", "args", "variables", "dry_run"]
+args = ["-c", """
+set -euo pipefail
+recipe="$1"
+args_json="${2:-}"
+vars_json="${3:-}"
+dry_run="${4:-}"
+
+just_args=()
+
+[ "$dry_run" = "true" ] && just_args+=(--dry-run)
+
+if [ -n "$vars_json" ] && [ "$vars_json" != "null" ] && [ "$vars_json" != "{}" ]; then
+  while IFS=$'\t' read -r key val; do
+    just_args+=("$key=$val")
+  done < <(printf '%s' "$vars_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+fi
+
+just_args+=("$recipe")
+
+if [ -n "$args_json" ] && [ "$args_json" != "null" ]; then
+  while IFS= read -r a; do
+    just_args+=("$a")
+  done < <(printf '%s' "$args_json" | jq -r '.[]')
+fi
+
+just "${just_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["recipe"]
+
+[tools.input.properties.recipe]
+type = "string"
+description = "Recipe name to execute"
+
+[tools.input.properties.args]
+type = "array"
+description = "Positional arguments to pass to the recipe"
+
+[tools.input.properties.args.items]
+type = "string"
+
+[tools.input.properties.variables]
+type = "object"
+description = "Variable overrides as key-value pairs (e.g. {\"foo\": \"bar\"} becomes foo=bar)"
+
+[tools.input.properties.variables.additionalProperties]
+type = "string"
+
+[tools.input.properties.dry_run]
+type = "boolean"
+description = "Print what would be executed without actually running (--dry-run)"
