@@ -82,8 +82,8 @@ def main():
     session_id = sys.argv[1] if len(sys.argv) > 1 else ""
     role_filter = sys.argv[2] if len(sys.argv) > 2 else ""
     search = sys.argv[3].lower() if len(sys.argv) > 3 else ""
-    offset = int(sys.argv[4]) if len(sys.argv) > 4 else 0
-    limit = int(sys.argv[5]) if len(sys.argv) > 5 else 0
+    offset = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 0
+    limit = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else 0
 
     if not session_id:
         print("Usage: freud-messages <session_id> [role] [search] [offset] [limit]",
