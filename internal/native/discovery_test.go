@@ -8,14 +8,14 @@ import (
 
 func TestDiscoverConfigs(t *testing.T) {
 	// Create a temp hierarchy:
-	// home/.config/moxy/.moxy/global.toml
-	// home/project/.moxy/local.toml
+	// home/.config/moxy/servers/global.toml
+	// home/project/.moxy/servers/local.toml
 	home := t.TempDir()
 	project := filepath.Join(home, "project")
 
-	globalMoxy := filepath.Join(home, ".config", "moxy", ".moxy")
-	os.MkdirAll(globalMoxy, 0o755)
-	os.WriteFile(filepath.Join(globalMoxy, "global.toml"), []byte(`
+	globalServers := filepath.Join(home, ".config", "moxy", "servers")
+	os.MkdirAll(globalServers, 0o755)
+	os.WriteFile(filepath.Join(globalServers, "global.toml"), []byte(`
 name = "global-tool"
 [[tools]]
 name = "hello"
@@ -23,9 +23,9 @@ command = "echo"
 args = ["hello"]
 `), 0o644)
 
-	localMoxy := filepath.Join(project, ".moxy")
-	os.MkdirAll(localMoxy, 0o755)
-	os.WriteFile(filepath.Join(localMoxy, "local.toml"), []byte(`
+	localServers := filepath.Join(project, ".moxy", "servers")
+	os.MkdirAll(localServers, 0o755)
+	os.WriteFile(filepath.Join(localServers, "local.toml"), []byte(`
 name = "local-tool"
 [[tools]]
 name = "world"
@@ -55,13 +55,13 @@ args = ["world"]
 }
 
 func TestDiscoverConfigsOverride(t *testing.T) {
-	// Later .moxy/ directory overrides earlier by server name
+	// Later servers/ directory overrides earlier by server name
 	home := t.TempDir()
 	project := filepath.Join(home, "project")
 
-	globalMoxy := filepath.Join(home, ".config", "moxy", ".moxy")
-	os.MkdirAll(globalMoxy, 0o755)
-	os.WriteFile(filepath.Join(globalMoxy, "shell.toml"), []byte(`
+	globalServers := filepath.Join(home, ".config", "moxy", "servers")
+	os.MkdirAll(globalServers, 0o755)
+	os.WriteFile(filepath.Join(globalServers, "shell.toml"), []byte(`
 name = "shell"
 description = "global"
 [[tools]]
@@ -69,9 +69,9 @@ name = "exec"
 command = "sh"
 `), 0o644)
 
-	localMoxy := filepath.Join(project, ".moxy")
-	os.MkdirAll(localMoxy, 0o755)
-	os.WriteFile(filepath.Join(localMoxy, "shell.toml"), []byte(`
+	localServers := filepath.Join(project, ".moxy", "servers")
+	os.MkdirAll(localServers, 0o755)
+	os.WriteFile(filepath.Join(localServers, "shell.toml"), []byte(`
 name = "shell"
 description = "local"
 [[tools]]

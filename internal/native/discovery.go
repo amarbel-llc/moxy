@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-// DiscoverConfigs walks the .moxy/ directory hierarchy from home to dir,
+// DiscoverConfigs walks the servers/ directory hierarchy from home to dir,
 // loading *.toml files and merging by server name (later overrides earlier).
 // The walk order matches LoadHierarchy in internal/config:
-//  1. ~/.config/moxy/.moxy/ (global)
-//  2. Each parent directory between home and dir
-//  3. dir/.moxy/ (project-local)
+//  1. ~/.config/moxy/servers/ (global)
+//  2. Each parent directory between home and dir (.moxy/servers/)
+//  3. dir/.moxy/servers/ (project-local)
 func DiscoverConfigs(home, dir string) ([]*NativeConfig, error) {
 	byName := make(map[string]*NativeConfig)
 	var order []string
@@ -46,8 +46,8 @@ func DiscoverConfigs(home, dir string) ([]*NativeConfig, error) {
 		return nil
 	}
 
-	// 1. Global: ~/.config/moxy/.moxy/
-	globalDir := filepath.Join(home, ".config", "moxy", ".moxy")
+	// 1. Global: ~/.config/moxy/servers/
+	globalDir := filepath.Join(home, ".config", "moxy", "servers")
 	if err := loadDir(globalDir); err != nil {
 		return nil, err
 	}
@@ -60,14 +60,14 @@ func DiscoverConfigs(home, dir string) ([]*NativeConfig, error) {
 		parts := strings.Split(rel, string(filepath.Separator))
 		for i := 1; i < len(parts); i++ {
 			parentDir := filepath.Join(cleanHome, filepath.Join(parts[:i]...))
-			if err := loadDir(filepath.Join(parentDir, ".moxy")); err != nil {
+			if err := loadDir(filepath.Join(parentDir, ".moxy", "servers")); err != nil {
 				return nil, err
 			}
 		}
 	}
 
 	// 3. Target directory
-	if err := loadDir(filepath.Join(cleanDir, ".moxy")); err != nil {
+	if err := loadDir(filepath.Join(cleanDir, ".moxy", "servers")); err != nil {
 		return nil, err
 	}
 

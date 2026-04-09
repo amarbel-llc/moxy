@@ -9,8 +9,8 @@ setup() {
   export XDG_CACHE_HOME="$HOME/.cache"
 
   # Set up a native shell exec tool.
-  mkdir -p "$HOME/project/.moxy"
-  cat >"$HOME/project/.moxy/shell.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/servers"
+  cat >"$HOME/project/.moxy/servers/shell.toml" <<'EOF'
 name = "shell"
 
 [[tools]]
@@ -129,8 +129,8 @@ function native_exec_resource_missing_cached_id_errors { # @test
 function native_exec_no_arguments_uses_spec_args_only { # @test
   # A tool with no input schema and no arguments should still work
   # (backwards compatible with existing native_server.bats tests).
-  mkdir -p "$HOME/project/.moxy"
-  cat >"$HOME/project/.moxy/greeter.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/servers"
+  cat >"$HOME/project/.moxy/servers/greeter.toml" <<'EOF'
 name = "greeter"
 
 [[tools]]

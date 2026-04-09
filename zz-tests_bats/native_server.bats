@@ -11,8 +11,8 @@ teardown() {
 }
 
 function native_server_tool_appears_in_tools_list { # @test
-  mkdir -p "$HOME/project/.moxy"
-  cat >"$HOME/project/.moxy/greeter.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/servers"
+  cat >"$HOME/project/.moxy/servers/greeter.toml" <<'EOF'
 name = "greeter"
 
 [[tools]]
@@ -29,8 +29,8 @@ EOF
 }
 
 function native_server_tool_can_be_called { # @test
-  mkdir -p "$HOME/project/.moxy"
-  cat >"$HOME/project/.moxy/greeter.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/servers"
+  cat >"$HOME/project/.moxy/servers/greeter.toml" <<'EOF'
 name = "greeter"
 
 [[tools]]
@@ -48,8 +48,8 @@ EOF
 }
 
 function native_server_skipped_on_moxyfile_name_collision { # @test
-  mkdir -p "$HOME/project/.moxy"
-  cat >"$HOME/project/.moxy/myserver.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/servers"
+  cat >"$HOME/project/.moxy/servers/myserver.toml" <<'EOF'
 name = "myserver"
 
 [[tools]]
@@ -79,8 +79,8 @@ EOF
 }
 
 function native_server_multiple_tools { # @test
-  mkdir -p "$HOME/project/.moxy"
-  cat >"$HOME/project/.moxy/multi.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/servers"
+  cat >"$HOME/project/.moxy/servers/multi.toml" <<'EOF'
 name = "multi"
 
 [[tools]]
