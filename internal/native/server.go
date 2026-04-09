@@ -127,7 +127,7 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	// spec.Args.  Ordering follows the input schema's "required" array so
 	// positional semantics are deterministic; any remaining keys are appended
 	// in sorted order.
-	extraArgs, err := buildExtraArgs(callParams.Arguments, spec.Input)
+	extraArgs, err := buildExtraArgs(callParams.Arguments, spec.Input, spec.ArgOrder)
 	if err != nil {
 		return marshalResult(protocol.ErrorResultV1(
 			fmt.Sprintf("parsing arguments: %v", err),
@@ -238,8 +238,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 // buildExtraArgs extracts string argument values from the caller's JSON
 // arguments and returns them in a deterministic order: first the keys listed
 // in the input schema's "required" array, then any remaining keys sorted
-// lexicographically.
-func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage) ([]string, error) {
+// lexicographically. When argOrder is non-empty, it takes precedence over
+// all other ordering heuristics — and absent keys emit empty strings so
+// that positional indices remain stable for shell scripts using $1, $2, etc.
+func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage, argOrder []string) ([]string, error) {
 	if len(arguments) == 0 {
 		return nil, nil
 	}
@@ -252,7 +254,53 @@ func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage) ([]s
 		return nil, nil
 	}
 
-	order := argumentOrder(argMap, inputSchema)
+	// When arg_order is set, emit a value for every slot (empty string for
+	// absent keys) so positional indices are stable, then trim trailing
+	// empty slots.
+	if len(argOrder) > 0 {
+		extra := make([]string, len(argOrder))
+		seen := make(map[string]bool, len(argOrder))
+		for i, key := range argOrder {
+			seen[key] = true
+			val, ok := argMap[key]
+			if !ok {
+				extra[i] = ""
+				continue
+			}
+			var s string
+			if err := json.Unmarshal(val, &s); err == nil {
+				extra[i] = s
+			} else {
+				extra[i] = string(val)
+			}
+		}
+
+		// Trim trailing empty slots so scripts can detect argc.
+		for len(extra) > 0 && extra[len(extra)-1] == "" {
+			extra = extra[:len(extra)-1]
+		}
+
+		// Append any unlisted keys in sorted order.
+		var remaining []string
+		for k := range argMap {
+			if !seen[k] {
+				remaining = append(remaining, k)
+			}
+		}
+		sort.Strings(remaining)
+		for _, key := range remaining {
+			val := argMap[key]
+			var s string
+			if err := json.Unmarshal(val, &s); err == nil {
+				extra = append(extra, s)
+			} else {
+				extra = append(extra, string(val))
+			}
+		}
+		return extra, nil
+	}
+
+	order := argumentOrder(argMap, inputSchema, argOrder)
 
 	var extra []string
 	for _, key := range order {
@@ -272,23 +320,28 @@ func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage) ([]s
 	return extra, nil
 }
 
-// argumentOrder returns argument keys in the order they should be appended:
-// first keys from the input schema's "required" array (preserving order),
-// then any remaining keys sorted lexicographically.
-func argumentOrder(argMap map[string]json.RawMessage, inputSchema json.RawMessage) []string {
-	var requiredKeys []string
-	if len(inputSchema) > 0 {
+// argumentOrder returns argument keys in the order they should be appended.
+// When argOrder is non-empty, it defines the exact order — only keys present
+// in both argOrder and argMap are included, and keys not listed in argOrder
+// are appended in sorted order. Otherwise, falls back to the input schema's
+// "required" array then lexicographic ordering.
+func argumentOrder(argMap map[string]json.RawMessage, inputSchema json.RawMessage, argOrder []string) []string {
+	// Explicit arg_order takes precedence over everything.
+	priorityKeys := argOrder
+
+	// Fall back to the schema's required array.
+	if len(priorityKeys) == 0 && len(inputSchema) > 0 {
 		var schema struct {
 			Required []string `json:"required"`
 		}
 		if json.Unmarshal(inputSchema, &schema) == nil {
-			requiredKeys = schema.Required
+			priorityKeys = schema.Required
 		}
 	}
 
-	seen := make(map[string]bool, len(requiredKeys))
+	seen := make(map[string]bool, len(priorityKeys))
 	var order []string
-	for _, k := range requiredKeys {
+	for _, k := range priorityKeys {
 		if _, exists := argMap[k]; exists {
 			order = append(order, k)
 			seen[k] = true

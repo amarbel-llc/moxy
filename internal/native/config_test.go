@@ -130,6 +130,7 @@ type = "integer"
 	readArgs, err := buildExtraArgs(
 		json.RawMessage(`{"file_path":"/tmp/x.go"}`),
 		cfg.Tools[0].Input,
+		cfg.Tools[0].ArgOrder,
 	)
 	if err != nil {
 		t.Fatalf("buildExtraArgs (read) error: %v", err)
@@ -143,6 +144,7 @@ type = "integer"
 	rangeArgs, err := buildExtraArgs(
 		json.RawMessage(`{"file_path":"/tmp/x.go","start":1,"end":5}`),
 		cfg.Tools[1].Input,
+		cfg.Tools[1].ArgOrder,
 	)
 	if err != nil {
 		t.Fatalf("buildExtraArgs (read_range) error: %v", err)
@@ -160,6 +162,94 @@ type = "integer"
 	}
 	if rangeArgs[2] != "5" {
 		t.Errorf("args[2] = %q, want \"5\"", rangeArgs[2])
+	}
+}
+
+func TestParseConfigArgOrder(t *testing.T) {
+	data := []byte(`
+name = "rg"
+
+[[tools]]
+name = "search"
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+pattern="$1"; shift
+rg "$pattern" "$@"
+""", "_"]
+arg_order = ["pattern", "path", "type", "glob"]
+
+[tools.input]
+type = "object"
+required = ["pattern"]
+
+[tools.input.properties.pattern]
+type = "string"
+
+[tools.input.properties.path]
+type = "string"
+
+[tools.input.properties.type]
+type = "string"
+
+[tools.input.properties.glob]
+type = "string"
+`)
+
+	cfg, err := ParseConfig(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	tool := cfg.Tools[0]
+	if len(tool.ArgOrder) != 4 {
+		t.Fatalf("len(arg_order) = %d, want 4", len(tool.ArgOrder))
+	}
+	want := []string{"pattern", "path", "type", "glob"}
+	for i, w := range want {
+		if tool.ArgOrder[i] != w {
+			t.Errorf("arg_order[%d] = %q, want %q", i, tool.ArgOrder[i], w)
+		}
+	}
+
+	// All args provided — order matches arg_order
+	allArgs, err := buildExtraArgs(
+		json.RawMessage(`{"pattern":"TODO","path":"/src","type":"go","glob":"*.go"}`),
+		tool.Input,
+		tool.ArgOrder,
+	)
+	if err != nil {
+		t.Fatalf("buildExtraArgs error: %v", err)
+	}
+	if len(allArgs) != 4 || allArgs[0] != "TODO" || allArgs[1] != "/src" || allArgs[2] != "go" || allArgs[3] != "*.go" {
+		t.Errorf("all args = %v, want [TODO /src go *.go]", allArgs)
+	}
+
+	// Only required arg — trailing optionals trimmed
+	reqOnly, err := buildExtraArgs(
+		json.RawMessage(`{"pattern":"TODO"}`),
+		tool.Input,
+		tool.ArgOrder,
+	)
+	if err != nil {
+		t.Fatalf("buildExtraArgs error: %v", err)
+	}
+	if len(reqOnly) != 1 || reqOnly[0] != "TODO" {
+		t.Errorf("required-only args = %v, want [TODO]", reqOnly)
+	}
+
+	// Middle arg absent — empty string preserves positions
+	midAbsent, err := buildExtraArgs(
+		json.RawMessage(`{"pattern":"TODO","glob":"*.go"}`),
+		tool.Input,
+		tool.ArgOrder,
+	)
+	if err != nil {
+		t.Fatalf("buildExtraArgs error: %v", err)
+	}
+	// arg_order is [pattern, path, type, glob] — path and type absent but glob present
+	if len(midAbsent) != 4 || midAbsent[0] != "TODO" || midAbsent[1] != "" || midAbsent[2] != "" || midAbsent[3] != "*.go" {
+		t.Errorf("mid-absent args = %v, want [TODO \"\" \"\" *.go]", midAbsent)
 	}
 }
 

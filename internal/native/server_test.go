@@ -267,7 +267,7 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 
 func TestBuildExtraArgs(t *testing.T) {
 	t.Run("nil arguments", func(t *testing.T) {
-		args, err := buildExtraArgs(nil, nil)
+		args, err := buildExtraArgs(nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -280,6 +280,7 @@ func TestBuildExtraArgs(t *testing.T) {
 		args, err := buildExtraArgs(
 			json.RawMessage(`{"command":"echo hello"}`),
 			json.RawMessage(`{"required":["command"]}`),
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -293,6 +294,7 @@ func TestBuildExtraArgs(t *testing.T) {
 		args, err := buildExtraArgs(
 			json.RawMessage(`{"b":"second","a":"first"}`),
 			json.RawMessage(`{"required":["a","b"]}`),
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -305,6 +307,7 @@ func TestBuildExtraArgs(t *testing.T) {
 	t.Run("unrequired keys sorted alphabetically", func(t *testing.T) {
 		args, err := buildExtraArgs(
 			json.RawMessage(`{"z":"last","a":"first","m":"middle"}`),
+			nil,
 			nil,
 		)
 		if err != nil {
@@ -319,12 +322,71 @@ func TestBuildExtraArgs(t *testing.T) {
 		args, err := buildExtraArgs(
 			json.RawMessage(`{"count":42}`),
 			nil,
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(args) != 1 || args[0] != "42" {
 			t.Errorf("args = %v, want [\"42\"]", args)
+		}
+	})
+
+	t.Run("arg_order takes precedence over required", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"pattern":"TODO","path":"/src","type":"go"}`),
+			json.RawMessage(`{"required":["pattern"]}`),
+			[]string{"pattern", "path", "type"},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 3 || args[0] != "TODO" || args[1] != "/src" || args[2] != "go" {
+			t.Errorf("args = %v, want [\"TODO\", \"/src\", \"go\"]", args)
+		}
+	})
+
+	t.Run("arg_order emits empty for absent middle args", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"pattern":"TODO","type":"go"}`),
+			json.RawMessage(`{"required":["pattern"]}`),
+			[]string{"pattern", "path", "type"},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// path is absent but type is present, so path gets "" to keep positions stable
+		if len(args) != 3 || args[0] != "TODO" || args[1] != "" || args[2] != "go" {
+			t.Errorf("args = %v, want [\"TODO\", \"\", \"go\"]", args)
+		}
+	})
+
+	t.Run("arg_order trims trailing empty slots", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"pattern":"TODO"}`),
+			json.RawMessage(`{"required":["pattern"]}`),
+			[]string{"pattern", "path", "type"},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// path and type absent at the tail — trimmed
+		if len(args) != 1 || args[0] != "TODO" {
+			t.Errorf("args = %v, want [\"TODO\"]", args)
+		}
+	})
+
+	t.Run("arg_order with extra unlisted keys appended sorted", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"pattern":"TODO","path":"/src","extra_b":"B","extra_a":"A"}`),
+			nil,
+			[]string{"pattern", "path"},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 4 || args[0] != "TODO" || args[1] != "/src" || args[2] != "A" || args[3] != "B" {
+			t.Errorf("args = %v, want [\"TODO\", \"/src\", \"A\", \"B\"]", args)
 		}
 	})
 }

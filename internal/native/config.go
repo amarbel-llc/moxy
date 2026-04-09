@@ -19,6 +19,7 @@ type ToolSpec struct {
 	Description string          `toml:"description"`
 	Command     string          `toml:"command"`
 	Args        []string        `toml:"args"`
+	ArgOrder    []string        `toml:"arg_order"`
 	Input       json.RawMessage `toml:"-"`
 }
 
@@ -31,11 +32,12 @@ type rawConfig struct {
 }
 
 type rawToolSpec struct {
-	Name        string `toml:"name"`
-	Description string `toml:"description"`
-	Command     string `toml:"command"`
-	Args        []string
-	Input       any `toml:"input"`
+	Name        string   `toml:"name"`
+	Description string   `toml:"description"`
+	Command     string   `toml:"command"`
+	Args        []string `toml:"args"`
+	ArgOrder    []string `toml:"arg_order"`
+	Input       any      `toml:"input"`
 }
 
 func ParseConfig(data []byte) (*NativeConfig, error) {
@@ -70,6 +72,7 @@ func ParseConfig(data []byte) (*NativeConfig, error) {
 			Description: rt.Description,
 			Command:     rt.Command,
 			Args:        rt.Args,
+			ArgOrder:    rt.ArgOrder,
 		}
 
 		if rt.Input != nil {
