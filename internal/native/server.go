@@ -199,6 +199,9 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	}
 
 	if err != nil {
+		if output == "" {
+			output = err.Error()
+		}
 		result := &protocol.ToolCallResultV1{
 			Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
 			IsError: true,
