@@ -466,37 +466,51 @@ func indexCacheDirForModel(modelName string) string {
 	return filepath.Join(base, modelName)
 }
 
+// indexedSections are the man sections scanned for the search index.
+var indexedSections = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
+
 func listManPages(manpath []string) ([]string, error) {
 	seen := make(map[string]bool)
 	var pages []string
 
 	for _, dir := range manpath {
-		man1 := filepath.Join(dir, "man1")
-		entries, err := os.ReadDir(man1)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() {
+		for _, sec := range indexedSections {
+			manDir := filepath.Join(dir, "man"+sec)
+			entries, err := os.ReadDir(manDir)
+			if err != nil {
 				continue
 			}
-			name := e.Name()
-			// Strip .1, .1.gz, etc.
-			name = strings.TrimSuffix(name, ".gz")
-			if ext := filepath.Ext(name); ext == ".1" {
-				name = strings.TrimSuffix(name, ext)
-			} else {
-				continue
-			}
-			if name != "" && !seen[name] {
-				seen[name] = true
-				pages = append(pages, name)
+			for _, e := range entries {
+				if e.IsDir() {
+					continue
+				}
+				name := e.Name()
+				name = strings.TrimSuffix(name, ".gz")
+				if ext := filepath.Ext(name); ext == "."+sec {
+					name = strings.TrimSuffix(name, ext)
+				} else {
+					continue
+				}
+				key := name + "(" + sec + ")"
+				if name != "" && !seen[key] {
+					seen[key] = true
+					pages = append(pages, key)
+				}
 			}
 		}
 	}
 
 	sort.Strings(pages)
 	return pages, nil
+}
+
+// parsePageKey splits "page(section)" into page and section.
+// Returns page and empty section if no parens found.
+func parsePageKey(key string) (string, string) {
+	if i := strings.LastIndex(key, "("); i >= 0 && strings.HasSuffix(key, ")") {
+		return key[:i], key[i+1 : len(key)-1]
+	}
+	return key, ""
 }
 
 // heuristicManDirs are common in-repo locations for man pages, probed in order.
@@ -553,7 +567,8 @@ func systemManpath() ([]string, error) {
 // extractSynopsis extracts NAME+SYNOPSIS+DESCRIPTION content from a man page,
 // truncated to 500 chars. Returns empty string on failure.
 func extractSynopsis(manpath []string, page string) string {
-	sourcePath, err := locateSource(manpath, "", page)
+	name, section := parsePageKey(page)
+	sourcePath, err := locateSource(manpath, section, name)
 	if err != nil {
 		return ""
 	}
@@ -586,6 +601,8 @@ func extractSynopsis(manpath []string, page string) string {
 // description and example descriptions, truncated to 500 chars.
 // Returns empty string if no tldr page exists.
 func extractTldr(page string) string {
+	name, _ := parsePageKey(page)
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
@@ -595,7 +612,7 @@ func extractTldr(page string) string {
 	var content []byte
 	// Prefer osx-specific pages, fall back to common
 	for _, platform := range []string{"osx", "common"} {
-		path := filepath.Join(cacheBase, platform, page+".md")
+		path := filepath.Join(cacheBase, platform, name+".md")
 		data, err := os.ReadFile(path)
 		if err == nil {
 			content = data
