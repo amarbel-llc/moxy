@@ -1,0 +1,110 @@
+name = "rg"
+description = "Ripgrep code search with structured output modes"
+
+[[tools]]
+name = "search"
+description = """Search file contents using ripgrep. Returns file paths by default \
+(output_mode=files_with_matches). Use output_mode=content for matching lines with \
+context, or output_mode=count for match counts per file."""
+command = "bash"
+arg_order = [
+  "pattern",
+  "path",
+  "glob",
+  "type",
+  "output_mode",
+  "context",
+  "case_insensitive",
+  "multiline",
+  "head_limit",
+  "offset",
+]
+args = ["-c", """
+set -euo pipefail
+pattern="$1"
+path="${2:-.}"
+glob="${3:-}"
+filetype="${4:-}"
+output_mode="${5:-files_with_matches}"
+context="${6:-}"
+case_insensitive="${7:-}"
+multiline="${8:-}"
+head_limit="${9:-0}"
+offset="${10:-0}"
+
+rg_args=()
+
+case "$output_mode" in
+  files_with_matches) rg_args+=(-l) ;;
+  count)              rg_args+=(-c) ;;
+  content)            rg_args+=(-n) ;;
+  *) echo "Unknown output_mode: $output_mode" >&2; exit 1 ;;
+esac
+
+[ -n "$glob" ] && rg_args+=(--glob "$glob")
+
+[ -n "$filetype" ] && rg_args+=(--type "$filetype")
+
+[ -n "$context" ] && rg_args+=(-C "$context")
+
+[ "$case_insensitive" = "true" ] && rg_args+=(-i)
+
+[ "$multiline" = "true" ] && rg_args+=(-U --multiline-dotall)
+
+output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1) || true
+
+if [ "$offset" -gt 0 ] || [ "$head_limit" -gt 0 ]; then
+  if [ "$offset" -gt 0 ]; then
+    output=$(echo "$output" | tail -n +"$((offset + 1))")
+  fi
+  if [ "$head_limit" -gt 0 ]; then
+    output=$(echo "$output" | head -n "$head_limit")
+  fi
+fi
+
+printf '%s\n' "$output"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["pattern"]
+
+[tools.input.properties.pattern]
+type = "string"
+description = "The regular expression pattern to search for in file contents"
+
+[tools.input.properties.path]
+type = "string"
+description = "File or directory to search in. Defaults to current working directory."
+
+[tools.input.properties.glob]
+type = "string"
+description = "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") — maps to rg --glob"
+
+[tools.input.properties.type]
+type = "string"
+description = "File type to search (e.g. \"js\", \"py\", \"go\"). More efficient than glob for standard file types."
+
+[tools.input.properties.output_mode]
+type = "string"
+description = "Output mode: \"files_with_matches\" (default) shows file paths, \"content\" shows matching lines with line numbers, \"count\" shows match counts per file."
+
+[tools.input.properties.context]
+type = "integer"
+description = "Number of context lines to show before and after each match (rg -C). Only useful with output_mode=content."
+
+[tools.input.properties.case_insensitive]
+type = "boolean"
+description = "Case insensitive search (rg -i)"
+
+[tools.input.properties.multiline]
+type = "boolean"
+description = "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall)."
+
+[tools.input.properties.head_limit]
+type = "integer"
+description = "Limit output to first N lines/entries. Defaults to 0 (unlimited)."
+
+[tools.input.properties.offset]
+type = "integer"
+description = "Skip first N lines/entries before applying head_limit. Defaults to 0."
