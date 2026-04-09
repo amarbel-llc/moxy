@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -16,6 +18,8 @@ import (
 type Server struct {
 	config  *NativeConfig
 	toolIdx map[string]*ToolSpec
+	cache   *resultCache
+	session string
 }
 
 // NewServer constructs a Server from a parsed NativeConfig.
@@ -24,7 +28,18 @@ func NewServer(cfg *NativeConfig) *Server {
 	for i := range cfg.Tools {
 		idx[cfg.Tools[i].Name] = &cfg.Tools[i]
 	}
-	return &Server{config: cfg, toolIdx: idx}
+
+	session := os.Getenv("CLAUDE_SESSION_ID")
+	if session == "" {
+		session = "no-session"
+	}
+
+	return &Server{
+		config:  cfg,
+		toolIdx: idx,
+		cache:   newResultCache(""),
+		session: session,
+	}
 }
 
 // Name returns the server's configured name.
@@ -122,14 +137,47 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		output += stderr.String()
 	}
 
-	result := &protocol.ToolCallResultV1{
-		Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
-	}
 	if err != nil {
-		result.IsError = true
+		result := &protocol.ToolCallResultV1{
+			Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
+			IsError: true,
+		}
+		return marshalResult(result)
 	}
 
-	return marshalResult(result)
+	if output == "" {
+		return marshalResult(&protocol.ToolCallResultV1{})
+	}
+
+	cmdStr := spec.Command
+	if len(spec.Args) > 0 {
+		cmdStr += " " + strings.Join(spec.Args, " ")
+	}
+
+	tokens := estimateTokens(output)
+	if tokens > tokenThreshold {
+		id, idErr := newResultID()
+		if idErr == nil {
+			cached := cachedResult{
+				ID:         id,
+				Session:    s.session,
+				Command:    cmdStr,
+				Output:     output,
+				LineCount:  strings.Count(output, "\n"),
+				TokenCount: tokens,
+			}
+			if storeErr := s.cache.store(cached); storeErr == nil {
+				summary := formatSummary(cached)
+				return marshalResult(&protocol.ToolCallResultV1{
+					Content: []protocol.ContentBlockV1{protocol.TextContentV1(summary)},
+				})
+			}
+		}
+	}
+
+	return marshalResult(&protocol.ToolCallResultV1{
+		Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
+	})
 }
 
 func marshalResult(v any) (json.RawMessage, error) {
