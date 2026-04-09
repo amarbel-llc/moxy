@@ -285,6 +285,6 @@ When running through moxy, tools appear as `freud_sessions`,
 ## More Information
 
 - Issue: amarbel-llc/moxy#33
-- Reference implementations in this repo: `cmd/folio/` (resource patterns,
-  config hierarchy, progressive disclosure), `cmd/maneater/` (resource
-  template registration, dynamic Instructions field).
+- Reference implementations in this repo: `cmd/maneater/` (resource
+  template registration, dynamic Instructions field), `.moxy/servers/folio.toml`
+  (native server tool declarations).

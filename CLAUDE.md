@@ -15,7 +15,7 @@ automatically.
 
 ``` sh
 just                  # build + test (default target)
-just build-go         # go build only -> build/{moxy,maneater,folio}
+just build-go         # go build only -> build/{moxy,maneater}
 just build-nix        # nix build (runs gomod2nix first)
 just test             # all tests (go + bats + validate-mcp)
 just test-go          # go vet + go test
@@ -186,54 +186,21 @@ allow and deny lists are appended across hierarchy levels). The
 and `llama-cpp` in buildInputs. Wrapped binary adds mandoc, pandoc, tldr to
 PATH.
 
-### Folio (File I/O MCP Server)
+### Folio (File I/O Tools)
 
-Go binary in `cmd/folio`. MCP server providing file
-read/write/edit operations. Runs as a moxy child server via
-`command = "folio serve mcp"`.
-
-**Resources:**
-
-- `folio://read/{path}` -- read file with line numbers. Optional
-  `?offset=N&limit=M` for line-based pagination (1-indexed), `?offset=N&end=M`
-  for an inclusive line range (equivalent to `sed -n 'N,Mp'`; `end` without
-  `offset` starts at line 1), or `?delete=N-M` to omit an inclusive range
-  (equivalent to `sed 'N,Md'`). Large files trigger progressive disclosure
-  (head + tail summary with resource URI for full content). Also available as
-  the `read`, `read_range`, and `read_excluding` tools.
-- `folio://glob/{pattern}` -- find files matching a glob pattern. Supports `**`
-  for recursive matching. Optional `?path={dir}` to set search root. Results
-  sorted by modification time (newest first).
-- `folio://grep/{pattern}` -- search file contents via ripgrep. Optional params:
-  `?path={dir}`, `?glob={filter}`, `?type={lang}`,
-  `?output_mode={files_with_matches|content|count}`, `?context=N`,
-  `?case_insensitive=true`.
+Native server (`.moxy/servers/folio.toml`) providing file read/write operations
+via inline shell commands. No separate binary.
 
 **Tools:**
 
-- `read` -- read an entire file with line numbers (progressive disclosure for
-  large files). Output format: first line is the `folio://read/<path>` resource
-  URI, subsequent lines are `N\tcontent`.
-- `read_range` -- read an inclusive line range, equivalent to
-  `sed -n 'start,end p' <file>`. Output format same as `read` with
-  `?offset=start&end=end` on the URI.
-- `read_excluding` -- read a file with an inclusive line range omitted,
-  equivalent to `sed 'delete_start,delete_end d' <file>`. Output format same as
-  `read` with `?delete=start-end` on the URI.
+- `read` -- read an entire file with line numbers. Large files (>2000 lines)
+  return a head+tail summary; use `read_range` for specific sections.
+- `read_range` -- read an inclusive line range from a file.
+- `read_excluding` -- read a file with an inclusive line range omitted.
+- `glob` -- find files matching a glob pattern. Supports `**` for recursive
+  matching. Results sorted by modification time (newest first).
 - `write` -- create or overwrite a file (atomic write via tempfile+rename,
-  creates parent directories)
-- `edit` -- exact string replacement (unique match required unless `replace_all`
-  is true)
-
-**folio.toml hierarchy:** Config files loaded and merged in order:
-
-1.  `~/.config/folio/folio.toml` (global)
-2.  Each parent directory between `$HOME` and `$CWD`
-3.  `./folio.toml` (project-local)
-
-Permissions use path-based allow/deny glob patterns (deny always wins). Read
-config controls progressive disclosure thresholds (`max-lines`, `head-lines`,
-`tail-lines`).
+  creates parent directories, preserves permissions of existing files).
 
 ### Freud (Past Claude Session Tools)
 

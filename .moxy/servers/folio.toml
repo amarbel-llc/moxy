@@ -1,5 +1,5 @@
 name = "folio"
-description = "File read tools with line numbers and progressive disclosure."
+description = "File I/O tools: read with line numbers, progressive disclosure, write with atomic rename."
 
 [[tools]]
 name = "read"
@@ -126,3 +126,47 @@ description = "The glob pattern to match files against (e.g. \"**/*.go\", \"src/
 [tools.input.properties.path]
 type = "string"
 description = "The directory to search in. Defaults to current working directory."
+
+[[tools]]
+name = "write"
+description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
+partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
+command = "sh"
+arg_order = ["file_path", "content"]
+args = ["-c", """
+set -euo pipefail
+file="$1"
+content="$2"
+
+# Create parent directories
+mkdir -p "$(dirname "$file")"
+
+# Atomic write via tempfile + rename
+tmp=$(mktemp "$(dirname "$file")/.folio-write-XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+printf '%s' "$content" > "$tmp"
+
+# Preserve permissions of existing file
+if [ -f "$file" ]; then
+  chmod --reference="$file" "$tmp" 2>/dev/null || true
+else
+  chmod 644 "$tmp"
+fi
+
+mv "$tmp" "$file"
+trap - EXIT
+echo "Wrote $(printf '%s' "$content" | wc -c) bytes to $file"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["file_path", "content"]
+
+[tools.input.properties.file_path]
+type = "string"
+description = "Absolute path to the file to write"
+
+[tools.input.properties.content]
+type = "string"
+description = "The content to write to the file"

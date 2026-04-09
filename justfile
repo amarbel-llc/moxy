@@ -5,12 +5,10 @@ build: build-go build-nix
 build-go: generate
   go build -o build/moxy ./cmd/moxy
   go build -o build/maneater ./cmd/maneater
-  go build -o build/folio ./cmd/folio
 
 generate:
   go generate ./internal/config/
   go generate ./cmd/maneater/
-  go generate ./cmd/folio/
 
 build-gomod2nix:
   gomod2nix

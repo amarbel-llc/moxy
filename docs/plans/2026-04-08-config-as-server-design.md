@@ -109,10 +109,10 @@ another without round-tripping through the LLM context window.
 
 ### Dual Architecture
 
-Existing maneater and folio binaries continue working as regular child
-servers alongside config-as-servers. Freud has been fully migrated to a
-native config-as-server (`.moxy/servers/freud.toml` + `.moxy/bin/freud-*`
-Python scripts).
+The maneater binary continues working as a regular child server alongside
+config-as-servers. Freud and folio have been fully migrated to native
+config-as-servers (`.moxy/servers/freud.toml` + `.moxy/bin/freud-*` Python
+scripts, `.moxy/servers/folio.toml` with inline shell commands).
 
 ## MVP Scope
 
@@ -131,7 +131,7 @@ Python scripts).
 - Embedding generation for resources
 - Per-tool or per-server caching configuration
 - Allow/deny permission rules (the config is the permission)
-- Migrating folio to config-as-server (freud migration complete)
+- Migrating maneater to config-as-server (freud + folio migrations complete)
 
 ## Prototype Target
 
@@ -142,7 +142,7 @@ via `/dev/fd/N` into a subsequent call.
 ## Rollback Strategy
 
 - **Dual architecture** — removing `.moxy/` files reverts to existing setup
-- **No changes to existing binaries** — maneater/folio are untouched
+- **No changes to existing binaries** — maneater is untouched
 - **Additive interface extraction** — `mcpclient.Client` already satisfies
   `ServerBackend`, so the refactor is safe
 - **Promotion criteria:** config-based exec produces identical results to

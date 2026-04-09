@@ -130,33 +130,11 @@
               cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
               cp ${./cmd/maneater/maneater.toml.5} $out/share/man/man5/maneater.toml.5
             '';
-        folio-unwrapped = pkgs.buildGoApplication {
-          pname = "folio";
-          version = "0.1.0";
-          src = ./.;
-          subPackages = [ "cmd/folio" ];
-          modules = ./gomod2nix.toml;
-          go = pkgs-master.go_1_26;
-          GOTOOLCHAIN = "local";
-        };
-
-        folio =
-          pkgs.runCommand "folio-wrapped"
-            {
-              nativeBuildInputs = [ pkgs.makeWrapper ];
-            }
-            ''
-              mkdir -p $out/bin
-              makeWrapper ${folio-unwrapped}/bin/folio $out/bin/folio \
-                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.ripgrep ]}
-            '';
-
         combined = pkgs.symlinkJoin {
           name = "moxy";
           paths = [
             moxy
             maneater
-            folio
           ];
         };
       in
@@ -165,7 +143,6 @@
           inherit
             moxy
             maneater
-            folio
             ;
           default = combined;
         };
