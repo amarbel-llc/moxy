@@ -19,6 +19,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/credentials"
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
+	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/oauth"
 	"github.com/amarbel-llc/moxy/internal/proxy"
 	"github.com/amarbel-llc/moxy/internal/validate"
@@ -217,6 +218,50 @@ func runServer() error {
 
 		fmt.Fprintf(os.Stderr, "moxy: connected to %s (%s %s)\n",
 			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
+	}
+
+	// Discover native servers from .moxy/ directories.
+	// Native configs are additive — moxyfile servers win on name collision.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("getting home dir: %w", err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting cwd: %w", err)
+	}
+
+	nativeConfigs, err := native.DiscoverConfigs(home, cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "moxy: warning: native config discovery: %v\n", err)
+	}
+
+	existingNames := make(map[string]bool)
+	for _, c := range children {
+		existingNames[c.Config.Name] = true
+	}
+	for _, f := range failed {
+		existingNames[f.Name] = true
+	}
+	for _, s := range cfg.Servers {
+		existingNames[s.Name] = true
+	}
+
+	for _, nc := range nativeConfigs {
+		if existingNames[nc.Name] {
+			fmt.Fprintf(os.Stderr, "moxy: skipping native server %q (name collision with moxyfile server)\n", nc.Name)
+			continue
+		}
+		srv := native.NewServer(nc)
+		initResult := srv.InitializeResult()
+		children = append(children, proxy.ChildEntry{
+			Client:       srv,
+			Config:       config.ServerConfig{Name: nc.Name},
+			Capabilities: initResult.Capabilities,
+			ServerInfo:   initResult.ServerInfo,
+			Instructions: nc.Description,
+		})
+		fmt.Fprintf(os.Stderr, "moxy: registered native server %s (%d tools)\n", nc.Name, len(nc.Tools))
 	}
 
 	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
