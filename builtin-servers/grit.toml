@@ -1,0 +1,957 @@
+name = "grit"
+description = "Git MCP server exposing repository operations. Safety: force-push, hard-reset, rebase, merge, and branch-delete are blocked on main/master."
+
+# ---------------------------------------------------------------------------
+# Helper: all scripts that accept repo_path use this pattern at the top:
+#   repo="${<N>:-.}"
+#   cd "$repo"
+# All array params arrive as raw JSON and are expanded with jq.
+# ---------------------------------------------------------------------------
+
+# === Staging / Working Tree ================================================
+
+[[tools]]
+name = "add"
+description = "Stage files for commit"
+command = "bash"
+arg_order = ["paths", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+paths="$1"
+repo="${2:-.}"
+cd "$repo"
+mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
+git add -- "${files[@]}"
+printf 'Staged %d file(s)\n' "${#files[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["paths"]
+
+[tools.input.properties.paths]
+type = "array"
+description = "Array of file path strings to stage, e.g. [\"src/main.go\", \"README.md\"] (relative to repo root)"
+
+[tools.input.properties.paths.items]
+type = "string"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "reset"
+description = "Unstage files (soft reset only, does not modify working tree)"
+command = "bash"
+arg_order = ["paths", "soft", "ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+paths_json="$1"
+soft="${2:-}"
+ref="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+if [ "$soft" = "true" ]; then
+  git reset --soft "${ref:-HEAD~1}"
+elif [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  mapfile -t files < <(printf '%s' "$paths_json" | jq -r '.[]')
+  git reset HEAD -- "${files[@]}"
+else
+  git reset HEAD
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.paths]
+type = "array"
+description = "File paths to unstage (relative to repo root)"
+
+[tools.input.properties.paths.items]
+type = "string"
+
+[tools.input.properties.soft]
+type = "boolean"
+description = "Soft reset: move HEAD back without changing index or working tree (use with ref)"
+
+[tools.input.properties.ref]
+type = "string"
+description = "Target ref for soft reset (e.g. HEAD~1, HEAD~3, a branch). Defaults to HEAD~1"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "rm"
+description = "Delete files and stage the deletion (git rm)"
+command = "bash"
+arg_order = ["paths", "force", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+paths="$1"
+force="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
+git_args=(rm)
+
+[ "$force" = "true" ] && git_args+=(-f)
+git_args+=(--)
+git_args+=("${files[@]}")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["paths"]
+
+[tools.input.properties.paths]
+type = "array"
+description = "Array of file path strings to remove, e.g. [\"old_file.go\", \"removed.txt\"] (relative to repo root)"
+
+[tools.input.properties.paths.items]
+type = "string"
+
+[tools.input.properties.force]
+type = "boolean"
+description = "Force removal of files even if they have local modifications (git rm -f)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Diff ==================================================================
+
+[[tools]]
+name = "diff"
+description = "Show changes in the working tree or between commits"
+command = "bash"
+arg_order = ["ref", "paths", "staged", "stat_only", "context_lines", "max_patch_lines", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+ref="${1:-}"
+paths_json="${2:-}"
+staged="${3:-}"
+stat_only="${4:-}"
+context="${5:-}"
+max_lines="${6:-}"
+repo="${7:-.}"
+cd "$repo"
+
+git_args=(diff)
+
+[ -n "$context" ] && git_args+=("--unified=$context")
+
+[ "$stat_only" = "true" ] && git_args+=(--stat)
+
+if [ "$staged" = "true" ]; then
+  git_args+=(--cached)
+elif [ "$staged" = "false" ]; then
+  : # unstaged only (default git diff behavior)
+fi
+
+[ -n "$ref" ] && git_args+=("$ref")
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  git_args+=(--)
+  while IFS= read -r p; do
+    git_args+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+fi
+
+output=$(git "${git_args[@]}" 2>&1) || true
+
+if [ -n "$max_lines" ] && [ "$max_lines" -gt 0 ] 2>/dev/null; then
+  printf '%s\n' "$output" | head -n "$max_lines"
+else
+  printf '%s\n' "$output"
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.context_lines]
+type = "integer"
+description = "Number of context lines around each change (git --unified=N, default 3)"
+
+[tools.input.properties.max_patch_lines]
+type = "integer"
+description = "Maximum number of patch output lines. Output is truncated with a truncated flag when exceeded."
+
+[tools.input.properties.paths]
+type = "array"
+description = "Limit diff to specific paths"
+
+[tools.input.properties.paths.items]
+type = "string"
+
+[tools.input.properties.ref]
+type = "string"
+description = "Diff against a specific ref (commit, branch, tag)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[tools.input.properties.staged]
+type = "boolean"
+description = "Show only staged (true) or only unstaged (false) changes. Omit to show both."
+
+[tools.input.properties.stat_only]
+type = "boolean"
+description = "Show only diffstat summary"
+
+# === Commit ================================================================
+
+[[tools]]
+name = "commit"
+description = "Create a new commit with staged changes"
+command = "bash"
+arg_order = ["message", "amend", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+message="$1"
+amend="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+git_args=(commit)
+
+[ "$amend" = "true" ] && git_args+=(--amend)
+git_args+=(-m "$message")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["message"]
+
+[tools.input.properties.message]
+type = "string"
+description = "Commit message"
+
+[tools.input.properties.amend]
+type = "boolean"
+description = "Amend the previous commit instead of creating a new one"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Branches ==============================================================
+
+[[tools]]
+name = "branch-create"
+description = "Create a new branch"
+command = "bash"
+arg_order = ["name", "start_point", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+name="$1"
+start="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+if [ -n "$start" ]; then
+  git branch "$name" "$start"
+else
+  git branch "$name"
+fi
+echo "Created branch $name"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["name"]
+
+[tools.input.properties.name]
+type = "string"
+description = "Name for the new branch"
+
+[tools.input.properties.start_point]
+type = "string"
+description = "Starting point for the new branch (commit, branch, tag)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "branch-delete"
+description = "Delete a local branch"
+command = "bash"
+arg_order = ["name", "force", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+name="$1"
+force="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+if [ "$name" = "main" ] || [ "$name" = "master" ]; then
+  echo "ERROR: deleting main/master is blocked for safety" >&2
+  exit 1
+fi
+if [ "$force" = "true" ]; then
+  git branch -D "$name"
+else
+  git branch -d "$name"
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["name"]
+
+[tools.input.properties.name]
+type = "string"
+description = "Name of the branch to delete"
+
+[tools.input.properties.force]
+type = "boolean"
+description = "Force delete even if not fully merged (-D instead of -d)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "checkout"
+description = "Switch branches or restore individual files from a ref. Use paths to restore specific files; omit paths to switch branches."
+command = "bash"
+arg_order = ["ref", "create", "paths", "ours", "theirs", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+ref="${1:-}"
+create="${2:-}"
+paths_json="${3:-}"
+ours="${4:-}"
+theirs="${5:-}"
+repo="${6:-.}"
+cd "$repo"
+
+git_args=(checkout)
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  # File restore mode
+
+  [ "$ours" = "true" ] && git_args+=(--ours)
+
+  [ "$theirs" = "true" ] && git_args+=(--theirs)
+
+  [ -n "$ref" ] && git_args+=("$ref")
+  git_args+=(--)
+  while IFS= read -r p; do
+    git_args+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+else
+  # Branch switch mode
+
+  [ "$create" = "true" ] && git_args+=(-b)
+
+  [ -n "$ref" ] && git_args+=("$ref")
+fi
+
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.create]
+type = "boolean"
+description = "Create a new branch and check it out (-b)"
+
+[tools.input.properties.ours]
+type = "boolean"
+description = "During merge conflict, check out our version of the file(s) (--ours)"
+
+[tools.input.properties.paths]
+type = "array"
+description = "File paths to restore from ref (e.g. [\"src/main.go\", \"README.md\"]). When provided, restores these files instead of switching branches."
+
+[tools.input.properties.paths.items]
+type = "string"
+
+[tools.input.properties.ref]
+type = "string"
+description = "Branch name or ref to check out or restore files from (defaults to HEAD when used with paths)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[tools.input.properties.theirs]
+type = "boolean"
+description = "During merge conflict, check out their version of the file(s) (--theirs)"
+
+# === Remote ================================================================
+
+[[tools]]
+name = "fetch"
+description = "Fetch from a remote repository"
+command = "bash"
+arg_order = ["remote", "prune", "all", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+remote="${1:-}"
+prune="${2:-}"
+all="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+git_args=(fetch)
+
+[ "$prune" = "true" ] && git_args+=(--prune)
+
+[ "$all" = "true" ] && git_args+=(--all)
+
+[ -z "$all" ] && [ -n "$remote" ] && git_args+=("$remote")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.all]
+type = "boolean"
+description = "Fetch from all remotes"
+
+[tools.input.properties.prune]
+type = "boolean"
+description = "Prune remote-tracking branches no longer on remote"
+
+[tools.input.properties.remote]
+type = "string"
+description = "Remote name (default origin)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "pull"
+description = "Pull changes from a remote repository"
+command = "bash"
+arg_order = ["remote", "branch", "rebase", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+remote="${1:-}"
+branch="${2:-}"
+rebase="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+git_args=(pull)
+
+[ "$rebase" = "true" ] && git_args+=(--rebase)
+
+[ -n "$remote" ] && git_args+=("$remote")
+
+[ -n "$branch" ] && git_args+=("$branch")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.branch]
+type = "string"
+description = "Remote branch to pull"
+
+[tools.input.properties.rebase]
+type = "boolean"
+description = "Rebase instead of merge"
+
+[tools.input.properties.remote]
+type = "string"
+description = "Remote name (default origin)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "push"
+description = "Push commits to a remote repository"
+command = "bash"
+arg_order = ["remote", "branch", "set_upstream", "force", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+remote="${1:-}"
+branch="${2:-}"
+set_upstream="${3:-}"
+force="${4:-}"
+repo="${5:-.}"
+cd "$repo"
+
+if [ "$force" = "true" ]; then
+  target="$branch"
+  if [ -z "$target" ]; then
+    target=$(git rev-parse --abbrev-ref HEAD)
+  fi
+  if [ "$target" = "main" ] || [ "$target" = "master" ]; then
+    echo "ERROR: force push to main/master is blocked for safety" >&2
+    exit 1
+  fi
+fi
+
+git_args=(push)
+
+[ "$force" = "true" ] && git_args+=(--force)
+
+[ "$set_upstream" = "true" ] && git_args+=(-u)
+
+[ -n "$remote" ] && git_args+=("$remote")
+
+[ -n "$branch" ] && git_args+=("$branch")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.branch]
+type = "string"
+description = "Branch to push"
+
+[tools.input.properties.force]
+type = "boolean"
+description = "Force push"
+
+[tools.input.properties.remote]
+type = "string"
+description = "Remote name (default origin)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[tools.input.properties.set_upstream]
+type = "boolean"
+description = "Set upstream tracking reference (-u)"
+
+# === Rev Parse =============================================================
+
+[[tools]]
+name = "git-rev-parse"
+description = "Resolve a git revision to its full SHA, or resolve special names like HEAD, branch names, tags, and relative refs (e.g. HEAD~3, main^2)"
+command = "bash"
+arg_order = ["ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+ref="$1"
+repo="${2:-.}"
+cd "$repo"
+git rev-parse --verify "$ref"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["ref"]
+
+[tools.input.properties.ref]
+type = "string"
+description = "Ref to resolve (e.g. HEAD, main, v1.0, HEAD~3, abc1234)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Rebase ================================================================
+
+[[tools]]
+name = "rebase"
+description = "Rebase current branch onto another ref"
+command = "bash"
+arg_order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+upstream="${1:-}"
+branch="${2:-}"
+autostash="${3:-}"
+do_continue="${4:-}"
+do_abort="${5:-}"
+do_skip="${6:-}"
+repo="${7:-.}"
+cd "$repo"
+
+# Safety: block rebase on main/master
+current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+target="${branch:-$current}"
+if [ "$target" = "main" ] || [ "$target" = "master" ]; then
+  echo "ERROR: rebasing main/master is blocked for safety" >&2
+  exit 1
+fi
+
+if [ "$do_continue" = "true" ]; then
+  git rebase --continue
+elif [ "$do_abort" = "true" ]; then
+  git rebase --abort
+elif [ "$do_skip" = "true" ]; then
+  git rebase --skip
+else
+  git_args=(rebase)
+
+  [ "$autostash" = "true" ] && git_args+=(--autostash)
+
+  [ -n "$upstream" ] && git_args+=("$upstream")
+
+  [ -n "$branch" ] && git_args+=("$branch")
+  git "${git_args[@]}"
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.upstream]
+type = "string"
+description = "Ref to rebase onto (branch, tag, commit)"
+
+[tools.input.properties.branch]
+type = "string"
+description = "Branch to rebase (defaults to current branch)"
+
+[tools.input.properties.autostash]
+type = "boolean"
+description = "Automatically stash/unstash uncommitted changes"
+
+[tools.input.properties."continue"]
+type = "boolean"
+description = "Continue rebase after resolving conflicts"
+
+[tools.input.properties.abort]
+type = "boolean"
+description = "Abort current rebase operation"
+
+[tools.input.properties.skip]
+type = "boolean"
+description = "Skip current commit and continue rebase"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Hard Reset ============================================================
+
+[[tools]]
+name = "hard-reset"
+description = "Discard all changes and reset HEAD, index, and working tree to a ref"
+command = "bash"
+arg_order = ["ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+ref="$1"
+repo="${2:-.}"
+cd "$repo"
+current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+if [ "$current" = "main" ] || [ "$current" = "master" ]; then
+  echo "ERROR: hard reset on main/master is blocked for safety" >&2
+  exit 1
+fi
+git reset --hard "$ref"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["ref"]
+
+[tools.input.properties.ref]
+type = "string"
+description = "Target ref (e.g. HEAD, origin/main, HEAD~3, a commit SHA)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Cherry Pick ===========================================================
+
+[[tools]]
+name = "cherry-pick"
+description = "Apply commits from other branches onto the current branch"
+command = "bash"
+arg_order = ["commits", "no_commit", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+commits_json="$1"
+no_commit="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+mapfile -t commits < <(printf '%s' "$commits_json" | jq -r '.[]')
+git_args=(cherry-pick)
+
+[ "$no_commit" = "true" ] && git_args+=(--no-commit)
+git_args+=("${commits[@]}")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["commits"]
+
+[tools.input.properties.commits]
+type = "array"
+description = "Commit hashes to cherry-pick (applied in order)"
+
+[tools.input.properties.commits.items]
+type = "string"
+
+[tools.input.properties.no_commit]
+type = "boolean"
+description = "Apply changes without creating commits (--no-commit)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Merge =================================================================
+
+[[tools]]
+name = "merge"
+description = "Merge a branch into the current branch"
+command = "bash"
+arg_order = ["branch", "no_ff", "squash", "abort", "continue", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+branch="${1:-}"
+no_ff="${2:-}"
+squash="${3:-}"
+do_abort="${4:-}"
+do_continue="${5:-}"
+repo="${6:-.}"
+cd "$repo"
+
+# Safety: block merge into main/master
+current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+if [ "$current" = "main" ] || [ "$current" = "master" ]; then
+  echo "ERROR: merging into main/master is blocked for safety" >&2
+  exit 1
+fi
+
+if [ "$do_continue" = "true" ]; then
+  git merge --continue
+elif [ "$do_abort" = "true" ]; then
+  git merge --abort
+else
+  git_args=(merge)
+
+  [ "$no_ff" = "true" ] && git_args+=(--no-ff)
+
+  [ "$squash" = "true" ] && git_args+=(--squash)
+
+  [ -n "$branch" ] && git_args+=("$branch")
+  git "${git_args[@]}"
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.branch]
+type = "string"
+description = "Branch to merge"
+
+[tools.input.properties.no_ff]
+type = "boolean"
+description = "Create a merge commit even if fast-forward is possible (--no-ff)"
+
+[tools.input.properties.squash]
+type = "boolean"
+description = "Squash commits before merging (--squash)"
+
+[tools.input.properties.abort]
+type = "boolean"
+description = "Abort an in-progress merge"
+
+[tools.input.properties."continue"]
+type = "boolean"
+description = "Continue merge after resolving conflicts"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Stash =================================================================
+
+[[tools]]
+name = "stash-save"
+description = "Save uncommitted changes to a stash"
+command = "bash"
+arg_order = ["message", "include_untracked", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+message="${1:-}"
+include_untracked="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+git_args=(stash push)
+
+[ "$include_untracked" = "true" ] && git_args+=(-u)
+
+[ -n "$message" ] && git_args+=(-m "$message")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.message]
+type = "string"
+description = "Stash message"
+
+[tools.input.properties.include_untracked]
+type = "boolean"
+description = "Include untracked files (-u)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "stash-apply"
+description = "Apply a stash to the working tree without removing it from the stash list"
+command = "bash"
+arg_order = ["stash_ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+stash_ref="${1:-stash@{0}}"
+repo="${2:-.}"
+cd "$repo"
+git stash apply "$stash_ref"
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.stash_ref]
+type = "string"
+description = "Stash reference (e.g. stash@{0}). Defaults to stash@{0}"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "stash-drop"
+description = "Delete a stash entry"
+command = "bash"
+arg_order = ["stash_ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+stash_ref="$1"
+repo="${2:-.}"
+cd "$repo"
+git stash drop "$stash_ref"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["stash_ref"]
+
+[tools.input.properties.stash_ref]
+type = "string"
+description = "Stash reference to drop (e.g. stash@{0})"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Tags ==================================================================
+
+[[tools]]
+name = "tag-verify"
+description = "Verify the GPG signature of a tag"
+command = "bash"
+arg_order = ["name", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+name="$1"
+repo="${2:-.}"
+cd "$repo"
+git tag -v "$name"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["name"]
+
+[tools.input.properties.name]
+type = "string"
+description = "Tag name to verify"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# === Worktrees =============================================================
+
+[[tools]]
+name = "worktree-list"
+description = "List all git worktrees with path, HEAD, branch, and lock/prune state"
+command = "bash"
+arg_order = ["repo_path"]
+args = ["-c", """
+set -euo pipefail
+repo="${1:-.}"
+cd "$repo"
+git worktree list --porcelain
+""", "_"]
+
+[tools.input]
+type = "object"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+# ---
+
+[[tools]]
+name = "worktree-remove"
+description = "Remove a git worktree by path"
+command = "bash"
+arg_order = ["path", "force", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+wt_path="$1"
+force="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+git_args=(worktree remove)
+
+[ "$force" = "true" ] && git_args+=(--force)
+git_args+=("$wt_path")
+git "${git_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["path"]
+
+[tools.input.properties.path]
+type = "string"
+description = "Path of the worktree to remove"
+
+[tools.input.properties.force]
+type = "boolean"
+description = "Force removal even if worktree has uncommitted changes (--force)"
+
+[tools.input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

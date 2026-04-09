@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def find_session(session_id: str) -> Path | None:
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return None
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        f = proj_dir / f"{session_id}.jsonl"
+        if f.exists():
+            return f
+    return None
+
+
+def truncate(s: str, max_len: int) -> str:
+    s = s.replace("\n", " ").strip()
+    if len(s) > max_len:
+        return s[:max_len] + "..."
+    return s
+
+
+def main():
+    session_id = sys.argv[1] if len(sys.argv) > 1 else ""
+    tool_name_filter = (sys.argv[2] if len(sys.argv) > 2 else "").lower()
+    limit = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 0
+
+    if not session_id:
+        print("Usage: freud-tool-usage <session_id> [tool_name] [limit]",
+              file=sys.stderr)
+        sys.exit(1)
+
+    path = find_session(session_id)
+    if path is None:
+        print(f"Session {session_id} not found. Use the sessions tool to list available sessions.")
+        sys.exit(1)
+
+    calls = []
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if obj.get("type") != "assistant":
+                continue
+
+            content = obj.get("message", {}).get("content")
+            if not isinstance(content, list):
+                continue
+
+            for block in content:
+                if not isinstance(block, dict) or block.get("type") != "tool_use":
+                    continue
+
+                name = block.get("name", "?")
+                input_data = block.get("input", {})
+
+                if tool_name_filter and tool_name_filter not in name.lower():
+                    continue
+
+                calls.append({"name": name, "input": input_data})
+
+    if limit > 0:
+        calls = calls[:limit]
+
+    for i, call in enumerate(calls, start=1):
+        input_str = json.dumps(call["input"], separators=(",", ":"))
+        print(f"[{i}] {call['name']} \u2192 {truncate(input_str, 150)}")
+
+    print(f"\n{len(calls)} tool call(s)")
+
+
+if __name__ == "__main__":
+    main()

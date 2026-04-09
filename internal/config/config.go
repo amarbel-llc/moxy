@@ -16,6 +16,7 @@ import (
 type Config struct {
 	Ephemeral             *bool                      `toml:"ephemeral"`
 	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
+	BuiltinNative         *bool                      `toml:"builtin-native"`
 	Credentials           *credentials.CommandConfig `toml:"credentials"`
 	Servers               []ServerConfig             `toml:"servers"`
 }
@@ -269,6 +270,10 @@ func Merge(base, overlay Config) Config {
 
 	if overlay.ProgressiveDisclosure != nil {
 		merged.ProgressiveDisclosure = overlay.ProgressiveDisclosure
+	}
+
+	if overlay.BuiltinNative != nil {
+		merged.BuiltinNative = overlay.BuiltinNative
 	}
 
 	for _, srv := range overlay.Servers {

@@ -1,0 +1,54 @@
+name = "gordo"
+description = "Go package documentation via go doc"
+
+[[tools]]
+name = "doc"
+description = "Show documentation for a Go package or symbol. Returns the same output as 'go doc'."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+pkg="$1"
+if [ -n "${2:-}" ]; then
+  go doc "$pkg.$2"
+else
+  go doc "$pkg"
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["package"]
+
+[tools.input.properties.package]
+type = "string"
+description = "Go package path (e.g. 'fmt', 'encoding/json', 'github.com/user/repo/pkg')"
+
+[tools.input.properties.symbol]
+type = "string"
+description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview."
+
+[[tools]]
+name = "src"
+description = "Show source code for a Go symbol."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+pkg="$1"
+if [ -n "${2:-}" ]; then
+  go doc -src "$pkg.$2"
+else
+  go doc -src "$pkg"
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["package"]
+
+[tools.input.properties.package]
+type = "string"
+description = "Go package path (e.g. 'fmt', 'encoding/json')"
+
+[tools.input.properties.symbol]
+type = "string"
+description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package-level source."

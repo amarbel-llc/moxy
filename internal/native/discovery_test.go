@@ -1,39 +1,41 @@
 package native
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestDiscoverConfigs(t *testing.T) {
-	// Create a temp hierarchy:
-	// home/.config/moxy/servers/global.toml
-	// home/project/.moxy/servers/local.toml
-	home := t.TempDir()
-	project := filepath.Join(home, "project")
-
-	globalServers := filepath.Join(home, ".config", "moxy", "servers")
-	os.MkdirAll(globalServers, 0o755)
-	os.WriteFile(filepath.Join(globalServers, "global.toml"), []byte(`
-name = "global-tool"
+const testToolConfig = `
+name = "%s"
+description = "%s"
 [[tools]]
 name = "hello"
 command = "echo"
 args = ["hello"]
-`), 0o644)
+`
+
+func writeTestConfig(t *testing.T, dir, filename, name, desc string) {
+	t.Helper()
+	os.MkdirAll(dir, 0o755)
+	data := []byte(fmt.Sprintf(testToolConfig, name, desc))
+	if err := os.WriteFile(filepath.Join(dir, filename), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDiscoverConfigs(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(home, "project")
+
+	globalServers := filepath.Join(home, ".config", "moxy", "servers")
+	writeTestConfig(t, globalServers, "global.toml", "global-tool", "global")
 
 	localServers := filepath.Join(project, ".moxy", "servers")
-	os.MkdirAll(localServers, 0o755)
-	os.WriteFile(filepath.Join(localServers, "local.toml"), []byte(`
-name = "local-tool"
-[[tools]]
-name = "world"
-command = "echo"
-args = ["world"]
-`), 0o644)
+	writeTestConfig(t, localServers, "local.toml", "local-tool", "local")
 
-	configs, err := DiscoverConfigs(home, project)
+	configs, err := DiscoverConfigs("", home, project)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,16 +63,7 @@ func TestDiscoverConfigsBrokenSymlink(t *testing.T) {
 	project := filepath.Join(home, "project")
 
 	globalServers := filepath.Join(home, ".config", "moxy", "servers")
-	os.MkdirAll(globalServers, 0o755)
-
-	// Valid config
-	os.WriteFile(filepath.Join(globalServers, "valid.toml"), []byte(`
-name = "valid-tool"
-[[tools]]
-name = "hello"
-command = "echo"
-args = ["hello"]
-`), 0o644)
+	writeTestConfig(t, globalServers, "valid.toml", "valid-tool", "valid")
 
 	// Broken symlink pointing to a non-existent target
 	os.Symlink(
@@ -80,7 +73,7 @@ args = ["hello"]
 
 	os.MkdirAll(project, 0o755)
 
-	configs, err := DiscoverConfigs(home, project)
+	configs, err := DiscoverConfigs("", home, project)
 	if err != nil {
 		t.Fatalf("broken symlink caused discovery to fail: %v", err)
 	}
@@ -99,26 +92,12 @@ func TestDiscoverConfigsOverride(t *testing.T) {
 	project := filepath.Join(home, "project")
 
 	globalServers := filepath.Join(home, ".config", "moxy", "servers")
-	os.MkdirAll(globalServers, 0o755)
-	os.WriteFile(filepath.Join(globalServers, "shell.toml"), []byte(`
-name = "shell"
-description = "global"
-[[tools]]
-name = "exec"
-command = "sh"
-`), 0o644)
+	writeTestConfig(t, globalServers, "shell.toml", "shell", "global")
 
 	localServers := filepath.Join(project, ".moxy", "servers")
-	os.MkdirAll(localServers, 0o755)
-	os.WriteFile(filepath.Join(localServers, "shell.toml"), []byte(`
-name = "shell"
-description = "local"
-[[tools]]
-name = "exec"
-command = "bash"
-`), 0o644)
+	writeTestConfig(t, localServers, "shell.toml", "shell", "local")
 
-	configs, err := DiscoverConfigs(home, project)
+	configs, err := DiscoverConfigs("", home, project)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,5 +107,115 @@ command = "bash"
 	}
 	if configs[0].Description != "local" {
 		t.Errorf("expected local override, got description=%q", configs[0].Description)
+	}
+}
+
+func TestDiscoverConfigsBuiltinLayer(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(home, "project")
+	os.MkdirAll(project, 0o755)
+
+	builtinDir := filepath.Join(t.TempDir(), "share", "moxy", "builtin-servers")
+	writeTestConfig(t, builtinDir, "builtin.toml", "builtin-tool", "builtin")
+
+	configs, err := DiscoverConfigs(builtinDir, home, project)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Fatalf("len(configs) = %d, want 1", len(configs))
+	}
+	if configs[0].Name != "builtin-tool" {
+		t.Errorf("expected builtin-tool, got %q", configs[0].Name)
+	}
+}
+
+func TestDiscoverConfigsBuiltinOverriddenByGlobal(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(home, "project")
+	os.MkdirAll(project, 0o755)
+
+	builtinDir := filepath.Join(t.TempDir(), "share", "moxy", "builtin-servers")
+	writeTestConfig(t, builtinDir, "tool.toml", "tool", "builtin")
+
+	globalServers := filepath.Join(home, ".config", "moxy", "servers")
+	writeTestConfig(t, globalServers, "tool.toml", "tool", "global-override")
+
+	configs, err := DiscoverConfigs(builtinDir, home, project)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Fatalf("len(configs) = %d, want 1", len(configs))
+	}
+	if configs[0].Description != "global-override" {
+		t.Errorf("expected global-override, got description=%q", configs[0].Description)
+	}
+}
+
+func TestDiscoverConfigsBuiltinOverriddenByLocal(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(home, "project")
+
+	builtinDir := filepath.Join(t.TempDir(), "share", "moxy", "builtin-servers")
+	writeTestConfig(t, builtinDir, "tool.toml", "tool", "builtin")
+
+	localServers := filepath.Join(project, ".moxy", "servers")
+	writeTestConfig(t, localServers, "tool.toml", "tool", "local-override")
+
+	configs, err := DiscoverConfigs(builtinDir, home, project)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Fatalf("len(configs) = %d, want 1", len(configs))
+	}
+	if configs[0].Description != "local-override" {
+		t.Errorf("expected local-override, got description=%q", configs[0].Description)
+	}
+}
+
+func TestBuiltinDirEnvOverride(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "custom-builtins")
+	os.MkdirAll(dir, 0o755)
+
+	t.Setenv("MOXY_BUILTIN_DIR", dir)
+	got := BuiltinDir()
+	if got != dir {
+		t.Errorf("BuiltinDir() = %q, want %q", got, dir)
+	}
+}
+
+func TestBuiltinDirMissing(t *testing.T) {
+	t.Setenv("MOXY_BUILTIN_DIR", "/nonexistent/path/that/does/not/exist")
+	got := BuiltinDir()
+	if got != "" {
+		t.Errorf("BuiltinDir() = %q, want empty string for missing dir", got)
+	}
+}
+
+func TestDiscoverConfigsEmptyBuiltinDir(t *testing.T) {
+	// Empty builtinDir should behave like before (no builtins)
+	home := t.TempDir()
+	project := filepath.Join(home, "project")
+
+	globalServers := filepath.Join(home, ".config", "moxy", "servers")
+	writeTestConfig(t, globalServers, "tool.toml", "tool", "global")
+
+	os.MkdirAll(project, 0o755)
+
+	configs, err := DiscoverConfigs("", home, project)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Fatalf("len(configs) = %d, want 1", len(configs))
+	}
+	if configs[0].Description != "global" {
+		t.Errorf("expected global, got description=%q", configs[0].Description)
 	}
 }

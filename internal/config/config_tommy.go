@@ -43,6 +43,10 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		d.data.ProgressiveDisclosure = &v
 		d.consumed["progressive-disclosure"] = true
 	}
+	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "builtin-native"); err == nil {
+		d.data.BuiltinNative = &v
+		d.consumed["builtin-native"] = true
+	}
 	if tableNode := d.cstDoc.FindTableInContainer(d.cstDoc.Root(), "credentials"); tableNode != nil {
 		d.consumed["credentials"] = true
 		credentialsVal := &credentials.CommandConfig{}
@@ -194,6 +198,11 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			return nil, err
 		}
 	}
+	if d.data.BuiltinNative != nil {
+		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "builtin-native", *d.data.BuiltinNative); err != nil {
+			return nil, err
+		}
+	}
 	if d.data.Credentials != nil {
 		tableNode := d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "credentials")
 		if err := credentials.EncodeCommandConfigFrom(d.data.Credentials, d.cstDoc, tableNode); err != nil {
@@ -336,6 +345,10 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 	if v, err := document.GetFromContainer[bool](doc, container, "progressive-disclosure"); err == nil {
 		data.ProgressiveDisclosure = &v
 		consumed[keyPrefix+"progressive-disclosure"] = true
+	}
+	if v, err := document.GetFromContainer[bool](doc, container, "builtin-native"); err == nil {
+		data.BuiltinNative = &v
+		consumed[keyPrefix+"builtin-native"] = true
 	}
 	if tableNode := doc.FindTableInContainer(container, "credentials"); tableNode != nil {
 		consumed[keyPrefix+"credentials"] = true
@@ -481,6 +494,11 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 	}
 	if data.ProgressiveDisclosure != nil {
 		if err := doc.SetInContainer(container, "progressive-disclosure", *data.ProgressiveDisclosure); err != nil {
+			return err
+		}
+	}
+	if data.BuiltinNative != nil {
+		if err := doc.SetInContainer(container, "builtin-native", *data.BuiltinNative); err != nil {
 			return err
 		}
 	}

@@ -231,7 +231,12 @@ func runServer() error {
 		return fmt.Errorf("getting cwd: %w", err)
 	}
 
-	nativeConfigs, err := native.DiscoverConfigs(home, cwd)
+	var builtinDir string
+	if cfg.BuiltinNative == nil || *cfg.BuiltinNative {
+		builtinDir = native.BuiltinDir()
+	}
+
+	nativeConfigs, err := native.DiscoverConfigs(builtinDir, home, cwd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: warning: native config discovery: %v\n", err)
 	}

@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def resolve_cwd(proj_dir: Path) -> str | None:
+    """Extract cwd from the newest JSONL in a project directory."""
+    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not jsonls:
+        return None
+
+    with open(jsonls[0]) as f:
+        for i, line in enumerate(f):
+            if i >= 200:
+                break
+            try:
+                obj = json.loads(line)
+                cwd = obj.get("cwd")
+                if cwd:
+                    return cwd
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    # Heuristic fallback: decode directory name
+    name = proj_dir.name.lstrip("-")
+    return "/" + name.replace("-", "/") + " (heuristic)"
+
+
+def human_size(size: int) -> str:
+    if size >= 1 << 30:
+        return f"{size >> 30}G"
+    if size >= 1 << 20:
+        return f"{size >> 20}M"
+    if size >= 1 << 10:
+        return f"{size >> 10}K"
+    return f"{size}B"
+
+
+def count_lines(path: Path) -> int:
+    with open(path, "rb") as f:
+        return sum(1 for _ in f)
+
+
+def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
+    """Check if a project matches the filter (substring match on cwd or dir name)."""
+    lower = filter_str.lower()
+    return lower in resolved_cwd.lower() or lower in dir_name.lower()
+
+
+def main():
+    project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
+    projects_dir = Path(os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"))
+    if not projects_dir.is_dir():
+        print("(no sessions found)")
+        return
+
+    # Phase 1: resolve cwd per project (once each)
+    cwd_map: dict[str, str] = {}
+    for proj_dir in sorted(projects_dir.iterdir()):
+        if not proj_dir.is_dir():
+            continue
+        cwd = resolve_cwd(proj_dir)
+        if cwd:
+            cwd_map[proj_dir.name] = cwd
+
+    # Phase 2: collect all sessions
+    rows = []
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
+            continue
+        project = cwd_map[proj_dir.name]
+        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            continue
+        for f in proj_dir.glob("*.jsonl"):
+            st = f.stat()
+            rows.append((
+                st.st_mtime,
+                f.stem,
+                datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                count_lines(f),
+                human_size(st.st_size),
+                project,
+            ))
+
+    rows.sort(key=lambda r: r[0], reverse=True)
+
+    print(f"{'SESSION':<36}  {'LAST ACTIVITY':<16}  {'MSGS':>5}  {'SIZE':>5}  PROJECT")
+    for _, session, activity, msgs, size, project in rows:
+        print(f"{session:<36}  {activity:<16}  {msgs:>5}  {size:>5}  {project}")
+
+
+if __name__ == "__main__":
+    main()

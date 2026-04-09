@@ -64,12 +64,28 @@
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
+          nativeBuildInputs = [ pkgs.makeWrapper ];
           postInstall = ''
             $out/bin/moxy generate-plugin $out
             mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
             cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
             cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
             cp ${./cmd/moxy/moxy-native.7} $out/share/man/man7/moxy-native.7
+
+            # Install builtin native server configs
+            mkdir -p $out/share/moxy/builtin-servers
+            cp ${./builtin-servers}/*.toml $out/share/moxy/builtin-servers/
+
+            # Install freud scripts and wrap with python3 on PATH
+            mkdir -p $out/libexec/moxy
+            cp ${./libexec}/* $out/libexec/moxy/
+            chmod +x $out/libexec/moxy/*
+            for f in $out/libexec/moxy/freud-*; do
+              wrapProgram "$f" --prefix PATH : ${pkgs.python3}/bin
+            done
+
+            # Rewrite __LIBEXEC__ placeholder to absolute nix store path
+            sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" $out/share/moxy/builtin-servers/*.toml
           '';
         };
 

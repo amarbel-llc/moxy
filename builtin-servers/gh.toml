@@ -1,0 +1,385 @@
+name = "gh"
+description = "GitHub MCP server for the current repository. Issue/PR mutations and API tools operate on the repo detected from the git remote in the current directory. For operations on other repos, use gh-other tools instead."
+
+# ---------------------------------------------------------------------------
+# Current-repo tools. gh auto-detects the repo from the git remote.
+# No repo parameter — keeps the tool surface tight.
+# ---------------------------------------------------------------------------
+
+# === Issues ================================================================
+
+[[tools]]
+name = "issue-create"
+description = "Create a new issue"
+command = "bash"
+arg_order = ["title", "body", "labels"]
+args = ["-c", """
+set -euo pipefail
+title="$1"
+body="${2:-}"
+labels_json="${3:-}"
+gh_args=(issue create --title "$title")
+
+[ -n "$body" ] && gh_args+=(--body "$body")
+if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
+  while IFS= read -r label; do
+    gh_args+=(--label "$label")
+  done < <(printf '%s' "$labels_json" | jq -r '.[]')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["title"]
+
+[tools.input.properties.title]
+type = "string"
+description = "Issue title"
+
+[tools.input.properties.body]
+type = "string"
+description = "Issue body"
+
+[tools.input.properties.labels]
+type = "array"
+description = "Labels to add"
+
+[tools.input.properties.labels.items]
+type = "string"
+
+# ---
+
+[[tools]]
+name = "issue-comment"
+description = "Post a comment on an issue or pull request"
+command = "bash"
+arg_order = ["number", "body"]
+args = ["-c", """
+set -euo pipefail
+number="$1"
+body="$2"
+gh issue comment "$number" --body "$body"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["number", "body"]
+
+[tools.input.properties.number]
+type = "integer"
+description = "Issue or pull request number"
+
+[tools.input.properties.body]
+type = "string"
+description = "Comment body (markdown supported)"
+
+# ---
+
+[[tools]]
+name = "issue-close"
+description = "Close an issue with optional comment"
+command = "bash"
+arg_order = ["number", "comment", "reason"]
+args = ["-c", """
+set -euo pipefail
+number="$1"
+comment="${2:-}"
+reason="${3:-}"
+gh_args=(issue close "$number")
+
+[ -n "$comment" ] && gh_args+=(--comment "$comment")
+
+[ -n "$reason" ] && gh_args+=(--reason "$reason")
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["number"]
+
+[tools.input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[tools.input.properties.comment]
+type = "string"
+description = "Optional comment to add before closing"
+
+[tools.input.properties.reason]
+type = "string"
+description = "Close reason: completed (default) or not_planned"
+
+# === Pull Requests =========================================================
+
+[[tools]]
+name = "pr-create"
+description = "Create a new pull request"
+command = "bash"
+arg_order = ["title", "body", "base", "head", "draft", "labels"]
+args = ["-c", """
+set -euo pipefail
+title="$1"
+body="${2:-}"
+base="${3:-}"
+head="${4:-}"
+draft="${5:-}"
+labels_json="${6:-}"
+gh_args=(pr create --title "$title")
+
+[ -n "$body" ] && gh_args+=(--body "$body")
+
+[ -n "$base" ] && gh_args+=(--base "$base")
+
+[ -n "$head" ] && gh_args+=(--head "$head")
+
+[ "$draft" = "true" ] && gh_args+=(--draft)
+if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
+  while IFS= read -r label; do
+    gh_args+=(--label "$label")
+  done < <(printf '%s' "$labels_json" | jq -r '.[]')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["title"]
+
+[tools.input.properties.title]
+type = "string"
+description = "Pull request title"
+
+[tools.input.properties.body]
+type = "string"
+description = "Pull request body"
+
+[tools.input.properties.base]
+type = "string"
+description = "Base branch (the branch into which you want your code merged)"
+
+[tools.input.properties.head]
+type = "string"
+description = "Head branch (the branch that contains commits for your pull request). Usually necessary because gh refuses to create PRs when the working tree has untracked files unless --head is explicit. Format: OWNER:BRANCH for cross-repo PRs"
+
+[tools.input.properties.draft]
+type = "boolean"
+description = "Create as draft pull request"
+
+[tools.input.properties.labels]
+type = "array"
+description = "Labels to add"
+
+[tools.input.properties.labels.items]
+type = "string"
+
+# === Content ===============================================================
+
+[[tools]]
+name = "content-compare"
+description = "Compare two refs (branches, tags, or commits) showing commits and file changes"
+command = "bash"
+arg_order = ["repo", "base", "head", "per_page", "page"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+base="$2"
+head="$3"
+per_page="${4:-30}"
+page="${5:-1}"
+gh api "repos/$repo/compare/$base...$head" \
+  -f per_page="$per_page" \
+  -f page="$page" \
+  | jq '{
+    status: .status,
+    ahead_by: .ahead_by,
+    behind_by: .behind_by,
+    total_commits: .total_commits,
+    commits: [.commits[] | {sha: .sha[0:7], message: (.commit.message | split("\n")[0]), author: .commit.author.name, date: .commit.author.date}],
+    files: [.files[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]
+  }'
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["repo", "base", "head"]
+
+[tools.input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[tools.input.properties.base]
+type = "string"
+description = "Base ref (branch, tag, or SHA)"
+
+[tools.input.properties.head]
+type = "string"
+description = "Head ref (branch, tag, or SHA)"
+
+[tools.input.properties.per_page]
+type = "integer"
+description = "Number of file entries per page (max 100, default 30)"
+
+[tools.input.properties.page]
+type = "integer"
+description = "Page number for pagination (default 1)"
+
+# ---
+
+[[tools]]
+name = "content-search"
+description = "Search for code within a repository"
+command = "bash"
+arg_order = ["repo", "query", "path", "extension", "per_page", "page"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+query="$2"
+path="${3:-}"
+extension="${4:-}"
+per_page="${5:-30}"
+page="${6:-1}"
+q="$query repo:$repo"
+
+[ -n "$path" ] && q="$q path:$path"
+
+[ -n "$extension" ] && q="$q extension:$extension"
+gh api search/code \
+  -H "Accept: application/vnd.github.text-match+json" \
+  -f q="$q" \
+  -f per_page="$per_page" \
+  -f page="$page" \
+  | jq '{
+    total_count: .total_count,
+    items: [.items[] | {
+      name: .name,
+      path: .path,
+      sha: .sha[0:7],
+      url: .html_url,
+      score: .score,
+      text_matches: [.text_matches[]? | {fragment: .fragment, matches: [.matches[]? | {text: .text, indices: .indices}]}]
+    }]
+  }'
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["repo", "query"]
+
+[tools.input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[tools.input.properties.query]
+type = "string"
+description = "Search query (code to search for)"
+
+[tools.input.properties.path]
+type = "string"
+description = "Restrict search to a file path or directory prefix"
+
+[tools.input.properties.extension]
+type = "string"
+description = "Restrict search to a file extension (e.g. 'go', 'py')"
+
+[tools.input.properties.per_page]
+type = "integer"
+description = "Number of results per page (max 100, default 30)"
+
+[tools.input.properties.page]
+type = "integer"
+description = "Page number for pagination (default 1)"
+
+# === API ===================================================================
+
+[[tools]]
+name = "api-get"
+description = "Make an authenticated GET request to the GitHub REST API"
+command = "bash"
+arg_order = ["endpoint", "params", "headers", "paginate"]
+args = ["-c", """
+set -euo pipefail
+endpoint="$1"
+params_json="${2:-}"
+headers_json="${3:-}"
+paginate="${4:-}"
+gh_args=(api "$endpoint" --method GET)
+
+[ "$paginate" = "true" ] && gh_args+=(--paginate)
+if [ -n "$params_json" ] && [ "$params_json" != "null" ] && [ "$params_json" != "{}" ]; then
+  while IFS=$'\t' read -r key val; do
+    gh_args+=(-f "$key=$val")
+  done < <(printf '%s' "$params_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+fi
+if [ -n "$headers_json" ] && [ "$headers_json" != "null" ]; then
+  while IFS= read -r h; do
+    gh_args+=(-H "$h")
+  done < <(printf '%s' "$headers_json" | jq -r '.[]')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["endpoint"]
+
+[tools.input.properties.endpoint]
+type = "string"
+description = "REST API path, e.g. /repos/{owner}/{repo}/actions/runs"
+
+[tools.input.properties.params]
+type = "object"
+description = "Query string parameters as key-value pairs"
+
+[tools.input.properties.params.additionalProperties]
+type = "string"
+
+[tools.input.properties.headers]
+type = "array"
+description = "Additional headers in key:value format"
+
+[tools.input.properties.headers.items]
+type = "string"
+
+[tools.input.properties.paginate]
+type = "boolean"
+description = "Auto-paginate results"
+
+# ---
+
+[[tools]]
+name = "graphql-query"
+description = "Execute a read-only GraphQL query against the GitHub API"
+command = "bash"
+arg_order = ["query", "variables", "paginate"]
+args = ["-c", """
+set -euo pipefail
+query="$1"
+variables_json="${2:-}"
+paginate="${3:-}"
+gh_args=(api graphql -f "query=$query")
+
+[ "$paginate" = "true" ] && gh_args+=(--paginate)
+if [ -n "$variables_json" ] && [ "$variables_json" != "null" ] && [ "$variables_json" != "{}" ]; then
+  while IFS=$'\t' read -r key val; do
+    gh_args+=(-F "$key=$val")
+  done < <(printf '%s' "$variables_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["query"]
+
+[tools.input.properties.query]
+type = "string"
+description = "The GraphQL query string"
+
+[tools.input.properties.variables]
+type = "object"
+description = "GraphQL variables as key-value pairs"
+
+[tools.input.properties.paginate]
+type = "boolean"
+description = "Auto-paginate results (requires endCursor/pageInfo in query)"

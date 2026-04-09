@@ -1,0 +1,53 @@
+name = "jq"
+description = "Execute jq filters on JSON data. Cached result URIs (moxy.native://results/{session}/{id}) in argument strings are rewritten to /dev/fd/N, streaming cached output as file descriptors."
+
+[[tools]]
+name = "jq"
+description = "Execute a jq filter. Only jq is invoked — no shell evaluation. Cached result URIs (moxy.native://results/{session}/{id}) in args are rewritten to /dev/fd/N for streaming."
+command = "sh"
+arg_order = ["filter", "args", "stdin", "cwd"]
+args = ["-c", """
+set -euo pipefail
+filter="$1"
+args_json="${2:-}"
+stdin_val="${3:-}"
+cwd_val="${4:-}"
+
+[ -n "$cwd_val" ] && cd "$cwd_val"
+
+jq_args=()
+if [ -n "$args_json" ] && [ "$args_json" != "null" ]; then
+  while IFS= read -r a; do
+    jq_args+=("$a")
+  done < <(printf '%s' "$args_json" | jq -r '.[]')
+fi
+
+if [ -n "$stdin_val" ]; then
+  printf '%s' "$stdin_val" | jq "${jq_args[@]}" "$filter"
+else
+  jq "${jq_args[@]}" "$filter"
+fi
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["filter"]
+
+[tools.input.properties.filter]
+type = "string"
+description = "jq filter expression (e.g. '.data[] | select(.name == \"foo\")')."
+
+[tools.input.properties.args]
+type = "array"
+description = "Additional jq arguments: flags (e.g. \"-r\", \"-c\", \"--slurp\") and/or input file paths. Result URIs are rewritten to /dev/fd/N."
+
+[tools.input.properties.args.items]
+type = "string"
+
+[tools.input.properties.stdin]
+type = "string"
+description = "Content written to jq's stdin. Either literal JSON text, or a moxy.native://results/{session}/{id} URI to feed cached output."
+
+[tools.input.properties.cwd]
+type = "string"
+description = "Working directory"

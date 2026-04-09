@@ -7,13 +7,45 @@ import (
 	"strings"
 )
 
-// DiscoverConfigs walks the servers/ directory hierarchy from home to dir,
-// loading *.toml files and merging by server name (later overrides earlier).
-// The walk order matches LoadHierarchy in internal/config:
+// BuiltinDir returns the path to the builtin native server configs shipped
+// with the moxy binary. It resolves os.Executable() to find
+// <prefix>/share/moxy/builtin-servers/. The MOXY_BUILTIN_DIR env var
+// overrides for development/testing. Returns "" if the directory does not
+// exist (graceful degradation).
+func BuiltinDir() string {
+	if dir := os.Getenv("MOXY_BUILTIN_DIR"); dir != "" {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return dir
+		}
+		return ""
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return ""
+	}
+
+	// exe is <prefix>/bin/moxy → prefix is two levels up
+	prefix := filepath.Dir(filepath.Dir(exe))
+	dir := filepath.Join(prefix, "share", "moxy", "builtin-servers")
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		return dir
+	}
+	return ""
+}
+
+// DiscoverConfigs walks the servers/ directory hierarchy, loading *.toml
+// files and merging by server name (later overrides earlier).
+// The walk order is:
+//  0. builtinDir (shipped with the binary, lowest priority)
 //  1. ~/.config/moxy/servers/ (global)
 //  2. Each parent directory between home and dir (.moxy/servers/)
 //  3. dir/.moxy/servers/ (project-local)
-func DiscoverConfigs(home, dir string) ([]*NativeConfig, error) {
+func DiscoverConfigs(builtinDir, home, dir string) ([]*NativeConfig, error) {
 	byName := make(map[string]*NativeConfig)
 	var order []string
 
@@ -47,6 +79,13 @@ func DiscoverConfigs(home, dir string) ([]*NativeConfig, error) {
 			byName[cfg.Name] = cfg
 		}
 		return nil
+	}
+
+	// 0. Builtin: <prefix>/share/moxy/builtin-servers/
+	if builtinDir != "" {
+		if err := loadDir(builtinDir); err != nil {
+			return nil, err
+		}
 	}
 
 	// 1. Global: ~/.config/moxy/servers/

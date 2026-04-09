@@ -1058,6 +1058,38 @@ command = "echo"
 	}
 }
 
+func TestMergeBuiltinNative(t *testing.T) {
+	base := Config{BuiltinNative: boolPtr(true)}
+	overlay := Config{BuiltinNative: boolPtr(false)}
+	merged := Merge(base, overlay)
+	if merged.BuiltinNative == nil || *merged.BuiltinNative {
+		t.Error("expected overlay builtin-native = false to win")
+	}
+
+	// nil overlay should preserve base
+	merged2 := Merge(base, Config{})
+	if merged2.BuiltinNative == nil || !*merged2.BuiltinNative {
+		t.Error("expected base builtin-native = true to be preserved")
+	}
+}
+
+func TestParseBuiltinNative(t *testing.T) {
+	input := `
+builtin-native = false
+
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.BuiltinNative == nil || *cfg.BuiltinNative {
+		t.Error("expected builtin-native = false")
+	}
+}
+
 func TestParseHeadersExpandEnvVars(t *testing.T) {
 	t.Setenv("TEST_TOKEN", "secret123")
 	input := `

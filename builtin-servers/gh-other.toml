@@ -1,0 +1,193 @@
+name = "gh-other"
+description = "GitHub tools for repositories OTHER than the current one. Every tool requires an explicit repo parameter in OWNER/REPO format. For current-repo operations, use gh tools instead."
+
+# ---------------------------------------------------------------------------
+# Cross-repo tools. Every mutation requires an explicit -R repo.
+# ---------------------------------------------------------------------------
+
+# === Issues ================================================================
+
+[[tools]]
+name = "issue-create"
+description = "Create a new issue"
+command = "bash"
+arg_order = ["repo", "title", "body", "labels"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+title="$2"
+body="${3:-}"
+labels_json="${4:-}"
+gh_args=(issue create -R "$repo" --title "$title")
+
+[ -n "$body" ] && gh_args+=(--body "$body")
+if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
+  while IFS= read -r label; do
+    gh_args+=(--label "$label")
+  done < <(printf '%s' "$labels_json" | jq -r '.[]')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["repo", "title"]
+
+[tools.input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[tools.input.properties.title]
+type = "string"
+description = "Issue title"
+
+[tools.input.properties.body]
+type = "string"
+description = "Issue body"
+
+[tools.input.properties.labels]
+type = "array"
+description = "Labels to add"
+
+[tools.input.properties.labels.items]
+type = "string"
+
+# ---
+
+[[tools]]
+name = "issue-comment"
+description = "Post a comment on an issue or pull request"
+command = "bash"
+arg_order = ["repo", "number", "body"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+number="$2"
+body="$3"
+gh issue comment "$number" -R "$repo" --body "$body"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["repo", "number", "body"]
+
+[tools.input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[tools.input.properties.number]
+type = "integer"
+description = "Issue or pull request number"
+
+[tools.input.properties.body]
+type = "string"
+description = "Comment body (markdown supported)"
+
+# ---
+
+[[tools]]
+name = "issue-close"
+description = "Close an issue with optional comment"
+command = "bash"
+arg_order = ["repo", "number", "comment", "reason"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+number="$2"
+comment="${3:-}"
+reason="${4:-}"
+gh_args=(issue close "$number" -R "$repo")
+
+[ -n "$comment" ] && gh_args+=(--comment "$comment")
+
+[ -n "$reason" ] && gh_args+=(--reason "$reason")
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["repo", "number"]
+
+[tools.input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[tools.input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[tools.input.properties.comment]
+type = "string"
+description = "Optional comment to add before closing"
+
+[tools.input.properties.reason]
+type = "string"
+description = "Close reason: completed (default) or not_planned"
+
+# === Pull Requests =========================================================
+
+[[tools]]
+name = "pr-create"
+description = "Create a new pull request"
+command = "bash"
+arg_order = ["repo", "title", "body", "base", "head", "draft", "labels"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+title="$2"
+body="${3:-}"
+base="${4:-}"
+head="${5:-}"
+draft="${6:-}"
+labels_json="${7:-}"
+gh_args=(pr create -R "$repo" --title "$title")
+
+[ -n "$body" ] && gh_args+=(--body "$body")
+
+[ -n "$base" ] && gh_args+=(--base "$base")
+
+[ -n "$head" ] && gh_args+=(--head "$head")
+
+[ "$draft" = "true" ] && gh_args+=(--draft)
+if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
+  while IFS= read -r label; do
+    gh_args+=(--label "$label")
+  done < <(printf '%s' "$labels_json" | jq -r '.[]')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["repo", "title"]
+
+[tools.input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[tools.input.properties.title]
+type = "string"
+description = "Pull request title"
+
+[tools.input.properties.body]
+type = "string"
+description = "Pull request body"
+
+[tools.input.properties.base]
+type = "string"
+description = "Base branch (the branch into which you want your code merged)"
+
+[tools.input.properties.head]
+type = "string"
+description = "Head branch (the branch that contains commits for your pull request). Usually necessary because gh refuses to create PRs when the working tree has untracked files unless --head is explicit. Format: OWNER:BRANCH for cross-repo PRs"
+
+[tools.input.properties.draft]
+type = "boolean"
+description = "Create as draft pull request"
+
+[tools.input.properties.labels]
+type = "array"
+description = "Labels to add"
+
+[tools.input.properties.labels.items]
+type = "string"
