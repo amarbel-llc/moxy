@@ -1,6 +1,10 @@
 schema = 3
 
 [mod]
+  [mod.'github.com/BurntSushi/toml']
+    version = 'v1.6.0'
+    hash = 'sha256-ptdUJvuc21ixeLt+M5way/na3aCnCO4MYHWulWp8NEY='
+
   [mod.'github.com/amarbel-llc/purse-first/libs/go-mcp']
     version = 'v0.0.4'
     hash = 'sha256-xEmWi8sABzRWp8fbPavpZKznx943HWqVcLv6pckTP+k='
