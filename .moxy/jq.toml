@@ -1,0 +1,31 @@
+name = "jq"
+description = "jq execution with result caching and resource-as-fd composition"
+
+[[tools]]
+name = "jq"
+description = "Execute a jq. Cached result URIs (moxy.native://results/{session}/{id}) in the command string are rewritten to /dev/fd/N, streaming cached output as file descriptors."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+eval "$1"
+""", "_"]
+
+[tools.input.properties.command]
+type = "string"
+description = "Shell command to execute. Any moxy.native://results/{session}/{id} substring is rewritten to /dev/fd/N, streaming the cached output via that fd."
+
+[tools.input.properties.stdin]
+type = "string"
+description = "Content written to the subprocess's stdin. Either literal text, or a moxy.native://results/{session}/{id} URI to feed cached output."
+
+[tools.input.properties.cwd]
+type = "string"
+description = "Working directory"
+
+[tools.input.properties.timeout]
+type = "number"
+description = "Timeout in milliseconds"
+
+[tools.input]
+type = "object"
+required = ["command"]
