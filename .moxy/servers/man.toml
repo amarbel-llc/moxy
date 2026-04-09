@@ -84,3 +84,29 @@ required = ["query"]
 [tools.input.properties.query]
 type = "string"
 description = "Keyword to search for in man page names and descriptions"
+
+# ---
+
+[[tools]]
+name = "semantic-search"
+description = "Semantic man page search using vector embeddings. More accurate than keyword search for natural language queries like 'list files' or 'configure network'. Requires a pre-built index (maneater index)."
+command = "sh"
+arg_order = ["query", "top_k"]
+args = ["-c", """
+set -euo pipefail
+query="$1"
+top_k="${2:-10}"
+maneater search "$query" --top-k "$top_k"
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["query"]
+
+[tools.input.properties.query]
+type = "string"
+description = "Natural language search query (e.g. 'list files', 'configure network', 'MCP proxy')"
+
+[tools.input.properties.top_k]
+type = "integer"
+description = "Number of results to return (default 10)"

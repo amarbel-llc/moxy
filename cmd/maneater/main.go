@@ -1122,6 +1122,12 @@ func main() {
 		runServeMCP()
 	case "index":
 		runIndex()
+	case "search":
+		if flag.NArg() < 2 {
+			fmt.Fprintf(os.Stderr, "usage: maneater search <query> [--top-k N]\n")
+			os.Exit(1)
+		}
+		runSearch(flag.Args()[1:])
 	default:
 		printUsage()
 		os.Exit(1)
@@ -1131,8 +1137,61 @@ func main() {
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "usage: maneater <command>\n\n")
 	fmt.Fprintf(os.Stderr, "commands:\n")
-	fmt.Fprintf(os.Stderr, "  serve mcp    run as MCP server\n")
-	fmt.Fprintf(os.Stderr, "  index        build/rebuild search index\n")
+	fmt.Fprintf(os.Stderr, "  serve mcp          run as MCP server\n")
+	fmt.Fprintf(os.Stderr, "  index              build/rebuild search index\n")
+	fmt.Fprintf(os.Stderr, "  search <query>     semantic man page search\n")
+}
+
+func runSearch(args []string) {
+	topK := 10
+	var queryParts []string
+
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--top-k" && i+1 < len(args) {
+			n, err := strconv.Atoi(args[i+1])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "maneater: invalid --top-k value: %s\n", args[i+1])
+				os.Exit(1)
+			}
+			topK = n
+			i++
+		} else {
+			queryParts = append(queryParts, args[i])
+		}
+	}
+
+	query := strings.Join(queryParts, " ")
+	if query == "" {
+		fmt.Fprintf(os.Stderr, "usage: maneater search <query> [--top-k N]\n")
+		os.Exit(1)
+	}
+
+	cfg, err := LoadDefaultManeaterHierarchy()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
+
+	manpath, err := resolveManpath(cfg.Manpath, cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
+
+	m := &manServer{manpath: manpath}
+	result, err := m.handleSearch(query, topK)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Print(result)
 }
 
 func runServeMCP() {

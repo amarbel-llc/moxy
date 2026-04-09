@@ -1,4 +1,4 @@
-name = "godoc"
+name = "gordo"
 description = "Go package documentation via go doc"
 
 [[tools]]
