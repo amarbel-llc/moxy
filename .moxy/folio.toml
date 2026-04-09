@@ -1,5 +1,5 @@
 name = "folio"
-description = "File read tools with line numbers and progressive disclosure"
+description = "File read tools with line numbers and progressive disclosure. Tools: read, read_range, read_excluding, glob."
 
 [[tools]]
 name = "read"
@@ -82,3 +82,47 @@ description = "Inclusive first line to omit (1-indexed)"
 [tools.input.properties.delete_end]
 type = "integer"
 description = "Inclusive last line to omit (1-indexed)"
+
+[[tools]]
+name = "glob"
+description = """Fast file pattern matching tool that works with any codebase size. \
+Supports glob patterns like "**/*.js" or "src/**/*.ts". \
+Returns matching file paths sorted by modification time (newest first)."""
+command = "bash"
+arg_order = ["pattern", "path"]
+args = ["-c", """
+set -euo pipefail
+pattern="$1"
+dir="${2:-.}"
+
+cd "$dir"
+shopt -s globstar nullglob dotglob
+
+files=()
+for f in $pattern; do
+
+  [ -f "$f" ] && files+=("$f")
+done
+
+if [ ${#files[@]} -eq 0 ]; then
+  echo "No files found"
+  exit 0
+fi
+
+# Sort by modification time (newest first)
+for f in "${files[@]}"; do
+  printf '%s\t%s\n' "$(stat -c '%Y' "$f")" "$f"
+done | sort -rn | cut -f2-
+""", "_"]
+
+[tools.input]
+type = "object"
+required = ["pattern"]
+
+[tools.input.properties.pattern]
+type = "string"
+description = "The glob pattern to match files against (e.g. \"**/*.go\", \"src/**/*.ts\")"
+
+[tools.input.properties.path]
+type = "string"
+description = "The directory to search in. Defaults to current working directory."
