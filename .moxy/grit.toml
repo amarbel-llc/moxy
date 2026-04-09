@@ -1,5 +1,5 @@
 name = "grit"
-description = "Git MCP server exposing repository operations as native tools. Safety checks block destructive operations on main/master."
+description = "Git MCP server exposing repository operations. Safety: force-push, hard-reset, rebase, merge, and branch-delete are blocked on main/master."
 
 # ---------------------------------------------------------------------------
 # Helper: all scripts that accept repo_path use this pattern at the top:
@@ -286,7 +286,7 @@ description = "Path to the git repository (defaults to current working directory
 
 [[tools]]
 name = "branch-delete"
-description = "Delete a local branch (blocked on main/master for safety)"
+description = "Delete a local branch"
 command = "bash"
 arg_order = ["name", "force", "repo_path"]
 args = ["-c", """
@@ -484,7 +484,7 @@ description = "Path to the git repository (defaults to current working directory
 
 [[tools]]
 name = "push"
-description = "Push commits to a remote repository (force push blocked on main/master)"
+description = "Push commits to a remote repository"
 command = "bash"
 arg_order = ["remote", "branch", "set_upstream", "force", "repo_path"]
 args = ["-c", """
@@ -528,7 +528,7 @@ description = "Branch to push"
 
 [tools.input.properties.force]
 type = "boolean"
-description = "Force push (blocked on main/master branches)"
+description = "Force push"
 
 [tools.input.properties.remote]
 type = "string"
@@ -573,7 +573,7 @@ description = "Path to the git repository (defaults to current working directory
 
 [[tools]]
 name = "rebase"
-description = "Rebase current branch onto another ref (blocked on main/master for safety)"
+description = "Rebase current branch onto another ref"
 command = "bash"
 arg_order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "repo_path"]
 args = ["-c", """
@@ -648,7 +648,7 @@ description = "Path to the git repository (defaults to current working directory
 
 [[tools]]
 name = "hard-reset"
-description = "Discard all changes and reset HEAD, index, and working tree to a ref (blocked on main/master for safety)"
+description = "Discard all changes and reset HEAD, index, and working tree to a ref"
 command = "bash"
 arg_order = ["ref", "repo_path"]
 args = ["-c", """
@@ -720,7 +720,7 @@ description = "Path to the git repository (defaults to current working directory
 
 [[tools]]
 name = "merge"
-description = "Merge a branch into the current branch (blocked on main/master for safety)"
+description = "Merge a branch into the current branch"
 command = "bash"
 arg_order = ["branch", "no_ff", "squash", "abort", "continue", "repo_path"]
 args = ["-c", """

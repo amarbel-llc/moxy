@@ -9,7 +9,7 @@ description = "GitHub tools for repositories OTHER than the current one. Every t
 
 [[tools]]
 name = "issue-create"
-description = "Create a new issue in a specific repository"
+description = "Create a new issue"
 command = "bash"
 arg_order = ["repo", "title", "body", "labels"]
 args = ["-c", """
@@ -56,7 +56,7 @@ type = "string"
 
 [[tools]]
 name = "issue-comment"
-description = "Post a comment on an issue or pull request in a specific repository"
+description = "Post a comment on an issue or pull request"
 command = "bash"
 arg_order = ["repo", "number", "body"]
 args = ["-c", """
@@ -87,7 +87,7 @@ description = "Comment body (markdown supported)"
 
 [[tools]]
 name = "issue-close"
-description = "Close an issue with optional comment in a specific repository"
+description = "Close an issue with optional comment"
 command = "bash"
 arg_order = ["repo", "number", "comment", "reason"]
 args = ["-c", """
@@ -128,7 +128,7 @@ description = "Close reason: completed (default) or not_planned"
 
 [[tools]]
 name = "pr-create"
-description = "Create a new pull request in a specific repository"
+description = "Create a new pull request"
 command = "bash"
 arg_order = ["repo", "title", "body", "base", "head", "draft", "labels"]
 args = ["-c", """

@@ -1,5 +1,5 @@
 name = "folio"
-description = "File read tools with line numbers and progressive disclosure. Tools: read, read_range, read_excluding, glob."
+description = "File read tools with line numbers and progressive disclosure."
 
 [[tools]]
 name = "read"
