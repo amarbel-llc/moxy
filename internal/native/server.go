@@ -95,7 +95,7 @@ func (s *Server) handleToolsList() (json.RawMessage, error) {
 			Description: spec.Description,
 		}
 		if spec.Input != nil {
-			tool.InputSchema = spec.Input
+			tool.InputSchema = ensureObjectType(spec.Input)
 		} else {
 			tool.InputSchema = json.RawMessage(`{"type":"object"}`)
 		}
@@ -314,6 +314,24 @@ func argumentOrder(argMap map[string]json.RawMessage, inputSchema json.RawMessag
 	order = append(order, remaining...)
 
 	return order
+}
+
+// ensureObjectType injects "type":"object" into a JSON Schema if missing.
+// MCP clients (including Claude Code) require this field to generate tool bindings.
+func ensureObjectType(schema json.RawMessage) json.RawMessage {
+	var m map[string]any
+	if err := json.Unmarshal(schema, &m); err != nil {
+		return schema
+	}
+	if _, ok := m["type"]; ok {
+		return schema
+	}
+	m["type"] = "object"
+	data, err := json.Marshal(m)
+	if err != nil {
+		return schema
+	}
+	return data
 }
 
 func marshalResult(v any) (json.RawMessage, error) {
