@@ -23,7 +23,9 @@ if [ "$print_build_logs" = "true" ]; then
 fi
 nix_args+=("$installable")
 
-output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
 
 if [ -n "$log_tail" ]; then
   echo "$output" | tail -n "$log_tail"
@@ -85,7 +87,9 @@ if [ -n "$apply" ]; then
   nix_args+=(--apply "$apply")
 fi
 
-output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
 
 if [ -n "$tail_n" ]; then
   echo "$output" | tail -n "$tail_n"
@@ -148,7 +152,9 @@ if [ -n "$exclude_json" ] && [ "$exclude_json" != "null" ] && [ "$exclude_json" 
   done < <(printf '%s' "$exclude_json" | jq -r '.[]')
 fi
 
-output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
 
 # nix search --json returns an object; convert to sorted array with pagination
 if [ -n "$limit" ]; then
@@ -252,11 +258,14 @@ for ((i=0; i<count; i++)); do
     nix_args+=("${cmd_args[@]}")
   fi
 
-  step_output=$(nix "${nix_args[@]}" 2>&1) || {
-    run_output+="$step_output"
+  stderr_file=$(mktemp)
+  step_output=$(nix "${nix_args[@]}" 2>"$stderr_file") || {
+    run_output+="$(cat "$stderr_file")"$'\n'"$step_output"
+    rm -f "$stderr_file"
     printf '%s' "$run_output"
     exit 1
   }
+  rm -f "$stderr_file"
   run_output+="$step_output"$'\n'
 done
 
@@ -322,7 +331,9 @@ if [ "$keep_going" = "true" ]; then
 fi
 nix_args+=("$flake_ref")
 
-output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
 
 if [ -n "$tail_n" ]; then
   echo "$output" | tail -n "$tail_n"
@@ -422,7 +433,9 @@ fi
 
 nix_args+=("$flake_ref")
 
-output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
 
 if [ -n "$tail_n" ]; then
   echo "$output" | tail -n "$tail_n"
@@ -490,7 +503,9 @@ fi
 
 nix_args+=("$flake_ref")
 
-output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
 
 if [ -n "$tail_n" ]; then
   echo "$output" | tail -n "$tail_n"
