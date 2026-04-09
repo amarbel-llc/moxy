@@ -1,0 +1,124 @@
+.Dd April 9, 2026
+.Dt MOXY 1
+.Os
+.Sh NAME
+.Nm moxy
+.Nd MCP proxy that aggregates child MCP servers
+.Sh SYNOPSIS
+.Nm
+.Cm serve mcp
+.Nm
+.Cm validate
+.Nm
+.Cm add
+.Op Ar path
+.Sh DESCRIPTION
+.Nm
+spawns child MCP servers as subprocesses, communicates with them via
+JSON-RPC over stdio, and presents their tools, resources, and prompts
+through a single unified MCP server.
+Child server capabilities are namespaced with a dot separator
+.Pq e.g. grit.status, lux.hover .
+.Pp
+Configuration is loaded from a hierarchy of TOML moxyfiles
+.Pq see Xr moxyfile 5
+and declarative tool configs in
+.Pa .moxy/
+directories
+.Pq see Xr moxy-native 7 .
+.Sh COMMANDS
+.Bl -tag -width "serve mcp"
+.It Cm serve mcp
+Run as an MCP proxy server over stdio.
+This is the default command when invoked via the MCP protocol.
+Loads the moxyfile hierarchy, spawns child MCP servers, performs
+initialize handshakes, probes ephemeral servers, discovers native
+configs from
+.Pa .moxy/
+directories, and serves as a unified MCP server on stdin/stdout.
+Shuts down gracefully on
+.Dv SIGINT .
+.It Cm validate
+Validate the moxyfile hierarchy and output results in TAP version 14
+format.
+Checks TOML syntax, validates server names and commands, and verifies
+executables exist on
+.Ev PATH .
+.It Cm add Op Ar path
+Interactively add a server to a moxyfile using a terminal form.
+The optional
+.Ar path
+argument specifies which moxyfile to modify; defaults to
+.Pa moxyfile
+in the current directory.
+.El
+.Sh NAMESPACING
+Tools and prompts from child servers are namespaced as
+.Ar server Ns Li \&. Ns Ar name
+.Pq e.g. grit.status .
+The dot separator is unambiguous because server names must not contain
+dots.
+.Pp
+Resources and resource templates use a slash separator:
+.Ar server Ns Li / Ns Ar uri .
+.Sh META TOOLS
+.Nm
+injects two built-in tools into the unified server:
+.Bl -tag -width "exec-mcp"
+.It restart
+Restart a configured child server by name.
+For persistent servers, closes and re-spawns the process.
+For ephemeral servers, re-probes capabilities.
+.It exec-mcp
+Invoke a tool on a named child server directly, bypassing the
+normal namespaced dispatch.
+.El
+.Sh DISCOVERY RESOURCES
+.Nm
+provides built-in resources for agent discovery:
+.Bl -tag -width "moxy://tools/{server}/{tool}"
+.It Li moxy://servers
+JSON array of all child servers with capability counts and status.
+.It Li moxy://servers/{server}
+Details for a single child server.
+.It Li moxy://tools/{server}
+Tool names and descriptions for a child server.
+.It Li moxy://tools/{server}/{tool}
+Full JSON schema for a specific tool.
+.El
+.Pp
+Unknown resource reads return structured JSON hints pointing to
+.Li moxy://servers
+instead of raw error messages.
+.Sh ENVIRONMENT
+.Bl -tag -width "CLAUDE_SESSION_ID"
+.It Ev HOME
+Used as the root for the configuration hierarchy walk.
+.It Ev CLAUDE_SESSION_ID
+Session identifier for native server result caching.
+Falls back to
+.Dq no-session
+if unset.
+.It Ev XDG_CACHE_HOME
+Base directory for native server result caches.
+Defaults to
+.Pa ~/.cache .
+.El
+.Sh FILES
+.Bl -tag -width "$XDG_CACHE_HOME/moxy/native-results/"
+.It Pa ~/.config/moxy/moxyfile
+Global moxyfile.
+.It Pa ./moxyfile
+Project-local moxyfile.
+.It Pa ~/.config/moxy/.moxy/
+Global native server configs.
+.It Pa ./.moxy/
+Project-local native server configs.
+.It Pa $XDG_CACHE_HOME/moxy/native-results/
+Cached tool outputs from native servers.
+.El
+.Sh SEE ALSO
+.Xr maneater 1 ,
+.Xr maneater.toml 5 ,
+.Xr moxy-native 7 ,
+.Xr moxyfile 5
