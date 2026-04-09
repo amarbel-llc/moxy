@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
@@ -122,12 +123,79 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		))
 	}
 
-	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
+	// Extract caller-supplied arguments and append them (as strings) after
+	// spec.Args.  Ordering follows the input schema's "required" array so
+	// positional semantics are deterministic; any remaining keys are appended
+	// in sorted order.
+	extraArgs, err := buildExtraArgs(callParams.Arguments, spec.Input)
+	if err != nil {
+		return marshalResult(protocol.ErrorResultV1(
+			fmt.Sprintf("parsing arguments: %v", err),
+		))
+	}
+
+	allArgs := make([]string, 0, len(spec.Args)+len(extraArgs))
+	allArgs = append(allArgs, spec.Args...)
+	allArgs = append(allArgs, extraArgs...)
+
+	// Build a human-readable command string for the cache summary before
+	// substitution rewrites URIs to /dev/fd/N paths.
+	cmdStr := spec.Command
+	if len(allArgs) > 0 {
+		cmdStr += " " + strings.Join(allArgs, " ")
+	}
+
+	// Apply URI substitution to each extra arg individually so that
+	// moxy.native://results/{session}/{id} references are rewritten to
+	// /dev/fd/N with pipes backed by cached output.
+	var sub *resultSubstitution
+	specArgCount := len(spec.Args)
+	for i, arg := range allArgs[specArgCount:] {
+		argSub, subErr := substituteResultURIs(arg, s.cache)
+		if subErr != nil {
+			if sub != nil {
+				sub.Cleanup()
+			}
+			return marshalResult(protocol.ErrorResultV1(
+				fmt.Sprintf("resolving result references: %v", subErr),
+			))
+		}
+		allArgs[specArgCount+i] = argSub.Command
+		if sub == nil {
+			sub = argSub
+		} else {
+			// Merge extra files and pipe bookkeeping from this arg into
+			// the aggregate substitution.
+			sub.ExtraFiles = append(sub.ExtraFiles, argSub.ExtraFiles...)
+			sub.pipeReads = append(sub.pipeReads, argSub.pipeReads...)
+			sub.pipeWrites = append(sub.pipeWrites, argSub.pipeWrites...)
+		}
+	}
+	if sub == nil {
+		sub = &resultSubstitution{}
+	}
+	defer sub.Cleanup()
+
+	cmd := exec.CommandContext(ctx, spec.Command, allArgs...)
+	cmd.ExtraFiles = sub.ExtraFiles
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err = cmd.Run()
+	if startErr := cmd.Start(); startErr != nil {
+		return marshalResult(protocol.ErrorResultV1(
+			fmt.Sprintf("starting command: %v", startErr),
+		))
+	}
+	sub.StartWriters()
+	// Close the parent's read-end copies now that the child has them, so
+	// the child sees EOF when the writer goroutines finish.
+	for _, r := range sub.pipeReads {
+		_ = r.Close()
+	}
+	sub.pipeReads = nil
+
+	err = cmd.Wait()
 
 	output := stdout.String()
 	if stderr.Len() > 0 {
@@ -147,11 +215,6 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 
 	if output == "" {
 		return marshalResult(&protocol.ToolCallResultV1{})
-	}
-
-	cmdStr := spec.Command
-	if len(spec.Args) > 0 {
-		cmdStr += " " + strings.Join(spec.Args, " ")
 	}
 
 	tokens := estimateTokens(output)
@@ -178,6 +241,79 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	return marshalResult(&protocol.ToolCallResultV1{
 		Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
 	})
+}
+
+// buildExtraArgs extracts string argument values from the caller's JSON
+// arguments and returns them in a deterministic order: first the keys listed
+// in the input schema's "required" array, then any remaining keys sorted
+// lexicographically.
+func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage) ([]string, error) {
+	if len(arguments) == 0 {
+		return nil, nil
+	}
+
+	var argMap map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &argMap); err != nil {
+		return nil, fmt.Errorf("unmarshaling arguments: %w", err)
+	}
+	if len(argMap) == 0 {
+		return nil, nil
+	}
+
+	order := argumentOrder(argMap, inputSchema)
+
+	var extra []string
+	for _, key := range order {
+		val, ok := argMap[key]
+		if !ok {
+			continue
+		}
+		// Try to unquote as a JSON string; fall back to raw representation
+		// for non-string types (numbers, booleans, etc.).
+		var s string
+		if err := json.Unmarshal(val, &s); err == nil {
+			extra = append(extra, s)
+		} else {
+			extra = append(extra, string(val))
+		}
+	}
+	return extra, nil
+}
+
+// argumentOrder returns argument keys in the order they should be appended:
+// first keys from the input schema's "required" array (preserving order),
+// then any remaining keys sorted lexicographically.
+func argumentOrder(argMap map[string]json.RawMessage, inputSchema json.RawMessage) []string {
+	var requiredKeys []string
+	if len(inputSchema) > 0 {
+		var schema struct {
+			Required []string `json:"required"`
+		}
+		if json.Unmarshal(inputSchema, &schema) == nil {
+			requiredKeys = schema.Required
+		}
+	}
+
+	seen := make(map[string]bool, len(requiredKeys))
+	var order []string
+	for _, k := range requiredKeys {
+		if _, exists := argMap[k]; exists {
+			order = append(order, k)
+			seen[k] = true
+		}
+	}
+
+	// Collect remaining keys in sorted order.
+	var remaining []string
+	for k := range argMap {
+		if !seen[k] {
+			remaining = append(remaining, k)
+		}
+	}
+	sort.Strings(remaining)
+	order = append(order, remaining...)
+
+	return order
 }
 
 func marshalResult(v any) (json.RawMessage, error) {

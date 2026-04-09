@@ -3,6 +3,7 @@ package native
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -122,4 +123,209 @@ func TestServerToolsCallUnknown(t *testing.T) {
 	if result.Content[0].Text == "" {
 		t.Error("expected non-empty error message")
 	}
+}
+
+func TestServerToolsCallWithArguments(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:    "exec",
+				Command: "sh",
+				Args:    []string{"-c"},
+				Input:   json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
+			},
+		},
+	}
+	srv := NewServer(cfg)
+
+	params := protocol.ToolCallParams{
+		Name:      "exec",
+		Arguments: json.RawMessage(`{"command":"echo -n hello from args"}`),
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	if result.Content[0].Text != "hello from args" {
+		t.Errorf("output = %q, want %q", result.Content[0].Text, "hello from args")
+	}
+}
+
+func TestServerToolsCallCachesLargeOutput(t *testing.T) {
+	cacheDir := t.TempDir()
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:    "exec",
+				Command: "sh",
+				Args:    []string{"-c"},
+				Input:   json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.cache = newResultCache(cacheDir)
+	srv.session = "test-session"
+
+	params := protocol.ToolCallParams{
+		Name:      "exec",
+		Arguments: json.RawMessage(`{"command":"seq 1 100"}`),
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, "moxy.native://results/test-session/") {
+		t.Errorf("expected cached result URI in output, got:\n%s", text)
+	}
+	if !strings.Contains(text, "First 10 lines") {
+		t.Errorf("expected head section in summary, got:\n%s", text)
+	}
+	if !strings.Contains(text, "Last 10 lines") {
+		t.Errorf("expected tail section in summary, got:\n%s", text)
+	}
+}
+
+func TestServerToolsCallURISubstitution(t *testing.T) {
+	cacheDir := t.TempDir()
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:    "exec",
+				Command: "sh",
+				Args:    []string{"-c"},
+				Input:   json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.cache = newResultCache(cacheDir)
+	srv.session = "test-session"
+
+	// Pre-populate the cache with known content.
+	if err := srv.cache.store(cachedResult{
+		ID:      "test-abc",
+		Session: "test-session",
+		Command: "seq 1 5",
+		Output:  "1\n2\n3\n4\n5\n",
+	}); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+
+	// Use the cached URI in a grep command.
+	params := protocol.ToolCallParams{
+		Name:      "exec",
+		Arguments: json.RawMessage(`{"command":"grep -x 3 moxy.native://results/test-session/test-abc"}`),
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	if strings.TrimSpace(result.Content[0].Text) != "3" {
+		t.Errorf("output = %q, want %q", result.Content[0].Text, "3\n")
+	}
+}
+
+func TestBuildExtraArgs(t *testing.T) {
+	t.Run("nil arguments", func(t *testing.T) {
+		args, err := buildExtraArgs(nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 0 {
+			t.Errorf("expected empty args, got %v", args)
+		}
+	})
+
+	t.Run("single string argument", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"command":"echo hello"}`),
+			json.RawMessage(`{"required":["command"]}`),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 1 || args[0] != "echo hello" {
+			t.Errorf("args = %v, want [\"echo hello\"]", args)
+		}
+	})
+
+	t.Run("ordering follows required array", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"b":"second","a":"first"}`),
+			json.RawMessage(`{"required":["a","b"]}`),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 2 || args[0] != "first" || args[1] != "second" {
+			t.Errorf("args = %v, want [\"first\", \"second\"]", args)
+		}
+	})
+
+	t.Run("unrequired keys sorted alphabetically", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"z":"last","a":"first","m":"middle"}`),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 3 || args[0] != "first" || args[1] != "middle" || args[2] != "last" {
+			t.Errorf("args = %v, want [\"first\", \"middle\", \"last\"]", args)
+		}
+	})
+
+	t.Run("non-string values use raw representation", func(t *testing.T) {
+		args, err := buildExtraArgs(
+			json.RawMessage(`{"count":42}`),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 1 || args[0] != "42" {
+			t.Errorf("args = %v, want [\"42\"]", args)
+		}
+	})
 }
