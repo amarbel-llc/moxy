@@ -81,6 +81,88 @@ required = ["command"]
 	}
 }
 
+func TestParseConfigRequiredOrder(t *testing.T) {
+	data := []byte(`
+name = "folio"
+
+[[tools]]
+name = "read"
+command = "sh"
+args = ["-c", "echo $@", "_"]
+
+[tools.input]
+type = "object"
+required = ["file_path"]
+
+[tools.input.properties.file_path]
+type = "string"
+
+[[tools]]
+name = "read_range"
+command = "sh"
+args = ["-c", "echo $@", "_"]
+
+[tools.input]
+type = "object"
+required = ["file_path", "start", "end"]
+
+[tools.input.properties.file_path]
+type = "string"
+
+[tools.input.properties.start]
+type = "integer"
+
+[tools.input.properties.end]
+type = "integer"
+`)
+
+	cfg, err := ParseConfig(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(cfg.Tools) != 2 {
+		t.Fatalf("len(tools) = %d, want 2", len(cfg.Tools))
+	}
+
+	// First tool: read (single required arg)
+	t.Logf("read Input JSON: %s", string(cfg.Tools[0].Input))
+	readArgs, err := buildExtraArgs(
+		json.RawMessage(`{"file_path":"/tmp/x.go"}`),
+		cfg.Tools[0].Input,
+	)
+	if err != nil {
+		t.Fatalf("buildExtraArgs (read) error: %v", err)
+	}
+	if len(readArgs) != 1 || readArgs[0] != "/tmp/x.go" {
+		t.Errorf("read args = %v, want [\"/tmp/x.go\"]", readArgs)
+	}
+
+	// Second tool: read_range (three required args in order)
+	t.Logf("read_range Input JSON: %s", string(cfg.Tools[1].Input))
+	rangeArgs, err := buildExtraArgs(
+		json.RawMessage(`{"file_path":"/tmp/x.go","start":1,"end":5}`),
+		cfg.Tools[1].Input,
+	)
+	if err != nil {
+		t.Fatalf("buildExtraArgs (read_range) error: %v", err)
+	}
+	t.Logf("read_range args: %v", rangeArgs)
+
+	if len(rangeArgs) != 3 {
+		t.Fatalf("len(args) = %d, want 3", len(rangeArgs))
+	}
+	if rangeArgs[0] != "/tmp/x.go" {
+		t.Errorf("args[0] = %q, want \"/tmp/x.go\"", rangeArgs[0])
+	}
+	if rangeArgs[1] != "1" {
+		t.Errorf("args[1] = %q, want \"1\"", rangeArgs[1])
+	}
+	if rangeArgs[2] != "5" {
+		t.Errorf("args[2] = %q, want \"5\"", rangeArgs[2])
+	}
+}
+
 func TestParseConfigValidation(t *testing.T) {
 	tests := []struct {
 		name string

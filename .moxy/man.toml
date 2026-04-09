@@ -17,11 +17,11 @@ case "$src" in
 esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null | awk '/^#+ /{print}'
 """, "_"]
 
-[tools.toc.input]
+[tools.input]
 type = "object"
 required = ["page"]
 
-[tools.toc.input.properties.page]
+[tools.input.properties.page]
 type = "string"
 description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
 
@@ -56,15 +56,15 @@ fi
 echo "$result"
 """, "_"]
 
-[tools.section.input]
+[tools.input]
 type = "object"
 required = ["page", "section_name"]
 
-[tools.section.input.properties.page]
+[tools.input.properties.page]
 type = "string"
 description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
 
-[tools.section.input.properties.section_name]
+[tools.input.properties.section_name]
 type = "string"
 description = "Section name to read (e.g. 'DESCRIPTION', 'OPTIONS', 'SYNOPSIS'). Case-insensitive."
 
@@ -77,10 +77,10 @@ set -euo pipefail
 MANPATH=$(manpath 2>/dev/null) apropos "$1" 2>/dev/null || echo "No results for \"$1\""
 """, "_"]
 
-[tools.search.input]
+[tools.input]
 type = "object"
 required = ["query"]
 
-[tools.search.input.properties.query]
+[tools.input.properties.query]
 type = "string"
 description = "Keyword to search for in man page names and descriptions"

@@ -6,7 +6,7 @@ name = "sessions"
 description = "List all past Claude Code sessions across all projects, sorted by most recent activity. Returns columnar text with SESSION, LAST ACTIVITY, MSGS, SIZE, and PROJECT columns."
 command = ".moxy/bin/freud-sessions"
 
-[tools.sessions.input]
+[tools.input]
 type = "object"
 
 [[tools]]
@@ -14,10 +14,10 @@ name = "transcript"
 description = "Return the raw JSONL transcript for a single session, looked up by session id across all projects."
 command = ".moxy/bin/freud-transcript"
 
-[tools.transcript.input]
+[tools.input]
 type = "object"
 required = ["session_id"]
 
-[tools.transcript.input.properties.session_id]
+[tools.input.properties.session_id]
 type = "string"
 description = "Session UUID to retrieve (36-char UUID from the sessions listing)"
