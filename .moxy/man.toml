@@ -1,0 +1,86 @@
+name = "man"
+description = "Unix man page reader with section-level progressive disclosure"
+
+[[tools]]
+name = "toc"
+description = "List all sections of a man page with their heading levels. Start here to discover what a page covers before reading specific sections."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+page="$1"
+src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null | head -1)
+
+[ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
+case "$src" in
+  *.gz) gzip -dc "$src" ;;
+  *)    cat "$src" ;;
+esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null | awk '/^#+ /{print}'
+""", "_"]
+
+[tools.toc.input]
+type = "object"
+required = ["page"]
+
+[tools.toc.input.properties.page]
+type = "string"
+description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
+
+[[tools]]
+name = "section"
+description = "Read a specific section of a man page by name. Use 'toc' first to discover available section names."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+page="$1"; section_name="$2"
+src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null | head -1)
+
+[ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
+rendered=$(case "$src" in
+  *.gz) gzip -dc "$src" ;;
+  *)    cat "$src" ;;
+esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
+result=$(echo "$rendered" | awk -v target="$section_name" '
+BEGIN { found=0; IGNORECASE=1 }
+/^#+ / {
+  if (found) exit
+  name = $0; sub(/^#+ /, "", name)
+  if (tolower(name) == tolower(target)) found=1
+}
+found { print }
+')
+if [ -z "$result" ]; then
+  echo "Section \"$section_name\" not found in $page. Available sections:"
+  echo "$rendered" | awk '/^#+ /{print}'
+  exit 1
+fi
+echo "$result"
+""", "_"]
+
+[tools.section.input]
+type = "object"
+required = ["page", "section_name"]
+
+[tools.section.input.properties.page]
+type = "string"
+description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
+
+[tools.section.input.properties.section_name]
+type = "string"
+description = "Section name to read (e.g. 'DESCRIPTION', 'OPTIONS', 'SYNOPSIS'). Case-insensitive."
+
+[[tools]]
+name = "search"
+description = "Search for man pages by keyword (apropos). Returns matching page names with short descriptions."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+MANPATH=$(manpath 2>/dev/null) apropos "$1" 2>/dev/null || echo "No results for \"$1\""
+""", "_"]
+
+[tools.search.input]
+type = "object"
+required = ["query"]
+
+[tools.search.input.properties.query]
+type = "string"
+description = "Keyword to search for in man page names and descriptions"
