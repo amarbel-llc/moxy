@@ -1,0 +1,2 @@
+[hooks]
+pre-merge = "just"
