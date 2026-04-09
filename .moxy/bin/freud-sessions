@@ -46,7 +46,14 @@ def count_lines(path: Path) -> int:
         return sum(1 for _ in f)
 
 
+def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
+    """Check if a project matches the filter (substring match on cwd or dir name)."""
+    lower = filter_str.lower()
+    return lower in resolved_cwd.lower() or lower in dir_name.lower()
+
+
 def main():
+    project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
     projects_dir = Path(os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"))
     if not projects_dir.is_dir():
         print("(no sessions found)")
@@ -67,6 +74,8 @@ def main():
         if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
             continue
         project = cwd_map[proj_dir.name]
+        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            continue
         for f in proj_dir.glob("*.jsonl"):
             st = f.stat()
             rows.append((

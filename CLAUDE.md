@@ -224,61 +224,27 @@ Permissions use path-based allow/deny glob patterns (deny always wins). Read
 config controls progressive disclosure thresholds (`max-lines`, `head-lines`,
 `tail-lines`).
 
-### Freud (Past Claude Session MCP Server)
+### Freud (Past Claude Session Tools)
 
-Fourth binary in the repo (`cmd/freud`). MCP server providing read-only
-access to past Claude Code session transcripts stored as JSONL files in
-`~/.claude/projects/<project-dir>/<session-id>.jsonl`. Runs as a moxy child
-server via `command = "freud serve mcp"`.
+Native server (`.moxy/servers/freud.toml`) providing read-only access to past
+Claude Code session transcripts stored as JSONL files in
+`~/.claude/projects/<project-dir>/<session-id>.jsonl`. Implemented as Python
+scripts in `.moxy/bin/freud-*`.
 
-Phase 1a (listing) and Phase 1b (transcript read) both shipped; see
-`docs/features/0003-freud.md` for the full design, the future-work roadmap
-(filtered/rendered transcript view, progressive disclosure for large
-transcripts, role/include/since filters, lazy session-id index), and the
-known cache-staleness edge case on filesystems that coalesce directory
-mtime updates.
+**Tools:**
 
-**Resources:**
-
-- `freud://sessions` — list every session across all projects, sorted by
-  most-recent activity. Columnar text with SESSION/LAST ACTIVITY/MSGS/SIZE/
-  PROJECT columns. SESSION is sized to hold a full 36-char UUID without
-  truncation. Supports `?offset=N&limit=M` pagination and progressive
-  disclosure (head + tail summary) when total rows exceed `list.max-rows`.
-  `?format=` is reserved for future use; only `format=columnar` is accepted
-  in Phase 1a, anything else returns a clear error.
-- `freud://sessions/{project}` — same shape, filtered to one project. The
-  `{project}` segment accepts either a raw project directory name (e.g.
-  `-home-sasha-eng`) or a URL-encoded absolute path (e.g.
-  `%2Fhome%2Fsasha%2Feng`), matched against the resolved cwd. Unknown
-  projects return a structured error listing up to 10 known names.
-- `freud://transcript/{session_id}` — return the raw, untransformed JSONL
-  transcript for a single session, looked up by session id alone across
-  all projects. No rendering, no filtering, no pagination — an entire
-  multi-MB JSONL will be returned verbatim, so large transcripts can blow
-  context. Filtered rendering and progressive disclosure are tracked as
-  future work in the FDR.
-
-**Project path resolution:** the on-disk encoding (every `/` and `.`
-replaced with `-`) is lossy and not directly invertible. Freud opens the
-newest JSONL in each project dir and reads up to 200 lines looking for
-the first non-empty `cwd` field — that's the canonical path. If no JSONL
-yields a `cwd` (empty file or system-only messages), it falls back to a
-heuristic decode and flags the row with ` (heuristic)`. Resolutions are
-cached in-memory keyed by directory mtime; see `docs/features/0003-freud.md`
-for the cache-staleness edge case on filesystems that coalesce mtime
-updates.
-
-**freud.toml hierarchy:** Config files loaded and merged in order:
-
-1.  `~/.config/freud/freud.toml` (global)
-2.  Each parent directory between `$HOME` and `$CWD`
-3.  `./freud.toml` (project-local)
-
-Config keys: `projects-dir` (defaults to `~/.claude/projects`), and a
-`[list]` table with `max-rows`, `head-rows`, `tail-rows` controlling the
-progressive disclosure thresholds. The `config_tommy.go` file is generated
-by `//go:generate tommy generate`.
+- `sessions` — list all sessions across all projects, sorted by most-recent
+  activity. Columnar text with SESSION/LAST ACTIVITY/MSGS/SIZE/PROJECT columns.
+  Optional `project` param filters by project path substring.
+- `transcript` — return the raw JSONL transcript for a single session.
+- `messages` — extract conversation messages with the JSONL schema flattened.
+  Filters: `role` (user/assistant), `search` (keyword), `offset`/`limit`
+  (pagination). Returns one line per message with text, tool call summaries,
+  and tool result previews.
+- `tool_usage` — extract tool calls from a session. Optional `tool_name`
+  filter (substring match) and `limit`. Returns tool name and truncated input.
+- `summary` — high-level session overview: project, duration, message counts,
+  top tools by frequency, and user prompts.
 
 ### Key Packages
 

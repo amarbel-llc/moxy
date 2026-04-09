@@ -6,7 +6,7 @@
 ## Problem
 
 Moxy currently requires every MCP capability to be a separate Go binary
-(maneater, folio, freud). Each binary implements the full MCP protocol, JSON-RPC
+(maneater, folio). Each binary implements the full MCP protocol, JSON-RPC
 transport, and tool/resource registration. This is heavyweight for tools that are
 fundamentally "run a command, return the output" — the MCP protocol machinery
 dwarfs the domain logic.
@@ -109,8 +109,10 @@ another without round-tripping through the LLM context window.
 
 ### Dual Architecture
 
-Existing maneater, folio, and freud binaries continue working as regular child
-servers alongside config-as-servers. No changes to existing binaries.
+Existing maneater and folio binaries continue working as regular child
+servers alongside config-as-servers. Freud has been fully migrated to a
+native config-as-server (`.moxy/servers/freud.toml` + `.moxy/bin/freud-*`
+Python scripts).
 
 ## MVP Scope
 
@@ -129,7 +131,7 @@ servers alongside config-as-servers. No changes to existing binaries.
 - Embedding generation for resources
 - Per-tool or per-server caching configuration
 - Allow/deny permission rules (the config is the permission)
-- Migrating folio/freud to config-as-servers
+- Migrating folio to config-as-server (freud migration complete)
 
 ## Prototype Target
 
@@ -140,7 +142,7 @@ via `/dev/fd/N` into a subsequent call.
 ## Rollback Strategy
 
 - **Dual architecture** — removing `.moxy/` files reverts to existing setup
-- **No changes to existing binaries** — maneater/folio/freud are untouched
+- **No changes to existing binaries** — maneater/folio are untouched
 - **Additive interface extraction** — `mcpclient.Client` already satisfies
   `ServerBackend`, so the refactor is safe
 - **Promotion criteria:** config-based exec produces identical results to

@@ -6,13 +6,11 @@ build-go: generate
   go build -o build/moxy ./cmd/moxy
   go build -o build/maneater ./cmd/maneater
   go build -o build/folio ./cmd/folio
-  go build -o build/freud ./cmd/freud
 
 generate:
   go generate ./internal/config/
   go generate ./cmd/maneater/
   go generate ./cmd/folio/
-  go generate ./cmd/freud/
 
 build-gomod2nix:
   gomod2nix

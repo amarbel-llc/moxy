@@ -169,50 +169,6 @@ run_folio_mcp() {
     -- "$init" "$initialized" "$method_req"
 }
 
-# Send a JSON-RPC initialize handshake followed by a method call to freud,
-# capture the method's result as JSON in $output. Runs freud with cwd=$HOME
-# so that $HOME/freud.toml is picked up as the project-local config.
-run_freud_mcp() {
-  local method="$1"
-  shift
-  local params="${1:-}"
-
-  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
-  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
-  local method_req
-  if [[ -n $params ]]; then
-    method_req=$(jq -cn --arg m "$method" --argjson p "$params" '{"jsonrpc":"2.0","id":2,"method":$m,"params":$p}')
-  else
-    method_req=$(jq -cn --arg m "$method" '{"jsonrpc":"2.0","id":2,"method":$m}')
-  fi
-
-  run timeout --preserve-status "10s" bash -c \
-    'cd "$HOME" && (echo "$1"; echo "$2"; echo "$3"; sleep 2) | freud serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
-    -- "$init" "$initialized" "$method_req"
-}
-
-# Like run_freud_mcp but captures the full JSON-RPC envelope (including
-# .error responses) instead of stripping down to .result. Use this when a
-# test needs to assert on the error message text.
-run_freud_mcp_full() {
-  local method="$1"
-  shift
-  local params="${1:-}"
-
-  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
-  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
-  local method_req
-  if [[ -n $params ]]; then
-    method_req=$(jq -cn --arg m "$method" --argjson p "$params" '{"jsonrpc":"2.0","id":2,"method":$m,"params":$p}')
-  else
-    method_req=$(jq -cn --arg m "$method" '{"jsonrpc":"2.0","id":2,"method":$m}')
-  fi
-
-  run timeout --preserve-status "10s" bash -c \
-    'cd "$HOME" && (echo "$1"; echo "$2"; echo "$3"; sleep 2) | freud serve mcp 2>/dev/null | jq -c "select(.id == 2)" | head -1' \
-    -- "$init" "$initialized" "$method_req"
-}
-
 # Send a JSON-RPC initialize handshake followed by a method call to maneater,
 # capture the method's result as JSON in $output.
 run_maneater_mcp() {

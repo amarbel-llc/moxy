@@ -4,7 +4,7 @@ promotion-criteria: freud serves `freud://sessions` and `freud://sessions/{proje
   from a live `~/.claude/projects/` tree, installed as a moxy child server, with
   project paths correctly resolved from JSONL `cwd` fields in a hand-verified
   session
-status: experimental
+status: accepted
 ---
 
 # Freud: MCP server for past Claude Code sessions
@@ -16,10 +16,11 @@ sessions — what was discussed, what was decided, what was tried. The transcrip
 exist on disk at `~/.claude/projects/<project-dir>/<session-id>.jsonl`, but
 there is no structured access path for an agent to query them.
 
-Freud is a new MCP server (`cmd/freud`) that exposes these transcripts as
-read-only MCP resources. It follows the maneater/folio pattern: a single
-binary, `freud serve mcp` as the entry point, resources for reads, progressive
-disclosure for large responses.
+Freud is now a native config-as-server (`.moxy/servers/freud.toml` +
+`.moxy/bin/freud-*` Python scripts). The original Go binary (`cmd/freud`) has
+been removed. The native implementation provides structured transcript access
+tools that embed the Claude Code JSONL schema, so agents get flattened,
+filterable output without needing jq.
 
 ## Scope
 
@@ -230,66 +231,23 @@ real-world feedback to get right, so deferring is correct.
 - **Session-id index.** Built lazily during `scanProjects` for O(1)
   lookups. Only worth it if transcript reads become hot.
 
-## Architecture Sketch
+## Architecture
 
-New binary `cmd/freud/` following `cmd/folio/`'s layout:
+Freud is a native config-as-server: a TOML config at `.moxy/servers/freud.toml`
+declares tools backed by Python scripts in `.moxy/bin/`:
 
 ```
-cmd/freud/
-  main.go          # entry point, `freud serve mcp` dispatch
-  server.go        # freudServer struct, ResourceProviderV1 impl
-  sessions.go      # scan, list, sort, format
-  project.go       # project-dir scanning, cwd resolution, heuristic decode
-  config.go        # freud.toml hierarchy (same pattern as folio/maneater)
-  *_test.go        # go tests with a temp HOME fixture
+.moxy/servers/freud.toml    # tool declarations and input schemas
+.moxy/bin/freud-sessions    # list sessions (columnar text)
+.moxy/bin/freud-transcript  # raw JSONL dump
+.moxy/bin/freud-messages    # flattened messages with filters
+.moxy/bin/freud-tool-usage  # tool call extraction
+.moxy/bin/freud-summary     # session overview
 ```
 
-Config hierarchy (`freud.toml`), mirroring folio/maneater:
-
-1. `~/.config/freud/freud.toml`
-2. each parent dir between `$HOME` and `$CWD`
-3. `./freud.toml`
-
-Initial config surface:
-
-```toml
-# Override the default ~/.claude/projects location
-projects-dir = "~/.claude/projects"
-
-[list]
-max-rows  = 500   # progressive-disclosure threshold for `freud://sessions`
-head-rows = 50
-tail-rows = 20
-```
-
-No permissions section yet — the entire `~/.claude/projects` tree is readable
-by default. If/when we add content reads in a later phase, we'll layer on
-path-based allow/deny like folio.
-
-## Integration with Moxy
-
-Added to the top-level moxyfile as a persistent child server. Moxy accepts
-either the single-string form (split on whitespace) or the array form:
-
-```toml
-[[servers]]
-name = "freud"
-command = "freud serve mcp"
-```
-
-```toml
-[[servers]]
-name = "freud"
-command = ["freud", "serve", "mcp"]
-```
-
-Note that `command` must include the `serve mcp` subcommand — freud's
-default behavior when invoked with no args is to print its usage and exit,
-which moxy surfaces as `child process freud exited unexpectedly` (see #37
-for the opaque-error UX issue).
-
-Built as a separate Nix package (`packages.freud`) alongside `maneater` and
-`folio`, included in the top-level `symlinkJoin` via `repo-packages.nix`.
+Scripts use `#!/usr/bin/env nix` with `nix shell nixpkgs#python3` for
+zero-dependency execution. Moxy's native server machinery handles MCP
+protocol, namespacing, result caching, and resource-as-fd composition.
 
 ## Resolved Decisions
 
@@ -311,31 +269,18 @@ These were worked through with the user on 2026-04-08:
 
 ## Dev Testing
 
-To exercise freud through moxy against your real `~/.claude/projects/`
-without modifying your global moxyfile:
+The native freud tools can be tested directly:
 
-1. Build the binary: `just build-go` (drops `build/freud`).
-2. Drop a project-local moxyfile in any directory under `$HOME` —
-   typically the worktree root:
+```sh
+.moxy/bin/freud-sessions                           # list all sessions
+.moxy/bin/freud-sessions moxy                      # filter by project
+.moxy/bin/freud-summary <session-id>               # session overview
+.moxy/bin/freud-messages <session-id> user man      # user messages matching "man"
+.moxy/bin/freud-tool-usage <session-id> jq          # jq tool calls
+```
 
-   ```toml
-   [[servers]]
-   name = "freud"
-   command = ["/absolute/path/to/build/freud", "serve", "mcp"]
-   ```
-
-3. From that directory, restart any Claude Code session that uses moxy as
-   its MCP gateway. The moxyfile hierarchy loader walks parent dirs from
-   `$HOME` to `$CWD`, picks up the local file, and merges freud into your
-   global server set. Resources appear under the `freud/` namespace
-   prefix.
-4. Delete the local moxyfile when done.
-
-The hermetic equivalent for CI lives in `zz-tests_bats/freud.bats` as
-`freud_served_through_moxy_proxy`: it plants both a synthetic
-`~/.claude/projects/` tree and a moxyfile in the bats temp `$HOME`, then
-asserts the templates and resource read come through with the correct
-namespacing.
+When running through moxy, tools appear as `freud_sessions`,
+`freud_messages`, etc.
 
 ## More Information
 
