@@ -15,7 +15,7 @@ automatically.
 
 ``` sh
 just                  # build + test (default target)
-just build-go         # go build only -> build/moxy
+just build-go         # go build only -> build/{moxy,maneater,folio}
 just build-nix        # nix build (runs gomod2nix first)
 just test             # all tests (go + bats + validate-mcp)
 just test-go          # go vet + go test
@@ -113,9 +113,20 @@ The `internal/paginate` package provides cursor-based pagination for resource
 lists. Servers with `paginate = true` in their config get paginated resource
 responses using `?offset=N&limit=M` query parameters on resource URIs.
 
+### Native Servers (Config-as-Server)
+
+TOML configs in `.moxy/servers/` declare tools backed by scripts in `.moxy/bin/`
+or inline shell commands. Moxy's `internal/native` package handles MCP protocol,
+namespacing, result caching, and resource-as-fd composition. Native servers
+require no Go code — tool schemas are declared in TOML, dispatch is by process
+invocation.
+
+Current native servers: `freud` (session transcripts), `jq`, `rg`, `man`,
+`folio` (read tools), `godoc`, `gh`, `gh-other`, `grit`, `chix`.
+
 ### Maneater (Man Page + Exec MCP Server)
 
-Second binary in the repo (`cmd/maneater`). MCP server providing Unix man page
+Go binary in `cmd/maneater`. MCP server providing Unix man page
 resources with progressive disclosure, semantic search, and a shell execution
 tool. Runs as a moxy child server via `command = "maneater serve mcp"`.
 
@@ -177,7 +188,7 @@ PATH.
 
 ### Folio (File I/O MCP Server)
 
-Third binary in the repo (`cmd/folio`). MCP server providing file
+Go binary in `cmd/folio`. MCP server providing file
 read/write/edit operations. Runs as a moxy child server via
 `command = "folio serve mcp"`.
 
