@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	resultTokenThreshold = 50
-	tokenThreshold       = resultTokenThreshold
-	summaryHeadLines     = 10
-	summaryTailLines     = 10
+	resultTokenThreshold  = 50
+	tokenThreshold        = resultTokenThreshold
+	summaryHeadLines      = 10
+	summaryTailLines      = 10
+	summaryMaxOutputBytes = 2000
 )
 
 // resultCache stores tool outputs on disk, keyed by session and id.
@@ -92,6 +93,17 @@ func (c *resultCache) load(session, id string) (*cachedResult, error) {
 	return &result, nil
 }
 
+func countLines(text string) int {
+	if text == "" {
+		return 0
+	}
+	n := strings.Count(text, "\n")
+	if !strings.HasSuffix(text, "\n") {
+		n++
+	}
+	return n
+}
+
 func estimateTokens(text string) int {
 	n := len(text) / 4
 	if n == 0 && len(text) > 0 {
@@ -118,25 +130,39 @@ func formatSummary(result cachedResult) string {
 	tail := summaryTailLines
 
 	if totalLines <= head+tail {
-		b.WriteString("--- Output ---\n")
+		content := strings.Join(lines, "\n")
+		if len(content) > summaryMaxOutputBytes {
+			b.WriteString("--- Output (truncated) ---\n")
+			b.WriteString(content[:summaryMaxOutputBytes])
+			fmt.Fprintf(&b, "\n... (%d total characters)\n", len(result.Output))
+		} else {
+			b.WriteString("--- Output ---\n")
+			for _, line := range lines {
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+		}
+	} else {
+		writeSection(&b, fmt.Sprintf("--- First %d lines ---", head), lines[:head])
+		b.WriteString("\n")
+		writeSection(&b, fmt.Sprintf("--- Last %d lines ---", tail), lines[totalLines-tail:])
+	}
+	return b.String()
+}
+
+func writeSection(b *strings.Builder, header string, lines []string) {
+	content := strings.Join(lines, "\n")
+	if len(content) > summaryMaxOutputBytes {
+		b.WriteString(header + " (truncated)\n")
+		b.WriteString(content[:summaryMaxOutputBytes])
+		fmt.Fprintf(b, "\n... (%d total characters in section)\n", len(content))
+	} else {
+		b.WriteString(header + "\n")
 		for _, line := range lines {
 			b.WriteString(line)
 			b.WriteString("\n")
 		}
-	} else {
-		fmt.Fprintf(&b, "--- First %d lines ---\n", head)
-		for _, line := range lines[:head] {
-			b.WriteString(line)
-			b.WriteString("\n")
-		}
-		b.WriteString("\n")
-		fmt.Fprintf(&b, "--- Last %d lines ---\n", tail)
-		for _, line := range lines[totalLines-tail:] {
-			b.WriteString(line)
-			b.WriteString("\n")
-		}
 	}
-	return b.String()
 }
 
 func newResultID() (string, error) {

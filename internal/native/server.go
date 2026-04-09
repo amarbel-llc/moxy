@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"sort"
-	"strings"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -221,7 +220,7 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 				ID:         id,
 				Session:    s.session,
 				Output:     output,
-				LineCount:  strings.Count(output, "\n"),
+				LineCount:  countLines(output),
 				TokenCount: tokens,
 			}
 			if storeErr := s.cache.store(cached); storeErr == nil {

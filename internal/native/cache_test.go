@@ -147,6 +147,89 @@ func TestFormatSummaryShortOutput(t *testing.T) {
 	}
 }
 
+func TestFormatSummarySingleLineLargeOutput(t *testing.T) {
+	// A single line exceeding summaryMaxOutputBytes must be truncated.
+	bigLine := strings.Repeat("x", 5000)
+	result := cachedResult{
+		ID:         "01964abc-def0-7000-8000-000000000010",
+		Session:    "sess-big",
+		Output:     bigLine,
+		LineCount:  1,
+		TokenCount: 1250,
+	}
+
+	summary := formatSummary(result)
+
+	if !strings.Contains(summary, "Output (truncated)") {
+		t.Error("large single-line output should have truncated header")
+	}
+	if !strings.Contains(summary, "5000 total characters") {
+		t.Errorf("summary should report total character count, got:\n%s", summary)
+	}
+	if len(summary) > summaryMaxOutputBytes+500 {
+		t.Errorf("summary too large: %d bytes (max output %d + overhead)", len(summary), summaryMaxOutputBytes)
+	}
+	wantURI := "moxy.native://results/" + result.Session + "/" + result.ID
+	if !strings.Contains(summary, wantURI) {
+		t.Errorf("summary missing resource URI %q", wantURI)
+	}
+}
+
+func TestFormatSummaryLongLinesInHeadTail(t *testing.T) {
+	// 30 lines where each line is very long — head/tail sections should truncate.
+	longLine := strings.Repeat("y", 500)
+	var lines []string
+	for i := 0; i < 30; i++ {
+		lines = append(lines, longLine)
+	}
+	output := strings.Join(lines, "\n") + "\n"
+
+	result := cachedResult{
+		ID:         "01964abc-def0-7000-8000-000000000011",
+		Session:    "sess-long",
+		Output:     output,
+		LineCount:  30,
+		TokenCount: 3750,
+	}
+
+	summary := formatSummary(result)
+
+	if !strings.Contains(summary, "First 10 lines") {
+		t.Error("summary missing head section")
+	}
+	if !strings.Contains(summary, "Last 10 lines") {
+		t.Error("summary missing tail section")
+	}
+	if !strings.Contains(summary, "(truncated)") {
+		t.Error("sections with long lines should be truncated")
+	}
+	if !strings.Contains(summary, "total characters in section") {
+		t.Error("truncated sections should report character count")
+	}
+}
+
+func TestCountLines(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  int
+	}{
+		{"empty", "", 0},
+		{"single line no newline", "hello", 1},
+		{"single line with newline", "hello\n", 1},
+		{"two lines", "a\nb\n", 2},
+		{"no trailing newline", "a\nb", 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := countLines(tt.input)
+			if got != tt.want {
+				t.Errorf("countLines(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseResultURI(t *testing.T) {
 	tests := []struct {
 		name        string
