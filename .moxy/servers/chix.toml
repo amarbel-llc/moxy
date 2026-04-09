@@ -1,0 +1,559 @@
+name = "chix"
+description = "Nix CLI tools for building, evaluating, searching, and managing flakes and the store."
+
+# --- build ---
+
+[[tools]]
+name = "build"
+description = "Build a nix flake package. Returns store paths on success."
+command = "bash"
+arg_order = ["installable", "flake_dir", "print_build_logs", "log_tail", "max_log_bytes"]
+args = ["-c", """
+set -euo pipefail
+installable="${1:-.#default}"
+flake_dir="${2:-.}"
+print_build_logs="${3:-true}"
+log_tail="${4:-}"
+max_log_bytes="${5:-}"
+
+cd "$flake_dir"
+nix_args=(build --json --print-out-paths)
+if [ "$print_build_logs" = "true" ]; then
+  nix_args+=(-L)
+fi
+nix_args+=("$installable")
+
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+
+if [ -n "$log_tail" ]; then
+  echo "$output" | tail -n "$log_tail"
+elif [ -n "$max_log_bytes" ]; then
+  echo "$output" | head -c "$max_log_bytes"
+else
+  echo "$output"
+fi
+""", "_"]
+
+[tools.input.properties.installable]
+type = "string"
+description = "Flake installable (e.g., '.#default', 'nixpkgs#hello'). Defaults to '.#default'."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+[tools.input.properties.print_build_logs]
+type = "string"
+description = "Whether to print build logs (-L flag). Defaults to true."
+
+[tools.input.properties.log_tail]
+type = "string"
+description = "Only return the last N lines of build log."
+
+[tools.input.properties.max_log_bytes]
+type = "string"
+description = "Maximum bytes of build log output to return."
+
+# --- eval ---
+
+[[tools]]
+name = "eval"
+description = """Evaluate a nix expression. The expr and apply parameters accept full Nix syntax \
+including attribute sets, string interpolation, let bindings, lambdas, and all Nix operators."""
+command = "bash"
+arg_order = ["expr", "installable", "apply", "flake_dir", "max_bytes", "head", "tail"]
+args = ["-c", """
+set -euo pipefail
+expr="${1:-}"
+installable="${2:-}"
+apply="${3:-}"
+flake_dir="${4:-.}"
+max_bytes="${5:-}"
+head_n="${6:-}"
+tail_n="${7:-}"
+
+cd "$flake_dir"
+nix_args=(eval --json)
+if [ -n "$expr" ]; then
+  nix_args+=(--expr "$expr")
+elif [ -n "$installable" ]; then
+  nix_args+=("$installable")
+else
+  nix_args+=(".#default")
+fi
+if [ -n "$apply" ]; then
+  nix_args+=(--apply "$apply")
+fi
+
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+
+if [ -n "$tail_n" ]; then
+  echo "$output" | tail -n "$tail_n"
+elif [ -n "$head_n" ]; then
+  echo "$output" | head -n "$head_n"
+elif [ -n "$max_bytes" ]; then
+  echo "$output" | head -c "$max_bytes"
+else
+  echo "$output"
+fi
+""", "_"]
+
+[tools.input.properties.expr]
+type = "string"
+description = "Nix expression to evaluate (alternative to installable). Supports full Nix syntax."
+
+[tools.input.properties.installable]
+type = "string"
+description = "Flake installable to evaluate (e.g., '.#packages.x86_64-linux')."
+
+[tools.input.properties.apply]
+type = "string"
+description = "Nix function to apply to the result (e.g., 'builtins.attrNames', 'x: builtins.length x')."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+[tools.input.properties.max_bytes]
+type = "string"
+description = "Maximum bytes of output to return."
+
+[tools.input.properties.head]
+type = "string"
+description = "Only return the first N lines of output."
+
+[tools.input.properties.tail]
+type = "string"
+description = "Only return the last N lines of output."
+
+# --- search ---
+
+[[tools]]
+name = "search"
+description = "Search for packages in a flake. Returns JSON results with optional pagination."
+command = "bash"
+arg_order = ["query", "flake_ref", "exclude", "limit", "offset"]
+args = ["-c", """
+set -euo pipefail
+query="$1"
+flake_ref="${2:-nixpkgs}"
+exclude_json="${3:-}"
+limit="${4:-}"
+offset="${5:-0}"
+
+nix_args=(search --json "$flake_ref" "$query")
+if [ -n "$exclude_json" ] && [ "$exclude_json" != "null" ] && [ "$exclude_json" != "[]" ]; then
+  while IFS= read -r pat; do
+    nix_args+=(--exclude "$pat")
+  done < <(printf '%s' "$exclude_json" | jq -r '.[]')
+fi
+
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+
+# nix search --json returns an object; convert to sorted array with pagination
+if [ -n "$limit" ]; then
+  printf '%s' "$output" | jq --argjson off "${offset:-0}" --argjson lim "$limit" \
+    '[to_entries | sort_by(.key)] | .[$off:$off+$lim] | from_entries'
+elif [ "${offset:-0}" != "0" ]; then
+  printf '%s' "$output" | jq --argjson off "$offset" \
+    '[to_entries | sort_by(.key)] | .[$off:] | from_entries'
+else
+  echo "$output"
+fi
+""", "_"]
+
+[tools.input]
+required = ["query"]
+
+[tools.input.properties.query]
+type = "string"
+description = "Search query (regex pattern)."
+
+[tools.input.properties.flake_ref]
+type = "string"
+description = "Flake to search (e.g., 'nixpkgs'). Defaults to 'nixpkgs'."
+
+[tools.input.properties.exclude]
+type = "array"
+description = "Regex patterns to exclude from results."
+
+[tools.input.properties.limit]
+type = "string"
+description = "Maximum number of results to return."
+
+[tools.input.properties.offset]
+type = "string"
+description = "Skip first N results for pagination. Defaults to 0."
+
+# --- run ---
+
+[[tools]]
+name = "run"
+description = "Run a flake app."
+command = "bash"
+arg_order = ["installable", "args", "flake_dir"]
+args = ["-c", """
+set -euo pipefail
+installable="${1:-.#default}"
+args_json="${2:-}"
+flake_dir="${3:-.}"
+
+cd "$flake_dir"
+nix_args=(run "$installable")
+if [ -n "$args_json" ] && [ "$args_json" != "null" ] && [ "$args_json" != "[]" ]; then
+  nix_args+=(--)
+  while IFS= read -r arg; do
+    nix_args+=("$arg")
+  done < <(printf '%s' "$args_json" | jq -r '.[]')
+fi
+
+nix "${nix_args[@]}"
+""", "_"]
+
+[tools.input.properties.installable]
+type = "string"
+description = "Flake installable to run. Defaults to '.#default'."
+
+[tools.input.properties.args]
+type = "array"
+description = "Arguments to pass to the app."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+# --- develop_run ---
+
+[[tools]]
+name = "develop_run"
+description = """Run commands inside a flake's devShell. Each command runs as a separate \
+nix develop invocation. Execution stops on the first failure."""
+command = "bash"
+arg_order = ["commands", "flake_ref", "flake_dir", "max_bytes", "head", "tail"]
+args = ["-c", """
+set -euo pipefail
+commands_json="$1"
+flake_ref="${2:-.}"
+flake_dir="${3:-.}"
+max_bytes="${4:-}"
+head_n="${5:-}"
+tail_n="${6:-}"
+
+cd "$flake_dir"
+
+run_output=""
+count=$(printf '%s' "$commands_json" | jq 'length')
+for ((i=0; i<count; i++)); do
+  cmd=$(printf '%s' "$commands_json" | jq -r ".[$i].command")
+  mapfile -t cmd_args < <(printf '%s' "$commands_json" | jq -r ".[$i].args // [] | .[]")
+
+  nix_args=(develop "$flake_ref" -c "$cmd")
+  if [ ${#cmd_args[@]} -gt 0 ]; then
+    nix_args+=("${cmd_args[@]}")
+  fi
+
+  step_output=$(nix "${nix_args[@]}" 2>&1) || {
+    run_output+="$step_output"
+    printf '%s' "$run_output"
+    exit 1
+  }
+  run_output+="$step_output"$'\n'
+done
+
+if [ -n "$tail_n" ]; then
+  printf '%s' "$run_output" | tail -n "$tail_n"
+elif [ -n "$head_n" ]; then
+  printf '%s' "$run_output" | head -n "$head_n"
+elif [ -n "$max_bytes" ]; then
+  printf '%s' "$run_output" | head -c "$max_bytes"
+else
+  printf '%s' "$run_output"
+fi
+""", "_"]
+
+[tools.input]
+required = ["commands"]
+
+[tools.input.properties.commands]
+type = "array"
+description = """Commands to run sequentially. Each is {command: string, args?: string[]}. \
+Stops on first failure."""
+
+[tools.input.properties.flake_ref]
+type = "string"
+description = "Flake reference. Defaults to '.'."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+[tools.input.properties.max_bytes]
+type = "string"
+description = "Maximum bytes of output to return."
+
+[tools.input.properties.head]
+type = "string"
+description = "Only return the first N lines of output."
+
+[tools.input.properties.tail]
+type = "string"
+description = "Only return the last N lines of output."
+
+# --- flake_check ---
+
+[[tools]]
+name = "flake_check"
+description = "Run flake checks and tests."
+command = "bash"
+arg_order = ["flake_ref", "flake_dir", "keep_going", "head", "tail", "max_bytes"]
+args = ["-c", """
+set -euo pipefail
+flake_ref="${1:-.}"
+flake_dir="${2:-.}"
+keep_going="${3:-true}"
+head_n="${4:-}"
+tail_n="${5:-}"
+max_bytes="${6:-}"
+
+cd "$flake_dir"
+nix_args=(flake check)
+if [ "$keep_going" = "true" ]; then
+  nix_args+=(--keep-going)
+fi
+nix_args+=("$flake_ref")
+
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+
+if [ -n "$tail_n" ]; then
+  echo "$output" | tail -n "$tail_n"
+elif [ -n "$head_n" ]; then
+  echo "$output" | head -n "$head_n"
+elif [ -n "$max_bytes" ]; then
+  echo "$output" | head -c "$max_bytes"
+else
+  echo "$output"
+fi
+""", "_"]
+
+[tools.input.properties.flake_ref]
+type = "string"
+description = "Flake reference. Defaults to '.'."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+[tools.input.properties.keep_going]
+type = "string"
+description = "Continue on error. Defaults to true."
+
+[tools.input.properties.head]
+type = "string"
+description = "Only return the first N lines of output."
+
+[tools.input.properties.tail]
+type = "string"
+description = "Only return the last N lines of output."
+
+[tools.input.properties.max_bytes]
+type = "string"
+description = "Maximum bytes of output to return."
+
+# --- flake_init ---
+
+[[tools]]
+name = "flake_init"
+description = "Initialize a new flake in the specified directory."
+command = "bash"
+arg_order = ["template", "flake_dir"]
+args = ["-c", """
+set -euo pipefail
+template="${1:-}"
+flake_dir="${2:-.}"
+
+cd "$flake_dir"
+nix_args=(flake init)
+if [ -n "$template" ]; then
+  nix_args+=(-t "$template")
+fi
+
+nix "${nix_args[@]}"
+""", "_"]
+
+[tools.input.properties.template]
+type = "string"
+description = "Template flake reference (e.g., 'templates#rust'). If not specified, uses default template."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory to initialize the flake in. Defaults to current directory."
+
+# --- flake_lock ---
+
+[[tools]]
+name = "flake_lock"
+description = "Lock flake inputs without building."
+command = "bash"
+arg_order = ["flake_ref", "update_inputs", "override_inputs", "flake_dir", "head", "tail", "max_bytes"]
+args = ["-c", """
+set -euo pipefail
+flake_ref="${1:-.}"
+update_inputs_json="${2:-}"
+override_inputs_json="${3:-}"
+flake_dir="${4:-.}"
+head_n="${5:-}"
+tail_n="${6:-}"
+max_bytes="${7:-}"
+
+cd "$flake_dir"
+nix_args=(flake lock)
+
+if [ -n "$update_inputs_json" ] && [ "$update_inputs_json" != "null" ] && [ "$update_inputs_json" != "[]" ]; then
+  while IFS= read -r inp; do
+    nix_args+=(--update-input "$inp")
+  done < <(printf '%s' "$update_inputs_json" | jq -r '.[]')
+fi
+
+if [ -n "$override_inputs_json" ] && [ "$override_inputs_json" != "null" ] && [ "$override_inputs_json" != "{}" ]; then
+  while IFS=$'\t' read -r key val; do
+    nix_args+=(--override-input "$key" "$val")
+  done < <(printf '%s' "$override_inputs_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+fi
+
+nix_args+=("$flake_ref")
+
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+
+if [ -n "$tail_n" ]; then
+  echo "$output" | tail -n "$tail_n"
+elif [ -n "$head_n" ]; then
+  echo "$output" | head -n "$head_n"
+elif [ -n "$max_bytes" ]; then
+  echo "$output" | head -c "$max_bytes"
+else
+  echo "$output"
+fi
+""", "_"]
+
+[tools.input.properties.flake_ref]
+type = "string"
+description = "Flake reference. Defaults to '.'."
+
+[tools.input.properties.update_inputs]
+type = "array"
+description = "Inputs to update."
+
+[tools.input.properties.override_inputs]
+type = "object"
+description = "Map of input names to flake references to override."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+[tools.input.properties.head]
+type = "string"
+description = "Only return the first N lines of output."
+
+[tools.input.properties.tail]
+type = "string"
+description = "Only return the last N lines of output."
+
+[tools.input.properties.max_bytes]
+type = "string"
+description = "Maximum bytes of output to return."
+
+# --- flake_update ---
+
+[[tools]]
+name = "flake_update"
+description = "Update flake.lock file."
+command = "bash"
+arg_order = ["flake_ref", "inputs", "flake_dir", "head", "tail", "max_bytes"]
+args = ["-c", """
+set -euo pipefail
+flake_ref="${1:-.}"
+inputs_json="${2:-}"
+flake_dir="${3:-.}"
+head_n="${4:-}"
+tail_n="${5:-}"
+max_bytes="${6:-}"
+
+cd "$flake_dir"
+nix_args=(flake update)
+
+if [ -n "$inputs_json" ] && [ "$inputs_json" != "null" ] && [ "$inputs_json" != "[]" ]; then
+  while IFS= read -r inp; do
+    nix_args+=("$inp")
+  done < <(printf '%s' "$inputs_json" | jq -r '.[]')
+fi
+
+nix_args+=("$flake_ref")
+
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
+
+if [ -n "$tail_n" ]; then
+  echo "$output" | tail -n "$tail_n"
+elif [ -n "$head_n" ]; then
+  echo "$output" | head -n "$head_n"
+elif [ -n "$max_bytes" ]; then
+  echo "$output" | head -c "$max_bytes"
+else
+  echo "$output"
+fi
+""", "_"]
+
+[tools.input.properties.flake_ref]
+type = "string"
+description = "Flake reference. Defaults to '.'."
+
+[tools.input.properties.inputs]
+type = "array"
+description = "Specific inputs to update. If empty, updates all inputs."
+
+[tools.input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+[tools.input.properties.head]
+type = "string"
+description = "Only return the first N lines of output."
+
+[tools.input.properties.tail]
+type = "string"
+description = "Only return the last N lines of output."
+
+[tools.input.properties.max_bytes]
+type = "string"
+description = "Maximum bytes of output to return."
+
+# --- store_gc ---
+
+[[tools]]
+name = "store_gc"
+description = "Run garbage collection on the Nix store."
+command = "bash"
+arg_order = ["dry_run", "max_freed"]
+args = ["-c", """
+set -euo pipefail
+dry_run="${1:-false}"
+max_freed="${2:-}"
+
+nix_args=(store gc)
+if [ "$dry_run" = "true" ]; then
+  nix_args+=(--dry-run)
+fi
+if [ -n "$max_freed" ]; then
+  nix_args+=(--max "$max_freed")
+fi
+
+nix "${nix_args[@]}"
+""", "_"]
+
+[tools.input.properties.dry_run]
+type = "string"
+description = "Only print what would be deleted. Defaults to false."
+
+[tools.input.properties.max_freed]
+type = "string"
+description = "Stop after freeing this much space (e.g., '1G', '500M')."
