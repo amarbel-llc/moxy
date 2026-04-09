@@ -181,7 +181,7 @@ func runServer() error {
 	defer cancel()
 
 	// connectServer handles both stdio and HTTP servers.
-	connectServer := func(ctx context.Context, srvCfg config.ServerConfig) (*mcpclient.Client, *protocol.InitializeResultV1, error) {
+	connectServer := func(ctx context.Context, srvCfg config.ServerConfig) (proxy.ServerBackend, *protocol.InitializeResultV1, error) {
 		if srvCfg.IsHTTP() {
 			return connectHTTPServer(ctx, srvCfg, credStore)
 		}

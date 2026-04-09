@@ -12,12 +12,11 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
 	"github.com/amarbel-llc/moxy/internal/config"
-	"github.com/amarbel-llc/moxy/internal/mcpclient"
 	"github.com/amarbel-llc/moxy/internal/paginate"
 )
 
 type ChildEntry struct {
-	Client       *mcpclient.Client
+	Client       ServerBackend
 	Config       config.ServerConfig
 	Capabilities protocol.ServerCapabilitiesV1
 	ServerInfo   protocol.ImplementationV1
@@ -43,7 +42,7 @@ type EphemeralMeta struct {
 // ConnectFunc creates and initializes a client for a given server config.
 // This abstraction allows the proxy to reconnect servers without knowing
 // transport details (stdio vs HTTP, credentials, etc.).
-type ConnectFunc func(ctx context.Context, cfg config.ServerConfig) (*mcpclient.Client, *protocol.InitializeResultV1, error)
+type ConnectFunc func(ctx context.Context, cfg config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error)
 
 type Proxy struct {
 	children                    []ChildEntry
@@ -199,7 +198,7 @@ func (p *Proxy) reprobeEphemeral(ctx context.Context, meta *EphemeralMeta) error
 	return nil
 }
 
-func (p *Proxy) spawnEphemeral(ctx context.Context, serverName string) (*mcpclient.Client, error) {
+func (p *Proxy) spawnEphemeral(ctx context.Context, serverName string) (ServerBackend, error) {
 	cfg, ok := p.configs[serverName]
 	if !ok {
 		return nil, fmt.Errorf("unknown server %q", serverName)
@@ -1467,7 +1466,7 @@ func (p *Proxy) callToolEphemeral(
 
 func (p *Proxy) callResourceReadOn(
 	ctx context.Context,
-	client *mcpclient.Client,
+	client ServerBackend,
 	serverName string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
@@ -1524,7 +1523,7 @@ func resourceContentsToToolResult(contents []protocol.ResourceContent) (*protoco
 
 func (p *Proxy) callResourceTemplatesOn(
 	ctx context.Context,
-	client *mcpclient.Client,
+	client ServerBackend,
 	serverName string,
 ) (*protocol.ToolCallResultV1, error) {
 	raw, err := client.Call(ctx, protocol.MethodResourcesTemplates, nil)
