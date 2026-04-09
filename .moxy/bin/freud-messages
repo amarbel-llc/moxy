@@ -1,0 +1,171 @@
+#!/usr/bin/env nix
+#! nix shell nixpkgs#python3 --command python3
+
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def find_session(session_id: str) -> Path | None:
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return None
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        f = proj_dir / f"{session_id}.jsonl"
+        if f.exists():
+            return f
+    return None
+
+
+def extract_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text = block.get("text", "")
+                if text:
+                    parts.append(text)
+        return "\n".join(parts)
+    return ""
+
+
+def extract_tool_calls(content) -> list[dict]:
+    if not isinstance(content, list):
+        return []
+    calls = []
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "tool_use":
+            calls.append({
+                "name": block.get("name", "?"),
+                "input": block.get("input", {}),
+            })
+    return calls
+
+
+def extract_tool_results(content) -> list[dict]:
+    if not isinstance(content, list):
+        return []
+    results = []
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "tool_result":
+            tool_use_id = block.get("tool_use_id", "?")
+            inner = block.get("content", "")
+            if isinstance(inner, list):
+                text = " ".join(
+                    b.get("text", "")
+                    for b in inner
+                    if isinstance(b, dict) and b.get("type") == "text"
+                )
+            elif isinstance(inner, str):
+                text = inner
+            else:
+                text = str(inner)
+            results.append({"tool_use_id": tool_use_id, "text": text})
+    return results
+
+
+def truncate(s: str, max_len: int) -> str:
+    s = s.replace("\n", " ").strip()
+    if len(s) > max_len:
+        return s[:max_len] + "..."
+    return s
+
+
+def main():
+    session_id = sys.argv[1] if len(sys.argv) > 1 else ""
+    role_filter = sys.argv[2] if len(sys.argv) > 2 else ""
+    search = sys.argv[3].lower() if len(sys.argv) > 3 else ""
+    offset = int(sys.argv[4]) if len(sys.argv) > 4 else 0
+    limit = int(sys.argv[5]) if len(sys.argv) > 5 else 0
+
+    if not session_id:
+        print("Usage: freud-messages <session_id> [role] [search] [offset] [limit]",
+              file=sys.stderr)
+        sys.exit(1)
+
+    path = find_session(session_id)
+    if path is None:
+        print(f"Session {session_id} not found. Use the sessions tool to list available sessions.")
+        sys.exit(1)
+
+    messages = []
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = obj.get("type")
+            if msg_type not in ("user", "assistant"):
+                continue
+
+            content = obj.get("message", {}).get("content")
+            if content is None:
+                continue
+
+            role = msg_type.upper()
+            text = extract_text(content)
+            tool_calls = extract_tool_calls(content)
+            tool_results = extract_tool_results(content)
+
+            # Apply role filter
+            if role_filter and msg_type != role_filter:
+                continue
+
+            messages.append({
+                "role": role,
+                "text": text,
+                "tool_calls": tool_calls,
+                "tool_results": tool_results,
+            })
+
+    # Apply search filter
+    if search:
+        filtered = []
+        for msg in messages:
+            haystack = msg["text"].lower()
+            for tc in msg["tool_calls"]:
+                haystack += " " + tc["name"].lower()
+                haystack += " " + json.dumps(tc["input"]).lower()
+            if search in haystack:
+                filtered.append(msg)
+        messages = filtered
+
+    # Apply pagination
+    total = len(messages)
+    if offset > 0:
+        messages = messages[offset:]
+    if limit > 0:
+        messages = messages[:limit]
+
+    for i, msg in enumerate(messages, start=offset + 1):
+        role = msg["role"]
+        text = msg["text"]
+
+        if text:
+            print(f"[{i}] {role}: {truncate(text, 300)}")
+
+        for tc in msg["tool_calls"]:
+            input_str = json.dumps(tc["input"], separators=(",", ":"))
+            print(f"[{i}] {role} tool_call: {tc['name']}({truncate(input_str, 100)})")
+
+        for tr in msg["tool_results"]:
+            print(f"[{i}] {role} tool_result({tr['tool_use_id']}): {truncate(tr['text'], 200)}")
+
+    if total > len(messages) + offset:
+        remaining = total - offset - len(messages)
+        print(f"\n--- {remaining} more messages (use offset={offset + len(messages)})")
+    elif offset > 0:
+        print(f"\n--- showing {len(messages)} of {total} messages (offset={offset})")
+
+
+if __name__ == "__main__":
+    main()
