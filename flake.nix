@@ -87,6 +87,12 @@
               wrapProgram "$f" \
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.just pkgs.jq ]}
             done
+            for f in $out/libexec/moxy/man-*; do
+              wrapProgram "$f" \
+                --prefix PATH : ${
+                  pkgs.lib.makeBinPath [ pkgs.mandoc pkgs.pandoc maneater ]
+                }
+            done
 
             # Rewrite __LIBEXEC__ placeholder to absolute nix store path
             sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" $out/share/moxy/builtin-servers/*.toml

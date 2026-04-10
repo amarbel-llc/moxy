@@ -4,18 +4,7 @@ description = "Unix man page reader with section-level progressive disclosure"
 [[tools]]
 name = "toc"
 description = "List all sections of a man page with their heading levels. Start here to discover what a page covers before reading specific sections."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-page="$1"
-src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null | head -1)
-
-[ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
-case "$src" in
-  *.gz) gzip -dc "$src" ;;
-  *)    cat "$src" ;;
-esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null | awk '/^#+ /{print}'
-""", "_"]
+command = "__LIBEXEC__/man-toc"
 
 [tools.input]
 type = "object"
@@ -28,33 +17,8 @@ description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
 [[tools]]
 name = "section"
 description = "Read a specific section of a man page by name. Use 'toc' first to discover available section names."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-page="$1"; section_name="$2"
-src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null | head -1)
-
-[ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
-rendered=$(case "$src" in
-  *.gz) gzip -dc "$src" ;;
-  *)    cat "$src" ;;
-esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
-result=$(echo "$rendered" | awk -v target="$section_name" '
-BEGIN { found=0; IGNORECASE=1 }
-/^#+ / {
-  if (found) exit
-  name = $0; sub(/^#+ /, "", name)
-  if (tolower(name) == tolower(target)) found=1
-}
-found { print }
-')
-if [ -z "$result" ]; then
-  echo "Section \"$section_name\" not found in $page. Available sections:"
-  echo "$rendered" | awk '/^#+ /{print}'
-  exit 1
-fi
-echo "$result"
-""", "_"]
+command = "__LIBEXEC__/man-section"
+arg_order = ["page", "section_name"]
 
 [tools.input]
 type = "object"
@@ -71,11 +35,7 @@ description = "Section name to read (e.g. 'DESCRIPTION', 'OPTIONS', 'SYNOPSIS').
 [[tools]]
 name = "search"
 description = "Search for man pages by keyword (apropos). Returns matching page names with short descriptions."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-MANPATH=$(manpath 2>/dev/null) apropos "$1" 2>/dev/null || echo "No results for \"$1\""
-""", "_"]
+command = "__LIBEXEC__/man-search"
 
 [tools.input]
 type = "object"
@@ -90,14 +50,8 @@ description = "Keyword to search for in man page names and descriptions"
 [[tools]]
 name = "semantic-search"
 description = "Semantic man page search using vector embeddings. More accurate than keyword search for natural language queries like 'list files' or 'configure network'. Requires a pre-built index (maneater index)."
-command = "sh"
+command = "__LIBEXEC__/man-semantic-search"
 arg_order = ["query", "top_k"]
-args = ["-c", """
-set -euo pipefail
-query="$1"
-top_k="${2:-10}"
-maneater search "$query" --top-k "$top_k"
-""", "_"]
 
 [tools.input]
 type = "object"

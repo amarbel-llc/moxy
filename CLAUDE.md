@@ -124,6 +124,14 @@ invocation.
 Current native servers: `freud` (session transcripts), `jq`, `rg`, `man`,
 `folio` (read tools), `godoc`, `gh`, `gh-other`, `grit`, `chix`.
 
+**Builtin native server dependency rule:** All builtin native servers
+(`builtin-servers/*.toml`) must have their external dependencies provided via
+nix wrapping. Never rely on tools being on the ambient PATH — they won't be
+outside the moxy devshell. The pattern: put scripts in `libexec/`, wrap them in
+`flake.nix` postInstall with `wrapProgram --prefix PATH`, and reference via
+`__LIBEXEC__` placeholder in the TOML config. Inline `sh -c` commands are only
+acceptable for coreutils-level builtins (`cat`, `echo`, `sed`, etc.).
+
 ### Maneater (Man Page + Exec MCP Server)
 
 Go binary in `cmd/maneater`. MCP server providing Unix man page
