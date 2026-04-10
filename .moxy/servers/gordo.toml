@@ -9,9 +9,9 @@ args = ["-c", """
 set -euo pipefail
 pkg="$1"
 if [ -n "${2:-}" ]; then
-  go doc "$pkg.$2"
+  go doc -all "$pkg.$2"
 else
-  go doc "$pkg"
+  go doc -all "$pkg"
 fi
 """, "_"]
 
