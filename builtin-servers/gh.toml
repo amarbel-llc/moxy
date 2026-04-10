@@ -54,7 +54,7 @@ type = "string"
 name = "issue-list"
 description = "List issues in the current repository with optional filters"
 command = "bash"
-arg_order = ["state", "labels", "assignee", "milestone", "search", "limit"]
+arg_order = ["state", "labels", "assignee", "milestone", "search", "limit", "output_format"]
 args = ["-c", """
 set -euo pipefail
 state="${1:-open}"
@@ -63,6 +63,7 @@ assignee="${3:-}"
 milestone="${4:-}"
 search="${5:-}"
 limit="${6:-30}"
+output_format="${7:-json}"
 gh_args=(issue list --state "$state" --limit "$limit" --json number,title,state,labels,assignees,milestone,createdAt,updatedAt)
 
 if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
@@ -75,16 +76,22 @@ fi
 [ -n "$milestone" ] && gh_args+=(--milestone "$milestone")
 
 [ -n "$search" ] && gh_args+=(--search "$search")
-gh "${gh_args[@]}" | jq '[.[] | {
-  number: .number,
-  title: .title,
-  state: .state,
-  labels: [.labels[].name],
-  assignees: [.assignees[].login],
-  milestone: .milestone.title,
-  created: .createdAt,
-  updated: .updatedAt
-}]'
+raw=$(gh "${gh_args[@]}")
+
+if [ "$output_format" = "text" ]; then
+  printf '%s' "$raw" | jq -r '.[] | "#\\(.number)\\t\\(.title)\\t\\([.labels[].name] | join(","))"' | column -t -s $'\\t'
+else
+  printf '%s' "$raw" | jq '[.[] | {
+    number: .number,
+    title: .title,
+    state: .state,
+    labels: [.labels[].name],
+    assignees: [.assignees[].login],
+    milestone: .milestone.title,
+    created: .createdAt,
+    updated: .updatedAt
+  }]'
+fi
 """, "_"]
 
 [tools.input]
@@ -116,6 +123,10 @@ description = "Search query to filter issues"
 [tools.input.properties.limit]
 type = "integer"
 description = "Maximum number of issues to return (default 30)"
+
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: json (default, full details) or text (one line per issue with number, title, labels)"
 
 # ---
 
