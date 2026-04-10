@@ -1,34 +1,13 @@
 name = "jira"
-description = "Jira Cloud REST API tools for etsy.atlassian.net. Supports issue CRUD, transitions, linking, sprints, and search via JQL."
+description = "Jira Cloud tools via Atlassian CLI (acli). Supports issue CRUD, transitions, linking, sprints, and search via JQL."
 
 # === Search ================================================================
 
 [[tools]]
 name = "search"
 description = "Search for issues using JQL"
-command = "bash"
-arg_order = ["jql", "fields", "max_results", "start_at"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-jql="$1"
-fields="${2:-}"
-max_results="${3:-50}"
-start_at="${4:-0}"
-body=$(jq -nc \
-  --arg jql "$jql" \
-  --arg fields "$fields" \
-  --argjson max "$max_results" \
-  --argjson start "$start_at" \
-  '{jql: $jql, maxResults: $max, startAt: $start} + (if $fields != "" then {fields: ($fields | split(","))} else {} end)')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X POST "$JIRA_URL/rest/api/3/search" \
-  -d "$body" \
-  | jq '{total: .total, startAt: .startAt, maxResults: .maxResults, issues: [.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: (.fields.assignee.displayName // null), priority: (.fields.priority.name // null), issuetype: .fields.issuetype.name, created: .fields.created, updated: .fields.updated, labels: .fields.labels, parent: (.fields.parent.key // null)}]}'
-""", "_"]
+command = "__LIBEXEC__/jira-search"
+arg_order = ["jql", "fields", "max_results"]
 
 [tools.input]
 type = "object"
@@ -36,71 +15,23 @@ required = ["jql"]
 
 [tools.input.properties.jql]
 type = "string"
-description = "JQL query string (e.g. 'project = MOXY AND status = Open')"
+description = "JQL query string (e.g. 'project = XORCH AND status = Open')"
 
 [tools.input.properties.fields]
 type = "string"
-description = "Comma-separated field names to return (e.g. 'summary,status,assignee'). Omit for default fields."
+description = "Comma-separated field names to display (default: issuetype,key,assignee,priority,status,summary)"
 
 [tools.input.properties.max_results]
 type = "integer"
-description = "Maximum results to return (default 50, max 100)"
-
-[tools.input.properties.start_at]
-type = "integer"
-description = "Index of first result for pagination (default 0)"
-
-# ---
-
-[[tools]]
-name = "search-fields"
-description = "List all available Jira fields (for discovering field IDs)"
-command = "bash"
-arg_order = ["query"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-query="${1:-}"
-result=$(curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$JIRA_URL/rest/api/3/field")
-if [ -n "$query" ]; then
-  printf '%s' "$result" | jq --arg q "$query" '[.[] | select(.name | test($q; "i")) | {id: .id, name: .name, custom: .custom, schema: .schema}]'
-else
-  printf '%s' "$result" | jq '[.[] | {id: .id, name: .name, custom: .custom}]'
-fi
-""", "_"]
-
-[tools.input]
-type = "object"
-
-[tools.input.properties.query]
-type = "string"
-description = "Optional regex to filter fields by name (case-insensitive)"
+description = "Maximum number of issues to return (default 50)"
 
 # === Issues ================================================================
 
 [[tools]]
 name = "get-issue"
 description = "Get a Jira issue by key"
-command = "bash"
+command = "__LIBEXEC__/jira-get-issue"
 arg_order = ["issue_key", "fields"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-issue_key="$1"
-fields="${2:-}"
-url="$JIRA_URL/rest/api/3/issue/$issue_key"
-
-[ -n "$fields" ] && url="$url?fields=$fields"
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$url"
-""", "_"]
 
 [tools.input]
 type = "object"
@@ -108,7 +39,7 @@ required = ["issue_key"]
 
 [tools.input.properties.issue_key]
 type = "string"
-description = "Issue key (e.g. MOXY-123)"
+description = "Issue key (e.g. XORCH-703)"
 
 [tools.input.properties.fields]
 type = "string"
@@ -119,43 +50,8 @@ description = "Comma-separated field names to return (e.g. 'summary,status,assig
 [[tools]]
 name = "create-issue"
 description = "Create a new Jira issue"
-command = "bash"
+command = "__LIBEXEC__/jira-create-issue"
 arg_order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-project="$1"
-summary="$2"
-description="${3:-}"
-issuetype="${4:-Task}"
-priority="${5:-}"
-labels_json="${6:-}"
-assignee="${7:-}"
-parent="${8:-}"
-fields=$(jq -nc \
-  --arg proj "$project" \
-  --arg summary "$summary" \
-  --arg issuetype "$issuetype" \
-  '{project: {key: $proj}, summary: $summary, issuetype: {name: $issuetype}}')
-
-[ -n "$description" ] && fields=$(printf '%s' "$fields" | jq --arg d "$description" '.description = {type: "doc", version: 1, content: [{type: "paragraph", content: [{type: "text", text: $d}]}]}')
-
-[ -n "$priority" ] && fields=$(printf '%s' "$fields" | jq --arg p "$priority" '.priority = {name: $p}')
-if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
-  fields=$(printf '%s' "$fields" | jq --argjson l "$labels_json" '.labels = $l')
-fi
-
-[ -n "$assignee" ] && fields=$(printf '%s' "$fields" | jq --arg a "$assignee" '.assignee = {id: $a}')
-
-[ -n "$parent" ] && fields=$(printf '%s' "$fields" | jq --arg p "$parent" '.parent = {key: $p}')
-body=$(jq -nc --argjson f "$fields" '{fields: $f}')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X POST "$JIRA_URL/rest/api/3/issue" \
-  -d "$body"
-""", "_"]
 
 [tools.input]
 type = "object"
@@ -163,7 +59,7 @@ required = ["project", "summary"]
 
 [tools.input.properties.project]
 type = "string"
-description = "Project key (e.g. MOXY)"
+description = "Project key (e.g. XORCH)"
 
 [tools.input.properties.summary]
 type = "string"
@@ -171,7 +67,7 @@ description = "Issue summary/title"
 
 [tools.input.properties.description]
 type = "string"
-description = "Issue description (plain text, converted to ADF)"
+description = "Issue description (plain text or ADF)"
 
 [tools.input.properties.issuetype]
 type = "string"
@@ -182,15 +78,12 @@ type = "string"
 description = "Priority name (e.g. High, Medium, Low)"
 
 [tools.input.properties.labels]
-type = "array"
-description = "Labels to add"
-
-[tools.input.properties.labels.items]
 type = "string"
+description = "Comma-separated labels to add"
 
 [tools.input.properties.assignee]
 type = "string"
-description = "Assignee account ID"
+description = "Assignee email or account ID. Use '@me' to self-assign"
 
 [tools.input.properties.parent]
 type = "string"
@@ -201,53 +94,8 @@ description = "Parent issue key for sub-tasks or epic linking"
 [[tools]]
 name = "update-issue"
 description = "Update fields on an existing Jira issue"
-command = "bash"
-arg_order = ["issue_key", "fields_json"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-issue_key="$1"
-fields_json="$2"
-body=$(jq -nc --argjson f "$fields_json" '{fields: $f}')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X PUT "$JIRA_URL/rest/api/3/issue/$issue_key" \
-  -d "$body" \
-  -w '{"status": %{http_code}}' -o /dev/null
-""", "_"]
-
-[tools.input]
-type = "object"
-required = ["issue_key", "fields_json"]
-
-[tools.input.properties.issue_key]
-type = "string"
-description = "Issue key (e.g. MOXY-123)"
-
-[tools.input.properties.fields_json]
-type = "object"
-description = "JSON object of fields to update (e.g. {\"summary\": \"New title\", \"labels\": [\"bug\"]})"
-
-# === Transitions ===========================================================
-
-[[tools]]
-name = "get-transitions"
-description = "Get available status transitions for an issue"
-command = "bash"
-arg_order = ["issue_key"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-issue_key="$1"
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$JIRA_URL/rest/api/3/issue/$issue_key/transitions" \
-  | jq '{transitions: [.transitions[] | {id: .id, name: .name, to: .to.name}]}'
-""", "_"]
+command = "__LIBEXEC__/jira-update-issue"
+arg_order = ["issue_key", "summary", "description", "assignee", "labels", "issuetype"]
 
 [tools.input]
 type = "object"
@@ -255,144 +103,79 @@ required = ["issue_key"]
 
 [tools.input.properties.issue_key]
 type = "string"
-description = "Issue key (e.g. MOXY-123)"
+description = "Issue key (e.g. XORCH-703)"
 
-# ---
+[tools.input.properties.summary]
+type = "string"
+description = "New summary"
+
+[tools.input.properties.description]
+type = "string"
+description = "New description"
+
+[tools.input.properties.assignee]
+type = "string"
+description = "Assignee email or account ID"
+
+[tools.input.properties.labels]
+type = "string"
+description = "Comma-separated labels to set"
+
+[tools.input.properties.issuetype]
+type = "string"
+description = "New issue type"
+
+# === Transitions ===========================================================
 
 [[tools]]
 name = "transition-issue"
 description = "Transition an issue to a new status"
-command = "bash"
-arg_order = ["issue_key", "transition_id"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-issue_key="$1"
-transition_id="$2"
-body=$(jq -nc --arg id "$transition_id" '{transition: {id: $id}}')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X POST "$JIRA_URL/rest/api/3/issue/$issue_key/transitions" \
-  -d "$body" \
-  -w '{"status": %{http_code}}' -o /dev/null
-""", "_"]
+command = "__LIBEXEC__/jira-transition-issue"
+arg_order = ["issue_key", "status"]
 
 [tools.input]
 type = "object"
-required = ["issue_key", "transition_id"]
+required = ["issue_key", "status"]
 
 [tools.input.properties.issue_key]
 type = "string"
-description = "Issue key (e.g. MOXY-123)"
+description = "Issue key (e.g. XORCH-703)"
 
-[tools.input.properties.transition_id]
+[tools.input.properties.status]
 type = "string"
-description = "Transition ID (get from get-transitions tool)"
+description = "Target status name (e.g. 'In Progress', 'Done', 'To Do')"
 
 # === Linking ===============================================================
 
 [[tools]]
-name = "create-remote-issue-link"
-description = "Add a remote link (e.g. PR URL) to an issue"
-command = "bash"
-arg_order = ["issue_key", "url", "title"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-issue_key="$1"
-url="$2"
-title="${3:-$2}"
-body=$(jq -nc --arg url "$url" --arg title "$title" '{object: {url: $url, title: $title}}')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X POST "$JIRA_URL/rest/api/3/issue/$issue_key/remotelink" \
-  -d "$body"
-""", "_"]
-
-[tools.input]
-type = "object"
-required = ["issue_key", "url"]
-
-[tools.input.properties.issue_key]
-type = "string"
-description = "Issue key (e.g. MOXY-123)"
-
-[tools.input.properties.url]
-type = "string"
-description = "URL to link (e.g. GitHub PR URL)"
-
-[tools.input.properties.title]
-type = "string"
-description = "Link title (defaults to URL)"
-
-# ---
-
-[[tools]]
 name = "create-issue-link"
 description = "Create a link between two Jira issues"
-command = "bash"
-arg_order = ["type", "inward_issue", "outward_issue"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-link_type="$1"
-inward="$2"
-outward="$3"
-body=$(jq -nc \
-  --arg type "$link_type" \
-  --arg inward "$inward" \
-  --arg outward "$outward" \
-  '{type: {name: $type}, inwardIssue: {key: $inward}, outwardIssue: {key: $outward}}')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X POST "$JIRA_URL/rest/api/3/issueLink" \
-  -d "$body" \
-  -w '{"status": %{http_code}}' -o /dev/null
-""", "_"]
+command = "__LIBEXEC__/jira-create-issue-link"
+arg_order = ["type", "outward_issue", "inward_issue"]
 
 [tools.input]
 type = "object"
-required = ["type", "inward_issue", "outward_issue"]
+required = ["type", "outward_issue", "inward_issue"]
 
 [tools.input.properties.type]
 type = "string"
-description = "Link type name (e.g. 'Relates', 'Blocks', 'Cloners')"
-
-[tools.input.properties.inward_issue]
-type = "string"
-description = "Inward issue key (e.g. MOXY-123)"
+description = "Link type (e.g. 'Blocks', 'Relates')"
 
 [tools.input.properties.outward_issue]
 type = "string"
-description = "Outward issue key (e.g. MOXY-456)"
+description = "Outward issue key (e.g. XORCH-703)"
+
+[tools.input.properties.inward_issue]
+type = "string"
+description = "Inward issue key (e.g. XORCH-704)"
 
 # ---
 
 [[tools]]
 name = "link-to-epic"
 description = "Link an issue to an epic by setting its parent"
-command = "bash"
+command = "__LIBEXEC__/jira-link-to-epic"
 arg_order = ["issue_key", "epic_key"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-issue_key="$1"
-epic_key="$2"
-body=$(jq -nc --arg e "$epic_key" '{fields: {parent: {key: $e}}}')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X PUT "$JIRA_URL/rest/api/3/issue/$issue_key" \
-  -d "$body" \
-  -w '{"status": %{http_code}}' -o /dev/null
-""", "_"]
 
 [tools.input]
 type = "object"
@@ -400,37 +183,19 @@ required = ["issue_key", "epic_key"]
 
 [tools.input.properties.issue_key]
 type = "string"
-description = "Issue key to link (e.g. MOXY-123)"
+description = "Issue key to link (e.g. XORCH-703)"
 
 [tools.input.properties.epic_key]
 type = "string"
-description = "Epic issue key (e.g. MOXY-100)"
+description = "Epic issue key (e.g. XORCH-500)"
 
 # === Agile =================================================================
 
 [[tools]]
 name = "get-agile-boards"
 description = "List Jira agile boards"
-command = "bash"
+command = "__LIBEXEC__/jira-get-agile-boards"
 arg_order = ["project", "name", "max_results"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-project="${1:-}"
-name="${2:-}"
-max_results="${3:-50}"
-url="$JIRA_URL/rest/agile/1.0/board?maxResults=$max_results"
-
-[ -n "$project" ] && url="$url&projectKeyOrId=$project"
-
-[ -n "$name" ] && url="$url&name=$name"
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$url" \
-  | jq '{total: .total, boards: [.values[] | {id: .id, name: .name, type: .type, project: (.location.projectKey // null)}]}'
-""", "_"]
 
 [tools.input]
 type = "object"
@@ -452,104 +217,21 @@ description = "Maximum results (default 50)"
 [[tools]]
 name = "get-sprints-from-board"
 description = "List sprints for a board"
-command = "bash"
+command = "__LIBEXEC__/jira-get-sprints-from-board"
 arg_order = ["board_id", "state", "max_results"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-board_id="$1"
-state="${2:-}"
-max_results="${3:-50}"
-url="$JIRA_URL/rest/agile/1.0/board/$board_id/sprint?maxResults=$max_results"
-
-[ -n "$state" ] && url="$url&state=$state"
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$url" \
-  | jq '{total: .total, sprints: [.values[] | {id: .id, name: .name, state: .state, startDate: .startDate, endDate: .endDate, goal: .goal}]}'
-""", "_"]
 
 [tools.input]
 type = "object"
 required = ["board_id"]
 
 [tools.input.properties.board_id]
-type = "integer"
+type = "string"
 description = "Board ID (get from get-agile-boards)"
 
 [tools.input.properties.state]
 type = "string"
-description = "Filter by sprint state: active, closed, future"
+description = "Filter by sprint state: active, closed, future (comma-separated)"
 
 [tools.input.properties.max_results]
 type = "integer"
 description = "Maximum results (default 50)"
-
-# ---
-
-[[tools]]
-name = "add-issues-to-sprint"
-description = "Move issues into a sprint"
-command = "bash"
-arg_order = ["sprint_id", "issues"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-sprint_id="$1"
-issues_json="$2"
-body=$(jq -nc --argjson issues "$issues_json" '{issues: $issues}')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X POST "$JIRA_URL/rest/agile/1.0/sprint/$sprint_id/issue" \
-  -d "$body" \
-  -w '{"status": %{http_code}}' -o /dev/null
-""", "_"]
-
-[tools.input]
-type = "object"
-required = ["sprint_id", "issues"]
-
-[tools.input.properties.sprint_id]
-type = "integer"
-description = "Sprint ID (get from get-sprints-from-board)"
-
-[tools.input.properties.issues]
-type = "array"
-description = "Issue keys to add to the sprint"
-
-[tools.input.properties.issues.items]
-type = "string"
-
-# === Development Info ======================================================
-
-[[tools]]
-name = "get-issue-development-info"
-description = "Get development information (commits, PRs, branches) for an issue"
-command = "bash"
-arg_order = ["issue_key"]
-args = ["-c", """
-set -euo pipefail
-: "${JIRA_URL:?JIRA_URL not set}"
-: "${JIRA_USERNAME:?JIRA_USERNAME not set}"
-: "${JIRA_API_TOKEN:?JIRA_API_TOKEN not set}"
-issue_key="$1"
-issue_id=$(curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$JIRA_URL/rest/api/3/issue/$issue_key?fields=summary" \
-  | jq -r '.id')
-curl -sSfL -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$JIRA_URL/rest/dev-status/latest/issue/detail?issueId=$issue_id&applicationType=GitHub&dataType=pullrequest"
-""", "_"]
-
-[tools.input]
-type = "object"
-required = ["issue_key"]
-
-[tools.input.properties.issue_key]
-type = "string"
-description = "Issue key (e.g. MOXY-123)"

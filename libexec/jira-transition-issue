@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+issue_key="$1"
+status="$2"
+acli jira workitem transition "$issue_key" --status "$status" --json

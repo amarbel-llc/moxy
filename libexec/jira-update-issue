@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+issue_key="$1"
+summary="${2:-}"
+description="${3:-}"
+assignee="${4:-}"
+labels="${5:-}"
+issuetype="${6:-}"
+args=(jira workitem update "$issue_key" --json)
+[ -n "$summary" ] && args+=(--summary "$summary")
+[ -n "$description" ] && args+=(--description "$description")
+[ -n "$assignee" ] && args+=(--assignee "$assignee")
+[ -n "$labels" ] && args+=(--labels "$labels")
+[ -n "$issuetype" ] && args+=(--type "$issuetype")
+acli "${args[@]}"

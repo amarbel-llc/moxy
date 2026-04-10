@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+issue_key="$1"
+epic_key="$2"
+acli jira workitem update "$issue_key" --parent "$epic_key" --json

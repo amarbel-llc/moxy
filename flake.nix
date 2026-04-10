@@ -56,6 +56,11 @@
           inherit system;
         };
 
+        pkgs-master-unfree = import nixpkgs-master {
+          inherit system;
+          config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "acli" ];
+        };
+
         moxy = pkgs.buildGoApplication {
           pname = "moxy";
           version = "0.1.0";
@@ -92,6 +97,10 @@
                 --prefix PATH : ${
                   pkgs.lib.makeBinPath [ pkgs.mandoc pkgs.pandoc maneater ]
                 }
+            done
+            for f in $out/libexec/moxy/jira-*; do
+              wrapProgram "$f" \
+                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli ]}
             done
 
             # Rewrite __LIBEXEC__ placeholder to absolute nix store path

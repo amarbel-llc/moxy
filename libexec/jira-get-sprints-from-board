@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+board_id="$1"
+state="${2:-}"
+max_results="${3:-50}"
+args=(jira sprint list --board "$board_id" --limit "$max_results" --json)
+[ -n "$state" ] && args+=(--state "$state")
+acli "${args[@]}"

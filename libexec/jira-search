@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+jql="$1"
+fields="${2:-issuetype,key,assignee,priority,status,summary}"
+limit="${3:-50}"
+acli jira workitem search --jql "$jql" --fields "$fields" --limit "$limit" --json
