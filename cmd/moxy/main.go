@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/amarbel-llc/moxy/internal/add"
+	"github.com/amarbel-llc/moxy/internal/hook"
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/credentials"
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
@@ -125,7 +126,7 @@ func newApp() *command.App {
 		},
 		Hidden: true,
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return app.HandleHook(os.Stdin, os.Stdout)
+			return hook.Handle(app, os.Stdin, os.Stdout)
 		},
 	})
 
@@ -146,6 +147,15 @@ func main() {
 		case "generate-plugin":
 			if err := app.HandleGeneratePlugin(os.Args[2:], os.Stdout); err != nil {
 				log.Fatalf("generating plugin: %v", err)
+			}
+			// Expand the hooks.json matcher to include moxy MCP tool names
+			// so PreToolUse fires for auto-allowed native tools.
+			dir := "."
+			if len(os.Args) >= 3 && os.Args[2] != "-" {
+				dir = os.Args[2]
+			}
+			if err := hook.ExpandHooksMatcher(dir, app.Name); err != nil {
+				log.Fatalf("expanding hooks matcher: %v", err)
 			}
 			return
 		}

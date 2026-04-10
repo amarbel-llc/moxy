@@ -23,6 +23,7 @@ type ToolSpec struct {
 	Args        []string        `toml:"args"`
 	ArgOrder    []string        `toml:"arg_order"`
 	StdinParam  string          `toml:"stdin_param"`
+	AutoAllow   bool            `toml:"auto-allow"`
 	Input       json.RawMessage `toml:"-"`
 }
 
@@ -41,6 +42,7 @@ type rawToolSpec struct {
 	Args        []string `toml:"args"`
 	ArgOrder    []string `toml:"arg_order"`
 	StdinParam  string   `toml:"stdin_param"`
+	AutoAllow   bool     `toml:"auto-allow"`
 	Input       any      `toml:"input"`
 }
 
@@ -93,6 +95,7 @@ func ParseConfigFull(data []byte) (*ParseResult, error) {
 			Args:        rt.Args,
 			ArgOrder:    rt.ArgOrder,
 			StdinParam:  rt.StdinParam,
+			AutoAllow:   rt.AutoAllow,
 		}
 
 		if rt.Input != nil {
@@ -135,7 +138,7 @@ func detectUndecoded(data []byte) []string {
 	toolNodes := doc.FindArrayTableNodes("tools")
 	consumed["tools"] = true
 	for _, node := range toolNodes {
-		for _, key := range []string{"name", "description", "command", "args", "arg_order"} {
+		for _, key := range []string{"name", "description", "command", "args", "arg_order", "auto-allow"} {
 			if doc.HasInContainer(node, key) {
 				consumed["tools."+key] = true
 			}

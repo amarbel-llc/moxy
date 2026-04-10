@@ -3,6 +3,7 @@ description = "File I/O tools scoped to the current working directory. For paths
 
 [[tools]]
 name = "read"
+auto-allow = true
 description = "Read an entire file with line numbers. Output format: `     N\\tcontent` per line. Large files (>2000 lines) return a head+tail summary instead — use read_range for specific sections."
 command = "bash"
 arg_order = ["file_path"]
@@ -43,6 +44,7 @@ description = "Path to the file to read (must be within CWD)"
 
 [[tools]]
 name = "read_range"
+auto-allow = true
 description = "Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. Output format: `     N\\tcontent` per line."
 command = "bash"
 arg_order = ["file_path", "start", "end"]
@@ -79,6 +81,7 @@ description = "Inclusive end line (1-indexed)"
 
 [[tools]]
 name = "read_excluding"
+auto-allow = true
 description = "Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. Output format: `     N\\tcontent` per line."
 command = "bash"
 arg_order = ["file_path", "delete_start", "delete_end"]
@@ -115,6 +118,7 @@ description = "Inclusive last line to omit (1-indexed)"
 
 [[tools]]
 name = "glob"
+auto-allow = true
 description = """Fast file pattern matching tool that works with any codebase size. \
 Supports glob patterns like "**/*.js" or "src/**/*.ts". \
 Returns matching file paths sorted by modification time (newest first)."""
@@ -168,6 +172,7 @@ description = "The directory to search in. Defaults to current working directory
 
 [[tools]]
 name = "ls"
+auto-allow = true
 description = """List directory contents with type and size metadata. Returns JSON array of entries \
 sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only)."""
 command = "bash"
@@ -229,6 +234,7 @@ description = "Directory path to list. Defaults to current working directory. Mu
 
 [[tools]]
 name = "write"
+auto-allow = true
 description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
 partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
 command = "bash"
