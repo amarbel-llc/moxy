@@ -20,6 +20,7 @@ type ToolSpec struct {
 	Command     string          `toml:"command"`
 	Args        []string        `toml:"args"`
 	ArgOrder    []string        `toml:"arg_order"`
+	StdinParam  string          `toml:"stdin_param"`
 	Input       json.RawMessage `toml:"-"`
 }
 
@@ -37,6 +38,7 @@ type rawToolSpec struct {
 	Command     string   `toml:"command"`
 	Args        []string `toml:"args"`
 	ArgOrder    []string `toml:"arg_order"`
+	StdinParam  string   `toml:"stdin_param"`
 	Input       any      `toml:"input"`
 }
 
@@ -73,6 +75,7 @@ func ParseConfig(data []byte) (*NativeConfig, error) {
 			Command:     rt.Command,
 			Args:        rt.Args,
 			ArgOrder:    rt.ArgOrder,
+			StdinParam:  rt.StdinParam,
 		}
 
 		if rt.Input != nil {

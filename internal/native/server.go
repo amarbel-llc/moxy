@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -122,11 +123,44 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		))
 	}
 
+	// If stdin_param is configured, extract that key from the arguments
+	// before positional arg building.  The framework will pipe its value
+	// (literal or resolved from a result-cache URI) to the child's stdin.
+	var stdinContent string
+	arguments := callParams.Arguments
+	if spec.StdinParam != "" {
+		var argMap map[string]json.RawMessage
+		if len(arguments) > 0 {
+			if err := json.Unmarshal(arguments, &argMap); err == nil {
+				if raw, ok := argMap[spec.StdinParam]; ok {
+					var val string
+					if err := json.Unmarshal(raw, &val); err == nil {
+						stdinContent = val
+					}
+					delete(argMap, spec.StdinParam)
+					arguments, _ = json.Marshal(argMap)
+				}
+			}
+		}
+		// Resolve result-cache URIs to their cached content.
+		if stdinContent != "" {
+			if session, id, ok := parseResultURI(stdinContent); ok {
+				cached, loadErr := s.cache.load(session, id)
+				if loadErr != nil {
+					return marshalResult(protocol.ErrorResultV1(
+						fmt.Sprintf("resolving stdin result URI: %v", loadErr),
+					))
+				}
+				stdinContent = cached.Output
+			}
+		}
+	}
+
 	// Extract caller-supplied arguments and append them (as strings) after
 	// spec.Args.  Ordering follows the input schema's "required" array so
 	// positional semantics are deterministic; any remaining keys are appended
 	// in sorted order.
-	extraArgs, err := buildExtraArgs(callParams.Arguments, spec.Input, spec.ArgOrder)
+	extraArgs, err := buildExtraArgs(arguments, spec.Input, spec.ArgOrder)
 	if err != nil {
 		return marshalResult(protocol.ErrorResultV1(
 			fmt.Sprintf("parsing arguments: %v", err),
@@ -170,6 +204,9 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 
 	cmd := exec.CommandContext(ctx, spec.Command, allArgs...)
 	cmd.ExtraFiles = sub.ExtraFiles
+	if stdinContent != "" {
+		cmd.Stdin = strings.NewReader(stdinContent)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

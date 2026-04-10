@@ -5,14 +5,14 @@ description = "Execute jq filters on JSON data. Cached result URIs (moxy.native:
 name = "jq"
 description = "Execute a jq filter. Only jq is invoked — no shell evaluation. Cached result URIs (moxy.native://results/{session}/{id}) in args are rewritten to /dev/fd/N for streaming."
 command = "sh"
-arg_order = ["filter", "flags", "files", "stdin", "cwd"]
+arg_order = ["filter", "flags", "files", "cwd"]
+stdin_param = "stdin"
 args = ["-c", """
 set -euo pipefail
 filter="$1"
 flags_json="${2:-}"
 files_json="${3:-}"
-stdin_val="${4:-}"
-cwd_val="${5:-}"
+cwd_val="${4:-}"
 
 [ -n "$cwd_val" ] && cd "$cwd_val"
 
@@ -30,9 +30,7 @@ if [ -n "$files_json" ] && [ "$files_json" != "null" ]; then
   done < <(printf '%s' "$files_json" | jq -r '.[]')
 fi
 
-if [ -n "$stdin_val" ]; then
-  printf '%s' "$stdin_val" | jq "${jq_flags[@]}" "$filter"
-elif [ ${#jq_files[@]} -gt 0 ]; then
+if [ ${#jq_files[@]} -gt 0 ]; then
   jq "${jq_flags[@]}" "$filter" "${jq_files[@]}"
 else
   jq "${jq_flags[@]}" "$filter"
