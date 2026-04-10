@@ -208,7 +208,8 @@ description = "Optional comment to add before closing"
 
 [tools.input.properties.reason]
 type = "string"
-description = "Close reason: completed (default) or not_planned"
+description = "Close reason: completed (default) or not planned"
+enum = ["completed", "not planned", "duplicate"]
 
 # === Pull Requests =========================================================
 

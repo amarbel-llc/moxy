@@ -291,6 +291,7 @@ func runServer() error {
 	fmt.Fprintf(os.Stderr, "moxy: session %s (from %s)\n", sessionID, sessionSource)
 
 	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
+	p.SetResultReader(native.NewResultReader())
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 	p.SetNotifier(t.Write)

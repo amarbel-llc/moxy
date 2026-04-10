@@ -18,6 +18,16 @@ const (
 	summaryMaxOutputBytes = 2000
 )
 
+// ResultReader reads cached tool output by URI.
+type ResultReader interface {
+	ReadResult(uri string) (string, error)
+}
+
+// NewResultReader returns a ResultReader backed by the default cache directory.
+func NewResultReader() ResultReader {
+	return newResultCache("")
+}
+
 // resultCache stores tool outputs on disk, keyed by session and id.
 type resultCache struct {
 	dir string
@@ -91,6 +101,20 @@ func (c *resultCache) load(session, id string) (*cachedResult, error) {
 	result.Output = string(output)
 
 	return &result, nil
+}
+
+// ReadResult implements ResultReader by parsing a moxy.native://results URI
+// and loading the cached output from disk.
+func (c *resultCache) ReadResult(uri string) (string, error) {
+	session, id, ok := parseResultURI(uri)
+	if !ok {
+		return "", fmt.Errorf("invalid result URI %q", uri)
+	}
+	result, err := c.load(session, id)
+	if err != nil {
+		return "", err
+	}
+	return result.Output, nil
 }
 
 func countLines(text string) int {

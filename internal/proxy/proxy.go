@@ -44,6 +44,11 @@ type EphemeralMeta struct {
 // transport details (stdio vs HTTP, credentials, etc.).
 type ConnectFunc func(ctx context.Context, cfg config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error)
 
+// ResultReader reads cached native server tool output by URI.
+type ResultReader interface {
+	ReadResult(uri string) (string, error)
+}
+
 type Proxy struct {
 	children                    []ChildEntry
 	failed                      []FailedServer
@@ -52,12 +57,17 @@ type Proxy struct {
 	globalEphemeral             *bool
 	globalProgressiveDisclosure *bool
 	connectFunc                 ConnectFunc
+	resultReader                ResultReader
 	notifier                    func(*jsonrpc.Message) error
 	mu                          sync.RWMutex
 }
 
 func (p *Proxy) SetNotifier(fn func(*jsonrpc.Message) error) {
 	p.notifier = fn
+}
+
+func (p *Proxy) SetResultReader(rr ResultReader) {
+	p.resultReader = rr
 }
 
 func (p *Proxy) ForwardNotification(msg *jsonrpc.Message) {
@@ -626,6 +636,10 @@ func (p *Proxy) ReadResource(
 		return p.readMoxyResource(ctx, uri)
 	}
 
+	if strings.HasPrefix(uri, "moxy.native://results/") {
+		return p.readNativeResult(uri)
+	}
+
 	serverName, originalURI, ok := splitPrefix(uri, "/")
 	if !ok {
 		return nil, fmt.Errorf(
@@ -1134,6 +1148,23 @@ func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]pro
 	}
 
 	return tools, nil
+}
+
+func (p *Proxy) readNativeResult(uri string) (*protocol.ResourceReadResult, error) {
+	if p.resultReader == nil {
+		return nil, fmt.Errorf("no result reader configured")
+	}
+	output, err := p.resultReader.ReadResult(uri)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.ResourceReadResult{
+		Contents: []protocol.ResourceContent{{
+			URI:      uri,
+			MimeType: "text/plain",
+			Text:     output,
+		}},
+	}, nil
 }
 
 func (p *Proxy) readMoxyResource(

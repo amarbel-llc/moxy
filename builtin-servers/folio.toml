@@ -14,7 +14,7 @@ assert_within_cwd() {
   resolved=$(realpath -m "$1")
   cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
     *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
@@ -56,7 +56,7 @@ assert_within_cwd() {
   resolved=$(realpath -m "$1")
   cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
     *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
@@ -94,7 +94,7 @@ assert_within_cwd() {
   resolved=$(realpath -m "$1")
   cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
     *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
@@ -134,7 +134,7 @@ assert_within_cwd() {
   resolved=$(realpath -m "$1")
   cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
     *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
@@ -188,7 +188,7 @@ assert_within_cwd() {
   resolved=$(realpath -m "$1")
   cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
     *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
@@ -251,7 +251,7 @@ assert_within_cwd() {
   resolved=$(realpath -m "$1")
   cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
     *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
