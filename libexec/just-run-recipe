@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+recipe="$1"
+args_json="${2:-}"
+vars_json="${3:-}"
+dry_run="${4:-}"
+
+just_args=()
+
+[ "$dry_run" = "true" ] && just_args+=(--dry-run)
+
+if [ -n "$vars_json" ] && [ "$vars_json" != "null" ] && [ "$vars_json" != "{}" ]; then
+  while IFS=$'\t' read -r key val; do
+    just_args+=("$key=$val")
+  done < <(printf '%s' "$vars_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+fi
+
+just_args+=("$recipe")
+
+if [ -n "$args_json" ] && [ "$args_json" != "null" ]; then
+  while IFS= read -r a; do
+    just_args+=("$a")
+  done < <(printf '%s' "$args_json" | jq -r '.[]')
+fi
+
+just "${just_args[@]}"

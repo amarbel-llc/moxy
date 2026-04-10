@@ -10,14 +10,14 @@ import (
 // BuiltinDir returns the path to the builtin native server configs shipped
 // with the moxy binary. It resolves os.Executable() to find
 // <prefix>/share/moxy/builtin-servers/. The MOXY_BUILTIN_DIR env var
-// overrides for development/testing. Returns "" if the directory does not
-// exist (graceful degradation).
+// overrides when the directory exists; if set but missing, falls back to the
+// executable-relative path. Returns "" if neither exists (graceful degradation).
 func BuiltinDir() string {
 	if dir := os.Getenv("MOXY_BUILTIN_DIR"); dir != "" {
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
 			return dir
 		}
-		return ""
+		// fall through to executable-relative lookup
 	}
 
 	exe, err := os.Executable()

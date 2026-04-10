@@ -189,11 +189,14 @@ func TestBuiltinDirEnvOverride(t *testing.T) {
 	}
 }
 
-func TestBuiltinDirMissing(t *testing.T) {
+func TestBuiltinDirMissingFallsBack(t *testing.T) {
 	t.Setenv("MOXY_BUILTIN_DIR", "/nonexistent/path/that/does/not/exist")
 	got := BuiltinDir()
-	if got != "" {
-		t.Errorf("BuiltinDir() = %q, want empty string for missing dir", got)
+	// When env var points to a missing dir, BuiltinDir falls back to the
+	// executable-relative path. We can't predict that path in tests, but
+	// we verify the env var value is NOT returned.
+	if got == "/nonexistent/path/that/does/not/exist" {
+		t.Error("BuiltinDir() returned the missing env var path instead of falling back")
 	}
 }
 
