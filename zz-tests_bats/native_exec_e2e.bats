@@ -8,9 +8,10 @@ setup() {
   # Isolate cache inside the test home so sessions share the same disk cache.
   export XDG_CACHE_HOME="$HOME/.cache"
 
-  # Set up a native shell exec tool.
-  mkdir -p "$HOME/project/.moxy/servers"
-  cat >"$HOME/project/.moxy/servers/shell.toml" <<'EOF'
+  # Set up a native shell exec tool via MOXIN_PATH.
+  local moxin_dir="$HOME/project/.moxy/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/shell.toml" <<'EOF'
 name = "shell"
 
 [[tools]]
@@ -27,6 +28,7 @@ description = "Shell command to execute"
 required = ["command"]
 EOF
 
+  export MOXIN_PATH="$moxin_dir"
   cd "$HOME/project"
 }
 
@@ -133,8 +135,8 @@ function native_exec_resource_missing_cached_id_errors { # @test
 function native_exec_no_arguments_uses_spec_args_only { # @test
   # A tool with no input schema and no arguments should still work
   # (backwards compatible with existing native_server.bats tests).
-  mkdir -p "$HOME/project/.moxy/servers"
-  cat >"$HOME/project/.moxy/servers/greeter.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/moxins"
+  cat >"$HOME/project/.moxy/moxins/greeter.toml" <<'EOF'
 name = "greeter"
 
 [[tools]]

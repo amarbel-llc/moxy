@@ -113,24 +113,35 @@ The `internal/paginate` package provides cursor-based pagination for resource
 lists. Servers with `paginate = true` in their config get paginated resource
 responses using `?offset=N&limit=M` query parameters on resource URIs.
 
-### Native Servers (Config-as-Server)
+### Moxins (Config-as-Server)
 
-TOML configs in `.moxy/servers/` declare tools backed by scripts in `.moxy/bin/`
-or inline shell commands. Moxy's `internal/native` package handles MCP protocol,
-namespacing, result caching, and resource-as-fd composition. Native servers
-require no Go code — tool schemas are declared in TOML, dispatch is by process
-invocation.
+TOML configs discovered via `MOXIN_PATH` declare tools backed by scripts or
+inline shell commands. Moxy's `internal/native` package handles MCP protocol,
+namespacing, result caching, and resource-as-fd composition. Moxins require no
+Go code — tool schemas are declared in TOML, dispatch is by process invocation.
 
-Current native servers: `freud` (session transcripts), `jq`, `rg`, `man`,
+**Discovery:** `MOXIN_PATH` is a colon-separated list of directories containing
+`<name>.toml` files. Earlier entries override later ones by server name. The
+executable-relative `<prefix>/share/moxy/moxins/` (system moxins) is
+automatically appended as the lowest-priority entry unless `builtin-native =
+false` is set in the moxyfile.
+
+The `moxy moxin-path` subcommand generates a default `MOXIN_PATH` from the
+legacy hierarchy convention:
+`<cwd>/.moxy/moxins:<intermediate>/.moxy/moxins:~/.config/moxy/moxins:<systemDir>`.
+
+Expected on-disk layout: `share/moxy/moxins/<moxin>.toml`.
+
+Current moxins: `freud` (session transcripts), `jq`, `rg`, `man`,
 `folio` (read tools), `godoc`, `gh`, `gh-other`, `grit`, `chix`.
 
-**Builtin native server dependency rule:** All builtin native servers
-(`builtin-servers/*.toml`) must have their external dependencies provided via
-nix wrapping. Never rely on tools being on the ambient PATH — they won't be
-outside the moxy devshell. The pattern: put scripts in `libexec/`, wrap them in
-`flake.nix` postInstall with `wrapProgram --prefix PATH`, and reference via
-`__LIBEXEC__` placeholder in the TOML config. Inline `sh -c` commands are only
-acceptable for coreutils-level builtins (`cat`, `echo`, `sed`, etc.).
+**Builtin moxin dependency rule:** All builtin moxins (`moxins/*.toml`) must
+have their external dependencies provided via nix wrapping. Never rely on tools
+being on the ambient PATH — they won't be outside the moxy devshell. The
+pattern: put scripts in `libexec/`, wrap them in `flake.nix` postInstall with
+`wrapProgram --prefix PATH`, and reference via `__LIBEXEC__` placeholder in
+the TOML config. Inline `sh -c` commands are only acceptable for coreutils-level
+builtins (`cat`, `echo`, `sed`, etc.).
 
 ### Maneater (Man Page + Exec MCP Server)
 
@@ -196,8 +207,8 @@ PATH.
 
 ### Folio (File I/O Tools)
 
-Native server (`.moxy/servers/folio.toml`) providing file read/write operations
-via inline shell commands. No separate binary.
+Moxin (`moxins/folio.toml`) providing file read/write operations via inline
+shell commands. No separate binary.
 
 **Tools:**
 
@@ -212,7 +223,7 @@ via inline shell commands. No separate binary.
 
 ### Freud (Past Claude Session Tools)
 
-Native server (`.moxy/servers/freud.toml`) providing read-only access to past
+Moxin (`moxins/freud.toml`) providing read-only access to past
 Claude Code session transcripts stored as JSONL files in
 `~/.claude/projects/<project-dir>/<session-id>.jsonl`. Implemented as Python
 scripts in `.moxy/bin/freud-*`.
@@ -251,6 +262,7 @@ Dispatched in `cmd/moxy/main.go`:
 - (default) -- run as MCP proxy server
 - `validate` -- validate moxyfile hierarchy, output TAP-14
 - `add [path]` -- interactive form to add a server entry
+- `moxin-path` -- print default MOXIN_PATH from legacy hierarchy
 - `install-mcp` / `generate-plugin` / `hook` -- purse-first integration
 
 ## Dependencies

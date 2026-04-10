@@ -6,17 +6,17 @@
 .Nd declarative MCP tool configs for moxy
 .Sh DESCRIPTION
 .Nm
-configs let you declare MCP tools as TOML files in
-.Pa .moxy/
-directories.
+configs (moxins) let you declare MCP tools as TOML files discovered via the
+.Ev MOXIN_PATH
+environment variable.
 Each config maps tool names and input schemas to executables.
 .Xr moxy 1
 handles all MCP protocol plumbing, process invocation, result caching,
 and resource-as-fd composition natively \(em no Go code required.
 .Pp
-Native servers coexist with proxied MCP servers.
-When a native config has the same name as a moxyfile server,
-the moxyfile server wins and the native config is skipped.
+Moxins coexist with proxied MCP servers.
+When a moxin has the same name as a moxyfile server,
+the moxyfile server wins and the moxin is skipped.
 .Sh CONFIG FORMAT
 Each
 .Pa .moxy/*.toml
@@ -73,27 +73,32 @@ If present, must include
 (injected defensively if missing).
 .El
 .Sh DISCOVERY
-Native configs are discovered from
-.Pa .moxy/
-directories using the same hierarchy walk as moxyfiles:
-.Pp
-.Bl -enum -compact
-.It
-.Pa ~/.config/moxy/.moxy/
-(global)
-.It
-Each parent directory between
-.Ev HOME
-and the working directory
-.It
-.Pa ./.moxy/
-(project-local)
-.El
-.Pp
-Later configs override earlier ones by server name.
+Moxin configs are discovered from directories listed in the
+.Ev MOXIN_PATH
+environment variable (colon-separated, like
+.Ev MANPATH ) .
+Earlier entries override later ones by server name.
 Only files matching
 .Pa *.toml
 are loaded.
+.Pp
+The executable-relative
+.Pa <prefix>/share/moxy/moxins/
+directory (system moxins) is automatically appended as the lowest-priority
+entry, unless
+.Sy builtin-native = false
+is set in the moxyfile.
+.Pp
+The
+.Sy moxy moxin-path
+subcommand generates a default
+.Ev MOXIN_PATH
+from the legacy hierarchy convention:
+.Bd -literal -offset indent
+<cwd>/.moxy/moxins:<intermediate>/.moxy/moxins:~/.config/moxy/moxins:<systemDir>
+.Ed
+.Pp
+Only existing directories are included.
 .Sh ARGUMENT PASSING
 Caller-supplied arguments are extracted from the MCP
 .Sy tools/call

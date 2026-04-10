@@ -119,18 +119,7 @@ func parseNativeToolName(toolName string) (string, bool) {
 // discoverAutoAllowed loads native configs and returns the set of
 // "server.tool" names with auto-allow enabled.
 func discoverAutoAllowed() map[string]bool {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil
-	}
-
-	builtinDir := native.BuiltinDir()
-	configs, err := native.DiscoverConfigs(builtinDir, home, cwd)
+	configs, err := native.DiscoverConfigs(os.Getenv("MOXIN_PATH"), native.SystemMoxinDir())
 	if err != nil {
 		return nil
 	}

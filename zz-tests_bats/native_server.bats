@@ -11,8 +11,9 @@ teardown() {
 }
 
 function native_server_tool_appears_in_tools_list { # @test
-  mkdir -p "$HOME/project/.moxy/servers"
-  cat >"$HOME/project/.moxy/servers/greeter.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/greeter.toml" <<'EOF'
 name = "greeter"
 
 [[tools]]
@@ -22,15 +23,18 @@ command = "echo"
 args = ["-n", "hello world"]
 EOF
 
+  mkdir -p "$HOME/project"
   cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
   run_moxy_mcp "tools/list"
   assert_success
   echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")'
 }
 
 function native_server_tool_can_be_called { # @test
-  mkdir -p "$HOME/project/.moxy/servers"
-  cat >"$HOME/project/.moxy/servers/greeter.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/greeter.toml" <<'EOF'
 name = "greeter"
 
 [[tools]]
@@ -40,7 +44,9 @@ command = "echo"
 args = ["-n", "hello world"]
 EOF
 
+  mkdir -p "$HOME/project"
   cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
   local params='{"name":"greeter.hello"}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
@@ -48,8 +54,9 @@ EOF
 }
 
 function native_server_skipped_on_moxyfile_name_collision { # @test
-  mkdir -p "$HOME/project/.moxy/servers"
-  cat >"$HOME/project/.moxy/servers/myserver.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/myserver.toml" <<'EOF'
 name = "myserver"
 
 [[tools]]
@@ -59,6 +66,7 @@ command = "echo"
 args = ["-n", "native"]
 EOF
 
+  mkdir -p "$HOME/project"
   cat >"$HOME/project/moxyfile" <<'EOF'
 [[servers]]
 name = "myserver"
@@ -67,6 +75,7 @@ args = ["moxyfile-server"]
 EOF
 
   cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
   run_moxy_mcp_with_stderr "tools/list"
   assert_success
   # The native tool should NOT appear (moxyfile server wins).
@@ -79,8 +88,9 @@ EOF
 }
 
 function native_server_multiple_tools { # @test
-  mkdir -p "$HOME/project/.moxy/servers"
-  cat >"$HOME/project/.moxy/servers/multi.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/multi.toml" <<'EOF'
 name = "multi"
 
 [[tools]]
@@ -96,7 +106,9 @@ command = "echo"
 args = ["-n", "two"]
 EOF
 
+  mkdir -p "$HOME/project"
   cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
   run_moxy_mcp "tools/list"
   assert_success
   echo "$output" | jq -e '.tools[] | select(.name == "multi.first")'

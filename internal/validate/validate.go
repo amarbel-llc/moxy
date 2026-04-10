@@ -126,17 +126,20 @@ func Run(w io.Writer, home, dir string) int {
 		}
 	}
 
-	// Validate native server configs (.moxy/servers/*.toml)
-	nativeDirs := native.HierarchyDirs(native.BuiltinDir(), home, dir)
-	var nativeCount int
-	nativeNames := make(map[string]bool)
-	for _, nativeDir := range nativeDirs {
-		entries, err := os.ReadDir(nativeDir)
+	// Validate moxin configs from MOXIN_PATH + system moxins.
+	moxinDirs := native.ParseMoxinPath(os.Getenv("MOXIN_PATH"))
+	if sysDir := native.SystemMoxinDir(); sysDir != "" {
+		moxinDirs = append(moxinDirs, sysDir)
+	}
+	var moxinCount int
+	moxinNames := make(map[string]bool)
+	for _, moxinDir := range moxinDirs {
+		entries, err := os.ReadDir(moxinDir)
 		if os.IsNotExist(err) {
 			continue
 		}
 		if err != nil {
-			tw.notOk(nativeDir, map[string]string{
+			tw.notOk(moxinDir, map[string]string{
 				"message": err.Error(),
 			})
 			continue
@@ -146,7 +149,7 @@ func Run(w io.Writer, home, dir string) int {
 			if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
 				continue
 			}
-			path := filepath.Join(nativeDir, e.Name())
+			path := filepath.Join(moxinDir, e.Name())
 			data, readErr := os.ReadFile(path)
 			if readErr != nil {
 				tw.notOk(path, map[string]string{
@@ -168,17 +171,17 @@ func Run(w io.Writer, home, dir string) int {
 			if len(result.Undecoded) > 0 {
 				tw.notOk(path+" undecoded keys", map[string]string{
 					"message": strings.Join(result.Undecoded, ", "),
-					"hint":    "unknown keys in native server config",
+					"hint":    "unknown keys in moxin config",
 				})
 			}
 
-			nativeNames[result.Config.Name] = true
-			nativeCount++
+			moxinNames[result.Config.Name] = true
+			moxinCount++
 		}
 	}
 
-	if nativeCount > 0 {
-		tw.ok(fmt.Sprintf("native: %d server(s)", nativeCount))
+	if moxinCount > 0 {
+		tw.ok(fmt.Sprintf("moxin: %d server(s)", moxinCount))
 	}
 
 	// Validate merged result

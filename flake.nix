@@ -72,9 +72,9 @@
             cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
             cp ${./cmd/moxy/moxy-native.7} $out/share/man/man7/moxy-native.7
 
-            # Install builtin native server configs
-            mkdir -p $out/share/moxy/builtin-servers
-            cp ${./builtin-servers}/*.toml $out/share/moxy/builtin-servers/
+            # Install moxin configs
+            mkdir -p $out/share/moxy/moxins
+            cp ${./moxins}/*.toml $out/share/moxy/moxins/
 
             # Install freud scripts and wrap with python3 on PATH
             mkdir -p $out/libexec/moxy
@@ -95,7 +95,7 @@
             done
 
             # Rewrite __LIBEXEC__ placeholder to absolute nix store path
-            sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" $out/share/moxy/builtin-servers/*.toml
+            sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" $out/share/moxy/moxins/*.toml
           '';
         };
 

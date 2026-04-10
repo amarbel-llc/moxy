@@ -11,15 +11,15 @@ teardown() {
 }
 
 function folio_read_allows_file_within_cwd { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cp "$BATS_TEST_DIRNAME/../builtin-servers/folio.toml" "$builtin_dir/"
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cp "$BATS_TEST_DIRNAME/../moxins/folio.toml" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   echo "hello world" > "$HOME/project/test.txt"
 
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.read" \
@@ -30,16 +30,16 @@ function folio_read_allows_file_within_cwd { # @test
 }
 
 function folio_read_rejects_absolute_path_outside_cwd { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cp "$BATS_TEST_DIRNAME/../builtin-servers/folio.toml" "$builtin_dir/"
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cp "$BATS_TEST_DIRNAME/../moxins/folio.toml" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
   echo "secret" > "$HOME/other/secret.txt"
 
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.read" --arg p "$HOME/other/secret.txt" \
@@ -51,15 +51,15 @@ function folio_read_rejects_absolute_path_outside_cwd { # @test
 }
 
 function folio_read_rejects_dotdot_traversal { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cp "$BATS_TEST_DIRNAME/../builtin-servers/folio.toml" "$builtin_dir/"
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cp "$BATS_TEST_DIRNAME/../moxins/folio.toml" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   echo "secret" > "$HOME/secret.txt"
 
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.read" \
@@ -70,15 +70,15 @@ function folio_read_rejects_dotdot_traversal { # @test
 }
 
 function folio_ls_rejects_path_outside_cwd { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cp "$BATS_TEST_DIRNAME/../builtin-servers/folio.toml" "$builtin_dir/"
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cp "$BATS_TEST_DIRNAME/../moxins/folio.toml" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
 
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.ls" --arg p "$HOME/other" \
@@ -89,15 +89,15 @@ function folio_ls_rejects_path_outside_cwd { # @test
 }
 
 function folio_write_rejects_path_outside_cwd { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cp "$BATS_TEST_DIRNAME/../builtin-servers/folio.toml" "$builtin_dir/"
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cp "$BATS_TEST_DIRNAME/../moxins/folio.toml" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
 
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.write" --arg p "$HOME/other/evil.txt" \
@@ -110,16 +110,16 @@ function folio_write_rejects_path_outside_cwd { # @test
 }
 
 function folio_external_allows_path_outside_cwd { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cp "$BATS_TEST_DIRNAME/../builtin-servers/folio-external.toml" "$builtin_dir/"
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cp "$BATS_TEST_DIRNAME/../moxins/folio-external.toml" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
   echo "accessible" > "$HOME/other/file.txt"
 
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio-external.read" --arg p "$HOME/other/file.txt" \
