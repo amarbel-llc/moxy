@@ -5,27 +5,35 @@ description = "Execute jq filters on JSON data. Cached result URIs (moxy.native:
 name = "jq"
 description = "Execute a jq filter. Only jq is invoked — no shell evaluation. Cached result URIs (moxy.native://results/{session}/{id}) in args are rewritten to /dev/fd/N for streaming."
 command = "sh"
-arg_order = ["filter", "args", "stdin", "cwd"]
+arg_order = ["filter", "flags", "files", "cwd"]
+stdin_param = "stdin"
 args = ["-c", """
 set -euo pipefail
 filter="$1"
-args_json="${2:-}"
-stdin_val="${3:-}"
+flags_json="${2:-}"
+files_json="${3:-}"
 cwd_val="${4:-}"
 
 [ -n "$cwd_val" ] && cd "$cwd_val"
 
-jq_args=()
-if [ -n "$args_json" ] && [ "$args_json" != "null" ]; then
-  while IFS= read -r a; do
-    jq_args+=("$a")
-  done < <(printf '%s' "$args_json" | jq -r '.[]')
+jq_flags=()
+if [ -n "$flags_json" ] && [ "$flags_json" != "null" ]; then
+  while IFS= read -r f; do
+    jq_flags+=("$f")
+  done < <(printf '%s' "$flags_json" | jq -r '.[]')
 fi
 
-if [ -n "$stdin_val" ]; then
-  printf '%s' "$stdin_val" | jq "${jq_args[@]}" "$filter"
+jq_files=()
+if [ -n "$files_json" ] && [ "$files_json" != "null" ]; then
+  while IFS= read -r f; do
+    jq_files+=("$f")
+  done < <(printf '%s' "$files_json" | jq -r '.[]')
+fi
+
+if [ ${#jq_files[@]} -gt 0 ]; then
+  jq "${jq_flags[@]}" "$filter" "${jq_files[@]}"
 else
-  jq "${jq_args[@]}" "$filter"
+  jq "${jq_flags[@]}" "$filter"
 fi
 """, "_"]
 
@@ -37,11 +45,18 @@ required = ["filter"]
 type = "string"
 description = "jq filter expression (e.g. '.data[] | select(.name == \"foo\")')."
 
-[tools.input.properties.args]
+[tools.input.properties.flags]
 type = "array"
-description = "Additional jq arguments: flags (e.g. \"-r\", \"-c\", \"--slurp\") and/or input file paths. Result URIs are rewritten to /dev/fd/N."
+description = "jq flags (e.g. [\"-r\", \"-c\", \"--slurp\"])."
 
-[tools.input.properties.args.items]
+[tools.input.properties.flags.items]
+type = "string"
+
+[tools.input.properties.files]
+type = "array"
+description = "Input file paths, passed after the filter. Result URIs are rewritten to /dev/fd/N."
+
+[tools.input.properties.files.items]
 type = "string"
 
 [tools.input.properties.stdin]

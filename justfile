@@ -1,10 +1,17 @@
+export MOXY_BUILTIN_DIR := justfile_directory() / "build" / "builtin-servers"
+
 default: build test
 
 build: build-go build-nix
 
-build-go: generate
+build-go: generate build-builtin-servers
   go build -o build/moxy ./cmd/moxy
   go build -o build/maneater ./cmd/maneater
+
+build-builtin-servers:
+  mkdir -p build/builtin-servers
+  cp builtin-servers/*.toml build/builtin-servers/
+  sed -i "s|__LIBEXEC__|{{justfile_directory()}}/libexec|g" build/builtin-servers/*.toml
 
 generate:
   go generate ./internal/config/
@@ -27,8 +34,8 @@ test-bats-file file: build-go
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
 
 test-go:
-  go vet ./...
-  go test ./... -v
+  MOXY_BUILTIN_DIR="" go vet ./...
+  MOXY_BUILTIN_DIR="" go test ./... -v
 
 test-validate: build-go
   {{justfile_directory()}}/{{dir_build}}/moxy validate
