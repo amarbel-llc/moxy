@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+module="$1"
+file="$2"
+start="${3:-}"
+end="${4:-}"
+
+modcache=$(go env GOMODCACHE)
+if [ -z "$modcache" ]; then
+  echo "GOMODCACHE not set" >&2
+  exit 1
+fi
+
+# Module paths use ! for uppercase in filesystem
+casefold() {
+  echo "$1" | sed -E 's/([A-Z])/!\L\1/g'
+}
+
+# If module has no @version, find the latest cached version
+if [[ "$module" != *"@"* ]]; then
+  mod_fs=$(casefold "$module")
+  candidates=("$modcache/$mod_fs"@*)
+  if [ ${#candidates[@]} -eq 0 ] || [ ! -d "${candidates[0]}" ]; then
+    echo "no cached version found for $module in $modcache" >&2
+    exit 1
+  fi
+  # Pick the last (newest) version alphabetically
+  mod_dir="${candidates[-1]}"
+else
+  mod_path="${module%%@*}"
+  mod_version="${module#*@}"
+  mod_fs=$(casefold "$mod_path")
+  mod_dir="$modcache/$mod_fs@$mod_version"
+fi
+
+full_path="$mod_dir/$file"
+if [ ! -f "$full_path" ]; then
+  echo "file not found: $full_path" >&2
+  # List available files in the directory if it exists
+  parent=$(dirname "$full_path")
+  if [ -d "$parent" ]; then
+    echo "" >&2
+    echo "available files in $(basename "$parent"):" >&2
+    ls "$parent" >&2
+  fi
+  exit 1
+fi
+
+if [ -n "$start" ] && [ -n "$end" ]; then
+  awk -v s="$start" -v e="$end" 'NR>=s && NR<=e{printf "%6d\t%s\n", NR, $0} NR>e{exit}' "$full_path"
+elif [ -n "$start" ]; then
+  awk -v s="$start" 'NR>=s{printf "%6d\t%s\n", NR, $0}' "$full_path"
+else
+  total=$(wc -l < "$full_path")
+  if [ "$total" -gt 2000 ]; then
+    echo "File has $total lines (showing head and tail)."
+    echo "Use start/end params for specific sections."
+    echo ""
+    echo "--- Head ---"
+    awk 'NR<=50{printf "%6d\t%s\n", NR, $0}' "$full_path"
+    echo ""
+    echo "--- Tail ---"
+    awk -v t="$total" 'NR>(t-20){printf "%6d\t%s\n", NR, $0}' "$full_path"
+  else
+    awk '{printf "%6d\t%s\n", NR, $0}' "$full_path"
+  fi
+fi
