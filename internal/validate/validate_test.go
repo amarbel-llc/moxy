@@ -142,6 +142,144 @@ command = "grit"
 	}
 }
 
+func TestRunNativeValid(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "repo")
+	os.MkdirAll(dir, 0o755)
+
+	// Need at least one moxyfile server to avoid "no servers configured"
+	writeFile(t, filepath.Join(dir, "moxyfile"), `
+[[servers]]
+name = "grit"
+command = "grit"
+`)
+
+	writeFile(t, filepath.Join(dir, ".moxy", "servers", "test.toml"), `
+name = "test-server"
+description = "A test server"
+
+[[tools]]
+name = "hello"
+description = "says hello"
+command = "echo"
+args = ["hello"]
+
+[tools.input]
+type = "object"
+`)
+
+	var buf bytes.Buffer
+	code := Run(&buf, home, dir)
+	output := buf.String()
+
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d\noutput:\n%s", code, output)
+	}
+	if !strings.Contains(output, "test.toml valid") {
+		t.Errorf("expected native config validation in output:\n%s", output)
+	}
+	if !strings.Contains(output, "native: 1 server") {
+		t.Errorf("expected native server count in output:\n%s", output)
+	}
+}
+
+func TestRunNativeInvalidToml(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "repo")
+	os.MkdirAll(dir, 0o755)
+
+	writeFile(t, filepath.Join(dir, "moxyfile"), `
+[[servers]]
+name = "grit"
+command = "grit"
+`)
+
+	writeFile(t, filepath.Join(dir, ".moxy", "servers", "broken.toml"), `name = = broken`)
+
+	var buf bytes.Buffer
+	code := Run(&buf, home, dir)
+	output := buf.String()
+
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d\noutput:\n%s", code, output)
+	}
+	if !strings.Contains(output, "not ok") {
+		t.Errorf("expected not-ok for broken native config:\n%s", output)
+	}
+}
+
+func TestRunNativeMissingCommand(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "repo")
+	os.MkdirAll(dir, 0o755)
+
+	writeFile(t, filepath.Join(dir, "moxyfile"), `
+[[servers]]
+name = "grit"
+command = "grit"
+`)
+
+	writeFile(t, filepath.Join(dir, ".moxy", "servers", "bad.toml"), `
+name = "bad-server"
+
+[[tools]]
+name = "hello"
+`)
+
+	var buf bytes.Buffer
+	code := Run(&buf, home, dir)
+	output := buf.String()
+
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d\noutput:\n%s", code, output)
+	}
+	if !strings.Contains(output, "missing command") {
+		t.Errorf("expected 'missing command' in output:\n%s", output)
+	}
+}
+
+func TestRunNativeUndecodedKeys(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "repo")
+	os.MkdirAll(dir, 0o755)
+
+	writeFile(t, filepath.Join(dir, "moxyfile"), `
+[[servers]]
+name = "grit"
+command = "grit"
+`)
+
+	writeFile(t, filepath.Join(dir, ".moxy", "servers", "extra.toml"), `
+name = "extra-server"
+description = "has unknown keys"
+bogus_field = "oops"
+
+[[tools]]
+name = "hello"
+description = "says hello"
+command = "echo"
+args = ["hello"]
+unknown_tool_key = true
+
+[tools.input]
+type = "object"
+`)
+
+	var buf bytes.Buffer
+	code := Run(&buf, home, dir)
+	output := buf.String()
+
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d\noutput:\n%s", code, output)
+	}
+	if !strings.Contains(output, "undecoded keys") {
+		t.Errorf("expected 'undecoded keys' in output:\n%s", output)
+	}
+	if !strings.Contains(output, "bogus_field") {
+		t.Errorf("expected 'bogus_field' in undecoded keys:\n%s", output)
+	}
+}
+
 func TestRunHierarchyMerge(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")

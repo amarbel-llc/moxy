@@ -6,8 +6,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/amarbel-llc/moxy/internal/config"
+	"github.com/amarbel-llc/moxy/internal/native"
 )
 
 type tapWriter struct {
@@ -121,6 +124,61 @@ func Run(w io.Writer, home, dir string) int {
 				})
 			}
 		}
+	}
+
+	// Validate native server configs (.moxy/servers/*.toml)
+	nativeDirs := native.HierarchyDirs(native.BuiltinDir(), home, dir)
+	var nativeCount int
+	nativeNames := make(map[string]bool)
+	for _, nativeDir := range nativeDirs {
+		entries, err := os.ReadDir(nativeDir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			tw.notOk(nativeDir, map[string]string{
+				"message": err.Error(),
+			})
+			continue
+		}
+
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
+				continue
+			}
+			path := filepath.Join(nativeDir, e.Name())
+			data, readErr := os.ReadFile(path)
+			if readErr != nil {
+				tw.notOk(path, map[string]string{
+					"message": readErr.Error(),
+				})
+				continue
+			}
+
+			result, parseErr := native.ParseConfigFull(data)
+			if parseErr != nil {
+				tw.notOk(path+" valid", map[string]string{
+					"message": parseErr.Error(),
+				})
+				continue
+			}
+
+			tw.ok(path + " valid")
+
+			if len(result.Undecoded) > 0 {
+				tw.notOk(path+" undecoded keys", map[string]string{
+					"message": strings.Join(result.Undecoded, ", "),
+					"hint":    "unknown keys in native server config",
+				})
+			}
+
+			nativeNames[result.Config.Name] = true
+			nativeCount++
+		}
+	}
+
+	if nativeCount > 0 {
+		tw.ok(fmt.Sprintf("native: %d server(s)", nativeCount))
 	}
 
 	// Validate merged result

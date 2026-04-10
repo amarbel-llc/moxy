@@ -35,9 +35,9 @@ args = ["-c", """
 set -euo pipefail
 pkg="$1"
 if [ -n "${2:-}" ]; then
-  go doc -src "$pkg.$2"
+  go doc -all -src "$pkg.$2"
 else
-  go doc -src "$pkg"
+  go doc -all -src "$pkg"
 fi
 """, "_"]
 

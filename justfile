@@ -18,7 +18,7 @@ build-nix: build-gomod2nix
 
 dir_build := "build"
 
-test: test-go test-bats test-validate-mcp
+test: test-go test-bats test-validate-mcp test-validate
 
 test-bats: build-go
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
@@ -29,6 +29,9 @@ test-bats-file file: build-go
 test-go:
   go vet ./...
   go test ./... -v
+
+test-validate: build-go
+  {{justfile_directory()}}/{{dir_build}}/moxy validate
 
 test-validate-mcp: build-go
   #!/usr/bin/env bash
