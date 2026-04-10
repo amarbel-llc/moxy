@@ -1,2 +1,7 @@
+[direnv]
+# TODO(amarbel-llc/spinclass#19): switch to dotenv when supported
+# dotenv = { MOXY_BUILTIN_DIR = "$WORKTREE/build/builtin-servers" }
+envrc = ["export MOXY_BUILTIN_DIR=$PWD/build/builtin-servers"]
+
 [hooks]
 pre-merge = "just"
