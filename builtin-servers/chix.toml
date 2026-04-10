@@ -4,6 +4,7 @@ description = "Nix CLI tools for building, evaluating, searching, and managing f
 # --- build ---
 
 [[tools]]
+auto-allow = true
 name = "build"
 description = "Build a nix flake package. Returns store paths on success."
 command = "bash"
@@ -133,6 +134,7 @@ description = "Only return the last N lines of output."
 # --- search ---
 
 [[tools]]
+auto-allow = true
 name = "search"
 description = "Search for packages in a flake. Returns JSON results with optional pagination."
 command = "bash"
@@ -194,6 +196,7 @@ description = "Skip first N results for pagination. Defaults to 0."
 # --- run ---
 
 [[tools]]
+auto-allow = true
 name = "run"
 description = "Run a flake app."
 command = "bash"
@@ -311,6 +314,7 @@ description = "Only return the last N lines of output."
 # --- flake-check ---
 
 [[tools]]
+auto-allow = true
 name = "flake-check"
 description = "Run flake checks and tests."
 command = "bash"
@@ -373,6 +377,7 @@ description = "Maximum bytes of output to return."
 # --- flake-init ---
 
 [[tools]]
+auto-allow = true
 name = "flake-init"
 description = "Initialize a new flake in the specified directory."
 command = "bash"
@@ -402,6 +407,7 @@ description = "Directory to initialize the flake in. Defaults to current directo
 # --- flake-lock ---
 
 [[tools]]
+auto-allow = true
 name = "flake-lock"
 description = "Lock flake inputs without building."
 command = "bash"
@@ -479,6 +485,7 @@ description = "Maximum bytes of output to return."
 # --- flake-update ---
 
 [[tools]]
+auto-allow = true
 name = "flake-update"
 description = "Update flake.lock file."
 command = "bash"
@@ -576,6 +583,7 @@ description = "Stop after freeing this much space (e.g., '1G', '500M')."
 # --- store-path-info ---
 
 [[tools]]
+auto-allow = true
 name = "store-path-info"
 description = "Query store path metadata (size, references, signatures). Accepts store paths or installables."
 command = "bash"
@@ -630,6 +638,7 @@ description = "Show info for the derivation instead of the output. Defaults to f
 # --- store-ls ---
 
 [[tools]]
+auto-allow = true
 name = "store-ls"
 description = "List contents of a nix store path directory. Returns JSON with name, type, and optional size."
 command = "bash"
@@ -679,6 +688,7 @@ description = "Include file sizes for regular files. Defaults to false."
 # --- store-cat ---
 
 [[tools]]
+auto-allow = true
 name = "store-cat"
 description = "Read file contents from a nix store path. Use head/tail to limit output for large files."
 command = "bash"

@@ -11,6 +11,7 @@ description = "Git MCP server exposing repository operations. Safety: force-push
 # === Staging / Working Tree ================================================
 
 [[tools]]
+auto-allow = true
 name = "add"
 description = "Stage files for commit"
 command = "bash"
@@ -43,6 +44,7 @@ description = "Path to the git repository (defaults to current working directory
 # ---
 
 [[tools]]
+auto-allow = true
 name = "reset"
 description = "Unstage files (soft reset only, does not modify working tree)"
 command = "bash"
@@ -89,6 +91,7 @@ description = "Path to the git repository (defaults to current working directory
 # ---
 
 [[tools]]
+auto-allow = true
 name = "rm"
 description = "Delete files and stage the deletion (git rm)"
 command = "bash"
@@ -130,6 +133,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Diff ==================================================================
 
 [[tools]]
+auto-allow = true
 name = "diff"
 description = "Show changes in the working tree or between commits"
 command = "bash"
@@ -212,6 +216,7 @@ description = "Show only diffstat summary"
 # === Commit ================================================================
 
 [[tools]]
+auto-allow = true
 name = "commit"
 description = "Create a new commit with staged changes"
 command = "bash"
@@ -248,6 +253,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Branches ==============================================================
 
 [[tools]]
+auto-allow = true
 name = "branch-create"
 description = "Create a new branch"
 command = "bash"
@@ -325,6 +331,7 @@ description = "Path to the git repository (defaults to current working directory
 # ---
 
 [[tools]]
+auto-allow = true
 name = "checkout"
 description = "Switch branches or restore individual files from a ref. Use paths to restore specific files; omit paths to switch branches."
 command = "bash"
@@ -397,6 +404,7 @@ description = "During merge conflict, check out their version of the file(s) (--
 # === Remote ================================================================
 
 [[tools]]
+auto-allow = true
 name = "fetch"
 description = "Fetch from a remote repository"
 command = "bash"
@@ -440,6 +448,7 @@ description = "Path to the git repository (defaults to current working directory
 # ---
 
 [[tools]]
+auto-allow = true
 name = "pull"
 description = "Pull changes from a remote repository"
 command = "bash"
@@ -545,6 +554,7 @@ description = "Set upstream tracking reference (-u)"
 # === Rev Parse =============================================================
 
 [[tools]]
+auto-allow = true
 name = "git-rev-parse"
 description = "Resolve a git revision to its full SHA, or resolve special names like HEAD, branch names, tags, and relative refs (e.g. HEAD~3, main^2)"
 command = "bash"
@@ -572,6 +582,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Rebase ================================================================
 
 [[tools]]
+auto-allow = true
 name = "rebase"
 description = "Rebase current branch onto another ref"
 command = "bash"
@@ -679,6 +690,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Cherry Pick ===========================================================
 
 [[tools]]
+auto-allow = true
 name = "cherry-pick"
 description = "Apply commits from other branches onto the current branch"
 command = "bash"
@@ -719,6 +731,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Merge =================================================================
 
 [[tools]]
+auto-allow = true
 name = "merge"
 description = "Merge a branch into the current branch"
 command = "bash"
@@ -786,6 +799,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Stash =================================================================
 
 [[tools]]
+auto-allow = true
 name = "stash-save"
 description = "Save uncommitted changes to a stash"
 command = "bash"
@@ -822,6 +836,7 @@ description = "Path to the git repository (defaults to current working directory
 # ---
 
 [[tools]]
+auto-allow = true
 name = "stash-apply"
 description = "Apply a stash to the working tree without removing it from the stash list"
 command = "bash"
@@ -875,6 +890,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Tags ==================================================================
 
 [[tools]]
+auto-allow = true
 name = "tag-verify"
 description = "Verify the GPG signature of a tag"
 command = "bash"
@@ -902,6 +918,7 @@ description = "Path to the git repository (defaults to current working directory
 # === Worktrees =============================================================
 
 [[tools]]
+auto-allow = true
 name = "worktree-list"
 description = "List all git worktrees with path, HEAD, branch, and lock/prune state"
 command = "bash"

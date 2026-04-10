@@ -2,6 +2,7 @@ name = "gordo"
 description = "Go package documentation via go doc"
 
 [[tools]]
+auto-allow = true
 name = "doc"
 description = "Show documentation for a Go package or symbol. Returns the same output as 'go doc'."
 command = "sh"
@@ -28,6 +29,7 @@ type = "string"
 description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview."
 
 [[tools]]
+auto-allow = true
 name = "src"
 description = "Show source code for a Go symbol."
 command = "sh"
@@ -54,6 +56,7 @@ type = "string"
 description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package-level source."
 
 [[tools]]
+auto-allow = true
 name = "mod-read"
 description = """Read a source file from the Go module cache. Resolves the module path via GOMODCACHE. \
 Use `go doc` or `gordo.doc` first to find packages, then this tool to read the full source."""

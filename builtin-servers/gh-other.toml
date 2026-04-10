@@ -1,4 +1,4 @@
-name = "gh-other"
+name = "get-hubbed-other"
 description = "GitHub tools for repositories OTHER than the current one. Every tool requires an explicit repo parameter in OWNER/REPO format. For current-repo operations, use gh tools instead."
 
 # ---------------------------------------------------------------------------

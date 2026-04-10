@@ -2,6 +2,7 @@ name = "jq"
 description = "Execute jq filters on JSON data. Cached result URIs (moxy.native://results/{session}/{id}) in argument strings are rewritten to /dev/fd/N, streaming cached output as file descriptors."
 
 [[tools]]
+auto-allow = true
 name = "jq"
 description = "Execute a jq filter. Only jq is invoked — no shell evaluation. Cached result URIs (moxy.native://results/{session}/{id}) in args are rewritten to /dev/fd/N for streaming."
 command = "sh"

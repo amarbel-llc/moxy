@@ -4,6 +4,7 @@ description = "Jira Cloud tools via Atlassian CLI (acli). Supports issue CRUD, t
 # === Search ================================================================
 
 [[tools]]
+auto-allow = true
 name = "search"
 description = "Search for issues using JQL"
 command = "__LIBEXEC__/jira-search"
@@ -28,6 +29,7 @@ description = "Maximum number of issues to return (default 50)"
 # === Issues ================================================================
 
 [[tools]]
+auto-allow = true
 name = "get-issue"
 description = "Get a Jira issue by key"
 command = "__LIBEXEC__/jira-get-issue"
@@ -192,6 +194,7 @@ description = "Epic issue key (e.g. XORCH-500)"
 # === Agile =================================================================
 
 [[tools]]
+auto-allow = true
 name = "get-agile-boards"
 description = "List Jira agile boards"
 command = "__LIBEXEC__/jira-get-agile-boards"
@@ -215,6 +218,7 @@ description = "Maximum results (default 50)"
 # ---
 
 [[tools]]
+auto-allow = true
 name = "get-sprints-from-board"
 description = "List sprints for a board"
 command = "__LIBEXEC__/jira-get-sprints-from-board"

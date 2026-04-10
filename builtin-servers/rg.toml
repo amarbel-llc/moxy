@@ -2,6 +2,7 @@ name = "rg"
 description = "Ripgrep code search with structured output modes"
 
 [[tools]]
+auto-allow = true
 name = "search"
 description = """Search file contents using ripgrep. Returns file paths by default \
 (output_mode=files_with_matches). Use output_mode=content for matching lines with \

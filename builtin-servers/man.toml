@@ -2,6 +2,7 @@ name = "man"
 description = "Unix man page reader with section-level progressive disclosure"
 
 [[tools]]
+auto-allow = true
 name = "toc"
 description = "List all sections of a man page with their heading levels. Start here to discover what a page covers before reading specific sections."
 command = "__LIBEXEC__/man-toc"
@@ -15,6 +16,7 @@ type = "string"
 description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
 
 [[tools]]
+auto-allow = true
 name = "section"
 description = "Read a specific section of a man page by name. Use 'toc' first to discover available section names."
 command = "__LIBEXEC__/man-section"
@@ -33,6 +35,7 @@ type = "string"
 description = "Section name to read (e.g. 'DESCRIPTION', 'OPTIONS', 'SYNOPSIS'). Case-insensitive."
 
 [[tools]]
+auto-allow = true
 name = "search"
 description = "Search for man pages by keyword (apropos). Returns matching page names with short descriptions."
 command = "__LIBEXEC__/man-search"
@@ -48,6 +51,7 @@ description = "Keyword to search for in man page names and descriptions"
 # ---
 
 [[tools]]
+auto-allow = true
 name = "semantic-search"
 description = "Semantic man page search using vector embeddings. More accurate than keyword search for natural language queries like 'list files' or 'configure network'. Requires a pre-built index (maneater index)."
 command = "__LIBEXEC__/man-semantic-search"

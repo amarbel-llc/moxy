@@ -4,6 +4,7 @@ description = "Justfile recipe runner. Lists, shows, and executes recipes from t
 # === Discovery ================================================================
 
 [[tools]]
+auto-allow = true
 name = "list-recipes"
 description = "List available recipes with their descriptions, grouped by category. Shows recipe names, parameters, and doc comments."
 command = "__LIBEXEC__/just-list-recipes"
@@ -14,6 +15,7 @@ type = "object"
 # ---
 
 [[tools]]
+auto-allow = true
 name = "show-recipe"
 description = "Show the full source of a recipe including its body, parameters, dependencies, and any doc comments."
 command = "just"
@@ -31,6 +33,7 @@ description = "Recipe name to show"
 # === Inspection ===============================================================
 
 [[tools]]
+auto-allow = true
 name = "list-variables"
 description = "List all variables defined in the justfile with their values."
 command = "just"
@@ -42,6 +45,7 @@ type = "object"
 # ---
 
 [[tools]]
+auto-allow = true
 name = "dump-justfile"
 description = "Output the entire justfile contents."
 command = "just"
@@ -53,6 +57,7 @@ type = "object"
 # === Execution ================================================================
 
 [[tools]]
+auto-allow = true
 name = "run-recipe-default"
 description = "Execute the default justfile recipe (no arguments). Equivalent to running `just` with no arguments."
 command = "just"
@@ -63,6 +68,7 @@ type = "object"
 # ---
 
 [[tools]]
+auto-allow = true
 name = "run-recipe"
 description = "Execute a justfile recipe with optional arguments. Use list-recipes first to discover available recipes."
 command = "__LIBEXEC__/just-run-recipe"

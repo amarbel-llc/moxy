@@ -2,19 +2,20 @@ name = "folio"
 description = "File I/O tools scoped to the current working directory. For paths outside CWD, use folio-external."
 
 [[tools]]
-name = "read"
 auto-allow = true
+name = "read"
 description = "Read an entire file with line numbers. Output format: `     N\\tcontent` per line. Large files (>2000 lines) return a head+tail summary instead — use read_range for specific sections."
 command = "bash"
 arg_order = ["file_path"]
 args = ["-c", """
 set -euo pipefail
 assert_within_cwd() {
-  local resolved
+  local resolved cwd
   resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$PWD"|"$PWD"/*) ;;
-    *) echo "path '$1' is outside CWD ($PWD). Use folio-external instead." >&2; exit 1 ;;
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
 file="$1"
@@ -51,11 +52,12 @@ arg_order = ["file_path", "start", "end"]
 args = ["-c", """
 set -euo pipefail
 assert_within_cwd() {
-  local resolved
+  local resolved cwd
   resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$PWD"|"$PWD"/*) ;;
-    *) echo "path '$1' is outside CWD ($PWD). Use folio-external instead." >&2; exit 1 ;;
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
 file="$1"; start="$2"; end="$3"
@@ -80,19 +82,20 @@ type = "integer"
 description = "Inclusive end line (1-indexed)"
 
 [[tools]]
-name = "read_excluding"
 auto-allow = true
+name = "read_excluding"
 description = "Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. Output format: `     N\\tcontent` per line."
 command = "bash"
 arg_order = ["file_path", "delete_start", "delete_end"]
 args = ["-c", """
 set -euo pipefail
 assert_within_cwd() {
-  local resolved
+  local resolved cwd
   resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$PWD"|"$PWD"/*) ;;
-    *) echo "path '$1' is outside CWD ($PWD). Use folio-external instead." >&2; exit 1 ;;
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
 file="$1"; ds="$2"; de="$3"
@@ -117,8 +120,8 @@ type = "integer"
 description = "Inclusive last line to omit (1-indexed)"
 
 [[tools]]
-name = "glob"
 auto-allow = true
+name = "glob"
 description = """Fast file pattern matching tool that works with any codebase size. \
 Supports glob patterns like "**/*.js" or "src/**/*.ts". \
 Returns matching file paths sorted by modification time (newest first)."""
@@ -127,11 +130,12 @@ arg_order = ["pattern", "path"]
 args = ["-c", """
 set -euo pipefail
 assert_within_cwd() {
-  local resolved
+  local resolved cwd
   resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$PWD"|"$PWD"/*) ;;
-    *) echo "path '$1' is outside CWD ($PWD). Use folio-external instead." >&2; exit 1 ;;
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
 pattern="$1"
@@ -171,8 +175,8 @@ type = "string"
 description = "The directory to search in. Defaults to current working directory. Must be within CWD."
 
 [[tools]]
-name = "ls"
 auto-allow = true
+name = "ls"
 description = """List directory contents with type and size metadata. Returns JSON array of entries \
 sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only)."""
 command = "bash"
@@ -180,11 +184,12 @@ arg_order = ["path"]
 args = ["-c", """
 set -euo pipefail
 assert_within_cwd() {
-  local resolved
+  local resolved cwd
   resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$PWD"|"$PWD"/*) ;;
-    *) echo "path '$1' is outside CWD ($PWD). Use folio-external instead." >&2; exit 1 ;;
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
 dir="${1:-.}"
@@ -242,11 +247,12 @@ arg_order = ["file_path", "content"]
 args = ["-c", """
 set -euo pipefail
 assert_within_cwd() {
-  local resolved
+  local resolved cwd
   resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    "$PWD"|"$PWD"/*) ;;
-    *) echo "path '$1' is outside CWD ($PWD). Use folio-external instead." >&2; exit 1 ;;
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }
 file="$1"
