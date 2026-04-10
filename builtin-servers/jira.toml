@@ -8,7 +8,7 @@ auto-allow = true
 name = "search"
 description = "Search for issues using JQL"
 command = "__LIBEXEC__/jira-search"
-arg_order = ["jql", "fields", "max_results"]
+arg_order = ["jql", "fields", "max_results", "output_format"]
 
 [tools.input]
 type = "object"
@@ -26,6 +26,10 @@ description = "Comma-separated field names to display (default: issuetype,key,as
 type = "integer"
 description = "Maximum number of issues to return (default 50)"
 
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
 # === Issues ================================================================
 
 [[tools]]
@@ -33,7 +37,7 @@ auto-allow = true
 name = "get-issue"
 description = "Get a Jira issue by key"
 command = "__LIBEXEC__/jira-get-issue"
-arg_order = ["issue_key", "fields"]
+arg_order = ["issue_key", "fields", "output_format"]
 
 [tools.input]
 type = "object"
@@ -47,13 +51,17 @@ description = "Issue key (e.g. XORCH-703)"
 type = "string"
 description = "Comma-separated field names to return (e.g. 'summary,status,assignee')"
 
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
 # ---
 
 [[tools]]
 name = "create-issue"
 description = "Create a new Jira issue"
 command = "__LIBEXEC__/jira-create-issue"
-arg_order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent"]
+arg_order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent", "output_format"]
 
 [tools.input]
 type = "object"
@@ -91,13 +99,17 @@ description = "Assignee email or account ID. Use '@me' to self-assign"
 type = "string"
 description = "Parent issue key for sub-tasks or epic linking"
 
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
 # ---
 
 [[tools]]
 name = "update-issue"
 description = "Update fields on an existing Jira issue"
 command = "__LIBEXEC__/jira-update-issue"
-arg_order = ["issue_key", "summary", "description", "assignee", "labels", "issuetype"]
+arg_order = ["issue_key", "summary", "description", "assignee", "labels", "issuetype", "output_format"]
 
 [tools.input]
 type = "object"
@@ -127,13 +139,41 @@ description = "Comma-separated labels to set"
 type = "string"
 description = "New issue type"
 
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
+# ---
+
+[[tools]]
+name = "comment"
+description = "Post a comment on an issue or pull request"
+command = "__LIBEXEC__/jira-comment"
+arg_order = ["issue_key", "body", "output_format"]
+
+[tools.input]
+type = "object"
+required = ["issue_key", "body"]
+
+[tools.input.properties.issue_key]
+type = "string"
+description = "Issue or pull request key (e.g. XORCH-703)"
+
+[tools.input.properties.body]
+type = "string"
+description = "Comment body (markdown supported)"
+
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
 # === Transitions ===========================================================
 
 [[tools]]
 name = "transition-issue"
 description = "Transition an issue to a new status"
 command = "__LIBEXEC__/jira-transition-issue"
-arg_order = ["issue_key", "status"]
+arg_order = ["issue_key", "status", "output_format"]
 
 [tools.input]
 type = "object"
@@ -147,13 +187,17 @@ description = "Issue key (e.g. XORCH-703)"
 type = "string"
 description = "Target status name (e.g. 'In Progress', 'Done', 'To Do')"
 
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
 # === Linking ===============================================================
 
 [[tools]]
 name = "create-issue-link"
 description = "Create a link between two Jira issues"
 command = "__LIBEXEC__/jira-create-issue-link"
-arg_order = ["type", "outward_issue", "inward_issue"]
+arg_order = ["type", "outward_issue", "inward_issue", "output_format"]
 
 [tools.input]
 type = "object"
@@ -170,6 +214,10 @@ description = "Outward issue key (e.g. XORCH-703)"
 [tools.input.properties.inward_issue]
 type = "string"
 description = "Inward issue key (e.g. XORCH-704)"
+
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
 
 # ---
 
@@ -198,7 +246,7 @@ auto-allow = true
 name = "get-agile-boards"
 description = "List Jira agile boards"
 command = "__LIBEXEC__/jira-get-agile-boards"
-arg_order = ["project", "name", "max_results"]
+arg_order = ["project", "name", "max_results", "output_format"]
 
 [tools.input]
 type = "object"
@@ -215,6 +263,10 @@ description = "Filter by board name"
 type = "integer"
 description = "Maximum results (default 50)"
 
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
 # ---
 
 [[tools]]
@@ -222,7 +274,7 @@ auto-allow = true
 name = "get-sprints-from-board"
 description = "List sprints for a board"
 command = "__LIBEXEC__/jira-get-sprints-from-board"
-arg_order = ["board_id", "state", "max_results"]
+arg_order = ["board_id", "state", "max_results", "output_format"]
 
 [tools.input]
 type = "object"
@@ -239,3 +291,7 @@ description = "Filter by sprint state: active, closed, future (comma-separated)"
 [tools.input.properties.max_results]
 type = "integer"
 description = "Maximum results (default 50)"
+
+[tools.input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"

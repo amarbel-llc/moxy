@@ -3,4 +3,7 @@ set -euo pipefail
 link_type="$1"
 outward_issue="$2"
 inward_issue="$3"
-acli jira workitem link "$outward_issue" "$inward_issue" --type "$link_type" --json
+output_format="${4:-}"
+args=(jira workitem link "$outward_issue" "$inward_issue" --type "$link_type")
+[ "$output_format" = "json" ] && args+=(--json)
+acli "${args[@]}"

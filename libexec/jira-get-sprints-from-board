@@ -3,6 +3,8 @@ set -euo pipefail
 board_id="$1"
 state="${2:-}"
 max_results="${3:-50}"
-args=(jira sprint list --board "$board_id" --limit "$max_results" --json)
+output_format="${4:-}"
+args=(jira sprint list --board "$board_id" --limit "$max_results")
 [ -n "$state" ] && args+=(--state "$state")
+[ "$output_format" = "json" ] && args+=(--json)
 acli "${args[@]}"

@@ -3,4 +3,7 @@ set -euo pipefail
 jql="$1"
 fields="${2:-issuetype,key,assignee,priority,status,summary}"
 limit="${3:-50}"
-acli jira workitem search --jql "$jql" --fields "$fields" --limit "$limit" --json
+output_format="${4:-}"
+args=(jira workitem search --jql "$jql" --fields "$fields" --limit "$limit")
+[ "$output_format" = "json" ] && args+=(--json)
+acli "${args[@]}"

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 issue_key="$1"
-fields="${2:-}"
+body="$2"
 output_format="${3:-}"
-args=(jira workitem view "$issue_key")
-[ -n "$fields" ] && args+=(--fields "$fields")
+args=(jira workitem comment create --key "$issue_key" --body "$body")
 [ "$output_format" = "json" ] && args+=(--json)
 acli "${args[@]}"

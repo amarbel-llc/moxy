@@ -3,7 +3,9 @@ set -euo pipefail
 project="${1:-}"
 name="${2:-}"
 max_results="${3:-50}"
-args=(jira board list --limit "$max_results" --json)
+output_format="${4:-}"
+args=(jira board list --limit "$max_results")
 [ -n "$project" ] && args+=(--project "$project")
 [ -n "$name" ] && args+=(--name "$name")
+[ "$output_format" = "json" ] && args+=(--json)
 acli "${args[@]}"

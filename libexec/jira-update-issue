@@ -6,10 +6,12 @@ description="${3:-}"
 assignee="${4:-}"
 labels="${5:-}"
 issuetype="${6:-}"
-args=(jira workitem edit --key "$issue_key" --json)
+output_format="${7:-}"
+args=(jira workitem edit --key "$issue_key" --yes)
 [ -n "$summary" ] && args+=(--summary "$summary")
 [ -n "$description" ] && args+=(--description "$description")
 [ -n "$assignee" ] && args+=(--assignee "$assignee")
 [ -n "$labels" ] && args+=(--labels "$labels")
 [ -n "$issuetype" ] && args+=(--type "$issuetype")
+[ "$output_format" = "json" ] && args+=(--json)
 acli "${args[@]}"

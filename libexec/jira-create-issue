@@ -8,10 +8,12 @@ priority="${5:-}"
 labels="${6:-}"
 assignee="${7:-}"
 parent="${8:-}"
-args=(jira workitem create --project "$project" --summary "$summary" --type "$issuetype" --json)
+output_format="${9:-}"
+args=(jira workitem create --project "$project" --summary "$summary" --type "$issuetype")
 [ -n "$description" ] && args+=(--description "$description")
 [ -n "$priority" ] && args+=(--priority "$priority")
 [ -n "$labels" ] && args+=(--labels "$labels")
 [ -n "$assignee" ] && args+=(--assignee "$assignee")
 [ -n "$parent" ] && args+=(--parent "$parent")
+[ "$output_format" = "json" ] && args+=(--json)
 acli "${args[@]}"
