@@ -61,10 +61,40 @@
           config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "acli" "acli-unwrapped" ];
         };
 
+        # Filtered sources so moxy and maneater rebuild independently.
+        # maneaterSrc is explicit (rarely gains new internal/ deps).
+        # moxySrc is everything else — new internal/ packages land here
+        # automatically.
+        commonGoFiles = with pkgs.lib.fileset; unions [
+          ./go.mod
+          ./go.sum
+          ./gomod2nix.toml
+        ];
+
+        maneaterSrc = pkgs.lib.fileset.toSource {
+          root = ./.;
+          fileset = with pkgs.lib.fileset; unions [
+            commonGoFiles
+            ./cmd/maneater
+            ./internal/embedding
+          ];
+        };
+
+        moxySrc = pkgs.lib.fileset.toSource {
+          root = ./.;
+          fileset = with pkgs.lib.fileset; difference (unions [
+            commonGoFiles
+            ./cmd/moxy
+            ./internal
+            ./builtin-servers
+            ./libexec
+          ]) ./internal/embedding;
+        };
+
         moxy = pkgs.buildGoApplication {
           pname = "moxy";
           version = "0.1.0";
-          src = ./.;
+          src = moxySrc;
           subPackages = [ "cmd/moxy" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
@@ -121,7 +151,7 @@
         maneater-unwrapped = pkgs.buildGoApplication {
           pname = "maneater";
           version = "0.4.0";
-          src = ./.;
+          src = maneaterSrc;
           subPackages = [ "cmd/maneater" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
