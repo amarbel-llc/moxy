@@ -137,11 +137,13 @@ Lines: 393
 .Ed
 .Pp
 Caching is transparent and server-level \(em no per-tool configuration.
-The session is read from the
-.Ev CLAUDE_SESSION_ID
-environment variable;
-.Dq no-session
-is used as a fallback.
+The session identifier is resolved at
+.Xr moxy 1
+startup using a fallback chain:
+.Ev CLAUDE_SESSION_ID ,
+then
+.Ev SPINCLASS_SESSION_ID ,
+then a generated UUID.
 .Sh RESOURCE-AS-FD COMPOSITION
 When a tool argument contains a
 .Sy moxy.native://results/{session}/{id}
@@ -172,12 +174,12 @@ tail -5 /dev/fd/3
 .Ed
 .Sh COMMAND PATTERNS
 .Ss Shell One-Liners
-For simple pipelines, use
+For simple pipelines using only coreutils-level commands, use
 .Sy sh -c
 with positional arguments:
 .Bd -literal -offset indent
 command = "sh"
-args = ["-c", "mandoc -T man ... | pandoc ...", "_"]
+args = ["-c", "cat \(dq$1\(dq | wc -l", "_"]
 .Ed
 .Pp
 The
@@ -195,12 +197,20 @@ Use
 to produce a literal
 .Sy \en
 in the shell script.
+.Pp
+Tools that depend on non-coreutils binaries should ensure those
+binaries are available at runtime
+.Pq e.g. via wrapper scripts, Nix shebangs, or package manager integration .
+Inline
+.Sy sh -c
+commands that call external tools will fail if those tools are not on
+.Ev PATH .
 .Ss External Scripts
 For complex logic, point
 .Sy command
 at a standalone script:
 .Bd -literal -offset indent
-command = ".moxy/bin/freud-sessions"
+command = ".moxy/bin/my-tool"
 .Ed
 .Pp
 Scripts can use
@@ -215,8 +225,9 @@ from pathlib import Path
 \&...
 .Ed
 .Pp
-This avoids polluting the project's devshell while keeping
-scripts self-contained and reproducible.
+This keeps scripts self-contained and reproducible without requiring
+dependencies to be on the ambient
+.Ev PATH .
 .Ss Choosing Between Patterns
 Shell one-liners work well for simple pipelines
 (rendering, formatting, wrapping a single binary).
@@ -265,30 +276,32 @@ description = "Go package path"
 type = "string"
 description = "Exported symbol name"
 .Ed
-.Ss Session Transcript Listing (Python + Nix Shebang)
+.Ss Session Transcript Listing (Python Script)
 .Bd -literal -offset indent
 name = "freud"
 
 [[tools]]
 name = "sessions"
 description = "List past Claude Code sessions."
-command = ".moxy/bin/freud-sessions"
+command = "/path/to/freud-sessions"
 
 [tools.sessions.input]
 type = "object"
 .Ed
 .Pp
 Where
-.Pa .moxy/bin/freud-sessions
-is a Python script with a
-.Xr nix 1
-shebang that walks
+.Pa freud-sessions
+is a Python script that walks
 .Pa ~/.claude/projects/
 using
 .Fn os.scandir
 and
 .Fn os.stat
 instead of per-file subprocess forks.
+Ensure
+.Xr python3 1
+is available via the script's shebang, a wrapper, or the ambient
+.Ev PATH .
 .Sh SEE ALSO
 .Xr maneater 1 ,
 .Xr moxy 1 ,

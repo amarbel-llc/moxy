@@ -96,9 +96,18 @@ instead of raw error messages.
 Used as the root for the configuration hierarchy walk.
 .It Ev CLAUDE_SESSION_ID
 Session identifier for native server result caching.
-Falls back to
-.Dq no-session
-if unset.
+Checked first in the fallback chain; see
+.Ev SPINCLASS_SESSION_ID .
+.It Ev SPINCLASS_SESSION_ID
+Session identifier set by
+.Xr spinclass 1
+in worktree sessions.
+Used when
+.Ev CLAUDE_SESSION_ID
+is unset.
+If neither is set, a UUID is generated per
+.Nm
+process.
 .It Ev XDG_CACHE_HOME
 Base directory for native server result caches.
 Defaults to
