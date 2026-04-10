@@ -58,7 +58,7 @@
 
         pkgs-master-unfree = import nixpkgs-master {
           inherit system;
-          config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "acli" ];
+          config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "acli" "acli-unwrapped" ];
         };
 
         moxy = pkgs.buildGoApplication {
