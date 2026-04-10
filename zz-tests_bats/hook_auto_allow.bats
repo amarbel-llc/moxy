@@ -24,9 +24,9 @@ run_moxy_hook() {
 }
 
 function hook_allows_auto_allow_tool { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cat >"$builtin_dir/greeter.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/greeter.toml" <<'EOF'
 name = "greeter"
 description = "test server"
 
@@ -40,7 +40,7 @@ EOF
 
   mkdir -p "$HOME/project"
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   run_moxy_hook "mcp__moxy__greeter_hello"
   assert_success
@@ -51,9 +51,9 @@ EOF
 }
 
 function hook_falls_through_for_non_auto_allow_tool { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cat >"$builtin_dir/greeter.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/greeter.toml" <<'EOF'
 name = "greeter"
 description = "test server"
 
@@ -66,7 +66,7 @@ EOF
 
   mkdir -p "$HOME/project"
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   run_moxy_hook "mcp__moxy__greeter_hello"
   assert_success
@@ -76,12 +76,12 @@ EOF
 }
 
 function hook_falls_through_for_builtin_tool { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
 
   mkdir -p "$HOME/project"
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   run_moxy_hook "Read"
   assert_success
@@ -92,9 +92,9 @@ function hook_falls_through_for_builtin_tool { # @test
 }
 
 function hook_allows_only_marked_tools { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cat >"$builtin_dir/multi.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/multi.toml" <<'EOF'
 name = "multi"
 description = "test server with mixed auto-allow"
 
@@ -114,7 +114,7 @@ EOF
 
   mkdir -p "$HOME/project"
   cd "$HOME/project"
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
 
   # safe should be allowed
   run_moxy_hook "mcp__moxy__multi_safe"

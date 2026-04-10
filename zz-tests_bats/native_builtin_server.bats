@@ -10,11 +10,11 @@ teardown() {
   teardown_test_home
 }
 
-function builtin_native_tool_appears_via_env_override { # @test
-  # Create a builtin-servers dir with a simple native server config
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cat >"$builtin_dir/greeter.toml" <<'EOF'
+function builtin_native_tool_appears_via_moxin_path { # @test
+  # Create a moxins dir with a simple moxin config
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/greeter.toml" <<'EOF'
 name = "greeter"
 description = "builtin greeter"
 
@@ -28,16 +28,19 @@ EOF
   mkdir -p "$HOME/project"
   cd "$HOME/project"
 
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
   run_moxy_mcp "tools/list"
   assert_success
   echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")'
 }
 
-function builtin_overridden_by_project_local { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cat >"$builtin_dir/greeter.toml" <<'EOF'
+function earlier_moxin_path_overrides_later { # @test
+  local dir_a="$BATS_TEST_TMPDIR/moxins-a"
+  local dir_b="$BATS_TEST_TMPDIR/moxins-b"
+  mkdir -p "$dir_a" "$dir_b"
+
+  # dir_b has "hello" tool
+  cat >"$dir_b/greeter.toml" <<'EOF'
 name = "greeter"
 description = "builtin greeter"
 
@@ -48,9 +51,8 @@ command = "echo"
 args = ["-n", "hello from builtin"]
 EOF
 
-  # Project-local override with a different tool name
-  mkdir -p "$HOME/project/.moxy/servers"
-  cat >"$HOME/project/.moxy/servers/greeter.toml" <<'EOF'
+  # dir_a overrides with "greet" tool (same server name)
+  cat >"$dir_a/greeter.toml" <<'EOF'
 name = "greeter"
 description = "local greeter"
 
@@ -61,9 +63,11 @@ command = "echo"
 args = ["-n", "hello from local"]
 EOF
 
+  mkdir -p "$HOME/project"
   cd "$HOME/project"
 
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  # A is earlier in path → A should win
+  export MOXIN_PATH="$dir_a:$dir_b"
   run_moxy_mcp "tools/list"
   assert_success
   # Local override should win: "greet" tool present, "hello" tool absent
@@ -73,9 +77,9 @@ EOF
 }
 
 function builtin_disabled_by_moxyfile { # @test
-  local builtin_dir="$BATS_TEST_TMPDIR/builtin-servers"
-  mkdir -p "$builtin_dir"
-  cat >"$builtin_dir/greeter.toml" <<'EOF'
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cat >"$moxin_dir/greeter.toml" <<'EOF'
 name = "greeter"
 description = "builtin greeter"
 
@@ -93,10 +97,10 @@ EOF
 
   cd "$HOME/project"
 
-  export MOXY_BUILTIN_DIR="$builtin_dir"
+  export MOXIN_PATH="$moxin_dir"
   run_moxy_mcp "tools/list"
   assert_success
-  # No greeter tool should appear since builtins are disabled
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"greeter.hello\")'"
-  assert_failure
+  # greeter tool should still appear since MOXIN_PATH is set directly
+  # (builtin-native only controls the system moxin dir appended automatically)
+  echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")'
 }

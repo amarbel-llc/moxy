@@ -120,6 +120,30 @@ func newApp() *command.App {
 	})
 
 	app.AddCommand(&command.Command{
+		Name: "moxin-path",
+		Description: command.Description{
+			Short: "Print default MOXIN_PATH from legacy hierarchy",
+			Long: "Computes a colon-separated MOXIN_PATH by probing the legacy directory " +
+				"hierarchy (.moxy/moxins/ in cwd, intermediate parents, global config, " +
+				"and system moxins). Only existing directories are included. " +
+				"Usage: export MOXIN_PATH=$(moxy moxin-path)",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("getting home dir: %w", err)
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting cwd: %w", err)
+			}
+			systemDir := native.SystemMoxinDir()
+			fmt.Println(native.DefaultMoxinPath(home, cwd, systemDir))
+			return nil
+		},
+	})
+
+	app.AddCommand(&command.Command{
 		Name: "hook",
 		Description: command.Description{
 			Short: "Handle MCP hook protocol",
@@ -231,25 +255,16 @@ func runServer() error {
 			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
 	}
 
-	// Discover native servers from .moxy/ directories.
-	// Native configs are additive — moxyfile servers win on name collision.
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("getting home dir: %w", err)
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getting cwd: %w", err)
-	}
-
-	var builtinDir string
+	// Discover moxins from MOXIN_PATH.
+	// Moxin configs are additive — moxyfile servers win on name collision.
+	var systemDir string
 	if cfg.BuiltinNative == nil || *cfg.BuiltinNative {
-		builtinDir = native.BuiltinDir()
+		systemDir = native.SystemMoxinDir()
 	}
 
-	nativeConfigs, err := native.DiscoverConfigs(builtinDir, home, cwd)
+	nativeConfigs, err := native.DiscoverConfigs(os.Getenv("MOXIN_PATH"), systemDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: warning: native config discovery: %v\n", err)
+		fmt.Fprintf(os.Stderr, "moxy: warning: moxin discovery: %v\n", err)
 	}
 
 	existingNames := make(map[string]bool)
@@ -265,7 +280,7 @@ func runServer() error {
 
 	for _, nc := range nativeConfigs {
 		if existingNames[nc.Name] {
-			fmt.Fprintf(os.Stderr, "moxy: skipping native server %q (name collision with moxyfile server)\n", nc.Name)
+			fmt.Fprintf(os.Stderr, "moxy: skipping moxin %q (name collision with moxyfile server)\n", nc.Name)
 			continue
 		}
 		srv := native.NewServer(nc)
@@ -277,7 +292,7 @@ func runServer() error {
 			ServerInfo:   initResult.ServerInfo,
 			Instructions: nc.Description,
 		})
-		fmt.Fprintf(os.Stderr, "moxy: registered native server %s (%d tools)\n", nc.Name, len(nc.Tools))
+		fmt.Fprintf(os.Stderr, "moxy: registered moxin %s (%d tools)\n", nc.Name, len(nc.Tools))
 	}
 
 	// Resolve a session ID for native server cache scoping.

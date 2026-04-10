@@ -142,7 +142,7 @@ command = "grit"
 	}
 }
 
-func TestRunNativeValid(t *testing.T) {
+func TestRunMoxinValid(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
@@ -154,7 +154,8 @@ name = "grit"
 command = "grit"
 `)
 
-	writeFile(t, filepath.Join(dir, ".moxy", "servers", "test.toml"), `
+	moxinDir := filepath.Join(t.TempDir(), "moxins")
+	writeFile(t, filepath.Join(moxinDir, "test.toml"), `
 name = "test-server"
 description = "A test server"
 
@@ -168,6 +169,8 @@ args = ["hello"]
 type = "object"
 `)
 
+	t.Setenv("MOXIN_PATH", moxinDir)
+
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
 	output := buf.String()
@@ -176,14 +179,14 @@ type = "object"
 		t.Fatalf("expected exit 0, got %d\noutput:\n%s", code, output)
 	}
 	if !strings.Contains(output, "test.toml valid") {
-		t.Errorf("expected native config validation in output:\n%s", output)
+		t.Errorf("expected moxin config validation in output:\n%s", output)
 	}
-	if !strings.Contains(output, "native: 1 server") {
-		t.Errorf("expected native server count in output:\n%s", output)
+	if !strings.Contains(output, "moxin: 1 server") {
+		t.Errorf("expected moxin server count in output:\n%s", output)
 	}
 }
 
-func TestRunNativeInvalidToml(t *testing.T) {
+func TestRunMoxinInvalidToml(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
@@ -194,7 +197,10 @@ name = "grit"
 command = "grit"
 `)
 
-	writeFile(t, filepath.Join(dir, ".moxy", "servers", "broken.toml"), `name = = broken`)
+	moxinDir := filepath.Join(t.TempDir(), "moxins")
+	writeFile(t, filepath.Join(moxinDir, "broken.toml"), `name = = broken`)
+
+	t.Setenv("MOXIN_PATH", moxinDir)
 
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
@@ -204,11 +210,11 @@ command = "grit"
 		t.Fatalf("expected exit 1, got %d\noutput:\n%s", code, output)
 	}
 	if !strings.Contains(output, "not ok") {
-		t.Errorf("expected not-ok for broken native config:\n%s", output)
+		t.Errorf("expected not-ok for broken moxin config:\n%s", output)
 	}
 }
 
-func TestRunNativeMissingCommand(t *testing.T) {
+func TestRunMoxinMissingCommand(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
@@ -219,12 +225,15 @@ name = "grit"
 command = "grit"
 `)
 
-	writeFile(t, filepath.Join(dir, ".moxy", "servers", "bad.toml"), `
+	moxinDir := filepath.Join(t.TempDir(), "moxins")
+	writeFile(t, filepath.Join(moxinDir, "bad.toml"), `
 name = "bad-server"
 
 [[tools]]
 name = "hello"
 `)
+
+	t.Setenv("MOXIN_PATH", moxinDir)
 
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
@@ -238,7 +247,7 @@ name = "hello"
 	}
 }
 
-func TestRunNativeUndecodedKeys(t *testing.T) {
+func TestRunMoxinUndecodedKeys(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
@@ -249,7 +258,8 @@ name = "grit"
 command = "grit"
 `)
 
-	writeFile(t, filepath.Join(dir, ".moxy", "servers", "extra.toml"), `
+	moxinDir := filepath.Join(t.TempDir(), "moxins")
+	writeFile(t, filepath.Join(moxinDir, "extra.toml"), `
 name = "extra-server"
 description = "has unknown keys"
 bogus_field = "oops"
@@ -264,6 +274,8 @@ unknown_tool_key = true
 [tools.input]
 type = "object"
 `)
+
+	t.Setenv("MOXIN_PATH", moxinDir)
 
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
