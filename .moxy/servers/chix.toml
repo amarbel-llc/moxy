@@ -228,10 +228,10 @@ description = "Arguments to pass to the app."
 type = "string"
 description = "Directory containing the flake. Defaults to current directory."
 
-# --- develop_run ---
+# --- develop-run ---
 
 [[tools]]
-name = "develop_run"
+name = "develop-run"
 description = """Run commands inside a flake's devShell. Each command runs as a separate \
 nix develop invocation. Execution stops on the first failure."""
 command = "bash"
@@ -308,10 +308,10 @@ description = "Only return the first N lines of output."
 type = "string"
 description = "Only return the last N lines of output."
 
-# --- flake_check ---
+# --- flake-check ---
 
 [[tools]]
-name = "flake_check"
+name = "flake-check"
 description = "Run flake checks and tests."
 command = "bash"
 arg_order = ["flake_ref", "flake_dir", "keep_going", "head", "tail", "max_bytes"]
@@ -370,10 +370,10 @@ description = "Only return the last N lines of output."
 type = "string"
 description = "Maximum bytes of output to return."
 
-# --- flake_init ---
+# --- flake-init ---
 
 [[tools]]
-name = "flake_init"
+name = "flake-init"
 description = "Initialize a new flake in the specified directory."
 command = "bash"
 arg_order = ["template", "flake_dir"]
@@ -399,10 +399,10 @@ description = "Template flake reference (e.g., 'templates#rust'). If not specifi
 type = "string"
 description = "Directory to initialize the flake in. Defaults to current directory."
 
-# --- flake_lock ---
+# --- flake-lock ---
 
 [[tools]]
-name = "flake_lock"
+name = "flake-lock"
 description = "Lock flake inputs without building."
 command = "bash"
 arg_order = ["flake_ref", "update_inputs", "override_inputs", "flake_dir", "head", "tail", "max_bytes"]
@@ -476,10 +476,10 @@ description = "Only return the last N lines of output."
 type = "string"
 description = "Maximum bytes of output to return."
 
-# --- flake_update ---
+# --- flake-update ---
 
 [[tools]]
-name = "flake_update"
+name = "flake-update"
 description = "Update flake.lock file."
 command = "bash"
 arg_order = ["flake_ref", "inputs", "flake_dir", "head", "tail", "max_bytes"]
@@ -542,10 +542,10 @@ description = "Only return the last N lines of output."
 type = "string"
 description = "Maximum bytes of output to return."
 
-# --- store_gc ---
+# --- store-gc ---
 
 [[tools]]
-name = "store_gc"
+name = "store-gc"
 description = "Run garbage collection on the Nix store."
 command = "bash"
 arg_order = ["dry_run", "max_freed"]
@@ -572,3 +572,155 @@ description = "Only print what would be deleted. Defaults to false."
 [tools.input.properties.max_freed]
 type = "string"
 description = "Stop after freeing this much space (e.g., '1G', '500M')."
+
+# --- store-path-info ---
+
+[[tools]]
+name = "store-path-info"
+description = "Query store path metadata (size, references, signatures). Accepts store paths or installables."
+command = "bash"
+arg_order = ["path", "closure", "derivation"]
+args = ["-c", """
+set -euo pipefail
+path="$1"
+closure="${2:-false}"
+derivation="${3:-false}"
+
+nix_args=(path-info --json)
+if [ "$closure" = "true" ]; then
+  nix_args+=(--closure-size)
+fi
+if [ "$derivation" = "true" ]; then
+  nix_args+=(--derivation)
+fi
+nix_args+=("$path")
+
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || {
+  stderr=$(cat "$stderr_file")
+  # Check for the common case where a store path doesn't exist locally
+  if echo "$stderr" | grep -q "does not exist"; then
+    echo "Error: path not found in local store. If this is an installable (e.g., 'nixpkgs#hello'), try building it first with the build tool." >&2
+    echo "$stderr" >&2
+  else
+    echo "$stderr" >&2
+    echo "$output"
+  fi
+  exit 1
+}
+echo "$output"
+""", "_"]
+
+[tools.input]
+required = ["path"]
+
+[tools.input.properties.path]
+type = "string"
+description = "Store path (e.g., '/nix/store/...') or installable (e.g., 'nixpkgs#hello')."
+
+[tools.input.properties.closure]
+type = "boolean"
+description = "Include closure size information. Defaults to false."
+
+[tools.input.properties.derivation]
+type = "boolean"
+description = "Show info for the derivation instead of the output. Defaults to false."
+
+# --- store-ls ---
+
+[[tools]]
+name = "store-ls"
+description = "List contents of a nix store path directory. Returns JSON with name, type, and optional size."
+command = "bash"
+arg_order = ["path", "long"]
+args = ["-c", """
+set -euo pipefail
+path="$1"
+long="${2:-false}"
+
+# Resolve symlinks and validate under /nix/store/
+resolved=$(readlink -f "$path")
+case "$resolved" in
+  /nix/store/*) ;;
+  *) echo "Error: path must be under /nix/store/, got: $resolved" >&2; exit 1 ;;
+esac
+
+if [ ! -d "$resolved" ]; then
+  echo "Error: not a directory: $resolved" >&2
+  exit 1
+fi
+
+if [ "$long" = "true" ]; then
+  find "$resolved" -maxdepth 1 -mindepth 1 -printf '%y\t%s\t%f\n' | sort -t$'\t' -k3 | \
+    jq -R -s '[split("\n") | .[] | select(length > 0) | split("\t") |
+      { name: .[2],
+        type: (if .[0] == "d" then "directory" elif .[0] == "l" then "symlink" else "file" end),
+        size: (if .[0] == "f" then (.[1] | tonumber) else null end) }]'
+else
+  find "$resolved" -maxdepth 1 -mindepth 1 -printf '%y\t%f\n' | sort -t$'\t' -k2 | \
+    jq -R -s '[split("\n") | .[] | select(length > 0) | split("\t") |
+      { name: .[1],
+        type: (if .[0] == "d" then "directory" elif .[0] == "l" then "symlink" else "file" end) }]'
+fi
+""", "_"]
+
+[tools.input]
+required = ["path"]
+
+[tools.input.properties.path]
+type = "string"
+description = "Store path to list (e.g., '/nix/store/...-hello-2.12.1')."
+
+[tools.input.properties.long]
+type = "boolean"
+description = "Include file sizes for regular files. Defaults to false."
+
+# --- store-cat ---
+
+[[tools]]
+name = "store-cat"
+description = "Read file contents from a nix store path. Use head/tail to limit output for large files."
+command = "bash"
+arg_order = ["path", "head", "tail"]
+args = ["-c", """
+set -euo pipefail
+path="$1"
+head_n="${2:-}"
+tail_n="${3:-}"
+
+# Resolve symlinks and validate under /nix/store/
+resolved=$(readlink -f "$path")
+case "$resolved" in
+  /nix/store/*) ;;
+  *) echo "Error: path must be under /nix/store/, got: $resolved" >&2; exit 1 ;;
+esac
+
+if [ ! -f "$resolved" ]; then
+  echo "Error: not a regular file: $resolved" >&2
+  exit 1
+fi
+
+if [ -n "$tail_n" ]; then
+  tail -n "$tail_n" "$resolved"
+elif [ -n "$head_n" ]; then
+  head -n "$head_n" "$resolved"
+else
+  cat "$resolved"
+fi
+""", "_"]
+
+[tools.input]
+required = ["path"]
+
+[tools.input.properties.path]
+type = "string"
+description = "Store path to read (e.g., '/nix/store/...-hello-2.12.1/bin/hello')."
+
+[tools.input.properties.head]
+type = "string"
+description = "Only return the first N lines."
+
+[tools.input.properties.tail]
+type = "string"
+description = "Only return the last N lines."
