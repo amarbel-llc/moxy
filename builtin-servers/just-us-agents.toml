@@ -6,8 +6,7 @@ description = "Justfile recipe runner. Lists, shows, and executes recipes from t
 [[tools]]
 name = "list-recipes"
 description = "List available recipes with their descriptions, grouped by category. Shows recipe names, parameters, and doc comments."
-command = "just"
-args = ["--list", "--list-heading=", "--unsorted"]
+command = "__LIBEXEC__/just-list-recipes"
 
 [tools.input]
 type = "object"
@@ -52,6 +51,16 @@ args = ["--dump"]
 type = "object"
 
 # === Execution ================================================================
+
+[[tools]]
+name = "run-recipe-default"
+description = "Execute the default justfile recipe (no arguments). Equivalent to running `just` with no arguments."
+command = "just"
+
+[tools.input]
+type = "object"
+
+# ---
 
 [[tools]]
 name = "run-recipe"

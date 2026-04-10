@@ -83,6 +83,8 @@
             for f in $out/libexec/moxy/freud-*; do
               wrapProgram "$f" --prefix PATH : ${pkgs.python3}/bin
             done
+            wrapProgram $out/libexec/moxy/just-list-recipes \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.just pkgs.jq ]}
 
             # Rewrite __LIBEXEC__ placeholder to absolute nix store path
             sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" $out/share/moxy/builtin-servers/*.toml

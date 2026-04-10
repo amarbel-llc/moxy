@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+just --dump --dump-format json | jq -r '
+.recipes | to_entries | sort_by(.key) | .[] | .value |
+"\(.name)\(
+  .parameters | map(
+    " " + (if .kind == "star" then "*" else "" end) + .name +
+    (if .default then "=" + (.default | tostring) else "" end)
+  ) | join("")
+)\(
+  if .doc then "  # " + .doc else "" end
+)\(
+  if (.dependencies | length) > 0 then
+    "  [deps: " + ([.dependencies[].recipe] | join(", ")) + "]"
+  else "" end
+)"
+'
