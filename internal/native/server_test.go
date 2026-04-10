@@ -179,7 +179,7 @@ func TestServerToolsCallCachesLargeOutput(t *testing.T) {
 	}
 	srv := NewServer(cfg)
 	srv.cache = newResultCache(cacheDir)
-	srv.session = "test-session"
+	srv.SetSession("test-session")
 
 	params := protocol.ToolCallParams{
 		Name:      "exec",
@@ -228,7 +228,7 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 	}
 	srv := NewServer(cfg)
 	srv.cache = newResultCache(cacheDir)
-	srv.session = "test-session"
+	srv.SetSession("test-session")
 
 	// Pre-populate the cache with known content.
 	if err := srv.cache.store(cachedResult{

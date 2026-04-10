@@ -69,10 +69,14 @@ function native_exec_cache_layout_includes_session_directory { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  # No CLAUDE_SESSION_ID set, so the fallback bucket "no-session" is used.
-  [[ -d $XDG_CACHE_HOME/moxy/native-results/no-session ]]
-  ls "$XDG_CACHE_HOME/moxy/native-results/no-session"/*.json >/dev/null
-  ls "$XDG_CACHE_HOME/moxy/native-results/no-session"/*.txt >/dev/null
+  # Session ID is resolved at startup (UUID fallback when no env var is set).
+  # Verify that a session subdirectory was created (not "no-session").
+  local session_dir
+  session_dir=$(find "$XDG_CACHE_HOME/moxy/native-results" -mindepth 1 -maxdepth 1 -type d | head -1)
+  [[ -n $session_dir ]]
+  [[ $(basename "$session_dir") != "no-session" ]]
+  ls "$session_dir"/*.json >/dev/null
+  ls "$session_dir"/*.txt >/dev/null
 }
 
 function native_exec_resource_as_fd_substitution { # @test
@@ -120,7 +124,7 @@ function native_exec_resource_as_fd_repeated_uri_shares_fd { # @test
 }
 
 function native_exec_resource_missing_cached_id_errors { # @test
-  local params='{"name":"shell.exec","arguments":{"command":"cat moxy.native://results/no-session/does-not-exist"}}'
+  local params='{"name":"shell.exec","arguments":{"command":"cat moxy.native://results/nonexistent-session/does-not-exist"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
   echo "$output" | jq -e '.isError == true'

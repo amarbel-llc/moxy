@@ -14,6 +14,7 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
+	"github.com/google/uuid"
 
 	"github.com/amarbel-llc/moxy/internal/add"
 	"github.com/amarbel-llc/moxy/internal/config"
@@ -269,6 +270,16 @@ func runServer() error {
 		fmt.Fprintf(os.Stderr, "moxy: registered native server %s (%d tools)\n", nc.Name, len(nc.Tools))
 	}
 
+	// Resolve a session ID for native server cache scoping.
+	// Fallback chain: CLAUDE_SESSION_ID > SPINCLASS_SESSION_ID > generated UUID.
+	sessionID, sessionSource := resolveSessionID()
+	for _, c := range children {
+		if ns, ok := c.Client.(*native.Server); ok {
+			ns.SetSession(sessionID)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "moxy: session %s (from %s)\n", sessionID, sessionSource)
+
 	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
@@ -375,6 +386,35 @@ func runHeadersHelper(command string) (map[string]string, error) {
 
 func refreshOAuthToken(ctx context.Context, serverURL, clientID, refreshToken string) (credentials.Token, error) {
 	return oauth.RefreshToken(ctx, serverURL, clientID, refreshToken)
+}
+
+// resolveSessionID returns a session identifier and its source label.
+// Fallback chain: CLAUDE_SESSION_ID > SPINCLASS_SESSION_ID > generated UUID v7.
+// Values from env vars are sanitized to be safe as both path segments and URI
+// segments (only [A-Za-z0-9._-] retained).
+func resolveSessionID() (id, source string) {
+	for _, env := range []string{"CLAUDE_SESSION_ID", "SPINCLASS_SESSION_ID"} {
+		if v := sanitizeSessionSegment(os.Getenv(env)); v != "" {
+			return v, env
+		}
+	}
+	return uuid.Must(uuid.NewV7()).String(), "generated"
+}
+
+// sanitizeSessionSegment strips characters outside [A-Za-z0-9._-] so the
+// result is safe as a single path segment and URI segment.
+func sanitizeSessionSegment(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z',
+			r >= 'a' && r <= 'z',
+			r >= '0' && r <= '9',
+			r == '.', r == '_', r == '-':
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 var (

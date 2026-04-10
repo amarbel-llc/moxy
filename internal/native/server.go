@@ -43,6 +43,9 @@ func NewServer(cfg *NativeConfig) *Server {
 	}
 }
 
+// SetSession overrides the session identifier used in cached result URIs.
+func (s *Server) SetSession(id string) { s.session = id }
+
 // Name returns the server's configured name.
 func (s *Server) Name() string { return s.config.Name }
 
