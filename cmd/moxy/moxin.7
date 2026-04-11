@@ -187,6 +187,33 @@ Lines: 393
 .Ed
 .Pp
 Caching is transparent and server-level \(em no per-tool configuration.
+When output exceeds the threshold, the summary includes prominent
+truncation warnings so agents know data was omitted.
+.Pp
+.Sy "Moxins must not implement their own truncation" .
+Do not add
+.Sy head , tail ,
+or
+.Sy max_bytes
+parameters that silently cut output \(em agents cannot distinguish
+truncated output from complete output, leading to false conclusions.
+The framework handles all truncation centrally with clear signaling.
+.Pp
+Moxins
+.Em may
+implement
+.Sy scope-limiting
+parameters that constrain what the tool
+.Em produces ,
+as opposed to truncating what it already produced.
+For example,
+.Sy max_patch_lines
+in a diff tool limits how much git generates,
+and
+.Sy top_k
+in a search tool limits result cardinality.
+The distinction: scope limits change the query;
+truncation discards part of the answer.
 The session identifier is resolved at
 .Xr moxy 1
 startup using a fallback chain:
