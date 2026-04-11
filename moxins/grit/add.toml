@@ -1,0 +1,29 @@
+schema = 1
+perms-request = "always-allow"
+description = "Stage files for commit"
+command = "bash"
+arg_order = ["paths", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+paths="$1"
+repo="${2:-.}"
+cd "$repo"
+mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
+git add -- "${files[@]}"
+printf 'Staged %d file(s)\n' "${#files[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["paths"]
+
+[input.properties.paths]
+type = "array"
+description = "Array of file path strings to stage, e.g. [\"src/main.go\", \"README.md\"] (relative to repo root)"
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

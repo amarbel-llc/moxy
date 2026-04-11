@@ -1,0 +1,12 @@
+schema = 1
+perms-request = "always-allow"
+description = "Return the raw JSONL transcript for a single session, looked up by session id across all projects."
+command = "__LIBEXEC__/freud-transcript"
+
+[input]
+type = "object"
+required = ["session_id"]
+
+[input.properties.session_id]
+type = "string"
+description = "Session UUID to retrieve (36-char UUID from the sessions listing)"

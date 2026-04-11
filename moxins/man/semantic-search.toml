@@ -1,0 +1,17 @@
+schema = 1
+perms-request = "always-allow"
+description = "Semantic man page search using vector embeddings. More accurate than keyword search for natural language queries like 'list files' or 'configure network'. Requires a pre-built index (maneater index)."
+command = "__LIBEXEC__/man-semantic-search"
+arg_order = ["query", "top_k"]
+
+[input]
+type = "object"
+required = ["query"]
+
+[input.properties.query]
+type = "string"
+description = "Natural language search query (e.g. 'list files', 'configure network', 'MCP proxy')"
+
+[input.properties.top_k]
+type = "integer"
+description = "Number of results to return (default 10)"

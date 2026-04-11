@@ -1,0 +1,52 @@
+schema = 1
+perms-request = "always-allow"
+description = "Make an authenticated GET request to the GitHub REST API"
+command = "bash"
+arg_order = ["endpoint", "params", "headers", "paginate"]
+args = ["-c", """
+set -euo pipefail
+endpoint="$1"
+params_json="${2:-}"
+headers_json="${3:-}"
+paginate="${4:-}"
+gh_args=(api "$endpoint" --method GET)
+
+[ "$paginate" = "true" ] && gh_args+=(--paginate)
+if [ -n "$params_json" ] && [ "$params_json" != "null" ] && [ "$params_json" != "{}" ]; then
+  while IFS=$'\t' read -r key val; do
+    gh_args+=(-f "$key=$val")
+  done < <(printf '%s' "$params_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+fi
+if [ -n "$headers_json" ] && [ "$headers_json" != "null" ]; then
+  while IFS= read -r h; do
+    gh_args+=(-H "$h")
+  done < <(printf '%s' "$headers_json" | jq -r '.[]')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["endpoint"]
+
+[input.properties.endpoint]
+type = "string"
+description = "REST API path, e.g. /repos/{owner}/{repo}/actions/runs"
+
+[input.properties.params]
+type = "object"
+description = "Query string parameters as key-value pairs"
+
+[input.properties.params.additionalProperties]
+type = "string"
+
+[input.properties.headers]
+type = "array"
+description = "Additional headers in key:value format"
+
+[input.properties.headers.items]
+type = "string"
+
+[input.properties.paginate]
+type = "boolean"
+description = "Auto-paginate results"

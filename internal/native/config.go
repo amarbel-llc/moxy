@@ -3,6 +3,9 @@ package native
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -10,159 +13,241 @@ import (
 	"github.com/amarbel-llc/tommy/pkg/document"
 )
 
+// PermsRequest controls how the hook system handles permission for a tool.
+type PermsRequest string
+
+const (
+	// PermsDelegateToClient lets the MCP client decide (default if omitted).
+	PermsDelegateToClient PermsRequest = "delegate-to-client"
+	// PermsAlwaysAllow skips the permission prompt.
+	PermsAlwaysAllow PermsRequest = "always-allow"
+	// PermsEachUse forces a user confirmation prompt every time.
+	PermsEachUse PermsRequest = "each-use"
+)
+
+// NativeConfig is the assembled output consumed by Server, proxy, and hooks.
 type NativeConfig struct {
-	Name        string     `toml:"name"`
-	Description string     `toml:"description"`
-	Tools       []ToolSpec `toml:"tools"`
+	Name        string
+	Description string
+	Tools       []ToolSpec
 }
 
+// ToolSpec describes a single tool within a moxin.
 type ToolSpec struct {
-	Name        string          `toml:"name"`
-	Description string          `toml:"description"`
-	Command     string          `toml:"command"`
-	Args        []string        `toml:"args"`
-	ArgOrder    []string        `toml:"arg_order"`
-	StdinParam  string          `toml:"stdin_param"`
-	AutoAllow   bool            `toml:"auto-allow"`
-	Input       json.RawMessage `toml:"-"`
+	Name         string
+	Description  string
+	Command      string
+	Args         []string
+	ArgOrder     []string
+	StdinParam   string
+	PermsRequest PermsRequest
+	Input        json.RawMessage
 }
 
-// rawConfig mirrors NativeConfig but uses an intermediate type for Input
-// so that TOML tables decode into map[string]any before JSON marshaling.
-type rawConfig struct {
-	Name        string        `toml:"name"`
-	Description string        `toml:"description"`
-	Tools       []rawToolSpec `toml:"tools"`
+// MoxinMeta is the parsed content of _moxin.toml.
+type MoxinMeta struct {
+	Schema      int    `toml:"schema"`
+	Name        string `toml:"name"`
+	Description string `toml:"description"`
 }
 
-type rawToolSpec struct {
-	Name        string   `toml:"name"`
-	Description string   `toml:"description"`
-	Command     string   `toml:"command"`
-	Args        []string `toml:"args"`
-	ArgOrder    []string `toml:"arg_order"`
-	StdinParam  string   `toml:"stdin_param"`
-	AutoAllow   bool     `toml:"auto-allow"`
-	Input       any      `toml:"input"`
+// rawToolFile mirrors the per-tool TOML file for initial decode.
+type rawToolFile struct {
+	Schema       int          `toml:"schema"`
+	Name         string       `toml:"name"`
+	Description  string       `toml:"description"`
+	Command      string       `toml:"command"`
+	Args         []string     `toml:"args"`
+	ArgOrder     []string     `toml:"arg_order"`
+	StdinParam   string       `toml:"stdin_param"`
+	PermsRequest PermsRequest `toml:"perms-request"`
+	Input        any          `toml:"input"`
 }
 
-// ParseResult holds the parsed config and any undecoded keys found in the TOML.
+// ParseResult holds the parsed config and any undecoded keys found in the TOML files.
 type ParseResult struct {
 	Config    *NativeConfig
 	Undecoded []string
 }
 
-func ParseConfig(data []byte) (*NativeConfig, error) {
-	result, err := ParseConfigFull(data)
+// ParseMoxinDir parses a moxin directory containing _moxin.toml + per-tool files.
+func ParseMoxinDir(dirPath string) (*NativeConfig, error) {
+	result, err := ParseMoxinDirFull(dirPath)
 	if err != nil {
 		return nil, err
 	}
 	return result.Config, nil
 }
 
-func ParseConfigFull(data []byte) (*ParseResult, error) {
-	// BurntSushi/toml for data extraction (handles arbitrary tools.input).
-	var raw rawConfig
-	if err := toml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parsing native config: %w", err)
+// ParseMoxinDirFull parses a moxin directory and reports undecoded keys.
+func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
+	// Parse _moxin.toml metadata.
+	metaPath := filepath.Join(dirPath, "_moxin.toml")
+	metaData, err := os.ReadFile(metaPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading _moxin.toml: %w", err)
 	}
 
-	if raw.Name == "" {
-		return nil, fmt.Errorf("native config: name is required")
+	var meta MoxinMeta
+	if err := toml.Unmarshal(metaData, &meta); err != nil {
+		return nil, fmt.Errorf("parsing _moxin.toml: %w", err)
 	}
-	if strings.Contains(raw.Name, ".") {
-		return nil, fmt.Errorf("native config: name %q must not contain '.'", raw.Name)
+	if meta.Schema != 1 {
+		return nil, fmt.Errorf("_moxin.toml: unsupported schema %d (want 1)", meta.Schema)
 	}
+	if meta.Name == "" {
+		return nil, fmt.Errorf("_moxin.toml: name is required")
+	}
+	if strings.Contains(meta.Name, ".") {
+		return nil, fmt.Errorf("_moxin.toml: name %q must not contain '.'", meta.Name)
+	}
+
+	var allUndecoded []string
+	allUndecoded = append(allUndecoded, detectUndecodedMeta(metaData)...)
+
+	// Scan for tool files (*.toml excluding _moxin.toml).
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading moxin directory: %w", err)
+	}
+
+	var toolFiles []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") || e.Name() == "_moxin.toml" {
+			continue
+		}
+		toolFiles = append(toolFiles, e.Name())
+	}
+	sort.Strings(toolFiles)
 
 	cfg := &NativeConfig{
-		Name:        raw.Name,
-		Description: raw.Description,
-		Tools:       make([]ToolSpec, len(raw.Tools)),
+		Name:        meta.Name,
+		Description: meta.Description,
+		Tools:       make([]ToolSpec, 0, len(toolFiles)),
 	}
 
-	for i, rt := range raw.Tools {
-		if rt.Name == "" {
-			return nil, fmt.Errorf("native config %q: tool[%d] missing name", cfg.Name, i)
+	for _, filename := range toolFiles {
+		toolPath := filepath.Join(dirPath, filename)
+		data, err := os.ReadFile(toolPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading tool file %s: %w", filename, err)
 		}
-		if rt.Command == "" {
-			return nil, fmt.Errorf("native config %q: tool %q missing command", cfg.Name, rt.Name)
+
+		var raw rawToolFile
+		if err := toml.Unmarshal(data, &raw); err != nil {
+			return nil, fmt.Errorf("parsing tool file %s: %w", filename, err)
+		}
+
+		if raw.Schema != 1 {
+			return nil, fmt.Errorf("tool file %s: unsupported schema %d (want 1)", filename, raw.Schema)
+		}
+		if raw.Command == "" {
+			return nil, fmt.Errorf("tool file %s: command is required", filename)
+		}
+
+		// Tool name: file stem, overridden by explicit name field.
+		toolName := strings.TrimSuffix(filename, ".toml")
+		if raw.Name != "" {
+			toolName = raw.Name
+		}
+
+		if err := validatePermsRequest(raw.PermsRequest); err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
 
 		ts := ToolSpec{
-			Name:        rt.Name,
-			Description: rt.Description,
-			Command:     rt.Command,
-			Args:        rt.Args,
-			ArgOrder:    rt.ArgOrder,
-			StdinParam:  rt.StdinParam,
-			AutoAllow:   rt.AutoAllow,
+			Name:         toolName,
+			Description:  raw.Description,
+			Command:      raw.Command,
+			Args:         raw.Args,
+			ArgOrder:     raw.ArgOrder,
+			StdinParam:   raw.StdinParam,
+			PermsRequest: raw.PermsRequest,
 		}
 
-		if rt.Input != nil {
-			jsonBytes, err := json.Marshal(rt.Input)
+		if raw.Input != nil {
+			jsonBytes, err := json.Marshal(raw.Input)
 			if err != nil {
-				return nil, fmt.Errorf("native config %q: tool %q: marshaling input schema: %w", cfg.Name, rt.Name, err)
+				return nil, fmt.Errorf("tool file %s: marshaling input schema: %w", filename, err)
 			}
 			ts.Input = jsonBytes
 		}
 
-		cfg.Tools[i] = ts
+		cfg.Tools = append(cfg.Tools, ts)
+		allUndecoded = append(allUndecoded, detectUndecodedTool(data, filename)...)
 	}
 
-	// Tommy parse for undecoded key detection.
-	undecoded := detectUndecoded(data)
-
-	return &ParseResult{Config: cfg, Undecoded: undecoded}, nil
+	return &ParseResult{Config: cfg, Undecoded: allUndecoded}, nil
 }
 
-// detectUndecoded parses with tommy and returns any keys not part of the
-// native config schema. Returns nil on parse error (BurntSushi already
-// reported it).
-func detectUndecoded(data []byte) []string {
+func validatePermsRequest(pr PermsRequest) error {
+	switch pr {
+	case "", PermsDelegateToClient, PermsAlwaysAllow, PermsEachUse:
+		return nil
+	default:
+		return fmt.Errorf("invalid perms-request %q (want always-allow, each-use, or delegate-to-client)", pr)
+	}
+}
+
+// detectUndecodedMeta returns undecoded keys in a _moxin.toml file.
+func detectUndecodedMeta(data []byte) []string {
 	doc, err := document.Parse(data)
 	if err != nil {
 		return nil
 	}
 
 	consumed := make(map[string]bool)
-
-	// Top-level known keys.
-	if _, err := document.GetFromContainer[string](doc, doc.Root(), "name"); err == nil {
-		consumed["name"] = true
-	}
-	if _, err := document.GetFromContainer[string](doc, doc.Root(), "description"); err == nil {
-		consumed["description"] = true
-	}
-
-	// [[tools]] array tables.
-	toolNodes := doc.FindArrayTableNodes("tools")
-	consumed["tools"] = true
-	for _, node := range toolNodes {
-		for _, key := range []string{"name", "description", "command", "args", "arg_order", "auto-allow"} {
-			if doc.HasInContainer(node, key) {
-				consumed["tools."+key] = true
-			}
-		}
-		// tools.input is an arbitrary JSON Schema table — consume it and
-		// all subtables (e.g. tools.input.properties.recipe).
-		if inputNode := doc.FindTableInContainer(node, "input"); inputNode != nil {
-			consumed["tools.input"] = true
-			document.MarkAllConsumed(inputNode, "tools.input", consumed)
+	for _, key := range []string{"schema", "name", "description"} {
+		if doc.HasInContainer(doc.Root(), key) {
+			consumed[key] = true
 		}
 	}
 
-	// Consume all tools.input.* subtables (deeply nested JSON Schema
-	// sections like [tools.input.properties.recipe] appear as separate
-	// NodeTable entries at the document root).
+	return document.UndecodedKeys(doc.Root(), consumed)
+}
+
+// detectUndecodedTool returns undecoded keys in a per-tool TOML file,
+// prefixed with the filename for context.
+func detectUndecodedTool(data []byte, filename string) []string {
+	doc, err := document.Parse(data)
+	if err != nil {
+		return nil
+	}
+
+	consumed := make(map[string]bool)
+	for _, key := range []string{
+		"schema", "name", "description", "command", "args",
+		"arg_order", "stdin_param", "perms-request",
+	} {
+		if doc.HasInContainer(doc.Root(), key) {
+			consumed[key] = true
+		}
+	}
+
+	// input is an arbitrary JSON Schema table — consume it and all subtables.
+	if inputNode := doc.FindTableInContainer(doc.Root(), "input"); inputNode != nil {
+		consumed["input"] = true
+		document.MarkAllConsumed(inputNode, "input", consumed)
+	}
+
 	for _, child := range doc.Root().Children {
 		if child.Kind == cst.NodeTable {
 			key := document.SubTableKey(child, "")
-			if strings.HasPrefix(key, "tools.input") {
+			if strings.HasPrefix(key, "input") {
 				consumed[key] = true
 				document.MarkAllConsumed(child, key, consumed)
 			}
 		}
 	}
 
-	return document.UndecodedKeys(doc.Root(), consumed)
+	raw := document.UndecodedKeys(doc.Root(), consumed)
+	if len(raw) == 0 {
+		return nil
+	}
+
+	prefixed := make([]string, len(raw))
+	for i, k := range raw {
+		prefixed[i] = filename + ": " + k
+	}
+	return prefixed
 }

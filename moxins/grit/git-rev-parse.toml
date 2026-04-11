@@ -1,0 +1,24 @@
+schema = 1
+perms-request = "always-allow"
+description = "Resolve a git revision to its full SHA, or resolve special names like HEAD, branch names, tags, and relative refs (e.g. HEAD~3, main^2)"
+command = "bash"
+arg_order = ["ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+ref="$1"
+repo="${2:-.}"
+cd "$repo"
+git rev-parse --verify "$ref"
+""", "_"]
+
+[input]
+type = "object"
+required = ["ref"]
+
+[input.properties.ref]
+type = "string"
+description = "Ref to resolve (e.g. HEAD, main, v1.0, HEAD~3, abc1234)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

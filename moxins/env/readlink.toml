@@ -1,0 +1,27 @@
+schema = 1
+perms-request = "always-allow"
+description = "Resolve a symbolic link, printing its target. With canonicalize=true, follow every symlink recursively (-f)."
+command = "bash"
+arg_order = ["path", "canonicalize"]
+args = ["-c", """
+set -euo pipefail
+path="$1"
+canonicalize="${2:-}"
+if [ "$canonicalize" = "true" ]; then
+  readlink -f "$path"
+else
+  readlink "$path"
+fi
+""", "_"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path to resolve (e.g. '/usr/bin/python3', './result')"
+
+[input.properties.canonicalize]
+type = "boolean"
+description = "Follow every symlink recursively (-f). Default: false (show immediate target only)"

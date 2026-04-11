@@ -1,0 +1,13 @@
+schema = 1
+perms-request = "always-allow"
+description = "Print the value of a single environment variable by name."
+command = "printenv"
+arg_order = ["name"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Variable name to print (e.g. 'PATH', 'HOME', 'SSH_AUTH_SOCK')"

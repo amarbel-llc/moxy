@@ -1,0 +1,51 @@
+schema = 1
+perms-request = "always-allow"
+description = "Query store path metadata (size, references, signatures). Accepts store paths or installables."
+command = "bash"
+arg_order = ["path", "closure", "derivation"]
+args = ["-c", """
+set -euo pipefail
+path="$1"
+closure="${2:-false}"
+derivation="${3:-false}"
+
+nix_args=(path-info --json)
+if [ "$closure" = "true" ]; then
+  nix_args+=(--closure-size)
+fi
+if [ "$derivation" = "true" ]; then
+  nix_args+=(--derivation)
+fi
+nix_args+=("$path")
+
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || {
+  stderr=$(cat "$stderr_file")
+  # Check for the common case where a store path doesn't exist locally
+  if echo "$stderr" | grep -q "does not exist"; then
+    echo "Error: path not found in local store. If this is an installable (e.g., 'nixpkgs#hello'), try building it first with the build tool." >&2
+    echo "$stderr" >&2
+  else
+    echo "$stderr" >&2
+    echo "$output"
+  fi
+  exit 1
+}
+echo "$output"
+""", "_"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Store path (e.g., '/nix/store/...') or installable (e.g., 'nixpkgs#hello')."
+
+[input.properties.closure]
+type = "boolean"
+description = "Include closure size information. Defaults to false."
+
+[input.properties.derivation]
+type = "boolean"
+description = "Show info for the derivation instead of the output. Defaults to false."

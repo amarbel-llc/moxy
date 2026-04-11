@@ -8,30 +8,22 @@ import (
 	"testing"
 )
 
-const testToolConfig = `
-name = "%s"
-description = "%s"
-[[tools]]
-name = "hello"
-command = "echo"
-args = ["hello"]
-`
-
-func writeTestConfig(t *testing.T, dir, filename, name, desc string) {
+// writeDiscoveryMoxin creates a directory-based moxin with _moxin.toml and a default tool.
+func writeDiscoveryMoxin(t *testing.T, parentDir, name, desc string) {
 	t.Helper()
+	dir := filepath.Join(parentDir, name)
 	os.MkdirAll(dir, 0o755)
-	data := []byte(fmt.Sprintf(testToolConfig, name, desc))
-	if err := os.WriteFile(filepath.Join(dir, filename), data, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	meta := fmt.Sprintf("schema = 1\nname = %q\ndescription = %q\n", name, desc)
+	os.WriteFile(filepath.Join(dir, "_moxin.toml"), []byte(meta), 0o644)
+	os.WriteFile(filepath.Join(dir, "hello.toml"), []byte("schema = 1\ncommand = \"echo\"\n"), 0o644)
 }
 
 func TestDiscoverConfigsFromMoxinPath(t *testing.T) {
 	dirA := filepath.Join(t.TempDir(), "a")
 	dirB := filepath.Join(t.TempDir(), "b")
 
-	writeTestConfig(t, dirA, "alpha.toml", "alpha", "from A")
-	writeTestConfig(t, dirB, "beta.toml", "beta", "from B")
+	writeDiscoveryMoxin(t, dirA, "alpha", "from A")
+	writeDiscoveryMoxin(t, dirB, "beta", "from B")
 
 	moxinPath := dirA + ":" + dirB
 
@@ -60,8 +52,8 @@ func TestMoxinPathEarlierOverridesLater(t *testing.T) {
 	dirA := filepath.Join(t.TempDir(), "a")
 	dirB := filepath.Join(t.TempDir(), "b")
 
-	writeTestConfig(t, dirA, "tool.toml", "tool", "from-A")
-	writeTestConfig(t, dirB, "tool.toml", "tool", "from-B")
+	writeDiscoveryMoxin(t, dirA, "tool", "from-A")
+	writeDiscoveryMoxin(t, dirB, "tool", "from-B")
 
 	// A is earlier in path → A should win
 	moxinPath := dirA + ":" + dirB
@@ -83,9 +75,9 @@ func TestSystemDirAppended(t *testing.T) {
 	userDir := filepath.Join(t.TempDir(), "user")
 	systemDir := filepath.Join(t.TempDir(), "system")
 
-	writeTestConfig(t, userDir, "tool.toml", "tool", "user-version")
-	writeTestConfig(t, systemDir, "tool.toml", "tool", "system-version")
-	writeTestConfig(t, systemDir, "builtin.toml", "builtin", "system-only")
+	writeDiscoveryMoxin(t, userDir, "tool", "user-version")
+	writeDiscoveryMoxin(t, systemDir, "tool", "system-version")
+	writeDiscoveryMoxin(t, systemDir, "builtin", "system-only")
 
 	configs, err := DiscoverConfigs(userDir, systemDir)
 	if err != nil {
@@ -113,7 +105,7 @@ func TestSystemDirAppended(t *testing.T) {
 
 func TestEmptyMoxinPath(t *testing.T) {
 	systemDir := filepath.Join(t.TempDir(), "system")
-	writeTestConfig(t, systemDir, "tool.toml", "tool", "system")
+	writeDiscoveryMoxin(t, systemDir, "tool", "system")
 
 	configs, err := DiscoverConfigs("", systemDir)
 	if err != nil {
@@ -140,12 +132,12 @@ func TestEmptyMoxinPathNoSystemDir(t *testing.T) {
 
 func TestDiscoverConfigsBrokenSymlink(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "moxins")
-	writeTestConfig(t, dir, "valid.toml", "valid-tool", "valid")
+	writeDiscoveryMoxin(t, dir, "valid-tool", "valid")
 
 	// Broken symlink pointing to a non-existent target
 	os.Symlink(
-		filepath.Join(t.TempDir(), "nonexistent", "ghost.toml"),
-		filepath.Join(dir, "broken.toml"),
+		filepath.Join(t.TempDir(), "nonexistent", "ghost"),
+		filepath.Join(dir, "broken"),
 	)
 
 	configs, err := DiscoverConfigs(dir, "")

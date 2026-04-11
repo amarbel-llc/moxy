@@ -1,0 +1,38 @@
+schema = 1
+perms-request = "always-allow"
+description = """Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. \
+Output format: `     N\\tcontent` per line. Replaces `head`/`tail` piping — use on moxy.native:// result URIs \
+to read specific line ranges from cached command output."""
+command = "bash"
+arg_order = ["file_path", "start", "end"]
+args = ["-c", """
+set -euo pipefail
+assert_within_cwd() {
+  local resolved cwd
+  resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
+  case "$resolved" in
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
+  esac
+}
+file="$1"; start="$2"; end="$3"
+assert_within_cwd "$file"
+awk -v s="$start" -v e="$end" 'NR>=s && NR<=e{printf "%6d\\t%s\\n", NR, $0} NR>e{exit}' "$file"
+""", "_"]
+
+[input]
+type = "object"
+required = ["file_path", "start", "end"]
+
+[input.properties.file_path]
+type = "string"
+description = "Path to the file to read (must be within CWD)"
+
+[input.properties.start]
+type = "integer"
+description = "Inclusive start line (1-indexed)"
+
+[input.properties.end]
+type = "integer"
+description = "Inclusive end line (1-indexed)"

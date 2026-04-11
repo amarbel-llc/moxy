@@ -1,0 +1,17 @@
+schema = 1
+perms-request = "always-allow"
+description = "Read a specific section of a man page by name. Use 'toc' first to discover available section names."
+command = "__LIBEXEC__/man-section"
+arg_order = ["page", "section_name"]
+
+[input]
+type = "object"
+required = ["page", "section_name"]
+
+[input.properties.page]
+type = "string"
+description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
+
+[input.properties.section_name]
+type = "string"
+description = "Section name to read (e.g. 'DESCRIPTION', 'OPTIONS', 'SYNOPSIS'). Case-insensitive."

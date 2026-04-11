@@ -1,0 +1,79 @@
+schema = 1
+perms-request = "always-allow"
+description = "Show changes in the working tree or between commits"
+command = "bash"
+arg_order = ["ref", "paths", "staged", "stat_only", "context_lines", "max_patch_lines", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+ref="${1:-}"
+paths_json="${2:-}"
+staged="${3:-}"
+stat_only="${4:-}"
+context="${5:-}"
+max_lines="${6:-}"
+repo="${7:-.}"
+cd "$repo"
+
+git_args=(diff)
+
+[ -n "$context" ] && git_args+=("--unified=$context")
+
+[ "$stat_only" = "true" ] && git_args+=(--stat)
+
+if [ "$staged" = "true" ]; then
+  git_args+=(--cached)
+elif [ "$staged" = "false" ]; then
+  : # unstaged only (default git diff behavior)
+fi
+
+[ -n "$ref" ] && git_args+=("$ref")
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  git_args+=(--)
+  while IFS= read -r p; do
+    git_args+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+fi
+
+output=$(git "${git_args[@]}" 2>&1) || true
+
+if [ -n "$max_lines" ] && [ "$max_lines" -gt 0 ] 2>/dev/null; then
+  printf '%s\n' "$output" | head -n "$max_lines"
+else
+  printf '%s\n' "$output"
+fi
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.context_lines]
+type = "integer"
+description = "Number of context lines around each change (git --unified=N, default 3)"
+
+[input.properties.max_patch_lines]
+type = "integer"
+description = "Maximum number of patch output lines. Output is truncated with a truncated flag when exceeded."
+
+[input.properties.paths]
+type = "array"
+description = "Limit diff to specific paths"
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.ref]
+type = "string"
+description = "Diff against a specific ref (commit, branch, tag)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[input.properties.staged]
+type = "boolean"
+description = "Show only staged (true) or only unstaged (false) changes. Omit to show both."
+
+[input.properties.stat_only]
+type = "boolean"
+description = "Show only diffstat summary"

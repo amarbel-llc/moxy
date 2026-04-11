@@ -1,0 +1,13 @@
+schema = 1
+perms-request = "always-allow"
+description = "Resolve a path to its absolute canonical form, resolving all symlinks and relative components."
+command = "realpath"
+arg_order = ["path"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path to canonicalize (e.g. '../foo/bar', './result', '~/.config')"

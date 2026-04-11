@@ -1,0 +1,69 @@
+schema = 1
+perms-request = "always-allow"
+description = "Switch branches or restore individual files from a ref. Use paths to restore specific files; omit paths to switch branches."
+command = "bash"
+arg_order = ["ref", "create", "paths", "ours", "theirs", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+ref="${1:-}"
+create="${2:-}"
+paths_json="${3:-}"
+ours="${4:-}"
+theirs="${5:-}"
+repo="${6:-.}"
+cd "$repo"
+
+git_args=(checkout)
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  # File restore mode
+
+  [ "$ours" = "true" ] && git_args+=(--ours)
+
+  [ "$theirs" = "true" ] && git_args+=(--theirs)
+
+  [ -n "$ref" ] && git_args+=("$ref")
+  git_args+=(--)
+  while IFS= read -r p; do
+    git_args+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+else
+  # Branch switch mode
+
+  [ "$create" = "true" ] && git_args+=(-b)
+
+  [ -n "$ref" ] && git_args+=("$ref")
+fi
+
+git "${git_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.create]
+type = "boolean"
+description = "Create a new branch and check it out (-b)"
+
+[input.properties.ours]
+type = "boolean"
+description = "During merge conflict, check out our version of the file(s) (--ours)"
+
+[input.properties.paths]
+type = "array"
+description = "File paths to restore from ref (e.g. [\"src/main.go\", \"README.md\"]). When provided, restores these files instead of switching branches."
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.ref]
+type = "string"
+description = "Branch name or ref to check out or restore files from (defaults to HEAD when used with paths)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[input.properties.theirs]
+type = "boolean"
+description = "During merge conflict, check out their version of the file(s) (--theirs)"

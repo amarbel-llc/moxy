@@ -1,0 +1,34 @@
+schema = 1
+perms-request = "always-allow"
+description = "Create a new branch"
+command = "bash"
+arg_order = ["name", "start_point", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+name="$1"
+start="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+if [ -n "$start" ]; then
+  git branch "$name" "$start"
+else
+  git branch "$name"
+fi
+echo "Created branch $name"
+""", "_"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Name for the new branch"
+
+[input.properties.start_point]
+type = "string"
+description = "Starting point for the new branch (commit, branch, tag)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

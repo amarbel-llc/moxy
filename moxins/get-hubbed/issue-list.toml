@@ -1,0 +1,77 @@
+schema = 1
+perms-request = "always-allow"
+description = "List issues in the current repository with optional filters"
+command = "bash"
+arg_order = ["state", "labels", "assignee", "milestone", "search", "limit", "output_format"]
+args = ["-c", """
+set -euo pipefail
+state="${1:-open}"
+labels_json="${2:-}"
+assignee="${3:-}"
+milestone="${4:-}"
+search="${5:-}"
+limit="${6:-30}"
+output_format="${7:-json}"
+gh_args=(issue list --state "$state" --limit "$limit" --json number,title,state,labels,assignees,milestone,createdAt,updatedAt)
+
+if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
+  label_csv=$(printf '%s' "$labels_json" | jq -r 'join(",")')
+  gh_args+=(--label "$label_csv")
+fi
+
+[ -n "$assignee" ] && gh_args+=(--assignee "$assignee")
+
+[ -n "$milestone" ] && gh_args+=(--milestone "$milestone")
+
+[ -n "$search" ] && gh_args+=(--search "$search")
+raw=$(gh "${gh_args[@]}")
+
+if [ "$output_format" = "text" ]; then
+  printf '%s' "$raw" | jq -r '.[] | "#\\(.number)\\t\\(.title)\\t\\([.labels[].name] | join(","))"' | column -t -s $'\\t'
+else
+  printf '%s' "$raw" | jq '[.[] | {
+    number: .number,
+    title: .title,
+    state: .state,
+    labels: [.labels[].name],
+    assignees: [.assignees[].login],
+    milestone: .milestone.title,
+    created: .createdAt,
+    updated: .updatedAt
+  }]'
+fi
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.state]
+type = "string"
+description = "Filter by state: open (default), closed, or all"
+
+[input.properties.labels]
+type = "array"
+description = "Filter by labels"
+
+[input.properties.labels.items]
+type = "string"
+
+[input.properties.assignee]
+type = "string"
+description = "Filter by assignee login"
+
+[input.properties.milestone]
+type = "string"
+description = "Filter by milestone title"
+
+[input.properties.search]
+type = "string"
+description = "Search query to filter issues"
+
+[input.properties.limit]
+type = "integer"
+description = "Maximum number of issues to return (default 30)"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: json (default, full details) or text (one line per issue with number, title, labels)"

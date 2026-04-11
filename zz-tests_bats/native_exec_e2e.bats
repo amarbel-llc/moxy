@@ -10,21 +10,22 @@ setup() {
 
   # Set up a native shell exec tool via MOXIN_PATH.
   local moxin_dir="$HOME/project/.moxy/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/shell.toml" <<'EOF'
+  mkdir -p "$moxin_dir/shell"
+  cat >"$moxin_dir/shell/_moxin.toml" <<'EOF'
+schema = 1
 name = "shell"
-
-[[tools]]
-name = "exec"
+EOF
+  cat >"$moxin_dir/shell/exec.toml" <<'EOF'
+schema = 1
 description = "Execute a shell command"
 command = "sh"
 args = ["-c"]
 
-[tools.input.properties.command]
+[input.properties.command]
 type = "string"
 description = "Shell command to execute"
 
-[tools.input]
+[input]
 required = ["command"]
 EOF
 
@@ -135,12 +136,13 @@ function native_exec_resource_missing_cached_id_errors { # @test
 function native_exec_no_arguments_uses_spec_args_only { # @test
   # A tool with no input schema and no arguments should still work
   # (backwards compatible with existing native_server.bats tests).
-  mkdir -p "$HOME/project/.moxy/moxins"
-  cat >"$HOME/project/.moxy/moxins/greeter.toml" <<'EOF'
+  mkdir -p "$HOME/project/.moxy/moxins/greeter"
+  cat >"$HOME/project/.moxy/moxins/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
-
-[[tools]]
-name = "hello"
+EOF
+  cat >"$HOME/project/.moxy/moxins/greeter/hello.toml" <<'EOF'
+schema = 1
 description = "Say hello"
 command = "echo"
 args = ["-n", "hello world"]

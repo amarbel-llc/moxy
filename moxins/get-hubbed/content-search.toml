@@ -1,0 +1,63 @@
+schema = 1
+perms-request = "always-allow"
+description = "Search for code within a repository"
+command = "bash"
+arg_order = ["repo", "query", "path", "extension", "per_page", "page"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+query="$2"
+path="${3:-}"
+extension="${4:-}"
+per_page="${5:-30}"
+page="${6:-1}"
+q="$query repo:$repo"
+
+[ -n "$path" ] && q="$q path:$path"
+
+[ -n "$extension" ] && q="$q extension:$extension"
+gh api search/code \
+  -H "Accept: application/vnd.github.text-match+json" \
+  -f q="$q" \
+  -f per_page="$per_page" \
+  -f page="$page" \
+  | jq '{
+    total_count: .total_count,
+    items: [.items[] | {
+      name: .name,
+      path: .path,
+      sha: .sha[0:7],
+      url: .html_url,
+      score: .score,
+      text_matches: [.text_matches[]? | {fragment: .fragment, matches: [.matches[]? | {text: .text, indices: .indices}]}]
+    }]
+  }'
+""", "_"]
+
+[input]
+type = "object"
+required = ["repo", "query"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[input.properties.query]
+type = "string"
+description = "Search query (code to search for)"
+
+[input.properties.path]
+type = "string"
+description = "Restrict search to a file path or directory prefix"
+
+[input.properties.extension]
+type = "string"
+description = "Restrict search to a file extension (e.g. 'go', 'py')"
+
+[input.properties.per_page]
+type = "integer"
+description = "Number of results per page (max 100, default 30)"
+
+[input.properties.page]
+type = "integer"
+description = "Page number for pagination (default 1)"

@@ -88,10 +88,10 @@ func DefaultMoxinPath(home, cwd, systemDir string) string {
 	return strings.Join(dirs, ":")
 }
 
-// DiscoverConfigs loads *.toml moxin configs from MOXIN_PATH directories.
-// Dirs are processed from last to first; earlier path entries override later
-// ones by server name. systemDir is appended as the lowest-priority entry
-// (pass "" to omit).
+// DiscoverConfigs loads moxin configs from MOXIN_PATH directories.
+// Each moxin is a subdirectory containing _moxin.toml. Dirs are processed
+// from last to first; earlier path entries override later ones by server name.
+// systemDir is appended as the lowest-priority entry (pass "" to omit).
 //
 // When moxinPath is empty, the default hierarchy is computed from the current
 // working directory (same directories as `moxy moxin-path`), so discovery
@@ -125,18 +125,17 @@ func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error
 		}
 
 		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
+			if !e.IsDir() {
 				continue
 			}
-			path := filepath.Join(moxyDir, e.Name())
-			data, err := os.ReadFile(path)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "moxy: skipping moxin config %s: %v\n", path, err)
+			dirPath := filepath.Join(moxyDir, e.Name())
+			metaPath := filepath.Join(dirPath, "_moxin.toml")
+			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
 				continue
 			}
-			cfg, err := ParseConfig(data)
+			cfg, err := ParseMoxinDir(dirPath)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "moxy: skipping moxin config %s: %v\n", path, err)
+				fmt.Fprintf(os.Stderr, "moxy: skipping moxin %s: %v\n", dirPath, err)
 				continue
 			}
 			if _, exists := byName[cfg.Name]; !exists {

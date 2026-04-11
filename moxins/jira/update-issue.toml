@@ -1,0 +1,36 @@
+schema = 1
+description = "Update fields on an existing Jira issue"
+command = "__LIBEXEC__/jira-update-issue"
+arg_order = ["issue_key", "summary", "description", "assignee", "labels", "issuetype", "output_format"]
+
+[input]
+type = "object"
+required = ["issue_key"]
+
+[input.properties.issue_key]
+type = "string"
+description = "Issue key (e.g. XORCH-703)"
+
+[input.properties.summary]
+type = "string"
+description = "New summary"
+
+[input.properties.description]
+type = "string"
+description = "New description"
+
+[input.properties.assignee]
+type = "string"
+description = "Assignee email or account ID"
+
+[input.properties.labels]
+type = "string"
+description = "Comma-separated labels to set"
+
+[input.properties.issuetype]
+type = "string"
+description = "New issue type"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"

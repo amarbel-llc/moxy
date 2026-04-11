@@ -113,20 +113,33 @@ The `internal/paginate` package provides cursor-based pagination for resource
 lists. Servers with `paginate = true` in their config get paginated resource
 responses using `?offset=N&limit=M` query parameters on resource URIs.
 
-### Native Servers (Config-as-Server)
+### Moxins (Config-as-Server)
 
-TOML configs in `.moxy/servers/` declare tools backed by scripts in `.moxy/bin/`
-or inline shell commands. Moxy's `internal/native` package handles MCP protocol,
-namespacing, result caching, and resource-as-fd composition. Native servers
-require no Go code — tool schemas are declared in TOML, dispatch is by process
-invocation.
+Moxins are declarative MCP tool configs discovered via `MOXIN_PATH`. Each moxin
+is a directory containing a `_moxin.toml` manifest and one `.toml` file per
+tool. Moxy's `internal/native` package handles MCP protocol, namespacing, result
+caching, and resource-as-fd composition. Moxins require no Go code --- tool
+schemas are declared in TOML, dispatch is by process invocation.
 
-Current native servers: `freud` (session transcripts), `jq`, `rg`, `man`,
-`folio` (read tools), `godoc`, `get-hubbed`, `get-hubbed-external`, `grit`, `chix`.
+Directory layout:
 
-**Builtin native server dependency rule:** All builtin native servers
+```
+moxins/<name>/
+  _moxin.toml          # schema, name, description
+  <tool-name>.toml     # schema, command, args, input schema
+```
+
+The `_moxin.toml` manifest declares server identity (`schema`, `name`,
+`description`). Each tool file uses a flat structure (`[input]` not
+`[tools.input]`). Tools may declare `perms-request` to control permission
+behavior: `always-allow`, `each-use`, or `delegate-to-client` (default).
+
+Current moxins: `freud` (session transcripts), `jq`, `rg`, `man`, `folio`
+(read tools), `gordo`, `gh`, `gh-other`, `grit`, `chix`.
+
+**Builtin moxin dependency rule:** All builtin moxins
 (`builtin-servers/*.toml`) must have their external dependencies provided via
-nix wrapping. Never rely on tools being on the ambient PATH — they won't be
+nix wrapping. Never rely on tools being on the ambient PATH --- they won't be
 outside the moxy devshell. The pattern: put scripts in `libexec/`, wrap them in
 `flake.nix` postInstall with `wrapProgram --prefix PATH`, and reference via
 `__LIBEXEC__` placeholder in the TOML config. Inline `sh -c` commands are only

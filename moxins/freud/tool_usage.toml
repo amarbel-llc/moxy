@@ -1,0 +1,23 @@
+schema = 1
+perms-request = "always-allow"
+description = """Extract tool calls from a session, already structured. Returns one line per tool \
+call with sequence number, tool name, and truncated input JSON. Much faster than parsing raw \
+JSONL transcripts with jq."""
+command = "__LIBEXEC__/freud-tool-usage"
+arg_order = ["session_id", "tool_name", "limit"]
+
+[input]
+type = "object"
+required = ["session_id"]
+
+[input.properties.session_id]
+type = "string"
+description = "Session UUID to retrieve (36-char UUID from the sessions listing)"
+
+[input.properties.tool_name]
+type = "string"
+description = "Filter by tool name substring (case-insensitive). Omit for all tools."
+
+[input.properties.limit]
+type = "integer"
+description = "Maximum number of tool calls to return. Defaults to 0 (unlimited)."

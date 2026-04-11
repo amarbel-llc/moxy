@@ -1,0 +1,20 @@
+schema = 1
+description = "Transition an issue to a new status"
+command = "__LIBEXEC__/jira-transition-issue"
+arg_order = ["issue_key", "status", "output_format"]
+
+[input]
+type = "object"
+required = ["issue_key", "status"]
+
+[input.properties.issue_key]
+type = "string"
+description = "Issue key (e.g. XORCH-703)"
+
+[input.properties.status]
+type = "string"
+description = "Target status name (e.g. 'In Progress', 'Done', 'To Do')"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"

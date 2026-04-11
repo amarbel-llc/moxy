@@ -1,0 +1,21 @@
+schema = 1
+perms-request = "always-allow"
+description = "Get a Jira issue by key"
+command = "__LIBEXEC__/jira-get-issue"
+arg_order = ["issue_key", "fields", "output_format"]
+
+[input]
+type = "object"
+required = ["issue_key"]
+
+[input.properties.issue_key]
+type = "string"
+description = "Issue key (e.g. XORCH-703)"
+
+[input.properties.fields]
+type = "string"
+description = "Comma-separated field names to return (e.g. 'summary,status,assignee')"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"

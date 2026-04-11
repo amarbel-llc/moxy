@@ -1,0 +1,53 @@
+schema = 1
+perms-request = "always-allow"
+description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
+partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
+command = "bash"
+arg_order = ["file_path", "content"]
+args = ["-c", """
+set -euo pipefail
+assert_within_cwd() {
+  local resolved cwd
+  resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
+  case "$resolved" in
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
+  esac
+}
+file="$1"
+content="$2"
+assert_within_cwd "$file"
+
+# Create parent directories
+mkdir -p "$(dirname "$file")"
+
+# Atomic write via tempfile + rename
+tmp=$(mktemp "$(dirname "$file")/.folio-write-XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+printf '%s' "$content" > "$tmp"
+
+# Preserve permissions of existing file
+if [ -f "$file" ]; then
+  chmod --reference="$file" "$tmp" 2>/dev/null || true
+else
+  chmod 644 "$tmp"
+fi
+
+mv "$tmp" "$file"
+trap - EXIT
+echo "Wrote $(printf '%s' "$content" | wc -c) bytes to $file"
+""", "_"]
+
+[input]
+type = "object"
+required = ["file_path", "content"]
+
+[input.properties.file_path]
+type = "string"
+description = "Path to the file to write (must be within CWD)"
+
+[input.properties.content]
+type = "string"
+description = "The content to write to the file"

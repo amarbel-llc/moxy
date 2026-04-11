@@ -1,0 +1,32 @@
+schema = 1
+description = "Remove a git worktree by path"
+command = "bash"
+arg_order = ["path", "force", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+wt_path="$1"
+force="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+git_args=(worktree remove)
+
+[ "$force" = "true" ] && git_args+=(--force)
+git_args+=("$wt_path")
+git "${git_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path of the worktree to remove"
+
+[input.properties.force]
+type = "boolean"
+description = "Force removal even if worktree has uncommitted changes (--force)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

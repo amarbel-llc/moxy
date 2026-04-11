@@ -105,11 +105,12 @@
             mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
             cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
             cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
-            cp ${./cmd/moxy/moxy-native.7} $out/share/man/man7/moxy-native.7
+            cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
 
-            # Install moxin configs
+            # Install moxin directories
             mkdir -p $out/share/moxy/moxins
-            cp ${./moxins}/*.toml $out/share/moxy/moxins/
+            cp -r ${./moxins}/*/ $out/share/moxy/moxins/
+            chmod -R u+w $out/share/moxy/moxins
 
             # Install freud scripts and wrap with python3 on PATH
             mkdir -p $out/libexec/moxy
@@ -134,7 +135,8 @@
             done
 
             # Rewrite __LIBEXEC__ placeholder to absolute nix store path
-            sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" $out/share/moxy/moxins/*.toml
+            find $out/share/moxy/moxins -name '*.toml' -exec \
+              sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" {} +
           '';
         };
 

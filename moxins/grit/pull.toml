@@ -1,0 +1,40 @@
+schema = 1
+perms-request = "always-allow"
+description = "Pull changes from a remote repository"
+command = "bash"
+arg_order = ["remote", "branch", "rebase", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+remote="${1:-}"
+branch="${2:-}"
+rebase="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+git_args=(pull)
+
+[ "$rebase" = "true" ] && git_args+=(--rebase)
+
+[ -n "$remote" ] && git_args+=("$remote")
+
+[ -n "$branch" ] && git_args+=("$branch")
+git "${git_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.branch]
+type = "string"
+description = "Remote branch to pull"
+
+[input.properties.rebase]
+type = "boolean"
+description = "Rebase instead of merge"
+
+[input.properties.remote]
+type = "string"
+description = "Remote name (default origin)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

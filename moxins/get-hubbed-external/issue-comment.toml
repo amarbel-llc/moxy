@@ -1,0 +1,27 @@
+schema = 1
+description = "Post a comment on an issue or pull request"
+command = "bash"
+arg_order = ["repo", "number", "body"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+number="$2"
+body="$3"
+gh issue comment "$number" -R "$repo" --body "$body"
+""", "_"]
+
+[input]
+type = "object"
+required = ["repo", "number", "body"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[input.properties.number]
+type = "integer"
+description = "Issue or pull request number"
+
+[input.properties.body]
+type = "string"
+description = "Comment body (markdown supported)"

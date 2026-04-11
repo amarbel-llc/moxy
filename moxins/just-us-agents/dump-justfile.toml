@@ -1,0 +1,8 @@
+schema = 1
+perms-request = "always-allow"
+description = "Output the entire justfile contents."
+command = "just"
+args = ["--dump"]
+
+[input]
+type = "object"

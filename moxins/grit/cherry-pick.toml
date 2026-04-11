@@ -1,0 +1,37 @@
+schema = 1
+perms-request = "always-allow"
+description = "Apply commits from other branches onto the current branch"
+command = "bash"
+arg_order = ["commits", "no_commit", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+commits_json="$1"
+no_commit="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+mapfile -t commits < <(printf '%s' "$commits_json" | jq -r '.[]')
+git_args=(cherry-pick)
+
+[ "$no_commit" = "true" ] && git_args+=(--no-commit)
+git_args+=("${commits[@]}")
+git "${git_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["commits"]
+
+[input.properties.commits]
+type = "array"
+description = "Commit hashes to cherry-pick (applied in order)"
+
+[input.properties.commits.items]
+type = "string"
+
+[input.properties.no_commit]
+type = "boolean"
+description = "Apply changes without creating commits (--no-commit)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

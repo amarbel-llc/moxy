@@ -12,12 +12,13 @@ teardown() {
 
 function native_server_tool_appears_in_tools_list { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/greeter.toml" <<'EOF'
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
-
-[[tools]]
-name = "hello"
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
 description = "Say hello"
 command = "echo"
 args = ["-n", "hello world"]
@@ -33,12 +34,13 @@ EOF
 
 function native_server_tool_can_be_called { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/greeter.toml" <<'EOF'
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
-
-[[tools]]
-name = "hello"
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
 description = "Say hello"
 command = "echo"
 args = ["-n", "hello world"]
@@ -55,12 +57,13 @@ EOF
 
 function native_server_skipped_on_moxyfile_name_collision { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/myserver.toml" <<'EOF'
+  mkdir -p "$moxin_dir/myserver"
+  cat >"$moxin_dir/myserver/_moxin.toml" <<'EOF'
+schema = 1
 name = "myserver"
-
-[[tools]]
-name = "native-tool"
+EOF
+  cat >"$moxin_dir/myserver/native-tool.toml" <<'EOF'
+schema = 1
 description = "From native config"
 command = "echo"
 args = ["-n", "native"]
@@ -89,18 +92,19 @@ EOF
 
 function native_server_multiple_tools { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/multi.toml" <<'EOF'
+  mkdir -p "$moxin_dir/multi"
+  cat >"$moxin_dir/multi/_moxin.toml" <<'EOF'
+schema = 1
 name = "multi"
-
-[[tools]]
-name = "first"
+EOF
+  cat >"$moxin_dir/multi/first.toml" <<'EOF'
+schema = 1
 description = "First tool"
 command = "echo"
 args = ["-n", "one"]
-
-[[tools]]
-name = "second"
+EOF
+  cat >"$moxin_dir/multi/second.toml" <<'EOF'
+schema = 1
 description = "Second tool"
 command = "echo"
 args = ["-n", "two"]

@@ -1,0 +1,31 @@
+schema = 1
+perms-request = "always-allow"
+description = """Extract conversation messages from a session with the JSONL schema already flattened. \
+Returns one line per message with role, text content, tool calls (as one-line summaries), \
+and tool results (as text previews). Filters by role, keyword search, and pagination."""
+command = "__LIBEXEC__/freud-messages"
+arg_order = ["session_id", "role", "search", "offset", "limit"]
+
+[input]
+type = "object"
+required = ["session_id"]
+
+[input.properties.session_id]
+type = "string"
+description = "Session UUID to retrieve (36-char UUID from the sessions listing)"
+
+[input.properties.role]
+type = "string"
+description = "Filter by role: 'user' or 'assistant'. Omit for both."
+
+[input.properties.search]
+type = "string"
+description = "Case-insensitive keyword filter on message text and tool names"
+
+[input.properties.offset]
+type = "integer"
+description = "Skip first N messages (0-indexed). Defaults to 0."
+
+[input.properties.limit]
+type = "integer"
+description = "Maximum number of messages to return. Defaults to 0 (unlimited)."

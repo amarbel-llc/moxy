@@ -1,0 +1,53 @@
+schema = 1
+perms-request = "always-allow"
+description = """Fast file pattern matching tool that works with any codebase size. \
+Supports glob patterns like "**/*.js" or "src/**/*.ts". \
+Returns matching file paths sorted by modification time (newest first)."""
+command = "bash"
+arg_order = ["pattern", "path"]
+args = ["-c", """
+set -euo pipefail
+assert_within_cwd() {
+  local resolved cwd
+  resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
+  case "$resolved" in
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
+  esac
+}
+pattern="$1"
+dir="${2:-.}"
+assert_within_cwd "$dir"
+
+cd "$dir"
+shopt -s globstar nullglob dotglob
+
+files=()
+for f in $pattern; do
+
+  [ -f "$f" ] && files+=("$f")
+done
+
+if [ ${#files[@]} -eq 0 ]; then
+  echo "No files found"
+  exit 0
+fi
+
+# Sort by modification time (newest first)
+for f in "${files[@]}"; do
+  printf '%s\t%s\n' "$(stat -c '%Y' "$f")" "$f"
+done | sort -rn | cut -f2-
+""", "_"]
+
+[input]
+type = "object"
+required = ["pattern"]
+
+[input.properties.pattern]
+type = "string"
+description = "The glob pattern to match files against (e.g. \"**/*.go\", \"src/**/*.ts\")"
+
+[input.properties.path]
+type = "string"
+description = "The directory to search in. Defaults to current working directory. Must be within CWD."

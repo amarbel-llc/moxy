@@ -1,0 +1,24 @@
+schema = 1
+perms-request = "always-allow"
+description = "List Jira agile boards"
+command = "__LIBEXEC__/jira-get-agile-boards"
+arg_order = ["project", "name", "max_results", "output_format"]
+
+[input]
+type = "object"
+
+[input.properties.project]
+type = "string"
+description = "Filter by project key"
+
+[input.properties.name]
+type = "string"
+description = "Filter by board name"
+
+[input.properties.max_results]
+type = "integer"
+description = "Maximum results (default 50)"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"

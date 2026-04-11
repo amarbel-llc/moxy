@@ -1,0 +1,23 @@
+schema = 1
+description = "Delete a stash entry"
+command = "bash"
+arg_order = ["stash_ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+stash_ref="$1"
+repo="${2:-.}"
+cd "$repo"
+git stash drop "$stash_ref"
+""", "_"]
+
+[input]
+type = "object"
+required = ["stash_ref"]
+
+[input.properties.stash_ref]
+type = "string"
+description = "Stash reference to drop (e.g. stash@{0})"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

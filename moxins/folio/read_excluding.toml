@@ -1,0 +1,38 @@
+schema = 1
+perms-request = "always-allow"
+description = """Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. \
+Output format: `     N\\tcontent` per line. Accepts moxy.native:// result URIs as file paths, replacing `sed` \
+deletion piping on command output."""
+command = "bash"
+arg_order = ["file_path", "delete_start", "delete_end"]
+args = ["-c", """
+set -euo pipefail
+assert_within_cwd() {
+  local resolved cwd
+  resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
+  case "$resolved" in
+    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
+  esac
+}
+file="$1"; ds="$2"; de="$3"
+assert_within_cwd "$file"
+awk -v ds="$ds" -v de="$de" '!(NR>=ds && NR<=de){printf "%6d\\t%s\\n", NR, $0}' "$file"
+""", "_"]
+
+[input]
+type = "object"
+required = ["file_path", "delete_start", "delete_end"]
+
+[input.properties.file_path]
+type = "string"
+description = "Path to the file to read (must be within CWD)"
+
+[input.properties.delete_start]
+type = "integer"
+description = "Inclusive first line to omit (1-indexed)"
+
+[input.properties.delete_end]
+type = "integer"
+description = "Inclusive last line to omit (1-indexed)"

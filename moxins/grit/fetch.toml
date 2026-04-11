@@ -1,0 +1,40 @@
+schema = 1
+perms-request = "always-allow"
+description = "Fetch from a remote repository"
+command = "bash"
+arg_order = ["remote", "prune", "all", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+remote="${1:-}"
+prune="${2:-}"
+all="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+git_args=(fetch)
+
+[ "$prune" = "true" ] && git_args+=(--prune)
+
+[ "$all" = "true" ] && git_args+=(--all)
+
+[ -z "$all" ] && [ -n "$remote" ] && git_args+=("$remote")
+git "${git_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.all]
+type = "boolean"
+description = "Fetch from all remotes"
+
+[input.properties.prune]
+type = "boolean"
+description = "Prune remote-tracking branches no longer on remote"
+
+[input.properties.remote]
+type = "string"
+description = "Remote name (default origin)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

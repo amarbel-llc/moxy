@@ -146,36 +146,33 @@ func Run(w io.Writer, home, dir string) int {
 		}
 
 		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
+			if !e.IsDir() {
 				continue
 			}
-			path := filepath.Join(moxinDir, e.Name())
-			data, readErr := os.ReadFile(path)
-			if readErr != nil {
-				tw.notOk(path, map[string]string{
-					"message": readErr.Error(),
-				})
+			dirPath := filepath.Join(moxinDir, e.Name())
+			metaPath := filepath.Join(dirPath, "_moxin.toml")
+			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
 				continue
 			}
 
-			result, parseErr := native.ParseConfigFull(data)
+			moxinResult, parseErr := native.ParseMoxinDirFull(dirPath)
 			if parseErr != nil {
-				tw.notOk(path+" valid", map[string]string{
+				tw.notOk(dirPath+" valid", map[string]string{
 					"message": parseErr.Error(),
 				})
 				continue
 			}
 
-			tw.ok(path + " valid")
+			tw.ok(dirPath + " valid")
 
-			if len(result.Undecoded) > 0 {
-				tw.notOk(path+" undecoded keys", map[string]string{
-					"message": strings.Join(result.Undecoded, ", "),
+			if len(moxinResult.Undecoded) > 0 {
+				tw.notOk(dirPath+" undecoded keys", map[string]string{
+					"message": strings.Join(moxinResult.Undecoded, ", "),
 					"hint":    "unknown keys in moxin config",
 				})
 			}
 
-			moxinNames[result.Config.Name] = true
+			moxinNames[moxinResult.Config.Name] = true
 			moxinCount++
 		}
 	}

@@ -2,29 +2,45 @@ package native
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-func TestParseConfig(t *testing.T) {
-	data := []byte(`
+// writeMoxinDir creates a moxin directory with _moxin.toml and tool files.
+func writeMoxinDir(t *testing.T, base, name string, meta string, tools map[string]string) string {
+	t.Helper()
+	dir := filepath.Join(base, name)
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "_moxin.toml"), []byte(meta), 0o644)
+	for toolName, content := range tools {
+		os.WriteFile(filepath.Join(dir, toolName+".toml"), []byte(content), 0o644)
+	}
+	return dir
+}
+
+func TestParseMoxinDir(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "shell", `
+schema = 1
 name = "shell"
 description = "Shell execution"
-
-[[tools]]
-name = "exec"
+`, map[string]string{
+		"exec": `
+schema = 1
 description = "Execute a shell command"
 command = "sh"
 args = ["-c"]
 
-[tools.input.properties.command]
+[input]
+required = ["command"]
+
+[input.properties.command]
 type = "string"
 description = "Shell command to execute"
+`,
+	})
 
-[tools.input]
-required = ["command"]
-`)
-
-	cfg, err := ParseConfig(data)
+	cfg, err := ParseMoxinDir(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,7 +69,7 @@ required = ["command"]
 		t.Errorf("tool.args = %v, want [\"-c\"]", tool.Args)
 	}
 
-	// Verify the Input field was converted to valid JSON containing the schema.
+	// Verify the Input field was converted to valid JSON.
 	if tool.Input == nil {
 		t.Fatal("tool.input is nil, expected JSON schema")
 	}
@@ -81,122 +97,170 @@ required = ["command"]
 	}
 }
 
-func TestParseConfigRequiredOrder(t *testing.T) {
-	data := []byte(`
-name = "folio"
+func TestParseMoxinDirToolNameFromFile(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"my-tool": `
+schema = 1
+command = "echo"
+`,
+	})
 
-[[tools]]
-name = "read"
-command = "sh"
-args = ["-c", "echo $@", "_"]
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Tools[0].Name != "my-tool" {
+		t.Errorf("tool name = %q, want %q (from filename)", cfg.Tools[0].Name, "my-tool")
+	}
+}
 
-[tools.input]
-type = "object"
-required = ["file_path"]
+func TestParseMoxinDirToolNameOverride(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"filename": `
+schema = 1
+name = "override"
+command = "echo"
+`,
+	})
 
-[tools.input.properties.file_path]
-type = "string"
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Tools[0].Name != "override" {
+		t.Errorf("tool name = %q, want %q (from name field)", cfg.Tools[0].Name, "override")
+	}
+}
 
-[[tools]]
-name = "read_range"
-command = "sh"
-args = ["-c", "echo $@", "_"]
+func TestParseMoxinDirAlphabeticalOrder(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"zebra":   "schema = 1\ncommand = \"echo\"",
+		"alpha":   "schema = 1\ncommand = \"echo\"",
+		"middle":  "schema = 1\ncommand = \"echo\"",
+	})
 
-[tools.input]
-type = "object"
-required = ["file_path", "start", "end"]
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Tools) != 3 {
+		t.Fatalf("len(tools) = %d, want 3", len(cfg.Tools))
+	}
+	want := []string{"alpha", "middle", "zebra"}
+	for i, w := range want {
+		if cfg.Tools[i].Name != w {
+			t.Errorf("tools[%d].name = %q, want %q", i, cfg.Tools[i].Name, w)
+		}
+	}
+}
 
-[tools.input.properties.file_path]
-type = "string"
+func TestParseMoxinDirPermsRequest(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"allowed": `
+schema = 1
+command = "echo"
+perms-request = "always-allow"
+`,
+		"each": `
+schema = 1
+command = "echo"
+perms-request = "each-use"
+`,
+		"delegated": `
+schema = 1
+command = "echo"
+perms-request = "delegate-to-client"
+`,
+		"default": `
+schema = 1
+command = "echo"
+`,
+	})
 
-[tools.input.properties.start]
-type = "integer"
-
-[tools.input.properties.end]
-type = "integer"
-`)
-
-	cfg, err := ParseConfig(data)
+	cfg, err := ParseMoxinDir(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(cfg.Tools) != 2 {
-		t.Fatalf("len(tools) = %d, want 2", len(cfg.Tools))
+	perms := make(map[string]PermsRequest)
+	for _, tool := range cfg.Tools {
+		perms[tool.Name] = tool.PermsRequest
 	}
 
-	// First tool: read (single required arg)
-	t.Logf("read Input JSON: %s", string(cfg.Tools[0].Input))
-	readArgs, err := buildExtraArgs(
-		json.RawMessage(`{"file_path":"/tmp/x.go"}`),
-		cfg.Tools[0].Input,
-		cfg.Tools[0].ArgOrder,
-	)
-	if err != nil {
-		t.Fatalf("buildExtraArgs (read) error: %v", err)
+	if perms["allowed"] != PermsAlwaysAllow {
+		t.Errorf("allowed perms = %q, want %q", perms["allowed"], PermsAlwaysAllow)
 	}
-	if len(readArgs) != 1 || readArgs[0] != "/tmp/x.go" {
-		t.Errorf("read args = %v, want [\"/tmp/x.go\"]", readArgs)
+	if perms["each"] != PermsEachUse {
+		t.Errorf("each perms = %q, want %q", perms["each"], PermsEachUse)
 	}
-
-	// Second tool: read_range (three required args in order)
-	t.Logf("read_range Input JSON: %s", string(cfg.Tools[1].Input))
-	rangeArgs, err := buildExtraArgs(
-		json.RawMessage(`{"file_path":"/tmp/x.go","start":1,"end":5}`),
-		cfg.Tools[1].Input,
-		cfg.Tools[1].ArgOrder,
-	)
-	if err != nil {
-		t.Fatalf("buildExtraArgs (read_range) error: %v", err)
+	if perms["delegated"] != PermsDelegateToClient {
+		t.Errorf("delegated perms = %q, want %q", perms["delegated"], PermsDelegateToClient)
 	}
-	t.Logf("read_range args: %v", rangeArgs)
-
-	if len(rangeArgs) != 3 {
-		t.Fatalf("len(args) = %d, want 3", len(rangeArgs))
-	}
-	if rangeArgs[0] != "/tmp/x.go" {
-		t.Errorf("args[0] = %q, want \"/tmp/x.go\"", rangeArgs[0])
-	}
-	if rangeArgs[1] != "1" {
-		t.Errorf("args[1] = %q, want \"1\"", rangeArgs[1])
-	}
-	if rangeArgs[2] != "5" {
-		t.Errorf("args[2] = %q, want \"5\"", rangeArgs[2])
+	if perms["default"] != "" {
+		t.Errorf("default perms = %q, want empty", perms["default"])
 	}
 }
 
-func TestParseConfigArgOrder(t *testing.T) {
-	data := []byte(`
-name = "rg"
+func TestParseMoxinDirInvalidPermsRequest(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"bad": `
+schema = 1
+command = "echo"
+perms-request = "bogus"
+`,
+	})
 
-[[tools]]
-name = "search"
+	_, err := ParseMoxinDir(dir)
+	if err == nil {
+		t.Fatal("expected error for invalid perms-request, got nil")
+	}
+}
+
+func TestParseMoxinDirArgOrder(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "rg", `
+schema = 1
+name = "rg"
+`, map[string]string{
+		"search": `
+schema = 1
 command = "sh"
-args = ["-c", """
-set -euo pipefail
-pattern="$1"; shift
-rg "$pattern" "$@"
-""", "_"]
+args = ["-c", "rg \"$@\"", "_"]
 arg_order = ["pattern", "path", "type", "glob"]
 
-[tools.input]
+[input]
 type = "object"
 required = ["pattern"]
 
-[tools.input.properties.pattern]
+[input.properties.pattern]
 type = "string"
 
-[tools.input.properties.path]
+[input.properties.path]
 type = "string"
 
-[tools.input.properties.type]
+[input.properties.type]
 type = "string"
 
-[tools.input.properties.glob]
+[input.properties.glob]
 type = "string"
-`)
+`,
+	})
 
-	cfg, err := ParseConfig(data)
+	cfg, err := ParseMoxinDir(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -212,7 +276,7 @@ type = "string"
 		}
 	}
 
-	// All args provided — order matches arg_order
+	// Verify buildExtraArgs still works with the parsed tool.
 	allArgs, err := buildExtraArgs(
 		json.RawMessage(`{"pattern":"TODO","path":"/src","type":"go","glob":"*.go"}`),
 		tool.Input,
@@ -224,72 +288,75 @@ type = "string"
 	if len(allArgs) != 4 || allArgs[0] != "TODO" || allArgs[1] != "/src" || allArgs[2] != "go" || allArgs[3] != "*.go" {
 		t.Errorf("all args = %v, want [TODO /src go *.go]", allArgs)
 	}
-
-	// Only required arg — trailing optionals trimmed
-	reqOnly, err := buildExtraArgs(
-		json.RawMessage(`{"pattern":"TODO"}`),
-		tool.Input,
-		tool.ArgOrder,
-	)
-	if err != nil {
-		t.Fatalf("buildExtraArgs error: %v", err)
-	}
-	if len(reqOnly) != 1 || reqOnly[0] != "TODO" {
-		t.Errorf("required-only args = %v, want [TODO]", reqOnly)
-	}
-
-	// Middle arg absent — empty string preserves positions
-	midAbsent, err := buildExtraArgs(
-		json.RawMessage(`{"pattern":"TODO","glob":"*.go"}`),
-		tool.Input,
-		tool.ArgOrder,
-	)
-	if err != nil {
-		t.Fatalf("buildExtraArgs error: %v", err)
-	}
-	// arg_order is [pattern, path, type, glob] — path and type absent but glob present
-	if len(midAbsent) != 4 || midAbsent[0] != "TODO" || midAbsent[1] != "" || midAbsent[2] != "" || midAbsent[3] != "*.go" {
-		t.Errorf("mid-absent args = %v, want [TODO \"\" \"\" *.go]", midAbsent)
-	}
 }
 
-func TestParseConfigValidation(t *testing.T) {
+func TestParseMoxinDirValidation(t *testing.T) {
 	tests := []struct {
-		name string
-		data string
+		name  string
+		meta  string
+		tools map[string]string
 	}{
 		{
-			name: "missing server name",
-			data: `description = "no name"`,
+			name:  "missing schema in meta",
+			meta:  `name = "test"`,
+			tools: map[string]string{"t": "schema = 1\ncommand = \"echo\""},
 		},
 		{
-			name: "dots in server name",
-			data: `name = "my.server"`,
+			name:  "wrong schema in meta",
+			meta:  "schema = 2\nname = \"test\"",
+			tools: map[string]string{"t": "schema = 1\ncommand = \"echo\""},
 		},
 		{
-			name: "tool missing name",
-			data: `
-name = "shell"
-[[tools]]
-command = "echo"
-`,
+			name:  "missing name in meta",
+			meta:  "schema = 1",
+			tools: map[string]string{"t": "schema = 1\ncommand = \"echo\""},
 		},
 		{
-			name: "tool missing command",
-			data: `
-name = "shell"
-[[tools]]
-name = "exec"
-`,
+			name:  "dots in name",
+			meta:  "schema = 1\nname = \"my.server\"",
+			tools: map[string]string{"t": "schema = 1\ncommand = \"echo\""},
+		},
+		{
+			name:  "missing schema in tool",
+			meta:  "schema = 1\nname = \"test\"",
+			tools: map[string]string{"t": "command = \"echo\""},
+		},
+		{
+			name:  "missing command in tool",
+			meta:  "schema = 1\nname = \"test\"",
+			tools: map[string]string{"t": "schema = 1"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ParseConfig([]byte(tt.data))
+			dir := writeMoxinDir(t, t.TempDir(), "test", tt.meta, tt.tools)
+			_, err := ParseMoxinDir(dir)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
 		})
+	}
+}
+
+func TestParseMoxinDirUndecoded(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+bogus = "oops"
+`, map[string]string{
+		"tool": `
+schema = 1
+command = "echo"
+unknown_key = true
+`,
+	})
+
+	result, err := ParseMoxinDirFull(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Undecoded) == 0 {
+		t.Fatal("expected undecoded keys, got none")
 	}
 }

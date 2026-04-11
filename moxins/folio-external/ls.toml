@@ -1,0 +1,48 @@
+schema = 1
+description = """List directory contents with type and size metadata. Returns JSON array of entries \
+sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only)."""
+command = "bash"
+arg_order = ["path"]
+args = ["-c", """
+set -euo pipefail
+dir="${1:-.}"
+
+if [ ! -d "$dir" ]; then
+  echo "not a directory: $dir" >&2
+  exit 1
+fi
+
+first=true
+echo "["
+for entry in "$dir"/*; do
+  [ -e "$entry" ] || [ -L "$entry" ] || continue
+  name=$(basename "$entry")
+
+  if [ -L "$entry" ]; then
+    type="symlink"
+  elif [ -d "$entry" ]; then
+    type="directory"
+  else
+    type="file"
+  fi
+
+  $first || echo ","
+  first=false
+
+  if [ "$type" = "file" ]; then
+    size=$(stat -c '%s' "$entry")
+    printf '  {"name": %s, "type": "%s", "size": %s}' "$(printf '%s' "$name" | jq -Rs .)" "$type" "$size"
+  else
+    printf '  {"name": %s, "type": "%s"}' "$(printf '%s' "$name" | jq -Rs .)" "$type"
+  fi
+done
+echo ""
+echo "]"
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.path]
+type = "string"
+description = "Directory path to list. Defaults to current working directory."

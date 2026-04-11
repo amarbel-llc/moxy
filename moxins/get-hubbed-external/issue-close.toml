@@ -1,0 +1,38 @@
+schema = 1
+description = "Close an issue with optional comment"
+command = "bash"
+arg_order = ["repo", "number", "comment", "reason"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+number="$2"
+comment="${3:-}"
+reason="${4:-}"
+gh_args=(issue close "$number" -R "$repo")
+
+[ -n "$comment" ] && gh_args+=(--comment "$comment")
+
+[ -n "$reason" ] && gh_args+=(--reason "$reason")
+gh "${gh_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["repo", "number"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.comment]
+type = "string"
+description = "Optional comment to add before closing"
+
+[input.properties.reason]
+type = "string"
+description = "Close reason: completed (default) or not planned"
+enum = ["completed", "not planned", "duplicate"]

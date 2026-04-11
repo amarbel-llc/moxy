@@ -1,0 +1,72 @@
+schema = 1
+perms-request = "always-allow"
+description = "Rebase current branch onto another ref"
+command = "bash"
+arg_order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+upstream="${1:-}"
+branch="${2:-}"
+autostash="${3:-}"
+do_continue="${4:-}"
+do_abort="${5:-}"
+do_skip="${6:-}"
+repo="${7:-.}"
+cd "$repo"
+
+# Safety: block rebase on main/master
+current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+target="${branch:-$current}"
+if [ "$target" = "main" ] || [ "$target" = "master" ]; then
+  echo "ERROR: rebasing main/master is blocked for safety" >&2
+  exit 1
+fi
+
+if [ "$do_continue" = "true" ]; then
+  git rebase --continue
+elif [ "$do_abort" = "true" ]; then
+  git rebase --abort
+elif [ "$do_skip" = "true" ]; then
+  git rebase --skip
+else
+  git_args=(rebase)
+
+  [ "$autostash" = "true" ] && git_args+=(--autostash)
+
+  [ -n "$upstream" ] && git_args+=("$upstream")
+
+  [ -n "$branch" ] && git_args+=("$branch")
+  git "${git_args[@]}"
+fi
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.upstream]
+type = "string"
+description = "Ref to rebase onto (branch, tag, commit)"
+
+[input.properties.branch]
+type = "string"
+description = "Branch to rebase (defaults to current branch)"
+
+[input.properties.autostash]
+type = "boolean"
+description = "Automatically stash/unstash uncommitted changes"
+
+[input.properties."continue"]
+type = "boolean"
+description = "Continue rebase after resolving conflicts"
+
+[input.properties.abort]
+type = "boolean"
+description = "Abort current rebase operation"
+
+[input.properties.skip]
+type = "boolean"
+description = "Skip current commit and continue rebase"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

@@ -13,13 +13,14 @@ teardown() {
 function builtin_native_tool_appears_via_moxin_path { # @test
   # Create a moxins dir with a simple moxin config
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/greeter.toml" <<'EOF'
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
 description = "builtin greeter"
-
-[[tools]]
-name = "hello"
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
 description = "Say hello"
 command = "echo"
 args = ["-n", "hello from builtin"]
@@ -37,27 +38,30 @@ EOF
 function earlier_moxin_path_overrides_later { # @test
   local dir_a="$BATS_TEST_TMPDIR/moxins-a"
   local dir_b="$BATS_TEST_TMPDIR/moxins-b"
-  mkdir -p "$dir_a" "$dir_b"
 
   # dir_b has "hello" tool
-  cat >"$dir_b/greeter.toml" <<'EOF'
+  mkdir -p "$dir_b/greeter"
+  cat >"$dir_b/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
 description = "builtin greeter"
-
-[[tools]]
-name = "hello"
+EOF
+  cat >"$dir_b/greeter/hello.toml" <<'EOF'
+schema = 1
 description = "Say hello (builtin)"
 command = "echo"
 args = ["-n", "hello from builtin"]
 EOF
 
   # dir_a overrides with "greet" tool (same server name)
-  cat >"$dir_a/greeter.toml" <<'EOF'
+  mkdir -p "$dir_a/greeter"
+  cat >"$dir_a/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
 description = "local greeter"
-
-[[tools]]
-name = "greet"
+EOF
+  cat >"$dir_a/greeter/greet.toml" <<'EOF'
+schema = 1
 description = "Greet (local override)"
 command = "echo"
 args = ["-n", "hello from local"]
@@ -78,13 +82,14 @@ EOF
 
 function builtin_disabled_by_moxyfile { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/greeter.toml" <<'EOF'
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
 description = "builtin greeter"
-
-[[tools]]
-name = "hello"
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
 description = "Say hello"
 command = "echo"
 args = ["-n", "hello from builtin"]

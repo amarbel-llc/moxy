@@ -1,0 +1,12 @@
+schema = 1
+perms-request = "always-allow"
+description = "Search for man pages by keyword (apropos). Returns matching page names with short descriptions."
+command = "__LIBEXEC__/man-search"
+
+[input]
+type = "object"
+required = ["query"]
+
+[input.properties.query]
+type = "string"
+description = "Keyword to search for in man page names and descriptions"

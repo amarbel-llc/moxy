@@ -1,0 +1,76 @@
+schema = 1
+description = """Run commands inside a flake's devShell. Each command runs as a separate \
+nix develop invocation. Execution stops on the first failure."""
+command = "bash"
+arg_order = ["commands", "flake_ref", "flake_dir", "max_bytes", "head", "tail"]
+args = ["-c", """
+set -euo pipefail
+commands_json="$1"
+flake_ref="${2:-.}"
+flake_dir="${3:-.}"
+max_bytes="${4:-}"
+head_n="${5:-}"
+tail_n="${6:-}"
+
+cd "$flake_dir"
+
+run_output=""
+count=$(printf '%s' "$commands_json" | jq 'length')
+for ((i=0; i<count; i++)); do
+  cmd=$(printf '%s' "$commands_json" | jq -r ".[$i].command")
+  mapfile -t cmd_args < <(printf '%s' "$commands_json" | jq -r ".[$i].args // [] | .[]")
+
+  nix_args=(develop "$flake_ref" -c "$cmd")
+  if [ ${#cmd_args[@]} -gt 0 ]; then
+    nix_args+=("${cmd_args[@]}")
+  fi
+
+  stderr_file=$(mktemp)
+  step_output=$(nix "${nix_args[@]}" 2>"$stderr_file") || {
+    run_output+="$(cat "$stderr_file")"$'\n'"$step_output"
+    rm -f "$stderr_file"
+    printf '%s' "$run_output"
+    exit 1
+  }
+  rm -f "$stderr_file"
+  run_output+="$step_output"$'\n'
+done
+
+if [ -n "$tail_n" ]; then
+  printf '%s' "$run_output" | tail -n "$tail_n"
+elif [ -n "$head_n" ]; then
+  printf '%s' "$run_output" | head -n "$head_n"
+elif [ -n "$max_bytes" ]; then
+  printf '%s' "$run_output" | head -c "$max_bytes"
+else
+  printf '%s' "$run_output"
+fi
+""", "_"]
+
+[input]
+required = ["commands"]
+
+[input.properties.commands]
+type = "array"
+description = """Commands to run sequentially. Each is {command: string, args?: string[]}. \
+Stops on first failure."""
+
+[input.properties.flake_ref]
+type = "string"
+description = "Flake reference. Defaults to '.'."
+
+[input.properties.flake_dir]
+type = "string"
+description = "Directory containing the flake. Defaults to current directory."
+
+[input.properties.max_bytes]
+type = "string"
+description = "Maximum bytes of output to return."
+
+[input.properties.head]
+type = "string"
+description = "Only return the first N lines of output."
+
+[input.properties.tail]
+type = "string"
+description = "Only return the last N lines of output."

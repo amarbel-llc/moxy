@@ -1,0 +1,48 @@
+schema = 1
+perms-request = "always-allow"
+description = "Compare two refs (branches, tags, or commits) showing commits and file changes"
+command = "bash"
+arg_order = ["repo", "base", "head", "per_page", "page"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+base="$2"
+head="$3"
+per_page="${4:-30}"
+page="${5:-1}"
+gh api "repos/$repo/compare/$base...$head" \
+  -f per_page="$per_page" \
+  -f page="$page" \
+  | jq '{
+    status: .status,
+    ahead_by: .ahead_by,
+    behind_by: .behind_by,
+    total_commits: .total_commits,
+    commits: [.commits[] | {sha: .sha[0:7], message: (.commit.message | split("\n")[0]), author: .commit.author.name, date: .commit.author.date}],
+    files: [.files[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]
+  }'
+""", "_"]
+
+[input]
+type = "object"
+required = ["repo", "base", "head"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[input.properties.base]
+type = "string"
+description = "Base ref (branch, tag, or SHA)"
+
+[input.properties.head]
+type = "string"
+description = "Head ref (branch, tag, or SHA)"
+
+[input.properties.per_page]
+type = "integer"
+description = "Number of file entries per page (max 100, default 30)"
+
+[input.properties.page]
+type = "integer"
+description = "Page number for pagination (default 1)"

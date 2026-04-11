@@ -1,0 +1,34 @@
+schema = 1
+perms-request = "always-allow"
+description = "Close an issue with optional comment"
+command = "bash"
+arg_order = ["number", "comment", "reason"]
+args = ["-c", """
+set -euo pipefail
+number="$1"
+comment="${2:-}"
+reason="${3:-}"
+gh_args=(issue close "$number")
+
+[ -n "$comment" ] && gh_args+=(--comment "$comment")
+
+[ -n "$reason" ] && gh_args+=(--reason "$reason")
+gh "${gh_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.comment]
+type = "string"
+description = "Optional comment to add before closing"
+
+[input.properties.reason]
+type = "string"
+description = "Close reason: completed (default) or not planned"
+enum = ["completed", "not planned", "duplicate"]

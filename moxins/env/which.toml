@@ -1,0 +1,13 @@
+schema = 1
+perms-request = "always-allow"
+description = "Locate a program on PATH. Returns the absolute path if found, exits nonzero if not."
+command = "which"
+arg_order = ["name"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Binary name to locate (e.g. 'go', 'cargo', 'pivy-tool')"

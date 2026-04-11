@@ -1,0 +1,24 @@
+schema = 1
+perms-request = "always-allow"
+description = "Verify the GPG signature of a tag"
+command = "bash"
+arg_order = ["name", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+name="$1"
+repo="${2:-.}"
+cd "$repo"
+git tag -v "$name"
+""", "_"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Tag name to verify"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

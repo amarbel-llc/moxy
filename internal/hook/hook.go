@@ -33,11 +33,11 @@ type hookDecision struct {
 
 const moxyToolPrefix = "mcp__moxy__"
 
-// Handle processes a PreToolUse hook invocation. If the tool is a moxy native
-// tool with auto-allow set, it writes an "allow" decision. Otherwise it
-// delegates to go-mcp's HandleHook for existing deny-redirect logic.
+// Handle processes a PreToolUse hook invocation. If the tool is a moxy moxin
+// tool with a perms-request configured, it writes the corresponding decision.
+// Otherwise it delegates to go-mcp's HandleHook for existing deny-redirect logic.
 //
-// Follows fail-open: any error in auto-allow discovery silently falls through
+// Follows fail-open: any error in permission discovery silently falls through
 // to app.HandleHook.
 func Handle(app *command.App, r io.Reader, w io.Writer) error {
 	raw, err := io.ReadAll(r)
@@ -54,7 +54,7 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 	}
 
 	if strings.HasPrefix(hi.ToolName, moxyToolPrefix) {
-		if tryAutoAllow(hi.ToolName, w) {
+		if tryPermsDecision(hi.ToolName, w) {
 			return nil
 		}
 	}
@@ -62,24 +62,38 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 	return app.HandleHook(bytes.NewReader(raw), w)
 }
 
-// tryAutoAllow checks whether the tool has auto-allow set in native configs.
-// Returns true if it wrote an allow decision, false to fall through.
-func tryAutoAllow(toolName string, w io.Writer) bool {
+// tryPermsDecision checks the tool's perms-request in moxin configs and writes
+// the corresponding hook decision. Returns true if it wrote a decision, false
+// to fall through to the client.
+func tryPermsDecision(toolName string, w io.Writer) bool {
 	serverTool, ok := parseNativeToolName(toolName)
 	if !ok {
 		return false
 	}
 
-	allowed := discoverAutoAllowed()
-	if !allowed[serverTool] {
-		return false
+	perms := discoverPermissions()
+	perm, exists := perms[serverTool]
+	if !exists {
+		return false // delegate-to-client: fall through
+	}
+
+	var decision, reason string
+	switch perm {
+	case native.PermsAlwaysAllow:
+		decision = "allow"
+		reason = "always-allow by moxin config"
+	case native.PermsEachUse:
+		decision = "ask"
+		reason = "each-use: requires explicit approval"
+	default:
+		return false // delegate-to-client or unrecognized: fall through
 	}
 
 	out := hookOutput{
 		HookSpecificOutput: hookDecision{
 			HookEventName:            "PreToolUse",
-			PermissionDecision:       "allow",
-			PermissionDecisionReason: "auto-allowed by native server config",
+			PermissionDecision:       decision,
+			PermissionDecisionReason: reason,
 		},
 	}
 
@@ -116,24 +130,25 @@ func parseNativeToolName(toolName string) (string, bool) {
 	return server + "." + tool, true
 }
 
-// discoverAutoAllowed loads native configs and returns the set of
-// "server.tool" names with auto-allow enabled.
-func discoverAutoAllowed() map[string]bool {
+// discoverPermissions loads moxin configs and returns a map of
+// "server.tool" names to their perms-request values. Only tools with
+// an explicit perms-request are included.
+func discoverPermissions() map[string]native.PermsRequest {
 	configs, err := native.DiscoverConfigs(os.Getenv("MOXIN_PATH"), native.SystemMoxinDir())
 	if err != nil {
 		return nil
 	}
 
-	allowed := make(map[string]bool)
+	perms := make(map[string]native.PermsRequest)
 	for _, cfg := range configs {
 		for _, tool := range cfg.Tools {
-			if tool.AutoAllow {
-				allowed[cfg.Name+"."+tool.Name] = true
+			if tool.PermsRequest != "" {
+				perms[cfg.Name+"."+tool.Name] = tool.PermsRequest
 			}
 		}
 	}
 
-	return allowed
+	return perms
 }
 
 // hooksManifest mirrors the hooks.json structure for matcher expansion.

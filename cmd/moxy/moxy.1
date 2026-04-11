@@ -1,4 +1,4 @@
-.Dd April 9, 2026
+.Dd April 10, 2026
 .Dt MOXY 1
 .Os
 .Sh NAME
@@ -22,20 +22,18 @@ Child server capabilities are namespaced with a dot separator
 .Pp
 Configuration is loaded from a hierarchy of TOML moxyfiles
 .Pq see Xr moxyfile 5
-and declarative tool configs in
-.Pa .moxy/
-directories
-.Pq see Xr moxy-native 7 .
+and declarative tool configs (moxins) discovered from
+.Ev MOXIN_PATH
+.Pq see Xr moxin 7 .
 .Sh COMMANDS
 .Bl -tag -width "serve mcp"
 .It Cm serve mcp
 Run as an MCP proxy server over stdio.
 This is the default command when invoked via the MCP protocol.
 Loads the moxyfile hierarchy, spawns child MCP servers, performs
-initialize handshakes, probes ephemeral servers, discovers native
-configs from
-.Pa .moxy/
-directories, and serves as a unified MCP server on stdin/stdout.
+initialize handshakes, probes ephemeral servers, discovers moxins from
+.Ev MOXIN_PATH ,
+and serves as a unified MCP server on stdin/stdout.
 Shuts down gracefully on
 .Dv SIGINT .
 .It Cm validate
@@ -108,6 +106,11 @@ is unset.
 If neither is set, a UUID is generated per
 .Nm
 process.
+.It Ev MOXIN_PATH
+Colon-separated list of directories to search for moxin configs.
+See
+.Xr moxin 7
+for discovery details.
 .It Ev XDG_CACHE_HOME
 Base directory for native server result caches.
 Defaults to
@@ -119,15 +122,15 @@ Defaults to
 Global moxyfile.
 .It Pa ./moxyfile
 Project-local moxyfile.
-.It Pa ~/.config/moxy/.moxy/
-Global native server configs.
-.It Pa ./.moxy/
-Project-local native server configs.
+.It Pa ~/.config/moxy/moxins/
+Global moxin configs.
+.It Pa ./.moxy/moxins/
+Project-local moxin configs.
 .It Pa $XDG_CACHE_HOME/moxy/native-results/
-Cached tool outputs from native servers.
+Cached tool outputs from moxins.
 .El
 .Sh SEE ALSO
 .Xr maneater 1 ,
 .Xr maneater.toml 5 ,
-.Xr moxy-native 7 ,
+.Xr moxin 7 ,
 .Xr moxyfile 5

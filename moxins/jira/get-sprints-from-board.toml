@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = "List sprints for a board"
+command = "__LIBEXEC__/jira-get-sprints-from-board"
+arg_order = ["board_id", "state", "max_results", "output_format"]
+
+[input]
+type = "object"
+required = ["board_id"]
+
+[input.properties.board_id]
+type = "string"
+description = "Board ID (get from get-agile-boards)"
+
+[input.properties.state]
+type = "string"
+description = "Filter by sprint state: active, closed, future (comma-separated)"
+
+[input.properties.max_results]
+type = "integer"
+description = "Maximum results (default 50)"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"

@@ -1,0 +1,36 @@
+schema = 1
+perms-request = "always-allow"
+description = "Execute a read-only GraphQL query against the GitHub API"
+command = "bash"
+arg_order = ["query", "variables", "paginate"]
+args = ["-c", """
+set -euo pipefail
+query="$1"
+variables_json="${2:-}"
+paginate="${3:-}"
+gh_args=(api graphql -f "query=$query")
+
+[ "$paginate" = "true" ] && gh_args+=(--paginate)
+if [ -n "$variables_json" ] && [ "$variables_json" != "null" ] && [ "$variables_json" != "{}" ]; then
+  while IFS=$'\t' read -r key val; do
+    gh_args+=(-F "$key=$val")
+  done < <(printf '%s' "$variables_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+fi
+gh "${gh_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["query"]
+
+[input.properties.query]
+type = "string"
+description = "The GraphQL query string"
+
+[input.properties.variables]
+type = "object"
+description = "GraphQL variables as key-value pairs"
+
+[input.properties.paginate]
+type = "boolean"
+description = "Auto-paginate results (requires endCursor/pageInfo in query)"

@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = "Show source code for a Go symbol."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+pkg="$1"
+if [ -n "${2:-}" ]; then
+  go doc -all -src "$pkg.$2"
+else
+  go doc -all -src "$pkg"
+fi
+""", "_"]
+
+[input]
+type = "object"
+required = ["package"]
+
+[input.properties.package]
+type = "string"
+description = "Go package path (e.g. 'fmt', 'encoding/json')"
+
+[input.properties.symbol]
+type = "string"
+description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package-level source."

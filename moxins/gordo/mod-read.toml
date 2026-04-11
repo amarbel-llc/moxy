@@ -1,0 +1,26 @@
+schema = 1
+perms-request = "always-allow"
+description = """Read a source file from the Go module cache. Resolves the module path via GOMODCACHE. \
+Use `go doc` or `gordo.doc` first to find packages, then this tool to read the full source."""
+command = "__LIBEXEC__/gordo-mod-read"
+arg_order = ["module", "file", "start", "end"]
+
+[input]
+type = "object"
+required = ["module", "file"]
+
+[input.properties.module]
+type = "string"
+description = "Go module path with optional version (e.g. 'github.com/user/repo@v1.0.0', 'github.com/user/repo'). Without @version, uses the latest cached version."
+
+[input.properties.file]
+type = "string"
+description = "File path within the module (e.g. 'server/handler.go', 'pkg/types.go')"
+
+[input.properties.start]
+type = "integer"
+description = "Start line (1-indexed). Omit to read from beginning."
+
+[input.properties.end]
+type = "integer"
+description = "End line (1-indexed). Omit to read to end."

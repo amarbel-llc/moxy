@@ -10,8 +10,8 @@ build-go: generate build-moxins
 
 build-moxins:
   mkdir -p build/moxins
-  cp moxins/*.toml build/moxins/
-  sed -i "s|__LIBEXEC__|{{justfile_directory()}}/libexec|g" build/moxins/*.toml
+  cp -r moxins/*/ build/moxins/
+  find build/moxins -name '*.toml' -exec sed -i "s|__LIBEXEC__|{{justfile_directory()}}/libexec|g" {} +
 
 generate:
   go generate ./internal/config/

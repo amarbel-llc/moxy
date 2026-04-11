@@ -1,0 +1,12 @@
+schema = 1
+perms-request = "always-allow"
+description = "List all sections of a man page with their heading levels. Start here to discover what a page covers before reading specific sections."
+command = "__LIBEXEC__/man-toc"
+
+[input]
+type = "object"
+required = ["page"]
+
+[input.properties.page]
+type = "string"
+description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"

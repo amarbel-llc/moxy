@@ -1,0 +1,43 @@
+schema = 1
+perms-request = "always-allow"
+description = "Unstage files (soft reset only, does not modify working tree)"
+command = "bash"
+arg_order = ["paths", "soft", "ref", "repo_path"]
+args = ["-c", """
+set -euo pipefail
+paths_json="$1"
+soft="${2:-}"
+ref="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+if [ "$soft" = "true" ]; then
+  git reset --soft "${ref:-HEAD~1}"
+elif [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  mapfile -t files < <(printf '%s' "$paths_json" | jq -r '.[]')
+  git reset HEAD -- "${files[@]}"
+else
+  git reset HEAD
+fi
+""", "_"]
+
+[input]
+type = "object"
+
+[input.properties.paths]
+type = "array"
+description = "File paths to unstage (relative to repo root)"
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.soft]
+type = "boolean"
+description = "Soft reset: move HEAD back without changing index or working tree (use with ref)"
+
+[input.properties.ref]
+type = "string"
+description = "Target ref for soft reset (e.g. HEAD~1, HEAD~3, a branch). Defaults to HEAD~1"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

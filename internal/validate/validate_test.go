@@ -18,6 +18,23 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
+// writeMoxinDir creates a directory-based moxin with _moxin.toml and tool files.
+func writeMoxinDir(t *testing.T, parentDir, name string, moxinToml string, tools map[string]string) {
+	t.Helper()
+	dir := filepath.Join(parentDir, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "_moxin.toml"), []byte(moxinToml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for toolName, toolContent := range tools {
+		if err := os.WriteFile(filepath.Join(dir, toolName+".toml"), []byte(toolContent), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestRunValidConfig(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
@@ -155,19 +172,12 @@ command = "grit"
 `)
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
-	writeFile(t, filepath.Join(moxinDir, "test.toml"), `
-name = "test-server"
-description = "A test server"
-
-[[tools]]
-name = "hello"
-description = "says hello"
-command = "echo"
-args = ["hello"]
-
-[tools.input]
-type = "object"
-`)
+	writeMoxinDir(t, moxinDir, "test-server",
+		"schema = 1\nname = \"test-server\"\ndescription = \"A test server\"\n",
+		map[string]string{
+			"hello": "schema = 1\ndescription = \"says hello\"\ncommand = \"echo\"\nargs = [\"hello\"]\n\n[input]\ntype = \"object\"\n",
+		},
+	)
 
 	t.Setenv("MOXIN_PATH", moxinDir)
 
@@ -178,7 +188,7 @@ type = "object"
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d\noutput:\n%s", code, output)
 	}
-	if !strings.Contains(output, "test.toml valid") {
+	if !strings.Contains(output, "test-server valid") {
 		t.Errorf("expected moxin config validation in output:\n%s", output)
 	}
 	if !strings.Contains(output, "moxin: 1 server") {
@@ -198,7 +208,9 @@ command = "grit"
 `)
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
-	writeFile(t, filepath.Join(moxinDir, "broken.toml"), `name = = broken`)
+	brokenDir := filepath.Join(moxinDir, "broken")
+	os.MkdirAll(brokenDir, 0o755)
+	os.WriteFile(filepath.Join(brokenDir, "_moxin.toml"), []byte("name = = broken"), 0o644)
 
 	t.Setenv("MOXIN_PATH", moxinDir)
 
@@ -226,12 +238,12 @@ command = "grit"
 `)
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
-	writeFile(t, filepath.Join(moxinDir, "bad.toml"), `
-name = "bad-server"
-
-[[tools]]
-name = "hello"
-`)
+	writeMoxinDir(t, moxinDir, "bad-server",
+		"schema = 1\nname = \"bad-server\"\n",
+		map[string]string{
+			"hello": "schema = 1\n",
+		},
+	)
 
 	t.Setenv("MOXIN_PATH", moxinDir)
 
@@ -242,8 +254,8 @@ name = "hello"
 	if code != 1 {
 		t.Fatalf("expected exit 1, got %d\noutput:\n%s", code, output)
 	}
-	if !strings.Contains(output, "missing command") {
-		t.Errorf("expected 'missing command' in output:\n%s", output)
+	if !strings.Contains(output, "command is required") {
+		t.Errorf("expected 'command is required' in output:\n%s", output)
 	}
 }
 
@@ -259,21 +271,12 @@ command = "grit"
 `)
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
-	writeFile(t, filepath.Join(moxinDir, "extra.toml"), `
-name = "extra-server"
-description = "has unknown keys"
-bogus_field = "oops"
-
-[[tools]]
-name = "hello"
-description = "says hello"
-command = "echo"
-args = ["hello"]
-unknown_tool_key = true
-
-[tools.input]
-type = "object"
-`)
+	writeMoxinDir(t, moxinDir, "extra-server",
+		"schema = 1\nname = \"extra-server\"\ndescription = \"has unknown keys\"\nbogus_field = \"oops\"\n",
+		map[string]string{
+			"hello": "schema = 1\ndescription = \"says hello\"\ncommand = \"echo\"\nargs = [\"hello\"]\nunknown_tool_key = true\n\n[input]\ntype = \"object\"\n",
+		},
+	)
 
 	t.Setenv("MOXIN_PATH", moxinDir)
 

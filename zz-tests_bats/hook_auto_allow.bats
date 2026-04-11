@@ -25,14 +25,15 @@ run_moxy_hook() {
 
 function hook_allows_auto_allow_tool { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/greeter.toml" <<'EOF'
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
 description = "test server"
-
-[[tools]]
-name = "hello"
-auto-allow = true
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
+perms-request = "always-allow"
 description = "Say hello"
 command = "echo"
 args = ["-n", "hello"]
@@ -52,13 +53,14 @@ EOF
 
 function hook_falls_through_for_non_auto_allow_tool { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/greeter.toml" <<'EOF'
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
 name = "greeter"
 description = "test server"
-
-[[tools]]
-name = "hello"
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
 description = "Say hello"
 command = "echo"
 args = ["-n", "hello"]
@@ -93,20 +95,21 @@ function hook_falls_through_for_builtin_tool { # @test
 
 function hook_allows_only_marked_tools { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cat >"$moxin_dir/multi.toml" <<'EOF'
+  mkdir -p "$moxin_dir/multi"
+  cat >"$moxin_dir/multi/_moxin.toml" <<'EOF'
+schema = 1
 name = "multi"
 description = "test server with mixed auto-allow"
-
-[[tools]]
-name = "safe"
-auto-allow = true
+EOF
+  cat >"$moxin_dir/multi/safe.toml" <<'EOF'
+schema = 1
+perms-request = "always-allow"
 description = "Auto-allowed"
 command = "echo"
 args = ["-n", "safe"]
-
-[[tools]]
-name = "dangerous"
+EOF
+  cat >"$moxin_dir/multi/dangerous.toml" <<'EOF'
+schema = 1
 description = "Not auto-allowed"
 command = "echo"
 args = ["-n", "dangerous"]
