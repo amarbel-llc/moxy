@@ -1,4 +1,6 @@
-schema = 1
+schema = 2
+result-type = "text"
+content-type = "application/json"
 perms-request = "always-allow"
 description = "Execute a read-only GraphQL query against the GitHub API"
 command = "bash"

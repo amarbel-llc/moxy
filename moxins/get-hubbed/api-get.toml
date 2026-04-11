@@ -1,4 +1,6 @@
-schema = 1
+schema = 2
+result-type = "text"
+content-type = "application/json"
 perms-request = "always-allow"
 description = "Make an authenticated GET request to the GitHub REST API"
 command = "bash"

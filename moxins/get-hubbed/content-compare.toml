@@ -1,4 +1,6 @@
-schema = 1
+schema = 2
+result-type = "text"
+content-type = "application/json"
 perms-request = "always-allow"
 description = "Compare two refs (branches, tags, or commits) showing commits and file changes"
 command = "bash"
