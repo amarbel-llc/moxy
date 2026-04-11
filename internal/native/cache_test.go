@@ -119,6 +119,21 @@ func TestFormatSummary(t *testing.T) {
 	if !strings.Contains(summary, wantURI) {
 		t.Errorf("summary missing resource URI %q", wantURI)
 	}
+	// New: truncation warning at top.
+	if !strings.Contains(summary, "⚠ TRUNCATED") {
+		t.Error("summary missing leading truncation warning")
+	}
+	if !strings.Contains(summary, "showing 20 of 30 lines") {
+		t.Error("summary missing line count in truncation warning")
+	}
+	// New: gap marker between head and tail.
+	if !strings.Contains(summary, "10 lines omitted (11 through 20)") {
+		t.Error("summary missing gap marker between head and tail")
+	}
+	// New: trailing warning.
+	if !strings.Contains(summary, "Read full output URI before drawing conclusions") {
+		t.Error("summary missing trailing warning")
+	}
 }
 
 func TestFormatSummaryShortOutput(t *testing.T) {

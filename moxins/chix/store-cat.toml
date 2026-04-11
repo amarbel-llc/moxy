@@ -2,12 +2,10 @@ schema = 1
 perms-request = "always-allow"
 description = "Read file contents from a nix store path. Use head/tail to limit output for large files."
 command = "bash"
-arg_order = ["path", "head", "tail"]
+arg_order = ["path"]
 args = ["-c", """
 set -euo pipefail
 path="$1"
-head_n="${2:-}"
-tail_n="${3:-}"
 
 # Resolve symlinks and validate under /nix/store/
 resolved=$(readlink -f "$path")
@@ -21,13 +19,7 @@ if [ ! -f "$resolved" ]; then
   exit 1
 fi
 
-if [ -n "$tail_n" ]; then
-  tail -n "$tail_n" "$resolved"
-elif [ -n "$head_n" ]; then
-  head -n "$head_n" "$resolved"
-else
-  cat "$resolved"
-fi
+cat "$resolved"
 """, "_"]
 
 [input]
@@ -37,10 +29,3 @@ required = ["path"]
 type = "string"
 description = "Store path to read (e.g., '/nix/store/...-hello-2.12.1/bin/hello')."
 
-[input.properties.head]
-type = "string"
-description = "Only return the first N lines."
-
-[input.properties.tail]
-type = "string"
-description = "Only return the last N lines."

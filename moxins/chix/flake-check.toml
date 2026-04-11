@@ -2,15 +2,12 @@ schema = 1
 perms-request = "always-allow"
 description = "Run flake checks and tests."
 command = "bash"
-arg_order = ["flake_ref", "flake_dir", "keep_going", "head", "tail", "max_bytes"]
+arg_order = ["flake_ref", "flake_dir", "keep_going"]
 args = ["-c", """
 set -euo pipefail
 flake_ref="${1:-.}"
 flake_dir="${2:-.}"
 keep_going="${3:-true}"
-head_n="${4:-}"
-tail_n="${5:-}"
-max_bytes="${6:-}"
 
 cd "$flake_dir"
 nix_args=(flake check)
@@ -23,15 +20,7 @@ stderr_file=$(mktemp)
 trap 'rm -f "$stderr_file"' EXIT
 output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
 
-if [ -n "$tail_n" ]; then
-  echo "$output" | tail -n "$tail_n"
-elif [ -n "$head_n" ]; then
-  echo "$output" | head -n "$head_n"
-elif [ -n "$max_bytes" ]; then
-  echo "$output" | head -c "$max_bytes"
-else
-  echo "$output"
-fi
+echo "$output"
 """, "_"]
 
 [input.properties.flake_ref]
@@ -46,14 +35,3 @@ description = "Directory containing the flake. Defaults to current directory."
 type = "string"
 description = "Continue on error. Defaults to true."
 
-[input.properties.head]
-type = "string"
-description = "Only return the first N lines of output."
-
-[input.properties.tail]
-type = "string"
-description = "Only return the last N lines of output."
-
-[input.properties.max_bytes]
-type = "string"
-description = "Maximum bytes of output to return."

@@ -13,8 +13,6 @@ arg_order = [
   "context",
   "case_insensitive",
   "multiline",
-  "head_limit",
-  "offset",
 ]
 args = ["-c", """
 set -euo pipefail
@@ -26,8 +24,6 @@ output_mode="${5:-files_with_matches}"
 context="${6:-}"
 case_insensitive="${7:-}"
 multiline="${8:-}"
-head_limit="${9:-0}"
-offset="${10:-0}"
 
 rg_args=()
 
@@ -49,15 +45,6 @@ esac
 [ "$multiline" = "true" ] && rg_args+=(-U --multiline-dotall)
 
 output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1) || true
-
-if [ "$offset" -gt 0 ] || [ "$head_limit" -gt 0 ]; then
-  if [ "$offset" -gt 0 ]; then
-    output=$(echo "$output" | tail -n +"$((offset + 1))")
-  fi
-  if [ "$head_limit" -gt 0 ]; then
-    output=$(echo "$output" | head -n "$head_limit")
-  fi
-fi
 
 printf '%s\n' "$output"
 """, "_"]
@@ -98,10 +85,3 @@ description = "Case insensitive search (rg -i)"
 type = "boolean"
 description = "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall)."
 
-[input.properties.head_limit]
-type = "integer"
-description = "Limit output to first N lines/entries. Defaults to 0 (unlimited)."
-
-[input.properties.offset]
-type = "integer"
-description = "Skip first N lines/entries before applying head_limit. Defaults to 0."

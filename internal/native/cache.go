@@ -145,15 +145,20 @@ func formatSummary(result cachedResult) string {
 
 	var b strings.Builder
 
+	totalLines := len(lines)
+	head := summaryHeadLines
+	tail := summaryTailLines
+	showingHeadTail := totalLines > head+tail
+
+	if showingHeadTail {
+		shown := head + tail
+		fmt.Fprintf(&b, "⚠ TRUNCATED — showing %d of %d lines. Full output below.\n", shown, totalLines)
+	}
 	fmt.Fprintf(&b, "Full output: moxy.native://results/%s/%s\n", result.Session, result.ID)
 	fmt.Fprintf(&b, "Lines: %d\n", result.LineCount)
 	b.WriteString("\n")
 
-	totalLines := len(lines)
-	head := summaryHeadLines
-	tail := summaryTailLines
-
-	if totalLines <= head+tail {
+	if !showingHeadTail {
 		content := strings.Join(lines, "\n")
 		if len(content) > summaryMaxOutputBytes {
 			b.WriteString("--- Output (truncated) ---\n")
@@ -168,8 +173,10 @@ func formatSummary(result cachedResult) string {
 		}
 	} else {
 		writeSection(&b, fmt.Sprintf("--- First %d lines ---", head), lines[:head])
-		b.WriteString("\n")
+		omitted := totalLines - head - tail
+		fmt.Fprintf(&b, "\n--- %d lines omitted (%d through %d) ---\n\n", omitted, head+1, totalLines-tail)
 		writeSection(&b, fmt.Sprintf("--- Last %d lines ---", tail), lines[totalLines-tail:])
+		fmt.Fprintf(&b, "\n⚠ %d lines were omitted. Read full output URI before drawing conclusions.\n", omitted)
 	}
 	return b.String()
 }
