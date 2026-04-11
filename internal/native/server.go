@@ -102,6 +102,15 @@ func (s *Server) handleToolsList() (json.RawMessage, error) {
 		} else {
 			tool.InputSchema = json.RawMessage(`{"type":"object"}`)
 		}
+		if spec.Annotations != nil {
+			tool.Annotations = &protocol.ToolAnnotations{
+				Title:           spec.Annotations.Title,
+				ReadOnlyHint:    spec.Annotations.ReadOnlyHint,
+				DestructiveHint: spec.Annotations.DestructiveHint,
+				IdempotentHint:  spec.Annotations.IdempotentHint,
+				OpenWorldHint:   spec.Annotations.OpenWorldHint,
+			}
+		}
 		tools[i] = tool
 	}
 	return marshalResult(protocol.ToolsListResultV1{Tools: tools})

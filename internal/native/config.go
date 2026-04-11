@@ -43,6 +43,15 @@ type NativeConfig struct {
 	Tools       []ToolSpec
 }
 
+// ToolAnnotations holds optional behavior hints for a tool.
+type ToolAnnotations struct {
+	Title           string `toml:"title"`
+	ReadOnlyHint    *bool  `toml:"readOnlyHint"`
+	DestructiveHint *bool  `toml:"destructiveHint"`
+	IdempotentHint  *bool  `toml:"idempotentHint"`
+	OpenWorldHint   *bool  `toml:"openWorldHint"`
+}
+
 // ToolSpec describes a single tool within a moxin.
 type ToolSpec struct {
 	Name         string
@@ -54,6 +63,7 @@ type ToolSpec struct {
 	PermsRequest PermsRequest
 	ContentType  string
 	ResultType   ResultType
+	Annotations  *ToolAnnotations
 	Input        json.RawMessage
 }
 
@@ -66,17 +76,18 @@ type MoxinMeta struct {
 
 // rawToolFile mirrors the per-tool TOML file for initial decode.
 type rawToolFile struct {
-	Schema       int          `toml:"schema"`
-	Name         string       `toml:"name"`
-	Description  string       `toml:"description"`
-	Command      string       `toml:"command"`
-	Args         []string     `toml:"args"`
-	ArgOrder     []string     `toml:"arg_order"`
-	StdinParam   string       `toml:"stdin_param"`
-	PermsRequest PermsRequest `toml:"perms-request"`
-	ContentType  string       `toml:"content-type"`
-	ResultType   string       `toml:"result-type"`
-	Input        any          `toml:"input"`
+	Schema       int              `toml:"schema"`
+	Name         string           `toml:"name"`
+	Description  string           `toml:"description"`
+	Command      string           `toml:"command"`
+	Args         []string         `toml:"args"`
+	ArgOrder     []string         `toml:"arg_order"`
+	StdinParam   string           `toml:"stdin_param"`
+	PermsRequest PermsRequest     `toml:"perms-request"`
+	ContentType  string           `toml:"content-type"`
+	ResultType   string           `toml:"result-type"`
+	Annotations  *ToolAnnotations `toml:"annotations"`
+	Input        any              `toml:"input"`
 }
 
 // ParseResult holds the parsed config and any undecoded keys found in the TOML files.
@@ -185,6 +196,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			PermsRequest: raw.PermsRequest,
 			ContentType:  raw.ContentType,
 			ResultType:   resultType,
+			Annotations:  raw.Annotations,
 		}
 
 		if raw.Input != nil {

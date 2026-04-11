@@ -380,6 +380,44 @@ result-type = "bogus"
 	}
 }
 
+func TestParseMoxinDirAnnotations(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"api": `
+schema = 2
+command = "echo"
+
+[annotations]
+readOnlyHint = true
+destructiveHint = false
+title = "My Tool"
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := cfg.Tools[0]
+	if tool.Annotations == nil {
+		t.Fatal("expected annotations, got nil")
+	}
+	if tool.Annotations.Title != "My Tool" {
+		t.Errorf("title = %q, want %q", tool.Annotations.Title, "My Tool")
+	}
+	if tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint {
+		t.Error("readOnlyHint: want true")
+	}
+	if tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint {
+		t.Error("destructiveHint: want false")
+	}
+	if tool.Annotations.IdempotentHint != nil {
+		t.Error("idempotentHint: want nil")
+	}
+}
+
 func TestParseMoxinDirValidation(t *testing.T) {
 	tests := []struct {
 		name  string
