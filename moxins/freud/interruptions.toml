@@ -1,8 +1,8 @@
 schema = 2
 perms-request = "always-allow"
-description = """Aggregate user interruptions and tool use rejections across sessions. Returns a ranked table \
-showing which tools were interrupted or rejected most often, with the user's follow-up message as context. \
-Useful for understanding friction points in tool usage."""
+description = """Aggregate agent-pause events (permission prompts, rejections, interruptions) across sessions. \
+Returns a ranked table showing which tools cause the most pauses, with approval rates. \
+Useful for identifying tools that should be auto-allowed (high approval rate = low friction)."""
 command = "@LIBEXEC@/freud-interruptions"
 arg_order = ["project", "days", "limit"]
 

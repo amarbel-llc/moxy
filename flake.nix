@@ -133,6 +133,7 @@
             mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
             cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
             cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
+            cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
             cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
 
             # Wrap the moxy binary with inline moxin tool dependencies.

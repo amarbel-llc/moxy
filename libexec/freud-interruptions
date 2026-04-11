@@ -141,6 +141,57 @@ def scan_session(path: Path) -> tuple[Counter, Counter]:
     return interrupt_counter, reject_counter
 
 
+def scan_hook_logs(cutoff: float, session_ids: set[str], event_name: str) -> Counter:
+    """Scan per-session hook event logs for a specific event type.
+
+    Logs live at ~/.local/log/moxy/hooks/{session_id}.jsonl (see moxy-hooks(5)).
+    Returns a counter keyed by tool name for matching sessions within the
+    time window.
+    """
+    counter: Counter = Counter()
+
+    log_home = os.environ.get("XDG_LOG_HOME", "")
+    if not log_home:
+        log_home = str(Path.home() / ".local" / "log")
+    log_dir = Path(log_home) / "moxy" / "hooks"
+
+    if not log_dir.is_dir():
+        return counter
+
+    for log_file in log_dir.glob("*.jsonl"):
+        # Filename is {session_id}.jsonl — skip sessions we don't care about
+        sid = log_file.stem
+        if session_ids and sid not in session_ids:
+            continue
+
+        # Skip files older than cutoff
+        if log_file.stat().st_mtime < cutoff:
+            continue
+
+        with open(log_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                if entry.get("hook_event_name") != event_name:
+                    continue
+
+                tool = entry.get("tool_name", "(unknown)")
+                counter[tool] += 1
+
+    return counter
+
+
+def collect_session_ids(session_paths: list[Path]) -> set[str]:
+    """Extract session IDs from session file paths (the stem is the UUID)."""
+    return {p.stem for p in session_paths}
+
+
 def subagent_paths(session_path: Path) -> list[Path]:
     sub_dir = session_path.parent / session_path.stem / "subagents"
     if sub_dir.is_dir():
@@ -185,7 +236,7 @@ def main():
     if not session_paths:
         return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
 
-    # Phase 3: scan all sessions
+    # Phase 3: scan all sessions for interruptions and rejections
     total_interrupts: Counter = Counter()
     total_rejects: Counter = Counter()
     for path in session_paths:
@@ -197,19 +248,26 @@ def main():
             total_interrupts += ic
             total_rejects += rc
 
+    # Phase 3b: scan hook event logs for permission prompts (see moxy-hooks(5))
+    session_ids = collect_session_ids(session_paths)
+    total_prompted = scan_hook_logs(cutoff, session_ids, "PermissionRequest")
+
     total_i = sum(total_interrupts.values())
     total_r = sum(total_rejects.values())
-    if total_i == 0 and total_r == 0:
+    total_p = sum(total_prompted.values())
+    total_a = max(0, total_p - total_r)
+
+    if total_i == 0 and total_r == 0 and total_p == 0:
         proj_desc = f", project={project_filter}" if project_filter else ""
         return emit_mcp_result(
-            f"No interruptions or rejections found across {len(session_paths)} sessions{proj_desc}"
+            f"No agent pauses found across {len(session_paths)} sessions{proj_desc}"
         )
 
     # Phase 4: merge and rank by total events
-    all_tools = set(total_interrupts.keys()) | set(total_rejects.keys())
+    all_tools = set(total_interrupts.keys()) | set(total_rejects.keys()) | set(total_prompted.keys())
     ranked = sorted(
         all_tools,
-        key=lambda t: total_interrupts[t] + total_rejects[t],
+        key=lambda t: total_prompted[t] + total_interrupts[t],
         reverse=True,
     )
 
@@ -219,18 +277,26 @@ def main():
     # Phase 5: format output
     lines = []
     proj_desc = f", project: {project_filter}" if project_filter else ""
-    lines.append(f"Interruptions and rejections across {len(session_paths)} sessions ({days} days{proj_desc})")
-    lines.append(f"Total: {total_i} interruptions, {total_r} rejections")
+    lines.append(f"Agent pauses across {len(session_paths)} sessions ({days} days{proj_desc})")
+    lines.append(f"Total: {total_p} prompted, {total_a} approved, {total_r} rejected, {total_i} interrupted")
 
     max_name = max(4, max(len(t) for t in ranked))
 
     lines.append("")
-    lines.append(f"  {'#':>3}  {'Tool':<{max_name}}  {'Interrupted':>11}  {'Rejected':>8}  {'Total':>5}")
+    lines.append(
+        f"  {'#':>3}  {'Tool':<{max_name}}"
+        f"  {'Prompted':>8}  {'Approved':>8}  {'Rejected':>8}  {'Interrupted':>11}  {'Total':>5}"
+    )
     for i, tool in enumerate(ranked, start=1):
-        ic = total_interrupts[tool]
+        pc = total_prompted[tool]
         rc = total_rejects[tool]
-        total = ic + rc
-        lines.append(f"  {i:>3}  {tool:<{max_name}}  {ic:>11}  {rc:>8}  {total:>5}")
+        ac = max(0, pc - rc)
+        ic = total_interrupts[tool]
+        total = pc + ic
+        lines.append(
+            f"  {i:>3}  {tool:<{max_name}}"
+            f"  {pc:>8}  {ac:>8}  {rc:>8}  {ic:>11}  {total:>5}"
+        )
 
     # Date range
     mtimes = [p.stat().st_mtime for p in session_paths]

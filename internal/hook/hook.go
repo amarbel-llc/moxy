@@ -9,13 +9,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 
 	"github.com/amarbel-llc/moxy/internal/native"
 )
 
-var hookLog *log.Logger
+var (
+	hookLog    *log.Logger
+	hooksLogDir string
+)
 
 func init() {
 	logHome := os.Getenv("XDG_LOG_HOME")
@@ -33,6 +37,47 @@ func init() {
 	if err == nil {
 		hookLog = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
 	}
+	hooksLogDir = filepath.Join(logDir, "hooks")
+}
+
+// logHookEvent appends the raw hook input (with a timestamp added) to
+// a per-session JSONL file at ~/.local/log/moxy/hooks/{session_id}.jsonl.
+// This is a fire-hose log of every hook invocation — downstream tools
+// like freud filter by hook_event_name as needed.
+func logHookEvent(raw json.RawMessage, hi hookInput) {
+	if hi.SessionID == "" {
+		return
+	}
+
+	// Re-marshal with timestamp injected.
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		debugHook("logHookEvent: unmarshal error: %v", err)
+		return
+	}
+	obj["ts"] = time.Now().UTC().Format(time.RFC3339)
+
+	data, err := json.Marshal(obj)
+	if err != nil {
+		debugHook("logHookEvent: marshal error: %v", err)
+		return
+	}
+
+	if err := os.MkdirAll(hooksLogDir, 0o755); err != nil {
+		debugHook("logHookEvent: mkdir error: %v", err)
+		return
+	}
+
+	logPath := filepath.Join(hooksLogDir, hi.SessionID+".jsonl")
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		debugHook("logHookEvent: open error: %v", err)
+		return
+	}
+	defer f.Close()
+
+	f.Write(data)
+	f.Write([]byte("\n"))
 }
 
 func debugHook(format string, args ...any) {
@@ -43,8 +88,12 @@ func debugHook(format string, args ...any) {
 
 // hookInput mirrors the unexported type in go-mcp/command.
 type hookInput struct {
-	ToolName  string         `json:"tool_name"`
-	ToolInput map[string]any `json:"tool_input"`
+	HookEventName string         `json:"hook_event_name"`
+	SessionID     string         `json:"session_id"`
+	ToolName      string         `json:"tool_name"`
+	ToolInput     map[string]any `json:"tool_input"`
+	AgentID       string         `json:"agent_id,omitempty"`
+	AgentType     string         `json:"agent_type,omitempty"`
 }
 
 type hookOutput struct {
@@ -59,12 +108,20 @@ type hookDecision struct {
 
 const moxyToolPrefix = "mcp__moxy__"
 
-// Handle processes a PreToolUse hook invocation. If the tool is a moxy moxin
-// tool with a perms-request configured, it writes the corresponding decision.
-// Otherwise it delegates to go-mcp's HandleHook for existing deny-redirect logic.
+// Handle processes hook invocations from Claude Code.
 //
-// Follows fail-open: any error in permission discovery silently falls through
-// to app.HandleHook.
+// Every invocation is logged to a per-session JSONL file in
+// ~/.local/log/moxy/hooks/ (see moxy-hooks(5) for the format).
+//
+// Then dispatches based on hook_event_name:
+//
+//   - PreToolUse: permission decisions for moxin tools, then falls through to
+//     go-mcp's HandleHook for deny-redirect logic.
+//   - PermissionRequest: returns empty output so Claude Code shows the normal
+//     permission dialog (the event is already logged above).
+//   - All other events: logged only (no response needed).
+//
+// Follows fail-open: any error silently falls through to app.HandleHook.
 func Handle(app *command.App, r io.Reader, w io.Writer) error {
 	raw, err := io.ReadAll(r)
 	if err != nil {
@@ -79,19 +136,30 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 		return app.HandleHook(bytes.NewReader(raw), w)
 	}
 
-	debugHook("tool_name=%q has_prefix=%v", hi.ToolName, strings.HasPrefix(hi.ToolName, moxyToolPrefix))
+	debugHook("event=%q tool_name=%q", hi.HookEventName, hi.ToolName)
 
-	if strings.HasPrefix(hi.ToolName, moxyToolPrefix) {
-		parsed, ok := parseNativeToolName(hi.ToolName)
-		debugHook("  parsed=%q ok=%v", parsed, ok)
-		if tryPermsDecision(hi.ToolName, w) {
-			debugHook("  decision: allowed")
-			return nil
+	// Fire-hose: log every hook event to per-session JSONL.
+	logHookEvent(json.RawMessage(raw), hi)
+
+	switch hi.HookEventName {
+	case "PermissionRequest":
+		// Return empty output — Claude Code shows the normal permission dialog.
+		return nil
+
+	default:
+		// PreToolUse (and any future event types): existing behavior.
+		if strings.HasPrefix(hi.ToolName, moxyToolPrefix) {
+			parsed, ok := parseNativeToolName(hi.ToolName)
+			debugHook("  parsed=%q ok=%v", parsed, ok)
+			if tryPermsDecision(hi.ToolName, w) {
+				debugHook("  decision: allowed")
+				return nil
+			}
+			debugHook("  decision: fall-through")
 		}
-		debugHook("  decision: fall-through")
-	}
 
-	return app.HandleHook(bytes.NewReader(raw), w)
+		return app.HandleHook(bytes.NewReader(raw), w)
+	}
 }
 
 // tryPermsDecision checks the tool's perms-request in moxin configs and writes
@@ -243,22 +311,29 @@ func InstallSettingsHook() error {
 		hooks = make(map[string]any)
 	}
 
-	preToolUse, _ := hooks["PreToolUse"].([]any)
+	// Install the same hook entry for both PreToolUse and PermissionRequest.
+	for _, eventName := range []string{"PreToolUse", "PermissionRequest"} {
+		entries, _ := hooks[eventName].([]any)
 
-	// Check if a moxy hook entry already exists.
-	for _, entry := range preToolUse {
-		e, ok := entry.(map[string]any)
-		if !ok {
-			continue
+		alreadyInstalled := false
+		for _, entry := range entries {
+			e, ok := entry.(map[string]any)
+			if !ok {
+				continue
+			}
+			matcher, _ := e["matcher"].(string)
+			if matcher == moxyPattern {
+				alreadyInstalled = true
+				break
+			}
 		}
-		matcher, _ := e["matcher"].(string)
-		if matcher == moxyPattern {
-			return nil // Already installed.
+
+		if !alreadyInstalled {
+			entries = append(entries, wantEntry)
+			hooks[eventName] = entries
 		}
 	}
 
-	preToolUse = append(preToolUse, wantEntry)
-	hooks["PreToolUse"] = preToolUse
 	settings["hooks"] = hooks
 
 	out, err := json.MarshalIndent(settings, "", "  ")
@@ -303,7 +378,7 @@ func ExpandHooksMatcher(dir, appName string) error {
 			return fmt.Errorf("creating hooks dir: %w", err)
 		}
 
-		// Write the pre-tool-use wrapper script.
+		// Write the hook wrapper script (shared by PreToolUse and PermissionRequest).
 		self, err := os.Executable()
 		if err != nil {
 			return fmt.Errorf("resolving executable: %w", err)
@@ -317,15 +392,20 @@ func ExpandHooksMatcher(dir, appName string) error {
 			return fmt.Errorf("writing pre-tool-use: %w", err)
 		}
 
+		he := hookEntry{
+			Type:    "command",
+			Command: "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use",
+			Timeout: 5,
+		}
 		manifest := hooksManifest{
 			Hooks: map[string][]hooksEntry{
 				"PreToolUse": {{
 					Matcher: moxyToolPrefix + ".*",
-					Hooks: []hookEntry{{
-						Type:    "command",
-						Command: "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use",
-						Timeout: 5,
-					}},
+					Hooks:   []hookEntry{he},
+				}},
+				"PermissionRequest": {{
+					Matcher: moxyToolPrefix + ".*",
+					Hooks:   []hookEntry{he},
 				}},
 			},
 		}
@@ -346,26 +426,33 @@ func ExpandHooksMatcher(dir, appName string) error {
 
 	moxyPattern := moxyToolPrefix + ".*"
 
-	entries := manifest.Hooks["PreToolUse"]
-	if len(entries) == 0 {
-		// Add a new PreToolUse entry for moxy tools.
-		manifest.Hooks["PreToolUse"] = []hooksEntry{{
-			Matcher: moxyPattern,
-			Hooks: []hookEntry{{
-				Type:    "command",
-				Command: "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use",
-				Timeout: 5,
-			}},
-		}}
-	} else {
-		// Append moxy pattern to the existing matcher if not already present.
-		for i, entry := range entries {
-			if strings.Contains(entry.Matcher, moxyPattern) {
-				return nil // Already expanded.
+	// Ensure both PreToolUse and PermissionRequest have the moxy pattern.
+	for _, eventName := range []string{"PreToolUse", "PermissionRequest"} {
+		entries := manifest.Hooks[eventName]
+		if len(entries) == 0 {
+			manifest.Hooks[eventName] = []hooksEntry{{
+				Matcher: moxyPattern,
+				Hooks: []hookEntry{{
+					Type:    "command",
+					Command: "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use",
+					Timeout: 5,
+				}},
+			}}
+		} else {
+			alreadyPresent := false
+			for _, entry := range entries {
+				if strings.Contains(entry.Matcher, moxyPattern) {
+					alreadyPresent = true
+					break
+				}
 			}
-			entries[i].Matcher = entry.Matcher + "|" + moxyPattern
+			if !alreadyPresent {
+				for i, entry := range entries {
+					entries[i].Matcher = entry.Matcher + "|" + moxyPattern
+				}
+				manifest.Hooks[eventName] = entries
+			}
 		}
-		manifest.Hooks["PreToolUse"] = entries
 	}
 
 	out, err := json.MarshalIndent(manifest, "", "  ")

@@ -1,0 +1,113 @@
+.Dd April 11, 2026
+.Dt MOXY-HOOKS 5
+.Os
+.Sh NAME
+.Nm moxy-hooks
+.Nd hook event log format
+.Sh DESCRIPTION
+When
+.Xr moxy 1
+is invoked as a Claude Code hook handler
+.Pq via Cm moxy hook ,
+every hook event is appended to a per-session JSONL file under
+.Pa $XDG_LOG_HOME/moxy/hooks/ .
+.Pp
+Each file is named
+.Pa {session_id}.jsonl
+where
+.Ar session_id
+is the Claude Code session UUID.
+Each line is the raw JSON object sent by Claude Code on the hook's
+stdin, with a
+.Cm ts
+field injected containing the UTC timestamp in RFC 3339 format.
+.Sh HOOK EVENT TYPES
+Claude Code sends several hook event types.
+The
+.Cm hook_event_name
+field identifies the type.
+Events currently logged:
+.Bl -tag -width "PermissionRequest"
+.It Cm PreToolUse
+Fired before a tool executes.
+Contains
+.Cm tool_name
+and
+.Cm tool_input .
+.Nm moxy
+uses this to auto-allow moxin tools; the event is still logged
+regardless of the permission decision.
+.It Cm PermissionRequest
+Fired when Claude Code is about to show an interactive permission
+dialog to the user.
+This indicates an
+.Em agent pause :
+the agent is blocked waiting for user input.
+Contains
+.Cm tool_name ,
+.Cm tool_input ,
+and
+.Cm permission_suggestions .
+.El
+.Pp
+Additional event types
+.Pq e.g. PostToolUse, Stop, SessionStart
+are logged if the hook is registered for them but are not currently
+used by
+.Nm moxy .
+.Sh COMMON FIELDS
+Every event contains at least:
+.Bl -tag -width "permission_mode"
+.It Cm ts
+UTC timestamp in RFC 3339 format
+.Pq injected by Nm moxy , not present in the original payload .
+.It Cm hook_event_name
+Event type string.
+.It Cm session_id
+Claude Code session UUID.
+.It Cm tool_name
+Tool that triggered the event
+.Pq e.g. Dq Bash , Dq mcp__moxy__folio_read .
+.It Cm tool_input
+Object with the tool's input parameters.
+.It Cm cwd
+Working directory at the time of the event.
+.It Cm permission_mode
+Session permission tier
+.Pq e.g. Dq default , Dq acceptEdits .
+.El
+.Pp
+Events from subagents additionally contain:
+.Bl -tag -width "agent_type"
+.It Cm agent_id
+Subagent identifier.
+.It Cm agent_type
+Subagent type
+.Pq e.g. Dq Explore , Dq Plan .
+.El
+.Sh EXAMPLES
+A typical
+.Cm PermissionRequest
+entry:
+.Bd -literal -offset indent
+{"ts":"2026-04-11T18:25:15Z","session_id":"5d444361-...","hook_event_name":"PermissionRequest","tool_name":"mcp__moxy__folio-external_ls","tool_input":{"path":"/home/user/repos"},"cwd":"/home/user/project","permission_mode":"default"}
+.Ed
+.Pp
+List all permission prompts from a session:
+.Bd -literal -offset indent
+jq -r 'select(.hook_event_name == "PermissionRequest") | .tool_name' \\
+    ~/.local/log/moxy/hooks/{session_id}.jsonl
+.Ed
+.Sh FILES
+.Bl -tag -width "$XDG_LOG_HOME/moxy/hooks/"
+.It Pa $XDG_LOG_HOME/moxy/hooks/
+Directory containing per-session hook event logs.
+Defaults to
+.Pa ~/.local/log/moxy/hooks/
+when
+.Ev XDG_LOG_HOME
+is unset.
+.El
+.Sh SEE ALSO
+.Xr moxy 1 ,
+.Xr moxin 7
