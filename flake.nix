@@ -117,15 +117,15 @@
             cp ${./libexec}/* $out/libexec/moxy/
             chmod +x $out/libexec/moxy/*
             for f in $out/libexec/moxy/freud-*; do
-              wrapProgram "$f" --prefix PATH : ${pkgs.python3}/bin
+              wrapProgram "$f" --set PATH ${pkgs.python3}/bin
             done
             for f in $out/libexec/moxy/just-*; do
               wrapProgram "$f" \
-                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.just pkgs.jq ]}
+                --set PATH ${pkgs.lib.makeBinPath [ pkgs.just pkgs.jq ]}
             done
             for f in $out/libexec/moxy/man-*; do
               wrapProgram "$f" \
-                --prefix PATH : ${
+                --set PATH ${
                   pkgs.lib.makeBinPath [ pkgs.mandoc pkgs.pandoc maneater ]
                 }
             done
@@ -135,7 +135,7 @@
             done
             for f in $out/libexec/moxy/jira-*; do
               wrapProgram "$f" \
-                --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli ]}
+                --set PATH ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli ]}
             done
 
             # Rewrite __LIBEXEC__ placeholder to absolute nix store path
@@ -189,7 +189,7 @@
             ''
               mkdir -p $out/bin $out/share/man/man1 $out/share/man/man5
               makeWrapper ${maneater-unwrapped}/bin/maneater $out/bin/maneater \
-                --prefix PATH : ${
+                --set PATH ${
                   pkgs.lib.makeBinPath [
                     pkgs.mandoc
                     pkgs.pandoc
