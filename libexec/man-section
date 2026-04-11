@@ -2,14 +2,15 @@
 set -euo pipefail
 
 page="$1"; section_name="$2"
-src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null | head -1)
+src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null) || true
+src="${src%%$'\n'*}"
 
 [ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
 rendered=$(case "$src" in
   *.gz) gzip -dc "$src" ;;
   *)    cat "$src" ;;
 esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
-result=$(echo "$rendered" | awk -v target="$section_name" '
+result=$(awk -v target="$section_name" '
 BEGIN { found=0; IGNORECASE=1 }
 /^#+ / {
   if (found) exit
@@ -17,10 +18,10 @@ BEGIN { found=0; IGNORECASE=1 }
   if (tolower(name) == tolower(target)) found=1
 }
 found { print }
-')
+' <<< "$rendered") || true
 if [ -z "$result" ]; then
   echo "Section \"$section_name\" not found in $page. Available sections:"
-  echo "$rendered" | awk '/^#+ /{print}'
+  awk '/^#+ /{print}' <<< "$rendered"
   exit 1
 fi
 echo "$result"

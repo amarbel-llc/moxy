@@ -2,7 +2,8 @@
 set -euo pipefail
 
 page="$1"
-src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null | head -1)
+src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null) || true
+src="${src%%$'\n'*}"
 
 [ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
 case "$src" in
