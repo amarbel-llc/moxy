@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
@@ -62,7 +63,7 @@ func newApp() *command.App {
 				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT.",
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return runServer()
+			return runServer(app)
 		},
 	})
 
@@ -144,6 +145,32 @@ func newApp() *command.App {
 	})
 
 	app.AddCommand(&command.Command{
+		Name: "status",
+		Description: command.Description{
+			Short: "Show all configured servers and moxins with their sources",
+			Long: "Loads the moxyfile hierarchy and discovers moxins from MOXIN_PATH, " +
+				"then prints each server and moxin with its source file or directory. " +
+				"Useful for debugging which configs are active and where they come from.",
+		},
+		Annotations: &protocol.ToolAnnotations{
+			ReadOnlyHint: boolPtr(true),
+		},
+		Run: func(_ context.Context, _ json.RawMessage, _ command.Prompter) (*command.Result, error) {
+			hierarchy, err := config.LoadDefaultHierarchy()
+			if err != nil {
+				return command.TextErrorResult(fmt.Sprintf("loading moxyfile hierarchy: %v", err)), nil
+			}
+			moxinPath := os.Getenv("MOXIN_PATH")
+			systemDir := native.SystemMoxinDir()
+			discovered, err := native.DiscoverAll(moxinPath, systemDir)
+			if err != nil {
+				return command.TextErrorResult(fmt.Sprintf("discovering moxins: %v", err)), nil
+			}
+			return command.TextResult(formatStatus(hierarchy, discovered, moxinPath, systemDir)), nil
+		},
+	})
+
+	app.AddCommand(&command.Command{
 		Name: "hook",
 		Description: command.Description{
 			Short: "Handle MCP hook protocol",
@@ -197,7 +224,7 @@ func main() {
 	}
 }
 
-func runServer() error {
+func runServer(app *command.App) error {
 	hierarchy, err := config.LoadDefaultHierarchy()
 	if err != nil {
 		return err
@@ -310,6 +337,10 @@ func runServer() error {
 
 	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
 	p.SetResultReader(native.NewResultReader())
+
+	builtinRegistry := server.NewToolRegistryV1()
+	app.RegisterMCPToolsV1(builtinRegistry)
+	p.SetBuiltinTools(builtinRegistry)
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 	p.SetNotifier(t.Write)
@@ -445,6 +476,60 @@ func sanitizeSessionSegment(s string) string {
 	}
 	return b.String()
 }
+
+func formatStatus(
+	hierarchy config.Hierarchy,
+	discovered native.DiscoverResult,
+	moxinPath string,
+	systemDir string,
+) string {
+	var b strings.Builder
+
+	// Build server-name → source-path mapping (last source wins, matching merge semantics)
+	serverSource := make(map[string]string)
+	for _, src := range hierarchy.Sources {
+		if !src.Found {
+			continue
+		}
+		for _, srv := range src.File.Servers {
+			serverSource[srv.Name] = src.Path
+		}
+	}
+
+	b.WriteString("Moxyfile servers:\n")
+	if len(hierarchy.Merged.Servers) == 0 {
+		b.WriteString("  (none)\n")
+	}
+	for _, srv := range hierarchy.Merged.Servers {
+		fmt.Fprintf(&b, "  %-24s %s\n", srv.Name, serverSource[srv.Name])
+	}
+
+	b.WriteString("\nMoxins:\n")
+	if len(discovered.Configs) == 0 && len(discovered.Errors) == 0 {
+		b.WriteString("  (none)\n")
+	}
+	for _, nc := range discovered.Configs {
+		fmt.Fprintf(&b, "  %-24s %s (%d tools)\n", nc.Name, nc.SourceDir, len(nc.Tools))
+	}
+	for _, me := range discovered.Errors {
+		fmt.Fprintf(&b, "  %-24s %s (FAILED: %v)\n", filepath.Base(me.Dir), me.Dir, me.Err)
+	}
+
+	// Show effective MOXIN_PATH
+	effectivePath := moxinPath
+	if effectivePath == "" {
+		home, _ := os.UserHomeDir()
+		cwd, _ := os.Getwd()
+		if home != "" && cwd != "" {
+			effectivePath = native.DefaultMoxinPath(home, cwd, systemDir)
+		}
+	}
+	fmt.Fprintf(&b, "\nMOXIN_PATH: %s\n", effectivePath)
+
+	return b.String()
+}
+
+func boolPtr(b bool) *bool { return &b }
 
 var (
 	_ server.ToolProviderV1     = (*proxy.Proxy)(nil)

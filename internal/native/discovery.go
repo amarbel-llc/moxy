@@ -96,7 +96,67 @@ func DefaultMoxinPath(home, cwd, systemDir string) string {
 // When moxinPath is empty, the default hierarchy is computed from the current
 // working directory (same directories as `moxy moxin-path`), so discovery
 // works without an explicit MOXIN_PATH env var.
-func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error) {
+// MoxinError records a moxin directory that failed to load.
+type MoxinError struct {
+	Dir string
+	Err error
+}
+
+// DiscoverResult holds both successfully loaded moxins and load failures.
+type DiscoverResult struct {
+	Configs []*NativeConfig
+	Errors  []MoxinError
+}
+
+// DiscoverAll loads moxin configs and collects load failures instead of
+// logging them to stderr. Used by `moxy list` to show error details.
+func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
+	dirs := resolveMoxinDirs(moxinPath, systemDir)
+
+	byName := make(map[string]*NativeConfig)
+	var order []string
+	var loadErrors []MoxinError
+
+	for i := len(dirs) - 1; i >= 0; i-- {
+		moxyDir := dirs[i]
+		entries, err := os.ReadDir(moxyDir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return DiscoverResult{}, fmt.Errorf("reading %s: %w", moxyDir, err)
+		}
+
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			dirPath := filepath.Join(moxyDir, e.Name())
+			metaPath := filepath.Join(dirPath, "_moxin.toml")
+			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
+				continue
+			}
+			cfg, err := ParseMoxinDir(dirPath)
+			if err != nil {
+				loadErrors = append(loadErrors, MoxinError{Dir: dirPath, Err: err})
+				continue
+			}
+			cfg.SourceDir = dirPath
+			if _, exists := byName[cfg.Name]; !exists {
+				order = append(order, cfg.Name)
+			}
+			byName[cfg.Name] = cfg
+		}
+	}
+
+	result := make([]*NativeConfig, 0, len(order))
+	for _, name := range order {
+		result = append(result, byName[name])
+	}
+	return DiscoverResult{Configs: result, Errors: loadErrors}, nil
+}
+
+func resolveMoxinDirs(moxinPath, systemDir string) []string {
 	if moxinPath == "" {
 		home, _ := os.UserHomeDir()
 		cwd, _ := os.Getwd()
@@ -104,11 +164,15 @@ func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error
 			moxinPath = DefaultMoxinPath(home, cwd, "")
 		}
 	}
-
 	dirs := ParseMoxinPath(moxinPath)
 	if systemDir != "" {
 		dirs = append(dirs, systemDir)
 	}
+	return dirs
+}
+
+func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error) {
+	dirs := resolveMoxinDirs(moxinPath, systemDir)
 
 	byName := make(map[string]*NativeConfig)
 	var order []string
@@ -138,6 +202,7 @@ func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error
 				fmt.Fprintf(os.Stderr, "moxy: skipping moxin %s: %v\n", dirPath, err)
 				continue
 			}
+			cfg.SourceDir = dirPath
 			if _, exists := byName[cfg.Name]; !exists {
 				order = append(order, cfg.Name)
 			}

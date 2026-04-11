@@ -39,6 +39,7 @@ const (
 type NativeConfig struct {
 	Name        string
 	Description string
+	SourceDir   string
 	Tools       []ToolSpec
 }
 

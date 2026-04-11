@@ -1,0 +1,57 @@
+schema = 1
+description = "Get a GitHub issue by number"
+command = "bash"
+arg_order = ["repo", "number", "fields", "output_format"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+number="$2"
+fields="${3:-}"
+output_format="${4:-}"
+
+if [ -z "$fields" ]; then
+  fields="number,title,state,stateReason,body,labels,assignees,milestone,comments,createdAt,updatedAt,url"
+fi
+
+raw=$(gh issue view "$number" -R "$repo" --json "$fields")
+
+if [ "$output_format" = "text" ]; then
+  printf '%s' "$raw" | jq -r '
+    "# #\\(.number): \\(.title)\\n" +
+    "State: \\(.state)" +
+    (if .stateReason then " (\\(.stateReason))" else "" end) + "\\n" +
+    (if .labels and (.labels | length > 0) then "Labels: \\([.labels[].name] | join(", "))\\n" else "" end) +
+    (if .assignees and (.assignees | length > 0) then "Assignees: \\([.assignees[].login] | join(", "))\\n" else "" end) +
+    (if .milestone then "Milestone: \\(.milestone.title)\\n" else "" end) +
+    "Created: \\(.createdAt)\\nUpdated: \\(.updatedAt)\\n" +
+    (if .url then "URL: \\(.url)\\n" else "" end) +
+    "\\n\\(.body // "")" +
+    (if .comments and (.comments | length > 0) then
+      "\\n\\n---\\n## Comments (\\(.comments | length))\\n" +
+      ([.comments[] | "### @\\(.author.login) (\\(.createdAt))\\n\\(.body)"] | join("\\n\\n"))
+    else "" end)
+  '
+else
+  printf '%s' "$raw"
+fi
+""", "_"]
+
+[input]
+type = "object"
+required = ["repo", "number"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.fields]
+type = "string"
+description = "Comma-separated field names to return (e.g. 'summary,status,assignee')"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"

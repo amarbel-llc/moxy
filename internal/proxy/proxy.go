@@ -10,6 +10,7 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/paginate"
@@ -58,6 +59,7 @@ type Proxy struct {
 	globalProgressiveDisclosure *bool
 	connectFunc                 ConnectFunc
 	resultReader                ResultReader
+	builtinTools                *server.ToolRegistryV1
 	notifier                    func(*jsonrpc.Message) error
 	mu                          sync.RWMutex
 }
@@ -68,6 +70,26 @@ func (p *Proxy) SetNotifier(fn func(*jsonrpc.Message) error) {
 
 func (p *Proxy) SetResultReader(rr ResultReader) {
 	p.resultReader = rr
+}
+
+func (p *Proxy) SetBuiltinTools(registry *server.ToolRegistryV1) {
+	p.builtinTools = registry
+}
+
+func (p *Proxy) hasBuiltinTool(name string) bool {
+	if p.builtinTools == nil {
+		return false
+	}
+	result, _ := p.builtinTools.ListToolsV1(context.Background(), "")
+	if result == nil {
+		return false
+	}
+	for _, t := range result.Tools {
+		if t.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Proxy) ForwardNotification(msg *jsonrpc.Message) {
@@ -496,6 +518,13 @@ func (p *Proxy) ListToolsV1(
 		})
 	}
 
+	if p.builtinTools != nil {
+		builtinResult, _ := p.builtinTools.ListToolsV1(ctx, "")
+		if builtinResult != nil {
+			allTools = append(allTools, builtinResult.Tools...)
+		}
+	}
+
 	allTools = append(allTools, protocol.ToolV1{
 		Name:        "restart",
 		Title:       "Restart Server",
@@ -527,6 +556,10 @@ func (p *Proxy) CallToolV1(
 	name string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
+	if p.builtinTools != nil && p.hasBuiltinTool(name) {
+		return p.builtinTools.CallToolV1(ctx, name, args)
+	}
+
 	if name == "restart" {
 		return p.handleRestart(ctx, args)
 	}
