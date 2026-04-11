@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+import time
+from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+MULTI_WORD_COMMANDS = {"git", "just", "docker", "kubectl", "nix", "gh", "cargo", "go", "npm"}
+
+
+def resolve_cwd(proj_dir: Path) -> str | None:
+    """Extract cwd from the newest JSONL in a project directory."""
+    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not jsonls:
+        return None
+
+    with open(jsonls[0]) as f:
+        for i, line in enumerate(f):
+            if i >= 200:
+                break
+            try:
+                obj = json.loads(line)
+                cwd = obj.get("cwd")
+                if cwd:
+                    return cwd
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    name = proj_dir.name.lstrip("-")
+    return "/" + name.replace("-", "/") + " (heuristic)"
+
+
+def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
+    lower = filter_str.lower()
+    return lower in resolved_cwd.lower() or lower in dir_name.lower()
+
+
+def extract_command_family(tool_input: dict) -> str:
+    """Extract command family from a Bash tool's input."""
+    cmd = tool_input.get("command", "")
+    if not cmd:
+        return "(empty)"
+
+    # Strip leading env vars, semicolons, etc. to find the actual command
+    parts = cmd.strip().split()
+    if not parts:
+        return "(empty)"
+
+    # Skip env var assignments (FOO=bar cmd)
+    idx = 0
+    while idx < len(parts) and "=" in parts[idx]:
+        idx += 1
+    if idx >= len(parts):
+        return parts[0]
+
+    base = parts[idx]
+    # For multi-word commands, include the subcommand
+    if base in MULTI_WORD_COMMANDS and idx + 1 < len(parts):
+        sub = parts[idx + 1]
+        if not sub.startswith("-"):
+            return f"{base} {sub}"
+
+    return base
+
+
+def tally_session(path: Path, tool_name_filter: str) -> Counter:
+    """Single-pass tally of tool_use blocks in a session JSONL."""
+    counter: Counter = Counter()
+    do_bash_breakdown = tool_name_filter and "bash" in tool_name_filter.lower()
+
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if obj.get("type") != "assistant":
+                continue
+
+            content = obj.get("message", {}).get("content")
+            if not isinstance(content, list):
+                continue
+
+            for block in content:
+                if not isinstance(block, dict) or block.get("type") != "tool_use":
+                    continue
+
+                name = block.get("name", "?")
+
+                if tool_name_filter:
+                    if tool_name_filter.lower() not in name.lower():
+                        continue
+                    if do_bash_breakdown:
+                        family = extract_command_family(block.get("input", {}))
+                        counter[family] += 1
+                        continue
+
+                counter[name] += 1
+
+    return counter
+
+
+def main():
+    project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
+    days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 7
+    tool_name_filter = sys.argv[3] if len(sys.argv) > 3 else ""
+    limit = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 20
+
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        print("(no sessions found)")
+        return
+
+    cutoff = time.time() - (days * 86400)
+
+    # Phase 1: resolve cwd per project directory
+    cwd_map: dict[str, str] = {}
+    for proj_dir in sorted(projects_dir.iterdir()):
+        if not proj_dir.is_dir():
+            continue
+        cwd = resolve_cwd(proj_dir)
+        if cwd:
+            cwd_map[proj_dir.name] = cwd
+
+    # Phase 2: collect matching session files
+    session_paths: list[Path] = []
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
+            continue
+        project = cwd_map[proj_dir.name]
+        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            continue
+        for f in proj_dir.glob("*.jsonl"):
+            if f.stat().st_mtime >= cutoff:
+                session_paths.append(f)
+
+    if not session_paths:
+        print(f"No sessions found (days={days}, project={project_filter or 'all'})")
+        return
+
+    # Phase 3: tally across all sessions
+    total_counter: Counter = Counter()
+    for path in session_paths:
+        total_counter += tally_session(path, tool_name_filter)
+
+    total_calls = sum(total_counter.values())
+    if total_calls == 0:
+        filter_desc = f", tool_name={tool_name_filter}" if tool_name_filter else ""
+        print(f"No tool calls found across {len(session_paths)} sessions{filter_desc}")
+        return
+
+    # Phase 4: format output
+    proj_desc = f", project: {project_filter}" if project_filter else ""
+    if tool_name_filter:
+        print(f"{tool_name_filter} subcommand frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
+        print(f"Total: {total_calls} {tool_name_filter} calls")
+        col_header = "Subcommand"
+    else:
+        print(f"Tool frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
+        print(f"Total: {total_calls} tool calls")
+        col_header = "Tool"
+
+    entries = total_counter.most_common(limit if limit > 0 else None)
+
+    # Calculate column widths
+    max_name = max(len(col_header), max(len(name) for name, _ in entries))
+    max_count = max(5, max(len(str(count)) for _, count in entries))
+
+    print()
+    print(f"  {'#':>3}  {col_header:<{max_name}}  {'Count':>{max_count}}      %")
+    for i, (name, count) in enumerate(entries, start=1):
+        pct = 100.0 * count / total_calls
+        print(f"  {i:>3}  {name:<{max_name}}  {count:>{max_count}}  {pct:5.1f}%")
+
+    # Date range
+    mtimes = [p.stat().st_mtime for p in session_paths]
+    earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    print(f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})")
+
+
+if __name__ == "__main__":
+    main()

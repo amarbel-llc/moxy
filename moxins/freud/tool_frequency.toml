@@ -1,0 +1,26 @@
+schema = 1
+perms-request = "always-allow"
+description = """Aggregate tool usage frequency across multiple sessions. Returns a ranked table \
+with counts and percentages. When filtering to a specific tool like Bash, breaks down by \
+command/subcommand. Much faster than calling tool_usage per session and tallying manually."""
+command = "__LIBEXEC__/freud-tool-frequency"
+arg_order = ["project", "days", "tool_name", "limit"]
+
+[input]
+type = "object"
+
+[input.properties.project]
+type = "string"
+description = "Filter sessions by project path substring (case-insensitive match on resolved cwd or directory name). Omit for all projects."
+
+[input.properties.days]
+type = "integer"
+description = "Analyze sessions from the last N days. Defaults to 7."
+
+[input.properties.tool_name]
+type = "string"
+description = "Filter to a specific tool name (case-insensitive substring). For Bash, breaks down by command family."
+
+[input.properties.limit]
+type = "integer"
+description = "Maximum number of entries in the frequency table. Defaults to 20, 0 for unlimited."
