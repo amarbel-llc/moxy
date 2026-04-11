@@ -1,5 +1,5 @@
-name = "get-hubbed-other"
-description = "GitHub tools for repositories OTHER than the current one. Every tool requires an explicit repo parameter in OWNER/REPO format. For current-repo operations, use gh tools instead."
+name = "get-hubbed-external"
+description = "GitHub tools for repositories OTHER than the current one. Every tool requires an explicit repo parameter in OWNER/REPO format. For current-repo operations, use get-hubbed tools instead."
 
 # ---------------------------------------------------------------------------
 # Cross-repo tools. Every mutation requires an explicit -R repo.
@@ -55,6 +55,7 @@ type = "string"
 # ---
 
 [[tools]]
+auto-allow = true
 name = "issue-list"
 description = "List issues in a repository with optional filters"
 command = "bash"

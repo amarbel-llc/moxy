@@ -1,5 +1,5 @@
 name = "get-hubbed"
-description = "GitHub MCP server for the current repository. Issue/PR mutations and API tools operate on the repo detected from the git remote in the current directory. For operations on other repos, use gh-other tools instead."
+description = "GitHub MCP server for the current repository. Issue/PR mutations and API tools operate on the repo detected from the git remote in the current directory. For operations on other repos, use get-hubbed-external tools instead."
 
 # ---------------------------------------------------------------------------
 # Current-repo tools. gh auto-detects the repo from the git remote.

@@ -122,7 +122,7 @@ require no Go code — tool schemas are declared in TOML, dispatch is by process
 invocation.
 
 Current native servers: `freud` (session transcripts), `jq`, `rg`, `man`,
-`folio` (read tools), `godoc`, `gh`, `gh-other`, `grit`, `chix`.
+`folio` (read tools), `godoc`, `get-hubbed`, `get-hubbed-external`, `grit`, `chix`.
 
 **Builtin native server dependency rule:** All builtin native servers
 (`builtin-servers/*.toml`) must have their external dependencies provided via

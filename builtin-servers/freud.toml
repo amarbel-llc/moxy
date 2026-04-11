@@ -15,6 +15,7 @@ type = "string"
 description = "Filter sessions by project path substring (case-insensitive match on resolved cwd or directory name). Omit for all projects."
 
 [[tools]]
+auto-allow = true
 name = "transcript"
 description = "Return the raw JSONL transcript for a single session, looked up by session id across all projects."
 command = "__LIBEXEC__/freud-transcript"
