@@ -28,6 +28,12 @@ git_args=(push)
 
 [ "$set_upstream" = "true" ] && git_args+=(-u)
 
+# Default remote to origin when a branch is specified, so git doesn't
+# interpret the branch name as a remote.
+if [ -n "$branch" ] && [ -z "$remote" ]; then
+  remote="origin"
+fi
+
 [ -n "$remote" ] && git_args+=("$remote")
 
 [ -n "$branch" ] && git_args+=("$branch")
