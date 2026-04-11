@@ -1,4 +1,6 @@
-schema = 1
+schema = 2
+result-type = "text"
+content-type = "application/json"
 description = """Evaluate a nix expression. The expr and apply parameters accept full Nix syntax \
 including attribute sets, string interpolation, let bindings, lambdas, and all Nix operators."""
 command = "bash"

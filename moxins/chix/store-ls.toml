@@ -1,4 +1,6 @@
-schema = 1
+schema = 2
+result-type = "text"
+content-type = "application/json"
 perms-request = "always-allow"
 description = "List contents of a nix store path directory. Returns JSON with name, type, and optional size."
 command = "bash"
