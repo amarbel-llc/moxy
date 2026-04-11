@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Get a Jira issue by key"
-command = "__LIBEXEC__/jira-get-issue"
+command = "@LIBEXEC@/jira-get-issue"
 arg_order = ["issue_key", "fields", "output_format"]
 
 [input]

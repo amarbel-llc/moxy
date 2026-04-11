@@ -138,9 +138,12 @@
                 --set PATH ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli ]}
             done
 
-            # Rewrite __LIBEXEC__ placeholder to absolute nix store path
-            find $out/share/moxy/moxins -name '*.toml' -exec \
-              sed -i "s|__LIBEXEC__|$out/libexec/moxy|g" {} +
+            # Rewrite @LIBEXEC@ placeholder to absolute nix store path.
+            # Uses --replace-fail so a typo (@LIBEXE@) breaks the build
+            # instead of silently leaving a broken path.
+            for f in $(grep -rl '@LIBEXEC@' $out/share/moxy/moxins); do
+              substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
+            done
           '';
         };
 

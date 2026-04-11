@@ -3,7 +3,7 @@ perms-request = "always-allow"
 description = """Extract conversation messages from a session with the JSONL schema already flattened. \
 Returns one line per message with role, text content, tool calls (as one-line summaries), \
 and tool results (as text previews). Filters by role, keyword search, and pagination."""
-command = "__LIBEXEC__/freud-messages"
+command = "@LIBEXEC@/freud-messages"
 arg_order = ["session_id", "role", "search", "offset", "limit"]
 
 [input]

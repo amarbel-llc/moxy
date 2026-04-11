@@ -3,7 +3,7 @@ perms-request = "always-allow"
 description = """Extract tool calls from a session, already structured. Returns one line per tool \
 call with sequence number, tool name, and truncated input JSON. Much faster than parsing raw \
 JSONL transcripts with jq."""
-command = "__LIBEXEC__/freud-tool-usage"
+command = "@LIBEXEC@/freud-tool-usage"
 arg_order = ["session_id", "tool_name", "limit"]
 
 [input]

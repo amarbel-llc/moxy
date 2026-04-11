@@ -138,8 +138,8 @@ behavior: `always-allow`, `each-use`, or `delegate-to-client` (default).
 (`builtin-servers/*.toml`) must have their external dependencies provided via
 nix wrapping. Never rely on tools being on the ambient PATH --- they won't be
 outside the moxy devshell. The pattern: put scripts in `libexec/`, wrap them in
-`flake.nix` postInstall with `wrapProgram --prefix PATH`, and reference via
-`__LIBEXEC__` placeholder in the TOML config. Inline `sh -c` commands are only
+`flake.nix` postInstall with `wrapProgram --set PATH`, and reference via
+`@LIBEXEC@` placeholder in the TOML config. Inline `sh -c` commands are only
 acceptable for coreutils-level builtins (`cat`, `echo`, `sed`, etc.).
 
 ### Folio (File I/O Tools)

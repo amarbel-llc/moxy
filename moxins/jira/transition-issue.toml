@@ -1,6 +1,6 @@
 schema = 2
 description = "Transition an issue to a new status"
-command = "__LIBEXEC__/jira-transition-issue"
+command = "@LIBEXEC@/jira-transition-issue"
 arg_order = ["issue_key", "status", "output_format"]
 
 [input]

@@ -11,7 +11,7 @@ build-go: generate build-moxins
 build-moxins:
   mkdir -p build/moxins
   cp -r moxins/*/ build/moxins/
-  find build/moxins -name '*.toml' -exec sed -i "s|__LIBEXEC__|{{justfile_directory()}}/libexec|g" {} +
+  find build/moxins -name '*.toml' -exec sed -i "s|@LIBEXEC@|{{justfile_directory()}}/libexec|g" {} +
   chmod +x libexec/*
 
 generate:

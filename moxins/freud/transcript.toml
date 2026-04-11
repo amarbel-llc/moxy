@@ -3,7 +3,7 @@ result-type = "text"
 content-type = "application/x-ndjson"
 perms-request = "always-allow"
 description = "Return the raw JSONL transcript for a single session, looked up by session id across all projects."
-command = "__LIBEXEC__/freud-transcript"
+command = "@LIBEXEC@/freud-transcript"
 
 [input]
 type = "object"
