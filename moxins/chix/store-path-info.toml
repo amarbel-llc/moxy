@@ -51,3 +51,7 @@ description = "Include closure size information. Defaults to false."
 [input.properties.derivation]
 type = "boolean"
 description = "Show info for the derivation instead of the output. Defaults to false."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

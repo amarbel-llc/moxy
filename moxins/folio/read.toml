@@ -41,3 +41,7 @@ required = ["file_path"]
 [input.properties.file_path]
 type = "string"
 description = "Path to the file to read (must be within CWD)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -62,3 +62,6 @@ description = "Path to the git repository (defaults to current working directory
 [input.properties.set_upstream]
 type = "boolean"
 description = "Set upstream tracking reference (-u)"
+
+[annotations]
+open-world-hint = true

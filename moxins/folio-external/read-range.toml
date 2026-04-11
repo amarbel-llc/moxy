@@ -24,3 +24,7 @@ description = "Inclusive start line (1-indexed)"
 [input.properties.end]
 type = "integer"
 description = "Inclusive end line (1-indexed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

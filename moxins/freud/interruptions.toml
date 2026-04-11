@@ -20,3 +20,7 @@ description = "Analyze sessions from the last N days. Defaults to 7."
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of entries in the table. Defaults to 20, 0 for unlimited."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

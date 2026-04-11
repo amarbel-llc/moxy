@@ -25,3 +25,6 @@ description = "Only print what would be deleted. Defaults to false."
 [input.properties.max_freed]
 type = "string"
 description = "Stop after freeing this much space (e.g., '1G', '500M')."
+
+[annotations]
+destructive-hint = true

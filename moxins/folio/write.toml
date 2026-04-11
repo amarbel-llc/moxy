@@ -52,3 +52,7 @@ description = "Path to the file to write (must be within CWD)"
 [input.properties.content]
 type = "string"
 description = "The content to write to the file"
+
+[annotations]
+destructive-hint = true
+idempotent-hint = true

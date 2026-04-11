@@ -85,3 +85,7 @@ description = "Case insensitive search (rg -i)"
 type = "boolean"
 description = "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall)."
 
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+

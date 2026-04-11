@@ -29,3 +29,6 @@ type = "string"
 [input.properties.dry_run]
 type = "boolean"
 description = "Print what would be executed without actually running (--dry-run)"
+
+[annotations]
+open-world-hint = true

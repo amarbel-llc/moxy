@@ -12,3 +12,7 @@ required = ["recipe"]
 [input.properties.recipe]
 type = "string"
 description = "Recipe name to show"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

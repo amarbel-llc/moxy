@@ -24,3 +24,7 @@ description = "Filter to a specific tool name (case-insensitive substring). For 
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of entries in the frequency table. Defaults to 20, 0 for unlimited."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

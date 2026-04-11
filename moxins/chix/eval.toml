@@ -48,3 +48,7 @@ description = "Nix function to apply to the result (e.g., 'builtins.attrNames', 
 type = "string"
 description = "Directory containing the flake. Defaults to current directory."
 
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+

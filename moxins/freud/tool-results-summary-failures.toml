@@ -23,3 +23,7 @@ description = "Filter to a specific tool name (case-insensitive substring). Omit
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of entries to return. Defaults to 30, 0 for unlimited."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

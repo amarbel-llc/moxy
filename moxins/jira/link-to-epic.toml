@@ -14,3 +14,7 @@ description = "Issue key to link (e.g. XORCH-703)"
 [input.properties.epic_key]
 type = "string"
 description = "Epic issue key (e.g. XORCH-500)"
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

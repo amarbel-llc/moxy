@@ -32,3 +32,6 @@ description = "Arguments to pass to the app."
 [input.properties.flake_dir]
 type = "string"
 description = "Directory containing the flake. Defaults to current directory."
+
+[annotations]
+open-world-hint = true

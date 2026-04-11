@@ -286,6 +286,12 @@ func detectUndecodedTool(data []byte, filename string) []string {
 		document.MarkAllConsumed(inputNode, "input", consumed)
 	}
 
+	// annotations is a known table with typed fields.
+	if annNode := doc.FindTableInContainer(doc.Root(), "annotations"); annNode != nil {
+		consumed["annotations"] = true
+		document.MarkAllConsumed(annNode, "annotations", consumed)
+	}
+
 	for _, child := range doc.Root().Children {
 		if child.Kind == cst.NodeTable {
 			key := document.SubTableKey(child, "")

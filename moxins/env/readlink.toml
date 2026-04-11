@@ -25,3 +25,7 @@ description = "Path to resolve (e.g. '/usr/bin/python3', './result')"
 [input.properties.canonicalize]
 type = "boolean"
 description = "Follow every symlink recursively (-f). Default: false (show immediate target only)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

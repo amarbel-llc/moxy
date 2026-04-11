@@ -60,3 +60,8 @@ description = "Comma-separated field names to return (e.g. 'summary,status,assig
 [input.properties.output_format]
 type = "string"
 description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

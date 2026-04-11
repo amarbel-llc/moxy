@@ -10,3 +10,7 @@ required = ["query"]
 [input.properties.query]
 type = "string"
 description = "Keyword to search for in man page names and descriptions"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

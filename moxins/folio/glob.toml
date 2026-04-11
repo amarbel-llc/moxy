@@ -52,3 +52,7 @@ description = "The glob pattern to match files against (e.g. \"**/*.go\", \"src/
 [input.properties.path]
 type = "string"
 description = "The directory to search in. Defaults to current working directory. Must be within CWD."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

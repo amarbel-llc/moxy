@@ -12,3 +12,7 @@ required = ["session_id"]
 [input.properties.session_id]
 type = "string"
 description = "Session UUID to retrieve (36-char UUID from the sessions listing)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

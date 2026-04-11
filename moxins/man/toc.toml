@@ -12,3 +12,7 @@ required = ["page"]
 [input.properties.page]
 type = "string"
 description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

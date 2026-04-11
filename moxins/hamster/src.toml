@@ -17,3 +17,7 @@ description = "Go package path (e.g. 'fmt', 'encoding/json')"
 [input.properties.symbol]
 type = "string"
 description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package-level source."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

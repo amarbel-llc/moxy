@@ -35,3 +35,8 @@ description = "Directory containing the flake. Defaults to current directory."
 type = "string"
 description = "Continue on error. Defaults to true."
 
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true
+

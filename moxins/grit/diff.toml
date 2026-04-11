@@ -75,3 +75,7 @@ description = "Show only staged (true) or only unstaged (false) changes. Omit to
 [input.properties.stat_only]
 type = "boolean"
 description = "Show only diffstat summary"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -25,3 +25,6 @@ description = "Issue or pull request number"
 [input.properties.body]
 type = "string"
 description = "Comment body (markdown supported)"
+
+[annotations]
+open-world-hint = true

@@ -11,3 +11,7 @@ required = ["name"]
 [input.properties.name]
 type = "string"
 description = "Variable name to print (e.g. 'PATH', 'HOME', 'SSH_AUTH_SOCK')"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

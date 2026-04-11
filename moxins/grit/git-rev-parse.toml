@@ -22,3 +22,7 @@ description = "Ref to resolve (e.g. HEAD, main, v1.0, HEAD~3, abc1234)"
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

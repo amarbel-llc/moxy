@@ -26,3 +26,7 @@ description = "Start line (1-indexed). Omit to read from beginning."
 [input.properties.end]
 type = "integer"
 description = "End line (1-indexed). Omit to read to end."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

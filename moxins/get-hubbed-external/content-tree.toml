@@ -34,3 +34,8 @@ description = "Repository in OWNER/REPO format"
 [input.properties.ref]
 type = "string"
 description = "Branch, tag, or commit SHA (default: HEAD)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

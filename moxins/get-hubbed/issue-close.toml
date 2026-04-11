@@ -32,3 +32,8 @@ description = "Optional comment to add before closing"
 type = "string"
 description = "Close reason: completed (default) or not planned"
 enum = ["completed", "not planned", "duplicate"]
+
+[annotations]
+destructive-hint = true
+idempotent-hint = true
+open-world-hint = true

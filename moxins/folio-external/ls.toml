@@ -60,3 +60,7 @@ description = "Directory path to list. Defaults to current working directory."
 [input.properties.flags]
 type = "string"
 description = "Optional flags passed to ls (e.g. \"-la\", \"-lh\"). When provided, runs ls directly instead of JSON output."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

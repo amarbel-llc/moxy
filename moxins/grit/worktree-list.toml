@@ -16,3 +16,7 @@ type = "object"
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

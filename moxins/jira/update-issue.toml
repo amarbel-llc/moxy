@@ -34,3 +34,7 @@ description = "New issue type"
 [input.properties.output_format]
 type = "string"
 description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

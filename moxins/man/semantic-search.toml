@@ -15,3 +15,7 @@ description = "Natural language search query (e.g. 'list files', 'configure netw
 [input.properties.top_k]
 type = "integer"
 description = "Number of results to return (default 10)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

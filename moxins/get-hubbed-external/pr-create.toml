@@ -62,3 +62,6 @@ description = "Labels to add"
 
 [input.properties.labels.items]
 type = "string"
+
+[annotations]
+open-world-hint = true

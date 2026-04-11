@@ -46,3 +46,7 @@ description = "Store path to list (e.g., '/nix/store/...-hello-2.12.1')."
 [input.properties.long]
 type = "boolean"
 description = "Include file sizes for regular files. Defaults to false."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

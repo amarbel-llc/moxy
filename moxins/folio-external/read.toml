@@ -28,3 +28,7 @@ required = ["file_path"]
 [input.properties.file_path]
 type = "string"
 description = "Absolute path to the file to read"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

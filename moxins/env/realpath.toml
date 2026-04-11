@@ -11,3 +11,7 @@ required = ["path"]
 [input.properties.path]
 type = "string"
 description = "Path to canonicalize (e.g. '../foo/bar', './result', '~/.config')"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

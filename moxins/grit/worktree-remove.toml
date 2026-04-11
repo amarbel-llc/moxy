@@ -30,3 +30,6 @@ description = "Force removal even if worktree has uncommitted changes (--force)"
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+destructive-hint = true

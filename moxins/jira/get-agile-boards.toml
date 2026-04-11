@@ -22,3 +22,8 @@ description = "Maximum results (default 50)"
 [input.properties.output_format]
 type = "string"
 description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

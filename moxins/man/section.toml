@@ -17,3 +17,7 @@ description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
 [input.properties.section_name]
 type = "string"
 description = "Section name to read (e.g. 'DESCRIPTION', 'OPTIONS', 'SYNOPSIS'). Case-insensitive."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

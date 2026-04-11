@@ -52,3 +52,6 @@ description = "Flake reference. Defaults to '.'."
 type = "string"
 description = "Directory containing the flake. Defaults to current directory."
 
+[annotations]
+open-world-hint = true
+

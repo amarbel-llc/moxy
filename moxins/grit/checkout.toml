@@ -67,3 +67,6 @@ description = "Path to the git repository (defaults to current working directory
 [input.properties.theirs]
 type = "boolean"
 description = "During merge conflict, check out their version of the file(s) (--theirs)"
+
+[annotations]
+idempotent-hint = true

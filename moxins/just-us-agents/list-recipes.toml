@@ -5,3 +5,7 @@ command = "@LIBEXEC@/just-list-recipes"
 
 [input]
 type = "object"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

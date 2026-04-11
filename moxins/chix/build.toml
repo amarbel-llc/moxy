@@ -37,3 +37,7 @@ description = "Directory containing the flake. Defaults to current directory."
 type = "string"
 description = "Whether to print build logs (-L flag). Defaults to true."
 
+[annotations]
+idempotent-hint = true
+open-world-hint = true
+

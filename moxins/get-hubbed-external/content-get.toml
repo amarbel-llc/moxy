@@ -42,3 +42,8 @@ description = "File or directory path within the repo (default: root)"
 [input.properties.ref]
 type = "string"
 description = "Branch, tag, or commit SHA (default: repo's default branch)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

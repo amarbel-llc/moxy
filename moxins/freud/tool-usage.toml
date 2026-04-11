@@ -21,3 +21,7 @@ description = "Filter by tool name substring (case-insensitive). Omit for all to
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of tool calls to return. Defaults to 0 (unlimited)."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

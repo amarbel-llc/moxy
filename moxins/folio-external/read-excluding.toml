@@ -24,3 +24,7 @@ description = "Inclusive first line to omit (1-indexed)"
 [input.properties.delete_end]
 type = "integer"
 description = "Inclusive last line to omit (1-indexed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

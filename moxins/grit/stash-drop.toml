@@ -21,3 +21,6 @@ description = "Stash reference to drop (e.g. stash@{0})"
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+destructive-hint = true

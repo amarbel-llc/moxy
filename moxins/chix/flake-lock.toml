@@ -72,3 +72,7 @@ description = "Only return the last N lines of output."
 [input.properties.max_bytes]
 type = "string"
 description = "Maximum bytes of output to return."
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

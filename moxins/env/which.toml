@@ -11,3 +11,7 @@ required = ["name"]
 [input.properties.name]
 type = "string"
 description = "Binary name to locate (e.g. 'go', 'cargo', 'pivy-tool')"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

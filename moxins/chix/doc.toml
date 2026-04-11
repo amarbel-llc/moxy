@@ -16,3 +16,7 @@ description = "Search query (e.g. 'replaceVars', 'mkDerivation', 'writeShellScri
 [input.properties.strict]
 type = "string"
 description = "Set to 'true' for strict/exact matching. Defaults to fuzzy search."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

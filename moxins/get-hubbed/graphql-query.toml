@@ -36,3 +36,8 @@ description = "GraphQL variables as key-value pairs"
 [input.properties.paginate]
 type = "boolean"
 description = "Auto-paginate results (requires endCursor/pageInfo in query)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

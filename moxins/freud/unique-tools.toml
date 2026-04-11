@@ -19,3 +19,7 @@ description = "Analyze sessions from the last N days. Defaults to 7."
 [input.properties.session_ids]
 type = "string"
 description = "Comma-separated list of session UUIDs. When provided, only these sessions are analyzed (project/days filters are ignored)."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

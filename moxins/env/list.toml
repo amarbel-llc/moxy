@@ -2,3 +2,7 @@ schema = 1
 perms-request = "always-allow"
 description = "List all environment variables and their values."
 command = "printenv"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

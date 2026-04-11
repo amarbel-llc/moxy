@@ -36,3 +36,7 @@ description = "Force removal of files even if they have local modifications (git
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+destructive-hint = true
+idempotent-hint = true

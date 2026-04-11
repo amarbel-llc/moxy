@@ -29,3 +29,7 @@ description = "Skip first N messages (0-indexed). Defaults to 0."
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of messages to return. Defaults to 0 (unlimited)."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

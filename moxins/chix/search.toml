@@ -58,3 +58,7 @@ description = "Maximum number of results to return."
 [input.properties.offset]
 type = "string"
 description = "Skip first N results for pagination. Defaults to 0."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -6,3 +6,7 @@ args = ["--dump"]
 
 [input]
 type = "object"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

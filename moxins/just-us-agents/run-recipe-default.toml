@@ -5,3 +5,6 @@ command = "just"
 
 [input]
 type = "object"
+
+[annotations]
+open-world-hint = true

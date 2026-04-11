@@ -42,3 +42,6 @@ description = "Parent issue key for sub-tasks or epic linking"
 [input.properties.output_format]
 type = "string"
 description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+open-world-hint = true
