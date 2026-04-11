@@ -214,6 +214,26 @@ and
 in a search tool limits result cardinality.
 The distinction: scope limits change the query;
 truncation discards part of the answer.
+.Pp
+.Sy "Wrong" \(em
+truncation parameter that silently discards output:
+.Bd -literal -offset indent
+# DON'T: agent has no way to know output was cut
+if [ -n "$tail_n" ]; then
+  echo "$output" | tail -n "$tail_n"
+elif [ -n "$head_n" ]; then
+  echo "$output" | head -n "$head_n"
+else
+  echo "$output"
+fi
+.Ed
+.Pp
+.Sy "Right" \(em
+scope parameter that limits what the tool asks for:
+.Bd -literal -offset indent
+# OK: limits the query, not the answer
+rg_args+=(--max-count "$max_matches")
+.Ed
 The session identifier is resolved at
 .Xr moxy 1
 startup using a fallback chain:
