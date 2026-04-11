@@ -285,7 +285,7 @@ func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage,
 			if cacheErr == nil {
 				result.Content[i] = protocol.ContentBlockV1{
 					Type: "resource",
-					Resource: &protocol.ResourceContentV0{
+					Resource: &protocol.EmbeddedResourceContents{
 						URI:      uri,
 						Text:     block.Text,
 						MimeType: block.MimeType,
@@ -328,7 +328,7 @@ func (s *Server) buildTextResult(spec *ToolSpec, output string) (json.RawMessage
 		if cacheErr == nil {
 			block := protocol.ContentBlockV1{
 				Type: "resource",
-				Resource: &protocol.ResourceContentV0{
+				Resource: &protocol.EmbeddedResourceContents{
 					URI:      uri,
 					Text:     output,
 					MimeType: spec.ContentType,
