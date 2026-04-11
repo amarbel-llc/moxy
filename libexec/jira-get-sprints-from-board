@@ -6,5 +6,6 @@ max_results="${3:-50}"
 output_format="${4:-}"
 args=(jira sprint list --board "$board_id" --limit "$max_results")
 [ -n "$state" ] && args+=(--state "$state")
-[ "$output_format" = "json" ] && args+=(--json)
-acli "${args[@]}"
+if [ "$output_format" = "json" ]; then args+=(--json); mime="application/json"; else mime="text/plain"; fi
+output=$(acli "${args[@]}")
+jq -cn --arg text "$output" --arg mime "$mime" '{content:[{type:"text",text:$text,mimeType:$mime}]}'

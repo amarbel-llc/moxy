@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 description = "Create a new Jira issue"
 command = "__LIBEXEC__/jira-create-issue"
 arg_order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent", "output_format"]

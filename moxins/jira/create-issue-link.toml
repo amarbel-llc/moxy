@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 description = "Create a link between two Jira issues"
 command = "__LIBEXEC__/jira-create-issue-link"
 arg_order = ["type", "outward_issue", "inward_issue", "output_format"]

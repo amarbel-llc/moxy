@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 perms-request = "always-allow"
 description = "List Jira agile boards"
 command = "__LIBEXEC__/jira-get-agile-boards"

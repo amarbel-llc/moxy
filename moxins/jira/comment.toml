@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 description = "Post a comment on an issue or pull request"
 command = "__LIBEXEC__/jira-comment"
 arg_order = ["issue_key", "body", "output_format"]

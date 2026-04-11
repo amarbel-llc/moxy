@@ -13,5 +13,6 @@ args=(jira workitem edit --key "$issue_key" --yes)
 [ -n "$assignee" ] && args+=(--assignee "$assignee")
 [ -n "$labels" ] && args+=(--labels "$labels")
 [ -n "$issuetype" ] && args+=(--type "$issuetype")
-[ "$output_format" = "json" ] && args+=(--json)
-acli "${args[@]}"
+if [ "$output_format" = "json" ]; then args+=(--json); mime="application/json"; else mime="text/plain"; fi
+output=$(acli "${args[@]}")
+jq -cn --arg text "$output" --arg mime "$mime" '{content:[{type:"text",text:$text,mimeType:$mime}]}'

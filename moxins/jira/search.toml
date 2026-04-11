@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 perms-request = "always-allow"
 description = "Search for issues using JQL"
 command = "__LIBEXEC__/jira-search"
