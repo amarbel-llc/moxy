@@ -90,6 +90,11 @@ def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
 
                     is_empty = not text
 
+                    is_rejected = is_error and (
+                        "The user doesn't want to proceed" in text
+                        or "User rejected tool use" in text
+                    )
+
                     if not is_error and not is_empty:
                         continue
 
@@ -100,8 +105,9 @@ def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
 
                     failures.append({
                         "tool": name,
-                        "is_error": is_error,
+                        "is_error": is_error and not is_rejected,
                         "is_empty": is_empty,
+                        "is_rejected": is_rejected,
                         "preview": truncate(text, 120) if text else "(empty)",
                     })
 
@@ -170,22 +176,25 @@ def main():
     # Phase 4: aggregate by tool name and failure type
     error_counter: Counter = Counter()
     empty_counter: Counter = Counter()
+    rejected_counter: Counter = Counter()
     example_previews: dict[str, str] = {}
 
     for f in all_failures:
         tool = f["tool"]
-        if f["is_error"]:
+        if f.get("is_rejected"):
+            rejected_counter[tool] += 1
+        elif f["is_error"]:
             error_counter[tool] += 1
         if f["is_empty"]:
             empty_counter[tool] += 1
-        if tool not in example_previews:
+        if tool not in example_previews and not f.get("is_rejected"):
             example_previews[tool] = f["preview"]
 
     # Combine and sort by total failures
-    all_tools = set(error_counter.keys()) | set(empty_counter.keys())
+    all_tools = set(error_counter.keys()) | set(empty_counter.keys()) | set(rejected_counter.keys())
     ranked = sorted(
         all_tools,
-        key=lambda t: error_counter[t] + empty_counter[t],
+        key=lambda t: error_counter[t] + empty_counter[t] + rejected_counter[t],
         reverse=True,
     )
 
@@ -197,17 +206,21 @@ def main():
     proj_desc = f", project: {project_filter}" if project_filter else ""
     tool_desc = f", tool: {tool_name_filter}" if tool_name_filter else ""
     lines.append(f"Tool result failures across {len(session_paths)} sessions ({days} days{proj_desc}{tool_desc})")
-    lines.append(f"Total: {len(all_failures)} failures ({sum(error_counter.values())} errors, {sum(empty_counter.values())} empty)")
+    total_errs = sum(error_counter.values())
+    total_empty = sum(empty_counter.values())
+    total_rejected = sum(rejected_counter.values())
+    lines.append(f"Total: {len(all_failures)} failures ({total_errs} errors, {total_empty} empty, {total_rejected} rejected)")
 
     max_name = max(4, max(len(t) for t in ranked))
 
     lines.append("")
-    lines.append(f"  {'#':>3}  {'Tool':<{max_name}}  {'Errors':>6}  {'Empty':>5}  Example")
+    lines.append(f"  {'#':>3}  {'Tool':<{max_name}}  {'Errors':>6}  {'Empty':>5}  {'Rejected':>8}  Example")
     for i, tool in enumerate(ranked, start=1):
         errs = error_counter[tool]
         empties = empty_counter[tool]
+        rejects = rejected_counter[tool]
         preview = example_previews.get(tool, "")
-        lines.append(f"  {i:>3}  {tool:<{max_name}}  {errs:>6}  {empties:>5}  {preview}")
+        lines.append(f"  {i:>3}  {tool:<{max_name}}  {errs:>6}  {empties:>5}  {rejects:>8}  {preview}")
 
     # Date range
     mtimes = [p.stat().st_mtime for p in session_paths]

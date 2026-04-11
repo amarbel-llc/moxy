@@ -62,6 +62,8 @@ def main():
     user_count = 0
     assistant_count = 0
     other_count = 0
+    interrupt_count = 0
+    reject_count = 0
     tool_counter: Counter = Counter()
     user_prompts: list[str] = []
     first_ts = ""
@@ -83,9 +85,23 @@ def main():
             msg_type = obj.get("type")
             if msg_type == "user":
                 user_count += 1
+
+                # Count rejections from top-level toolUseResult
+                if obj.get("toolUseResult") == "User rejected tool use":
+                    reject_count += 1
+
                 content = obj.get("message", {}).get("content")
-                if isinstance(content, str) and content.strip():
-                    user_prompts.append(content.strip())
+                if isinstance(content, str):
+                    if content.strip():
+                        user_prompts.append(content.strip())
+                    if content.startswith("[Request interrupted by user"):
+                        interrupt_count += 1
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text = block.get("text", "")
+                            if text.startswith("[Request interrupted by user"):
+                                interrupt_count += 1
             elif msg_type == "assistant":
                 assistant_count += 1
                 content = obj.get("message", {}).get("content")
@@ -107,6 +123,8 @@ def main():
     lines.append(f"Project: {project}")
     lines.append(f"Duration: {fmt_ts(first_ts)} → {fmt_ts(last_ts)}")
     lines.append(f"Messages: {user_count} user / {assistant_count} assistant / {other_count} other")
+    if interrupt_count > 0 or reject_count > 0:
+        lines.append(f"Interruptions: {interrupt_count} interrupted / {reject_count} rejected")
 
     if tool_counter:
         lines.append(f"\nTop tools ({len(tool_counter)} distinct):")

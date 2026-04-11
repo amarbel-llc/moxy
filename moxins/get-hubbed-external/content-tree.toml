@@ -1,0 +1,36 @@
+schema = 2
+result-type = "text"
+content-type = "application/json"
+perms-request = "always-allow"
+description = """Get the full file tree of a repository at a given ref. Returns a flat JSON array of all \
+files and directories with path, type (blob/tree), and size."""
+command = "bash"
+arg_order = ["repo", "ref"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+ref="${2:-}"
+
+# Default to the repo's default branch when no ref given
+if [ -z "$ref" ]; then
+  ref=$(gh api "repos/$repo" --jq '.default_branch')
+fi
+
+# Resolve ref to tree SHA via commits endpoint
+tree_sha=$(gh api "repos/$repo/commits/$ref" --jq '.commit.tree.sha')
+
+gh api "repos/$repo/git/trees/$tree_sha?recursive=1" \
+  | jq '[.tree[] | {path, type, size}]'
+""", "_"]
+
+[input]
+type = "object"
+required = ["repo"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format"
+
+[input.properties.ref]
+type = "string"
+description = "Branch, tag, or commit SHA (default: HEAD)"

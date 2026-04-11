@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+import time
+from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+REJECTION_MARKER = "User rejected tool use"
+INTERRUPTION_PREFIX = "[Request interrupted by user"
+PROCEED_MARKER = "The user doesn't want to proceed with this tool use"
+
+
+def resolve_cwd(proj_dir: Path) -> str | None:
+    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not jsonls:
+        return None
+    with open(jsonls[0]) as f:
+        for i, line in enumerate(f):
+            if i >= 200:
+                break
+            try:
+                obj = json.loads(line)
+                cwd = obj.get("cwd")
+                if cwd:
+                    return cwd
+            except (json.JSONDecodeError, KeyError):
+                continue
+    name = proj_dir.name.lstrip("-")
+    return "/" + name.replace("-", "/") + " (heuristic)"
+
+
+def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
+    lower = filter_str.lower()
+    return lower in resolved_cwd.lower() or lower in dir_name.lower()
+
+
+def truncate(s: str, max_len: int) -> str:
+    s = s.replace("\n", " ").strip()
+    if len(s) > max_len:
+        return s[:max_len] + "..."
+    return s
+
+
+def scan_session(path: Path) -> tuple[Counter, Counter]:
+    """Scan a session for interruptions and rejections.
+
+    Returns (interrupt_counter, reject_counter) keyed by tool name.
+    """
+    interrupt_counter: Counter = Counter()
+    reject_counter: Counter = Counter()
+
+    # Track which tool_use_ids map to which tool names (from assistant messages)
+    tool_names: dict[str, str] = {}
+    # Track the last tool_use blocks from assistant messages
+    last_assistant_tools: list[str] = []
+
+    lines = []
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            lines.append(obj)
+
+    for obj in lines:
+        msg_type = obj.get("type")
+
+        if msg_type == "assistant":
+            content = obj.get("message", {}).get("content")
+            if isinstance(content, list):
+                tools_in_msg = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tid = block.get("id", "")
+                        name = block.get("name", "?")
+                        tool_names[tid] = name
+                        tools_in_msg.append(name)
+                if tools_in_msg:
+                    last_assistant_tools = tools_in_msg
+
+        elif msg_type == "user":
+            # Check top-level toolUseResult for rejections
+            tur = obj.get("toolUseResult")
+            if tur == REJECTION_MARKER:
+                # Find which tool was rejected via sourceToolUseID or last tools
+                source_id = obj.get("sourceToolUseID", "")
+                tool = tool_names.get(source_id, "")
+                if not tool and last_assistant_tools:
+                    tool = last_assistant_tools[-1]
+                reject_counter[tool or "(unknown)"] += 1
+
+            # Check message content for interruptions and rejection tool results
+            content = obj.get("message", {}).get("content")
+
+            # String content: check for interruption marker
+            if isinstance(content, str):
+                if content.startswith(INTERRUPTION_PREFIX):
+                    # Attribute to the last tool(s) the assistant was calling
+                    if last_assistant_tools:
+                        for t in last_assistant_tools:
+                            interrupt_counter[t] += 1
+                    else:
+                        interrupt_counter["(no tool)"] += 1
+
+            # Array content: check for text interruption blocks and rejection tool_results
+            elif isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+
+                    if block.get("type") == "text":
+                        text = block.get("text", "")
+                        if text.startswith(INTERRUPTION_PREFIX):
+                            if last_assistant_tools:
+                                for t in last_assistant_tools:
+                                    interrupt_counter[t] += 1
+                            else:
+                                interrupt_counter["(no tool)"] += 1
+
+                    elif block.get("type") == "tool_result" and block.get("is_error"):
+                        inner = block.get("content", "")
+                        text = ""
+                        if isinstance(inner, str):
+                            text = inner
+                        elif isinstance(inner, list):
+                            text = " ".join(
+                                b.get("text", "")
+                                for b in inner
+                                if isinstance(b, dict) and b.get("type") == "text"
+                            )
+                        if PROCEED_MARKER in text:
+                            tid = block.get("tool_use_id", "")
+                            tool = tool_names.get(tid, "(unknown)")
+                            reject_counter[tool] += 1
+
+    return interrupt_counter, reject_counter
+
+
+def subagent_paths(session_path: Path) -> list[Path]:
+    sub_dir = session_path.parent / session_path.stem / "subagents"
+    if sub_dir.is_dir():
+        return list(sub_dir.glob("*.jsonl"))
+    return []
+
+
+def main():
+    project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
+    days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 7
+    limit = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 20
+
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return emit_mcp_result("(no sessions found)")
+
+    cutoff = time.time() - (days * 86400)
+
+    # Phase 1: resolve cwd per project directory
+    cwd_map: dict[str, str] = {}
+    for proj_dir in sorted(projects_dir.iterdir()):
+        if not proj_dir.is_dir():
+            continue
+        cwd = resolve_cwd(proj_dir)
+        if cwd:
+            cwd_map[proj_dir.name] = cwd
+
+    # Phase 2: collect matching session files
+    session_paths: list[Path] = []
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
+            continue
+        project = cwd_map[proj_dir.name]
+        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            continue
+        for f in proj_dir.glob("*.jsonl"):
+            if f.stat().st_mtime >= cutoff:
+                session_paths.append(f)
+
+    if not session_paths:
+        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+
+    # Phase 3: scan all sessions
+    total_interrupts: Counter = Counter()
+    total_rejects: Counter = Counter()
+    for path in session_paths:
+        ic, rc = scan_session(path)
+        total_interrupts += ic
+        total_rejects += rc
+        for sub in subagent_paths(path):
+            ic, rc = scan_session(sub)
+            total_interrupts += ic
+            total_rejects += rc
+
+    total_i = sum(total_interrupts.values())
+    total_r = sum(total_rejects.values())
+    if total_i == 0 and total_r == 0:
+        proj_desc = f", project={project_filter}" if project_filter else ""
+        return emit_mcp_result(
+            f"No interruptions or rejections found across {len(session_paths)} sessions{proj_desc}"
+        )
+
+    # Phase 4: merge and rank by total events
+    all_tools = set(total_interrupts.keys()) | set(total_rejects.keys())
+    ranked = sorted(
+        all_tools,
+        key=lambda t: total_interrupts[t] + total_rejects[t],
+        reverse=True,
+    )
+
+    if limit > 0:
+        ranked = ranked[:limit]
+
+    # Phase 5: format output
+    lines = []
+    proj_desc = f", project: {project_filter}" if project_filter else ""
+    lines.append(f"Interruptions and rejections across {len(session_paths)} sessions ({days} days{proj_desc})")
+    lines.append(f"Total: {total_i} interruptions, {total_r} rejections")
+
+    max_name = max(4, max(len(t) for t in ranked))
+
+    lines.append("")
+    lines.append(f"  {'#':>3}  {'Tool':<{max_name}}  {'Interrupted':>11}  {'Rejected':>8}  {'Total':>5}")
+    for i, tool in enumerate(ranked, start=1):
+        ic = total_interrupts[tool]
+        rc = total_rejects[tool]
+        total = ic + rc
+        lines.append(f"  {i:>3}  {tool:<{max_name}}  {ic:>11}  {rc:>8}  {total:>5}")
+
+    # Date range
+    mtimes = [p.stat().st_mtime for p in session_paths]
+    earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    lines.append(f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    main()

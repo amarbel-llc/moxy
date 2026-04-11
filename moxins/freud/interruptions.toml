@@ -1,0 +1,22 @@
+schema = 2
+perms-request = "always-allow"
+description = """Aggregate user interruptions and tool use rejections across sessions. Returns a ranked table \
+showing which tools were interrupted or rejected most often, with the user's follow-up message as context. \
+Useful for understanding friction points in tool usage."""
+command = "@LIBEXEC@/freud-interruptions"
+arg_order = ["project", "days", "limit"]
+
+[input]
+type = "object"
+
+[input.properties.project]
+type = "string"
+description = "Filter sessions by project path substring (case-insensitive match on resolved cwd or directory name). Omit for all projects."
+
+[input.properties.days]
+type = "integer"
+description = "Analyze sessions from the last N days. Defaults to 7."
+
+[input.properties.limit]
+type = "integer"
+description = "Maximum number of entries in the table. Defaults to 20, 0 for unlimited."
