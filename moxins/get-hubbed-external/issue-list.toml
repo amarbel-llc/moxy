@@ -1,6 +1,4 @@
 schema = 2
-result-type = "text"
-content-type = "application/json"
 perms-request = "always-allow"
 description = "List issues in a repository with optional filters"
 command = "bash"
@@ -30,9 +28,11 @@ fi
 raw=$(gh "${gh_args[@]}")
 
 if [ "$output_format" = "text" ]; then
-  printf '%s' "$raw" | jq -r '.[] | "#\\(.number)\\t\\(.state)\\t\\(.title)\\t\\([.labels[].name] | join(","))"' | column -t -s $'\\t'
+  mime="text/plain"
+  text=$(printf '%s' "$raw" | jq -r '.[] | "#\\(.number)\\t\\(.state)\\t\\(.title)\\t\\([.labels[].name] | join(","))"' | column -t -s $'\\t')
 else
-  printf '%s' "$raw" | jq '[.[] | {
+  mime="application/json"
+  text=$(printf '%s' "$raw" | jq '[.[] | {
     number: .number,
     title: .title,
     state: .state,
@@ -41,8 +41,11 @@ else
     milestone: .milestone.title,
     created: .createdAt,
     updated: .updatedAt
-  }]'
+  }]')
 fi
+
+jq -cn --arg text "$text" --arg mime "$mime" \
+  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
 """, "_"]
 
 [input]

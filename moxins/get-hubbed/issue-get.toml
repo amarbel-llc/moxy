@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 perms-request = "always-allow"
 description = "Get a GitHub issue by number"
 command = "bash"
@@ -15,8 +15,12 @@ fi
 
 raw=$(gh issue view "$number" --json "$fields")
 
-if [ "$output_format" = "text" ]; then
-  printf '%s' "$raw" | jq -r '
+if [ "$output_format" = "json" ]; then
+  mime="application/json"
+  text="$raw"
+else
+  mime="text/plain"
+  text=$(printf '%s' "$raw" | jq -r '
     "# #\\(.number): \\(.title)\\n" +
     "State: \\(.state)" +
     (if .stateReason then " (\\(.stateReason))" else "" end) + "\\n" +
@@ -30,10 +34,11 @@ if [ "$output_format" = "text" ]; then
       "\\n\\n---\\n## Comments (\\(.comments | length))\\n" +
       ([.comments[] | "### @\\(.author.login) (\\(.createdAt))\\n\\(.body)"] | join("\\n\\n"))
     else "" end)
-  '
-else
-  printf '%s' "$raw"
+  ')
 fi
+
+jq -cn --arg text "$text" --arg mime "$mime" \
+  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
 """, "_"]
 
 [input]
