@@ -4,7 +4,7 @@ content-type = "text/x-diff"
 perms-request = "always-allow"
 description = "Show changes in the working tree or between commits"
 command = "bash"
-arg_order = ["ref", "paths", "staged", "stat_only", "context_lines", "max_patch_lines", "repo_path"]
+arg_order = ["ref", "paths", "staged", "stat_only", "context_lines", "repo_path"]
 args = ["-c", """
 set -euo pipefail
 ref="${1:-}"
@@ -12,8 +12,7 @@ paths_json="${2:-}"
 staged="${3:-}"
 stat_only="${4:-}"
 context="${5:-}"
-max_lines="${6:-}"
-repo="${7:-.}"
+repo="${6:-.}"
 cd "$repo"
 
 git_args=(diff)
@@ -39,11 +38,7 @@ fi
 
 output=$(git "${git_args[@]}" 2>&1) || true
 
-if [ -n "$max_lines" ] && [ "$max_lines" -gt 0 ] 2>/dev/null; then
-  printf '%s\n' "$output" | head -n "$max_lines"
-else
-  printf '%s\n' "$output"
-fi
+printf '%s\n' "$output"
 """, "_"]
 
 [input]
@@ -52,10 +47,6 @@ type = "object"
 [input.properties.context_lines]
 type = "integer"
 description = "Number of context lines around each change (git --unified=N, default 3)"
-
-[input.properties.max_patch_lines]
-type = "integer"
-description = "Maximum number of patch output lines. Output is truncated with a truncated flag when exceeded."
 
 [input.properties.paths]
 type = "array"
