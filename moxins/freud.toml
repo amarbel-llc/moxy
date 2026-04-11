@@ -101,3 +101,21 @@ required = ["session_id"]
 [tools.input.properties.session_id]
 type = "string"
 description = "Session UUID to retrieve (36-char UUID from the sessions listing)"
+
+[[tools]]
+name = "new-plan"
+description = "Create a new plan file in ~/.claude/plans/. Fails if a plan with the given name already exists."
+command = "__LIBEXEC__/freud-new-plan"
+arg_order = ["name", "content"]
+
+[tools.input]
+type = "object"
+required = ["name", "content"]
+
+[tools.input.properties.name]
+type = "string"
+description = "Plan filename slug (e.g. 'migrate-auth-to-jwt'). The file will be written as ~/.claude/plans/<name>.md."
+
+[tools.input.properties.content]
+type = "string"
+description = "The plan content (markdown)"
