@@ -27,7 +27,7 @@ fi
 raw=$(gh "${gh_args[@]}")
 
 if [ "$output_format" = "text" ]; then
-  printf '%s' "$raw" | jq -r '.[] | "#\\(.number)\\t\\(.title)\\t\\([.labels[].name] | join(","))"' | column -t -s $'\\t'
+  printf '%s' "$raw" | jq -r '.[] | "#\\(.number)\\t\\(.state)\\t\\(.title)\\t\\([.labels[].name] | join(","))"' | column -t -s $'\\t'
 else
   printf '%s' "$raw" | jq '[.[] | {
     number: .number,
@@ -74,4 +74,4 @@ description = "Maximum number of issues to return (default 30)"
 
 [input.properties.output_format]
 type = "string"
-description = "Output format: json (default, full details) or text (one line per issue with number, title, labels)"
+description = "Output format: json (default, full details) or text (one line per issue with number, state, title, labels)"
