@@ -129,6 +129,10 @@
                   pkgs.lib.makeBinPath [ pkgs.mandoc pkgs.pandoc maneater ]
                 }
             done
+            for f in $out/libexec/moxy/chix-*; do
+              wrapProgram "$f" \
+                --set PATH ${pkgs.lib.makeBinPath [ pkgs.manix ]}
+            done
             for f in $out/libexec/moxy/jira-*; do
               wrapProgram "$f" \
                 --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli ]}
@@ -227,6 +231,7 @@
             gomod2nix.packages.${system}.default
             pkgs.just
             pkgs.llama-cpp
+            pkgs.manix
             pkgs.mandoc
             pkgs.pandoc
             pkgs.pkg-config

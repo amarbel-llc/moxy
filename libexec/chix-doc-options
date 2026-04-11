@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+query="${1:?query required}"
+strict="${2:-}"
+
+args=("$query" --source nixos_options --source hm_options --source nd_options)
+if [ "$strict" = "true" ]; then
+  args+=(--strict)
+fi
+
+manix "${args[@]}"
