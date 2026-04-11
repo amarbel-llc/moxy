@@ -279,19 +279,25 @@ func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage,
 
 	// Rewrite text blocks that carry mimeType into resource blocks with
 	// cache URIs — the MCP spec only allows mimeType on resource blocks.
+	// Skip empty text — EmbeddedResourceContents requires non-empty text or blob.
 	for i, block := range result.Content {
 		if block.Type == "text" && block.MimeType != "" {
-			uri, cacheErr := s.cacheAndGetURI(block.Text)
-			if cacheErr == nil {
-				result.Content[i] = protocol.ContentBlockV1{
-					Type: "resource",
-					Resource: &protocol.EmbeddedResourceContents{
-						URI:      uri,
-						Text:     block.Text,
-						MimeType: block.MimeType,
-					},
+			if block.Text != "" {
+				uri, cacheErr := s.cacheAndGetURI(block.Text)
+				if cacheErr == nil {
+					result.Content[i] = protocol.ContentBlockV1{
+						Type: "resource",
+						Resource: &protocol.EmbeddedResourceContents{
+							URI:      uri,
+							Text:     block.Text,
+							MimeType: block.MimeType,
+						},
+					}
+					continue
 				}
 			}
+			// Strip mimeType from text blocks — the MCP spec doesn't allow it.
+			result.Content[i].MimeType = ""
 		}
 	}
 
