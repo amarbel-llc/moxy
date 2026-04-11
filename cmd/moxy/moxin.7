@@ -1,4 +1,4 @@
-.Dd April 10, 2026
+.Dd April 11, 2026
 .Dt MOXIN 7
 .Os
 .Sh NAME
@@ -294,6 +294,92 @@ module vs.
 in a loop).
 .It
 The script exceeds ~10 lines.
+.El
+.Sh NIX PACKAGING
+Builtin moxins shipped with
+.Xr moxy 1
+use a three-part pattern to ensure helper scripts are hermetic and
+reproducible under Nix.
+.Ss Libexec Directory
+Helper scripts that tools invoke live in
+.Pa $out/libexec/moxy/ ,
+following the FHS convention for
+.Dq programs called by other programs, not by users .
+This is the same pattern used by
+.Xr git 1
+.Pq Pa libexec/git-core/ ,
+.Nm x11-ssh-askpass ,
+and other nixpkgs packages.
+.Pp
+Scripts are grouped by moxin name prefix
+.Pq e.g. Li freud-sessions , Li just-list-recipes
+so they can be wrapped in bulk.
+.Ss Placeholder Substitution
+Tool TOML files reference scripts via a build-time placeholder:
+.Bd -literal -offset indent
+command = "@LIBEXEC@/freud-sessions"
+.Ed
+.Pp
+During the Nix build, the placeholder is replaced with the absolute
+store path
+.Pq e.g. Pa /nix/store/\&...-moxy-0.1.0/libexec/moxy
+using
+.Fn replaceVars
+or equivalent.
+This decouples the TOML source from the final install location.
+.Pp
+The
+.Fn replaceVars
+function (successor to the deprecated
+.Fn substituteAll )
+is preferred over ad-hoc
+.Xr sed 1
+because it fails the build if any placeholder goes unsubstituted,
+catching typos at build time.
+.Ss Dependency Wrapping
+Each helper script is wrapped with
+.Xr wrapProgram 1
+to inject its runtime dependencies:
+.Bd -literal -offset indent
+for f in $out/libexec/moxy/freud-*; do
+  wrapProgram "$f" \e
+    --set PATH ${pkgs.python3}/bin
+done
+.Ed
+.Pp
+Using
+.Fl -set
+instead of
+.Fl -prefix
+makes scripts fully hermetic \(em they see only Nix-provided binaries
+and cannot accidentally depend on the ambient
+.Ev PATH .
+.Pp
+Dependencies are grouped by moxin name prefix, so all scripts for a
+given moxin share the same wrapped
+.Ev PATH .
+.Ss Design Rules
+.Bl -dash -compact
+.It
+Never rely on tools being on the ambient
+.Ev PATH .
+Outside the moxy devshell, they will not be available.
+.It
+Inline
+.Sy sh -c
+commands are acceptable only for coreutils-level builtins
+.Pq Sy cat , echo , sed , wc .
+Everything else goes to a libexec script.
+.It
+Put scripts in
+.Pa libexec/ ,
+wrap them in
+.Pa flake.nix
+with
+.Fn wrapProgram ,
+and reference them via the
+.Li @LIBEXEC@
+placeholder in the TOML config.
 .El
 .Sh EXAMPLES
 .Ss Go Documentation Moxin
