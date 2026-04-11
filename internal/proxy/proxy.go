@@ -59,9 +59,16 @@ type Proxy struct {
 	globalProgressiveDisclosure *bool
 	connectFunc                 ConnectFunc
 	resultReader                ResultReader
+	moxyProvider                *moxyResourceProvider
+	resourceProviders           []resourceProviderEntry
 	builtinTools                *server.ToolRegistryV1
 	notifier                    func(*jsonrpc.Message) error
 	mu                          sync.RWMutex
+}
+
+type resourceProviderEntry struct {
+	prefix   string
+	provider ResourceProvider
 }
 
 func (p *Proxy) SetNotifier(fn func(*jsonrpc.Message) error) {
@@ -70,6 +77,10 @@ func (p *Proxy) SetNotifier(fn func(*jsonrpc.Message) error) {
 
 func (p *Proxy) SetResultReader(rr ResultReader) {
 	p.resultReader = rr
+	p.resourceProviders = append(p.resourceProviders, resourceProviderEntry{
+		prefix:   "moxy.native://results/",
+		provider: &nativeResultProvider{reader: rr},
+	})
 }
 
 func (p *Proxy) SetBuiltinTools(registry *server.ToolRegistryV1) {
@@ -114,7 +125,7 @@ func New(
 			ephemeral[cfg.Name] = &EphemeralMeta{Config: cfg}
 		}
 	}
-	return &Proxy{
+	p := &Proxy{
 		children:                    children,
 		failed:                      failed,
 		configs:                     configs,
@@ -123,6 +134,12 @@ func New(
 		globalProgressiveDisclosure: globalProgressiveDisclosure,
 		connectFunc:                 connectFunc,
 	}
+	moxy := &moxyResourceProvider{proxy: p}
+	p.moxyProvider = moxy
+	p.resourceProviders = []resourceProviderEntry{
+		{prefix: "moxy://", provider: moxy},
+	}
+	return p
 }
 
 func (p *Proxy) ProbeEphemeral(ctx context.Context) {
@@ -665,12 +682,10 @@ func (p *Proxy) ReadResource(
 	ctx context.Context,
 	uri string,
 ) (*protocol.ResourceReadResult, error) {
-	if strings.HasPrefix(uri, "moxy://") {
-		return p.readMoxyResource(ctx, uri)
-	}
-
-	if strings.HasPrefix(uri, "moxy.native://results/") {
-		return p.readNativeResult(uri)
+	for _, entry := range p.resourceProviders {
+		if strings.HasPrefix(uri, entry.prefix) {
+			return entry.provider.ReadResource(ctx, uri)
+		}
 	}
 
 	serverName, originalURI, ok := splitPrefix(uri, "/")
@@ -686,11 +701,11 @@ func (p *Proxy) ReadResource(
 		if _, isEphemeral := p.ephemeral[serverName]; isEphemeral {
 			return p.readResourceEphemeral(ctx, serverName, originalURI)
 		}
-		return p.resourceFallbackUnknownServer(uri, serverName)
+		return p.moxyProvider.fallbackUnknownServer(uri, serverName)
 	}
 
 	if child.Capabilities.Resources == nil {
-		return p.resourceFallbackNoResources(uri, serverName)
+		return p.moxyProvider.fallbackNoResources(uri, serverName)
 	}
 
 	// Parse and strip pagination params if server has paginate enabled
@@ -798,35 +813,10 @@ func (p *Proxy) ListResourcesV1(
 		}
 	}
 
-	// moxy:// tool schema resources for each server with tools
-	for _, child := range children {
-		if child.Capabilities.Tools != nil {
-			allResources = append(allResources, protocol.ResourceV1{
-				URI:         "moxy://tools/" + child.Client.Name(),
-				Name:        child.Client.Name() + " tools",
-				Description: fmt.Sprintf("List of tools available on %s", child.Client.Name()),
-				MimeType:    "application/json",
-			})
-		}
+	// Synthetic resource providers (moxy://, moxy.native://, etc.)
+	for _, entry := range p.resourceProviders {
+		allResources = append(allResources, entry.provider.ListResources(ctx)...)
 	}
-	for serverName, meta := range p.ephemeral {
-		if len(meta.Tools) > 0 {
-			allResources = append(allResources, protocol.ResourceV1{
-				URI:         "moxy://tools/" + serverName,
-				Name:        serverName + " tools",
-				Description: fmt.Sprintf("List of tools available on %s", serverName),
-				MimeType:    "application/json",
-			})
-		}
-	}
-
-	// moxy://servers static resource
-	allResources = append(allResources, protocol.ResourceV1{
-		URI:         "moxy://servers",
-		Name:        "servers",
-		Description: "List of all child servers with capability counts and status",
-		MimeType:    "application/json",
-	})
 
 	return &protocol.ResourcesListResultV1{Resources: allResources}, nil
 }
@@ -881,25 +871,10 @@ func (p *Proxy) ListResourceTemplatesV1(
 		}
 	}
 
-	// moxy:// resource templates
-	allTemplates = append(allTemplates, protocol.ResourceTemplateV1{
-		URITemplate: "moxy://servers/{server}",
-		Name:        "Server details",
-		Description: "Returns capability counts and status for a single child server",
-		MimeType:    "application/json",
-	})
-	allTemplates = append(allTemplates, protocol.ResourceTemplateV1{
-		URITemplate: "moxy://tools/{server}",
-		Name:        "List tools for a server",
-		Description: "Returns tool names and descriptions for a child server",
-		MimeType:    "application/json",
-	})
-	allTemplates = append(allTemplates, protocol.ResourceTemplateV1{
-		URITemplate: "moxy://tools/{server}/{tool}",
-		Name:        "Tool schema",
-		Description: "Returns the full JSON schema for a specific tool on a child server",
-		MimeType:    "application/json",
-	})
+	// Synthetic resource providers (moxy://, moxy.native://, etc.)
+	for _, entry := range p.resourceProviders {
+		allTemplates = append(allTemplates, entry.provider.ListResourceTemplates(ctx)...)
+	}
 
 	return &protocol.ResourceTemplatesListResultV1{
 		ResourceTemplates: allTemplates,
@@ -1181,192 +1156,6 @@ func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]pro
 	}
 
 	return tools, nil
-}
-
-func (p *Proxy) readNativeResult(uri string) (*protocol.ResourceReadResult, error) {
-	if p.resultReader == nil {
-		return nil, fmt.Errorf("no result reader configured")
-	}
-	output, err := p.resultReader.ReadResult(uri)
-	if err != nil {
-		return nil, err
-	}
-	return &protocol.ResourceReadResult{
-		Contents: []protocol.ResourceContent{{
-			URI:      uri,
-			MimeType: "text/plain",
-			Text:     output,
-		}},
-	}, nil
-}
-
-func (p *Proxy) readMoxyResource(
-	ctx context.Context,
-	uri string,
-) (*protocol.ResourceReadResult, error) {
-	path := strings.TrimPrefix(uri, "moxy://")
-	parts := strings.SplitN(path, "/", 3)
-
-	if len(parts) == 0 {
-		return nil, fmt.Errorf("unknown moxy resource URI %q", uri)
-	}
-
-	// moxy://servers — list all servers
-	if parts[0] == "servers" {
-		return p.readMoxyServersResource(ctx, uri, parts[1:])
-	}
-
-	if len(parts) < 2 || parts[0] != "tools" {
-		return nil, fmt.Errorf("unknown moxy resource URI %q", uri)
-	}
-
-	serverName := parts[1]
-	tools, err := p.getToolsForServer(ctx, serverName)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(parts) == 2 {
-		// moxy://tools/{server} — return tool list summary
-		type toolSummary struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		}
-		summaries := make([]toolSummary, len(tools))
-		for i, t := range tools {
-			summaries[i] = toolSummary{Name: t.Name, Description: t.Description}
-		}
-		data, err := json.Marshal(summaries)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling tool list: %w", err)
-		}
-		return &protocol.ResourceReadResult{
-			Contents: []protocol.ResourceContent{
-				{URI: uri, MimeType: "application/json", Text: string(data)},
-			},
-		}, nil
-	}
-
-	// moxy://tools/{server}/{tool} — return full tool schema
-	toolName := parts[2]
-	for _, t := range tools {
-		if t.Name == toolName {
-			data, err := json.Marshal(t)
-			if err != nil {
-				return nil, fmt.Errorf("marshaling tool schema: %w", err)
-			}
-			return &protocol.ResourceReadResult{
-				Contents: []protocol.ResourceContent{
-					{URI: uri, MimeType: "application/json", Text: string(data)},
-				},
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("tool %q not found on server %q", toolName, serverName)
-}
-
-func (p *Proxy) readMoxyServersResource(
-	ctx context.Context,
-	uri string,
-	rest []string,
-) (*protocol.ResourceReadResult, error) {
-	summaries := p.CollectServerSummaries(ctx)
-
-	if len(rest) == 0 {
-		// moxy://servers — return all servers
-		data, err := json.Marshal(summaries)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling server summaries: %w", err)
-		}
-		return &protocol.ResourceReadResult{
-			Contents: []protocol.ResourceContent{
-				{URI: uri, MimeType: "application/json", Text: string(data)},
-			},
-		}, nil
-	}
-
-	// moxy://servers/{server} — return single server
-	serverName := rest[0]
-	for _, s := range summaries {
-		if s.Name == serverName {
-			data, err := json.Marshal(s)
-			if err != nil {
-				return nil, fmt.Errorf("marshaling server summary: %w", err)
-			}
-			return &protocol.ResourceReadResult{
-				Contents: []protocol.ResourceContent{
-					{URI: uri, MimeType: "application/json", Text: string(data)},
-				},
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("unknown server %q", serverName)
-}
-
-func (p *Proxy) resourceFallbackUnknownServer(
-	uri string,
-	serverName string,
-) (*protocol.ResourceReadResult, error) {
-	p.mu.RLock()
-	children := p.children
-	p.mu.RUnlock()
-
-	var names []string
-	for _, c := range children {
-		names = append(names, c.Client.Name())
-	}
-	for name := range p.ephemeral {
-		names = append(names, name)
-	}
-
-	hint := fmt.Sprintf(
-		"Available servers: %s. Use moxy://servers for details.",
-		strings.Join(names, ", "),
-	)
-
-	msg := struct {
-		Error string `json:"error"`
-		Hint  string `json:"hint"`
-	}{
-		Error: fmt.Sprintf("Unknown server %q", serverName),
-		Hint:  hint,
-	}
-	data, _ := json.Marshal(msg)
-
-	return &protocol.ResourceReadResult{
-		Contents: []protocol.ResourceContent{
-			{URI: uri, MimeType: "application/json", Text: string(data)},
-		},
-	}, nil
-}
-
-func (p *Proxy) resourceFallbackNoResources(
-	uri string,
-	serverName string,
-) (*protocol.ResourceReadResult, error) {
-	hint := fmt.Sprintf(
-		"This server has no resources. Use moxy://tools/%s to list available tools, or moxy://servers for a full server overview.",
-		serverName,
-	)
-
-	msg := struct {
-		Error  string `json:"error"`
-		Server string `json:"server"`
-		Hint   string `json:"hint"`
-	}{
-		Error:  "No resources available",
-		Server: serverName,
-		Hint:   hint,
-	}
-	data, _ := json.Marshal(msg)
-
-	return &protocol.ResourceReadResult{
-		Contents: []protocol.ResourceContent{
-			{URI: uri, MimeType: "application/json", Text: string(data)},
-		},
-	}, nil
 }
 
 func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
