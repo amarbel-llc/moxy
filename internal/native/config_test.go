@@ -390,8 +390,8 @@ schema = 2
 command = "echo"
 
 [annotations]
-readOnlyHint = true
-destructiveHint = false
+read-only-hint = true
+destructive-hint = false
 title = "My Tool"
 `,
 	})

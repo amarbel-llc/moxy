@@ -46,10 +46,10 @@ type NativeConfig struct {
 // ToolAnnotations holds optional behavior hints for a tool.
 type ToolAnnotations struct {
 	Title           string `toml:"title"`
-	ReadOnlyHint    *bool  `toml:"readOnlyHint"`
-	DestructiveHint *bool  `toml:"destructiveHint"`
-	IdempotentHint  *bool  `toml:"idempotentHint"`
-	OpenWorldHint   *bool  `toml:"openWorldHint"`
+	ReadOnlyHint    *bool  `toml:"read-only-hint"`
+	DestructiveHint *bool  `toml:"destructive-hint"`
+	IdempotentHint  *bool  `toml:"idempotent-hint"`
+	OpenWorldHint   *bool  `toml:"open-world-hint"`
 }
 
 // ToolSpec describes a single tool within a moxin.
