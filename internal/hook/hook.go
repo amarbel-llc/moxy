@@ -15,6 +15,32 @@ import (
 	"github.com/amarbel-llc/moxy/internal/native"
 )
 
+var hookLog *log.Logger
+
+func init() {
+	logHome := os.Getenv("XDG_LOG_HOME")
+	if logHome == "" {
+		home, _ := os.UserHomeDir()
+		logHome = filepath.Join(home, ".local", "log")
+	}
+	logDir := filepath.Join(logHome, "moxy")
+	os.MkdirAll(logDir, 0o755)
+	f, err := os.OpenFile(
+		filepath.Join(logDir, "hook.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o644,
+	)
+	if err == nil {
+		hookLog = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func debugHook(format string, args ...any) {
+	if hookLog != nil {
+		hookLog.Printf(format, args...)
+	}
+}
+
 // hookInput mirrors the unexported type in go-mcp/command.
 type hookInput struct {
 	ToolName  string         `json:"tool_name"`
@@ -53,10 +79,16 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 		return app.HandleHook(bytes.NewReader(raw), w)
 	}
 
+	debugHook("tool_name=%q has_prefix=%v", hi.ToolName, strings.HasPrefix(hi.ToolName, moxyToolPrefix))
+
 	if strings.HasPrefix(hi.ToolName, moxyToolPrefix) {
+		parsed, ok := parseNativeToolName(hi.ToolName)
+		debugHook("  parsed=%q ok=%v", parsed, ok)
 		if tryPermsDecision(hi.ToolName, w) {
+			debugHook("  decision: allowed")
 			return nil
 		}
+		debugHook("  decision: fall-through")
 	}
 
 	return app.HandleHook(bytes.NewReader(raw), w)
@@ -72,6 +104,7 @@ func tryPermsDecision(toolName string, w io.Writer) bool {
 	}
 
 	perms := discoverPermissions()
+	debugHook("  perms map has %d entries, looking up %q", len(perms), serverTool)
 	perm, exists := perms[serverTool]
 	if !exists {
 		return false // delegate-to-client: fall through
@@ -134,10 +167,15 @@ func parseNativeToolName(toolName string) (string, bool) {
 // "server.tool" names to their perms-request values. Only tools with
 // an explicit perms-request are included.
 func discoverPermissions() map[string]native.PermsRequest {
-	configs, err := native.DiscoverConfigs(os.Getenv("MOXIN_PATH"), native.SystemMoxinDir())
+	moxinPath := os.Getenv("MOXIN_PATH")
+	systemDir := native.SystemMoxinDir()
+	debugHook("  discoverPermissions: MOXIN_PATH=%q systemDir=%q", moxinPath, systemDir)
+	configs, err := native.DiscoverConfigs(moxinPath, systemDir)
 	if err != nil {
+		debugHook("  discoverPermissions error: %v", err)
 		return nil
 	}
+	debugHook("  discoverPermissions: found %d configs", len(configs))
 
 	perms := make(map[string]native.PermsRequest)
 	for _, cfg := range configs {
