@@ -22,7 +22,18 @@ if [[ "$module" != *"@"* ]]; then
   mod_fs=$(casefold "$module")
   candidates=("$modcache/$mod_fs"@*)
   if [ ${#candidates[@]} -eq 0 ] || [ ! -d "${candidates[0]}" ]; then
-    echo "no cached version found for $module in $modcache" >&2
+    echo "no cached version found for $module" >&2
+    # Check for case-folding mismatches or similar module paths
+    parent=$(dirname "$modcache/$mod_fs")
+    base=$(basename "$modcache/$mod_fs")
+    if [ -d "$parent" ]; then
+      similar=$(find "$parent" -maxdepth 1 -name "${base}*" -type d 2>/dev/null | head -10)
+      if [ -n "$similar" ]; then
+        echo "" >&2
+        echo "similar modules in cache:" >&2
+        echo "$similar" | sed "s|^$modcache/||" >&2
+      fi
+    fi
     exit 1
   fi
   # Pick the last (newest) version alphabetically
@@ -32,6 +43,18 @@ else
   mod_version="${module#*@}"
   mod_fs=$(casefold "$mod_path")
   mod_dir="$modcache/$mod_fs@$mod_version"
+  if [ ! -d "$mod_dir" ]; then
+    echo "version $mod_version not found for $mod_path" >&2
+    available=("$modcache/$mod_fs"@*)
+    if [ ${#available[@]} -gt 0 ] && [ -d "${available[0]}" ]; then
+      echo "" >&2
+      echo "available cached versions:" >&2
+      for v in "${available[@]}"; do
+        echo "  ${v##*@}" >&2
+      done
+    fi
+    exit 1
+  fi
 fi
 
 full_path="$mod_dir/$file"
