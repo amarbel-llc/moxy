@@ -276,6 +276,25 @@ func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage,
 				spec.Name, err, output),
 		))
 	}
+
+	// Rewrite text blocks that carry mimeType into resource blocks with
+	// cache URIs — the MCP spec only allows mimeType on resource blocks.
+	for i, block := range result.Content {
+		if block.Type == "text" && block.MimeType != "" {
+			uri, cacheErr := s.cacheAndGetURI(block.Text)
+			if cacheErr == nil {
+				result.Content[i] = protocol.ContentBlockV1{
+					Type: "resource",
+					Resource: &protocol.ResourceContentV0{
+						URI:      uri,
+						Text:     block.Text,
+						MimeType: block.MimeType,
+					},
+				}
+			}
+		}
+	}
+
 	return marshalResult(&result)
 }
 
@@ -304,13 +323,44 @@ func (s *Server) buildTextResult(spec *ToolSpec, output string) (json.RawMessage
 		}
 	}
 
-	block := protocol.ContentBlockV1{Type: "text", Text: output}
 	if spec.ContentType != "" {
-		block.MimeType = spec.ContentType
+		uri, cacheErr := s.cacheAndGetURI(output)
+		if cacheErr == nil {
+			block := protocol.ContentBlockV1{
+				Type: "resource",
+				Resource: &protocol.ResourceContentV0{
+					URI:      uri,
+					Text:     output,
+					MimeType: spec.ContentType,
+				},
+			}
+			return marshalResult(&protocol.ToolCallResultV1{
+				Content: []protocol.ContentBlockV1{block},
+			})
+		}
 	}
+
 	return marshalResult(&protocol.ToolCallResultV1{
-		Content: []protocol.ContentBlockV1{block},
+		Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
 	})
+}
+
+func (s *Server) cacheAndGetURI(output string) (string, error) {
+	id, err := newResultID()
+	if err != nil {
+		return "", err
+	}
+	cached := cachedResult{
+		ID:         id,
+		Session:    s.session,
+		Output:     output,
+		LineCount:  countLines(output),
+		TokenCount: estimateTokens(output),
+	}
+	if err := s.cache.store(cached); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("moxy.native://results/%s/%s", s.session, id), nil
 }
 
 // buildExtraArgs extracts string argument values from the caller's JSON

@@ -125,6 +125,66 @@ func TestServerToolsCallUnknown(t *testing.T) {
 	}
 }
 
+func TestServerToolsCallContentTypeResourceBlock(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:        "json-tool",
+				Command:     "echo",
+				Args:        []string{"-n", `{"ok":true}`},
+				ContentType: "application/json",
+				ResultType:  ResultTypeText,
+			},
+		},
+	}
+	srv := NewServer(cfg)
+
+	params := protocol.ToolCallParams{
+		Name: "json-tool",
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	// Check raw JSON has the resource block structure
+	rawStr := string(raw)
+	t.Logf("raw JSON: %s", rawStr)
+
+	if !strings.Contains(rawStr, `"type":"resource"`) {
+		t.Errorf("expected type=resource in raw JSON, got: %s", rawStr)
+	}
+	if !strings.Contains(rawStr, `"mimeType":"application/json"`) {
+		t.Errorf("expected mimeType in resource, got: %s", rawStr)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	block := result.Content[0]
+	if block.Type != "resource" {
+		t.Errorf("type = %q, want %q", block.Type, "resource")
+	}
+	if block.Resource == nil {
+		t.Fatal("Resource is nil")
+	}
+	if block.Resource.MimeType != "application/json" {
+		t.Errorf("resource.mimeType = %q, want %q", block.Resource.MimeType, "application/json")
+	}
+	if block.Resource.Text != `{"ok":true}` {
+		t.Errorf("resource.text = %q, want %q", block.Resource.Text, `{"ok":true}`)
+	}
+	if !strings.HasPrefix(block.Resource.URI, "moxy.native://results/") {
+		t.Errorf("resource.uri = %q, want moxy.native:// prefix", block.Resource.URI)
+	}
+}
+
 func TestServerToolsCallWithArguments(t *testing.T) {
 	cfg := &NativeConfig{
 		Name: "test-server",

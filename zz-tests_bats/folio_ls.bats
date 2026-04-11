@@ -27,13 +27,15 @@ function folio_ls_lists_directory_contents { # @test
   local params
   params=$(jq -cn --arg n "folio.ls" \
     '{name: $n, arguments: {path: "testdir"}}')
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
 
-  assert_output --partial "file1.txt"
-  assert_output --partial "file2.txt"
-  assert_output --partial "subdir"
-  assert_output --partial "link1"
+  local text
+  text=$(echo "$output" | jq -r '.content[0].resource.text')
+  echo "$text" | grep -q "file1.txt"
+  echo "$text" | grep -q "file2.txt"
+  echo "$text" | grep -q "subdir"
+  echo "$text" | grep -q "link1"
 }
 
 function folio_ls_shows_entry_types { # @test
@@ -51,14 +53,16 @@ function folio_ls_shows_entry_types { # @test
   local params
   params=$(jq -cn --arg n "folio.ls" \
     '{name: $n, arguments: {path: "testdir"}}')
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
 
-  # Verify mimeType is set on the content block
-  echo "$output" | jq -e '.content[0].mimeType == "application/json"'
+  # Verify resource block with mimeType and cache URI
+  echo "$output" | jq -e '.content[0].type == "resource"'
+  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"'
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("moxy.native://results/")'
 
   local entries
-  entries=$(echo "$output" | jq -r '.content[0].text')
+  entries=$(echo "$output" | jq -r '.content[0].resource.text')
 
   echo "$entries" | jq -e '.[] | select(.name == "file.txt" and .type == "file")'
   echo "$entries" | jq -e '.[] | select(.name == "subdir" and .type == "directory")'
@@ -78,7 +82,7 @@ function folio_ls_defaults_to_cwd { # @test
 
   local params
   params=$(jq -cn --arg n "folio.ls" '{name: $n, arguments: {}}')
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  assert_output --partial "readme.txt"
+  echo "$output" | jq -r '.content[0].resource.text' | grep -q "readme.txt"
 }

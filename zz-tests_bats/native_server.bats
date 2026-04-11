@@ -137,9 +137,12 @@ EOF
   cd "$HOME/project"
   export MOXIN_PATH="$moxin_dir"
   local params='{"name":"typed.api"}'
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.content[0].mimeType == "application/json"'
+  echo "$output" | jq -e '.content[0].type == "resource"'
+  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"'
+  echo "$output" | jq -e '.content[0].resource.text == "{\"ok\":true}"'
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("moxy.native://results/")'
 }
 
 function native_server_schema2_mcp_result_passthrough { # @test
@@ -159,10 +162,11 @@ EOF
   cd "$HOME/project"
   export MOXIN_PATH="$moxin_dir"
   local params='{"name":"s2.api"}'
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.content[0].text == "hello from mcp"'
-  echo "$output" | jq -e '.content[0].mimeType == "text/plain"'
+  echo "$output" | jq -e '.content[0].type == "resource"'
+  echo "$output" | jq -e '.content[0].resource.text == "hello from mcp"'
+  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"'
 }
 
 function native_server_schema2_nonzero_exit_ignores_stdout { # @test
@@ -252,8 +256,9 @@ EOF
   cd "$HOME/project"
   export MOXIN_PATH="$moxin_dir"
   local params='{"name":"s2text.plain"}'
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.content[0].text == "just plain text"'
-  echo "$output" | jq -e '.content[0].mimeType == "text/csv"'
+  echo "$output" | jq -e '.content[0].type == "resource"'
+  echo "$output" | jq -e '.content[0].resource.text == "just plain text"'
+  echo "$output" | jq -e '.content[0].resource.mimeType == "text/csv"'
 }
