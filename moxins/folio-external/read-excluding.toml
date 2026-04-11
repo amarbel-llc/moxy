@@ -2,7 +2,7 @@ schema = 1
 description = """Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. \
 Output format: `     N\\tcontent` per line. Accepts moxy.native:// result URIs as file paths, replacing `sed` \
 deletion piping on command output."""
-command = "sh"
+command = "bash"
 args = ["-c", """
 set -euo pipefail
 file="$1"; ds="$2"; de="$3"

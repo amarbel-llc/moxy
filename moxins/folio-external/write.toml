@@ -1,7 +1,7 @@
 schema = 1
 description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
 partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
-command = "sh"
+command = "bash"
 arg_order = ["file_path", "content"]
 args = ["-c", """
 set -euo pipefail

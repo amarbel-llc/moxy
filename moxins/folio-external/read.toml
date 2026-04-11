@@ -2,7 +2,7 @@ schema = 1
 description = """Read an entire file with line numbers. Output format: `     N\\tcontent` per line. \
 Large files (>2000 lines) return a head+tail summary instead — use read_range for specific sections. \
 Accepts moxy.native:// result URIs as file paths, replacing `head` and `tail` piping on command output."""
-command = "sh"
+command = "bash"
 args = ["-c", """
 set -euo pipefail
 file="$1"

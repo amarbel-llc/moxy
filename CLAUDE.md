@@ -134,13 +134,14 @@ The `_moxin.toml` manifest declares server identity (`schema`, `name`,
 `[tools.input]`). Tools may declare `perms-request` to control permission
 behavior: `always-allow`, `each-use`, or `delegate-to-client` (default).
 
-**Builtin moxin dependency rule:** All builtin moxins
-(`builtin-servers/*.toml`) must have their external dependencies provided via
-nix wrapping. Never rely on tools being on the ambient PATH --- they won't be
-outside the moxy devshell. The pattern: put scripts in `libexec/`, wrap them in
-`flake.nix` postInstall with `wrapProgram --set PATH`, and reference via
-`@LIBEXEC@` placeholder in the TOML config. Inline `sh -c` commands are only
-acceptable for coreutils-level builtins (`cat`, `echo`, `sed`, etc.).
+**Moxin dependency rule:** All moxins (`moxins/*/*.toml`) must have their
+external dependencies provided via nix wrapping. Never rely on tools being on
+the ambient PATH --- they won't be outside the moxy devshell. The pattern: put
+scripts in `libexec/`, wrap them in `flake.nix` postInstall with
+`wrapProgram --set PATH`, and reference via `@LIBEXEC@` placeholder in the TOML
+config. Inline shell scripts must use `command = "bash"` (not `"sh"`) since they
+rely on bash features (`pipefail`, arrays, process substitution). `bash` is
+provided via the nix wrapper PATH.
 
 ### Folio (File I/O Tools)
 

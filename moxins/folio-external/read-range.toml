@@ -2,7 +2,7 @@ schema = 1
 description = """Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. \
 Output format: `     N\\tcontent` per line. Replaces `head`/`tail` piping — use on moxy.native:// result URIs \
 to read specific line ranges from cached command output."""
-command = "sh"
+command = "bash"
 args = ["-c", """
 set -euo pipefail
 file="$1"; start="$2"; end="$3"
