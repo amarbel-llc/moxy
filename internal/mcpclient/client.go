@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -14,6 +16,32 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 )
+
+var clientLog *log.Logger
+
+func init() {
+	logHome := os.Getenv("XDG_LOG_HOME")
+	if logHome == "" {
+		home, _ := os.UserHomeDir()
+		logHome = filepath.Join(home, ".local", "log")
+	}
+	logDir := filepath.Join(logHome, "moxy")
+	os.MkdirAll(logDir, 0o755)
+	f, err := os.OpenFile(
+		filepath.Join(logDir, "lifecycle.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o644,
+	)
+	if err == nil {
+		clientLog = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func logLifecycle(format string, args ...any) {
+	if clientLog != nil {
+		clientLog.Printf(format, args...)
+	}
+}
 
 type Client struct {
 	name           string
@@ -45,8 +73,10 @@ func SpawnAndInitialize(ctx context.Context, name, command string, args []string
 	}
 
 	if err := cmd.Start(); err != nil {
+		logLifecycle("spawn FAIL %s: %v", name, err)
 		return nil, nil, fmt.Errorf("starting %s: %w", name, err)
 	}
+	logLifecycle("spawn OK %s pid=%d cmd=%s", name, cmd.Process.Pid, command)
 
 	c := &Client{
 		name:      name,
@@ -60,9 +90,11 @@ func SpawnAndInitialize(ctx context.Context, name, command string, args []string
 
 	result, err := c.initialize(ctx)
 	if err != nil {
+		logLifecycle("initialize FAIL %s: %v", name, err)
 		c.Close()
 		return nil, nil, fmt.Errorf("initializing %s: %w", name, err)
 	}
+	logLifecycle("initialize OK %s server=%s version=%s", name, result.ServerInfo.Name, result.ServerInfo.Version)
 
 	return c, result, nil
 }
@@ -121,7 +153,9 @@ func (c *Client) readLoop() {
 		msg, err := c.transport.Read()
 		if err != nil {
 			if err == io.EOF {
-				return
+				logLifecycle("readLoop EOF %s (child exited)", c.name)
+			} else {
+				logLifecycle("readLoop ERROR %s: %v", c.name, err)
 			}
 			return
 		}
@@ -197,9 +231,14 @@ func (c *Client) Notify(method string, params any) error {
 }
 
 func (c *Client) Close() error {
+	logLifecycle("close %s", c.name)
 	c.transport.Close()
 	if c.cmd != nil {
-		return c.cmd.Wait()
+		err := c.cmd.Wait()
+		if err != nil {
+			logLifecycle("close %s exit: %v", c.name, err)
+		}
+		return err
 	}
 	return nil
 }

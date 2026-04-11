@@ -276,12 +276,14 @@ func (p *Proxy) reprobeEphemeral(ctx context.Context, meta *EphemeralMeta) error
 }
 
 func (p *Proxy) spawnEphemeral(ctx context.Context, serverName string) (ServerBackend, error) {
+	debugLog("spawnEphemeral %s", serverName)
 	cfg, ok := p.configs[serverName]
 	if !ok {
 		return nil, fmt.Errorf("unknown server %q", serverName)
 	}
 	client, _, err := p.connectFunc(ctx, cfg)
 	if err != nil {
+		debugLog("spawnEphemeral FAIL %s: %v", serverName, err)
 		return nil, fmt.Errorf("spawning ephemeral %s: %w", serverName, err)
 	}
 	client.SetOnNotification(func(msg *jsonrpc.Message) {
@@ -1192,6 +1194,7 @@ func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]pro
 }
 
 func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
+	debugLog("restartServer %s", serverName)
 	cfg, ok := p.configs[serverName]
 	if !ok {
 		return fmt.Errorf("unknown server %q", serverName)
@@ -1206,6 +1209,7 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 	p.mu.Lock()
 	for i, c := range p.children {
 		if c.Client.Name() == serverName {
+			debugLog("restartServer closing old %s", serverName)
 			c.Client.Close()
 			p.children = append(p.children[:i], p.children[i+1:]...)
 			break
