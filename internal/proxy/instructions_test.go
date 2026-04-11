@@ -113,7 +113,7 @@ func TestFormatInstructionsEmptyList(t *testing.T) {
 func TestFormatInstructionsWithChildInstructions(t *testing.T) {
 	summaries := []ServerSummary{
 		{
-			Name:         "maneater",
+			Name:         "helper",
 			Version:      "0.4.0",
 			Status:       "running",
 			Instructions: "Read man pages before executing commands.",
@@ -128,7 +128,7 @@ func TestFormatInstructionsWithChildInstructions(t *testing.T) {
 
 	result := FormatInstructions(summaries)
 
-	if !strings.Contains(result, "## maneater") {
+	if !strings.Contains(result, "## helper") {
 		t.Error("expected child instructions section header")
 	}
 	if !strings.Contains(result, "Read man pages before executing commands.") {

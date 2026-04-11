@@ -6,7 +6,6 @@ build: build-go build-nix
 
 build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
-  go build -o build/maneater ./cmd/maneater
 
 build-moxins:
   mkdir -p build/moxins
@@ -16,7 +15,6 @@ build-moxins:
 
 generate:
   go generate ./internal/config/
-  go generate ./cmd/maneater/
 
 build-gomod2nix:
   gomod2nix

@@ -23,6 +23,13 @@
       inputs.utils.follows = "utils";
     };
 
+    maneater = {
+      url = "github:amarbel-llc/maneater";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+    };
+
     bob = {
       url = "github:amarbel-llc/bob";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -40,6 +47,7 @@
       gomod2nix,
       purse-first,
       tommy,
+      maneater,
       bob,
     }:
     (utils.lib.eachDefaultSystem (
@@ -61,32 +69,15 @@
           config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "acli" "acli-unwrapped" ];
         };
 
-        # Filtered sources so moxy and maneater rebuild independently.
-        # maneaterSrc is explicit (rarely gains new internal/ deps).
-        # moxySrc is everything else — new internal/ packages land here
-        # automatically.
-        commonGoFiles = with pkgs.lib.fileset; unions [
-          ./go.mod
-          ./go.sum
-          ./gomod2nix.toml
-        ];
-
-        maneaterSrc = pkgs.lib.fileset.toSource {
-          root = ./.;
-          fileset = with pkgs.lib.fileset; unions [
-            commonGoFiles
-            ./cmd/maneater
-            ./internal/embedding
-          ];
-        };
-
         moxySrc = pkgs.lib.fileset.toSource {
           root = ./.;
-          fileset = with pkgs.lib.fileset; difference (unions [
-            commonGoFiles
+          fileset = with pkgs.lib.fileset; unions [
+            ./go.mod
+            ./go.sum
+            ./gomod2nix.toml
             ./cmd/moxy
             ./internal
-          ]) ./internal/embedding;
+          ];
         };
 
         moxy = pkgs.buildGoApplication {
@@ -128,63 +119,6 @@
           '';
         };
 
-        nomic-model = pkgs.fetchurl {
-          url = "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q8_0.gguf";
-          hash = "sha256-PiQ0IWSz2UmRupaS/cDdCOP9c2Lgqsw5appcVKVEw7c=";
-        };
-
-        snowflake-model = pkgs.fetchurl {
-          url = "https://huggingface.co/Casual-Autopsy/snowflake-arctic-embed-l-v2.0-gguf/resolve/main/snowflake-arctic-embed-l-v2.0-q8_0.gguf";
-          hash = "sha256-C+gyDssPtuIF8KFBnOPUaINLxE0Cy/2l/RcbNoGxJZc=";
-        };
-
-        maneater-unwrapped = pkgs.buildGoApplication {
-          pname = "maneater";
-          version = "0.4.0";
-          src = maneaterSrc;
-          subPackages = [ "cmd/maneater" ];
-          modules = ./gomod2nix.toml;
-          go = pkgs-master.go_1_26;
-          GOTOOLCHAIN = "local";
-          CGO_ENABLED = "1";
-          nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = [ pkgs.llama-cpp ];
-        };
-
-        maneater-models-toml = pkgs.writeText "models.toml" ''
-          default = "snowflake"
-
-          [models.nomic]
-          path = "${nomic-model}"
-          query-prefix = "search_query: "
-          document-prefix = "search_document: "
-
-          [models.snowflake]
-          path = "${snowflake-model}"
-          query-prefix = "query: "
-          document-prefix = ""
-        '';
-
-        maneater =
-          pkgs.runCommand "maneater-wrapped"
-            {
-              nativeBuildInputs = [ pkgs.makeWrapper ];
-            }
-            ''
-              mkdir -p $out/bin $out/share/man/man1 $out/share/man/man5
-              makeWrapper ${maneater-unwrapped}/bin/maneater $out/bin/maneater \
-                --set PATH ${
-                  pkgs.lib.makeBinPath [
-                    pkgs.mandoc
-                    pkgs.pandoc
-                    pkgs.tldr
-                    pkgs-master.go_1_26
-                  ]
-                } \
-                --set MANEATER_CONFIG ${maneater-models-toml}
-              cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
-              cp ${./cmd/maneater/maneater.toml.5} $out/share/man/man5/maneater.toml.5
-            '';
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
@@ -208,7 +142,7 @@
                   pkgs.manix
                   pkgs-master.go_1_26
                   pkgs-master-unfree.acli
-                  maneater
+                  maneater.packages.${system}.default
                 ]
               }
           done
@@ -222,17 +156,13 @@
           name = "moxy";
           paths = [
             moxy
-            maneater
             moxy-moxins
           ];
         };
       in
       {
         packages = {
-          inherit
-            moxy
-            maneater
-            ;
+          inherit moxy;
           default = combined;
         };
 
@@ -248,11 +178,9 @@
             pkgs-master.govulncheck
             gomod2nix.packages.${system}.default
             pkgs.just
-            pkgs.llama-cpp
             pkgs.manix
             pkgs.mandoc
             pkgs.pandoc
-            pkgs.pkg-config
             pkgs.ripgrep
             # Pinned inputs for deterministic bats man-page tests. Without
             # these, `manpath(1)` falls back to whatever man pages the host
@@ -271,11 +199,6 @@
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default
           ];
-          # Explicit nix store man page paths for the bats test suite.
-          # zz-tests_bats/common.bash re-exports this as MANPATH so that
-          # maneater's locateSource() resolves to exactly these paths and
-          # nothing else — no host man pages, no host $MANPATH ordering.
-          MANEATER_TEST_MANPATH = "${pkgs.jq.man}/share/man:${pkgs.coreutils-full}/share/man";
         };
       }
     ));
