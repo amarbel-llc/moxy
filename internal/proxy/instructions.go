@@ -19,7 +19,10 @@ type ServerSummary struct {
 
 func FormatInstructions(servers []ServerSummary) string {
 	var b strings.Builder
-	b.WriteString("MCP proxy aggregating tools, resources, and prompts from child servers.")
+	b.WriteString("MCP proxy aggregating tools, resources, and prompts from child servers.\n\n")
+	b.WriteString("Tool results include `moxy.native://results/{session}/{id}` URIs pointing to cached full output. ")
+	b.WriteString("These URIs can be used anywhere a file path is accepted (e.g. folio-external read tools, jq input) — ")
+	b.WriteString("moxy rewrites them to file descriptors at invocation time.")
 
 	if len(servers) == 0 {
 		return b.String()
