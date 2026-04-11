@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -15,6 +17,32 @@ import (
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/paginate"
 )
+
+var debugLogger *log.Logger
+
+func init() {
+	logHome := os.Getenv("XDG_LOG_HOME")
+	if logHome == "" {
+		home, _ := os.UserHomeDir()
+		logHome = filepath.Join(home, ".local", "log")
+	}
+	logDir := filepath.Join(logHome, "moxy")
+	os.MkdirAll(logDir, 0o755)
+	f, err := os.OpenFile(
+		filepath.Join(logDir, "debug.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o644,
+	)
+	if err == nil {
+		debugLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func debugLog(format string, args ...any) {
+	if debugLogger != nil {
+		debugLogger.Printf(format, args...)
+	}
+}
 
 type ChildEntry struct {
 	Client       ServerBackend
@@ -375,9 +403,13 @@ func (p *Proxy) CallTool(
 	name string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResult, error) {
+	debugLog("CallTool V0 path hit for tool %q", name)
 	v1, err := p.CallToolV1(ctx, name, args)
 	if err != nil {
 		return nil, err
+	}
+	for _, b := range v1.Content {
+		debugLog("  content block: type=%q mimeType=%q resource=%v", b.Type, b.MimeType, b.Resource != nil)
 	}
 	return &protocol.ToolCallResult{
 		Content: downgradeContentBlocks(v1.Content),
@@ -573,6 +605,7 @@ func (p *Proxy) CallToolV1(
 	name string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
+	debugLog("CallToolV1 path hit for tool %q", name)
 	if p.builtinTools != nil && p.hasBuiltinTool(name) {
 		return p.builtinTools.CallToolV1(ctx, name, args)
 	}

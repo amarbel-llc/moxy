@@ -121,7 +121,7 @@
             done
             for f in $out/libexec/moxy/just-*; do
               wrapProgram "$f" \
-                --set PATH ${pkgs.lib.makeBinPath [ pkgs.just pkgs.jq ]}
+                --set PATH ${pkgs.lib.makeBinPath [ pkgs.bash pkgs.just pkgs.jq ]}
             done
             for f in $out/libexec/moxy/man-*; do
               wrapProgram "$f" \
@@ -135,7 +135,7 @@
             done
             for f in $out/libexec/moxy/jira-*; do
               wrapProgram "$f" \
-                --set PATH ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli ]}
+                --set PATH ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli pkgs.jq ]}
             done
 
             # Rewrite @LIBEXEC@ placeholder to absolute nix store path.
@@ -144,6 +144,28 @@
             for f in $(grep -rl '@LIBEXEC@' $out/share/moxy/moxins); do
               substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
             done
+
+            # Wrap the moxy binary with all inline moxin tool dependencies.
+            # Inline scripts (folio, grit, rg, get-hubbed, chix, env, jq)
+            # inherit PATH from the moxy process.
+            wrapProgram $out/bin/moxy \
+              --prefix PATH : ${
+                pkgs.lib.makeBinPath [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.findutils
+                  pkgs.gawk
+                  pkgs.gnused
+                  pkgs.gzip
+                  pkgs.jq
+                  pkgs.git
+                  pkgs-master.gh
+                  pkgs-master.ripgrep
+                  pkgs.nix
+                  pkgs-master.go_1_26
+                  pkgs.util-linux # column
+                ]
+              }
           '';
         };
 
