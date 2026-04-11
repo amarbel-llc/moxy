@@ -3,6 +3,8 @@ package hook
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -99,6 +101,101 @@ func TestTryAutoAllow(t *testing.T) {
 		}
 		if hso["permissionDecision"] != "allow" {
 			t.Errorf("permissionDecision: got %q", hso["permissionDecision"])
+		}
+	})
+}
+
+func TestInstallSettingsHook(t *testing.T) {
+	// Use a temp dir as HOME so we don't touch the real settings.
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	settingsDir := filepath.Join(tmpHome, ".claude")
+	settingsPath := filepath.Join(settingsDir, "settings.json")
+
+	t.Run("creates settings.json when missing", func(t *testing.T) {
+		if err := InstallSettingsHook(); err != nil {
+			t.Fatal(err)
+		}
+
+		data, err := os.ReadFile(settingsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var settings map[string]any
+		if err := json.Unmarshal(data, &settings); err != nil {
+			t.Fatal(err)
+		}
+
+		hooks, ok := settings["hooks"].(map[string]any)
+		if !ok {
+			t.Fatal("expected hooks key")
+		}
+		preToolUse, ok := hooks["PreToolUse"].([]any)
+		if !ok {
+			t.Fatal("expected PreToolUse array")
+		}
+		if len(preToolUse) != 1 {
+			t.Fatalf("expected 1 entry, got %d", len(preToolUse))
+		}
+		entry := preToolUse[0].(map[string]any)
+		if entry["matcher"] != moxyToolPrefix+".*" {
+			t.Errorf("matcher: got %q", entry["matcher"])
+		}
+	})
+
+	t.Run("idempotent on second call", func(t *testing.T) {
+		if err := InstallSettingsHook(); err != nil {
+			t.Fatal(err)
+		}
+
+		data, err := os.ReadFile(settingsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var settings map[string]any
+		if err := json.Unmarshal(data, &settings); err != nil {
+			t.Fatal(err)
+		}
+
+		hooks := settings["hooks"].(map[string]any)
+		preToolUse := hooks["PreToolUse"].([]any)
+		if len(preToolUse) != 1 {
+			t.Fatalf("expected 1 entry after second call, got %d", len(preToolUse))
+		}
+	})
+
+	t.Run("preserves existing settings", func(t *testing.T) {
+		// Write settings with an existing key.
+		existing := map[string]any{
+			"alwaysThinkingEnabled": true,
+		}
+		data, _ := json.MarshalIndent(existing, "", "  ")
+		os.WriteFile(settingsPath, append(data, '\n'), 0o644)
+
+		if err := InstallSettingsHook(); err != nil {
+			t.Fatal(err)
+		}
+
+		data, err := os.ReadFile(settingsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var settings map[string]any
+		if err := json.Unmarshal(data, &settings); err != nil {
+			t.Fatal(err)
+		}
+
+		if settings["alwaysThinkingEnabled"] != true {
+			t.Error("existing key was not preserved")
+		}
+		hooks := settings["hooks"].(map[string]any)
+		preToolUse := hooks["PreToolUse"].([]any)
+		if len(preToolUse) != 1 {
+			t.Fatalf("expected 1 entry, got %d", len(preToolUse))
 		}
 	})
 }

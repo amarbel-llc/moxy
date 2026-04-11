@@ -167,6 +167,9 @@ func main() {
 			if err := app.InstallMCP(); err != nil {
 				log.Fatalf("installing MCP: %v", err)
 			}
+			if err := hook.InstallSettingsHook(); err != nil {
+				log.Fatalf("installing hook: %v", err)
+			}
 			return
 		case "generate-plugin":
 			if err := app.HandleGeneratePlugin(os.Args[2:], os.Stdout); err != nil {

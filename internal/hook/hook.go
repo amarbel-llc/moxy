@@ -151,6 +151,86 @@ func discoverPermissions() map[string]native.PermsRequest {
 	return perms
 }
 
+// InstallSettingsHook ensures ~/.claude/settings.json contains a PreToolUse
+// hook that fires "moxy hook" for all moxy MCP tools. This is called by
+// install-mcp so that auto-allow works without a separate plugin installation.
+func InstallSettingsHook() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("getting home dir: %w", err)
+	}
+
+	self, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolving executable: %w", err)
+	}
+	self, err = filepath.EvalSymlinks(self)
+	if err != nil {
+		return fmt.Errorf("resolving executable symlinks: %w", err)
+	}
+
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+
+	var settings map[string]any
+
+	data, err := os.ReadFile(settingsPath)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+			return fmt.Errorf("creating settings dir: %w", err)
+		}
+		settings = make(map[string]any)
+	} else if err != nil {
+		return fmt.Errorf("reading settings: %w", err)
+	} else {
+		if err := json.Unmarshal(data, &settings); err != nil {
+			return fmt.Errorf("parsing settings: %w", err)
+		}
+	}
+
+	moxyPattern := moxyToolPrefix + ".*"
+	hookCommand := fmt.Sprintf("%s hook", self)
+
+	wantEntry := map[string]any{
+		"matcher": moxyPattern,
+		"hooks": []any{
+			map[string]any{
+				"type":    "command",
+				"command": hookCommand,
+			},
+		},
+	}
+
+	hooks, _ := settings["hooks"].(map[string]any)
+	if hooks == nil {
+		hooks = make(map[string]any)
+	}
+
+	preToolUse, _ := hooks["PreToolUse"].([]any)
+
+	// Check if a moxy hook entry already exists.
+	for _, entry := range preToolUse {
+		e, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		matcher, _ := e["matcher"].(string)
+		if matcher == moxyPattern {
+			return nil // Already installed.
+		}
+	}
+
+	preToolUse = append(preToolUse, wantEntry)
+	hooks["PreToolUse"] = preToolUse
+	settings["hooks"] = hooks
+
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling settings: %w", err)
+	}
+
+	return os.WriteFile(settingsPath, append(out, '\n'), 0o644)
+}
+
 // hooksManifest mirrors the hooks.json structure for matcher expansion.
 type hooksManifest struct {
 	Hooks map[string][]hooksEntry `json:"hooks"`
