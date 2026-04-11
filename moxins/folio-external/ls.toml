@@ -1,15 +1,22 @@
 schema = 1
 description = """List directory contents with type and size metadata. Returns JSON array of entries \
-sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only)."""
+sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only). \
+Pass flags to customize output (e.g. \"-la\" for long format with hidden files)."""
 command = "bash"
-arg_order = ["path"]
+arg_order = ["path", "flags"]
 args = ["-c", """
 set -euo pipefail
 dir="${1:-.}"
+flags="${2:-}"
 
 if [ ! -d "$dir" ]; then
   echo "not a directory: $dir" >&2
   exit 1
+fi
+
+if [ -n "$flags" ]; then
+  ls $flags -- "$dir"
+  exit 0
 fi
 
 first=true
@@ -46,3 +53,7 @@ type = "object"
 [input.properties.path]
 type = "string"
 description = "Directory path to list. Defaults to current working directory."
+
+[input.properties.flags]
+type = "string"
+description = "Optional flags passed to ls (e.g. \"-la\", \"-lh\"). When provided, runs ls directly instead of JSON output."
