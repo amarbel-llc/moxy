@@ -3,7 +3,9 @@ description = "File I/O tools for paths outside the current working directory. S
 
 [[tools]]
 name = "read"
-description = "Read an entire file with line numbers. Output format: `     N\\tcontent` per line. Large files (>2000 lines) return a head+tail summary instead — use read_range for specific sections."
+description = """Read an entire file with line numbers. Output format: `     N\\tcontent` per line. \
+Large files (>2000 lines) return a head+tail summary instead — use read_range for specific sections. \
+Accepts moxy.native:// result URIs as file paths, replacing `head` and `tail` piping on command output."""
 command = "sh"
 args = ["-c", """
 set -euo pipefail
@@ -33,7 +35,9 @@ description = "Absolute path to the file to read"
 
 [[tools]]
 name = "read_range"
-description = "Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. Output format: `     N\\tcontent` per line."
+description = """Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. \
+Output format: `     N\\tcontent` per line. Replaces `head`/`tail` piping — use on moxy.native:// result URIs \
+to read specific line ranges from cached command output."""
 command = "sh"
 args = ["-c", """
 set -euo pipefail
@@ -59,7 +63,9 @@ description = "Inclusive end line (1-indexed)"
 
 [[tools]]
 name = "read_excluding"
-description = "Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. Output format: `     N\\tcontent` per line."
+description = """Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. \
+Output format: `     N\\tcontent` per line. Accepts moxy.native:// result URIs as file paths, \
+replacing `sed` deletion piping on command output."""
 command = "sh"
 args = ["-c", """
 set -euo pipefail
