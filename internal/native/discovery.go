@@ -7,10 +7,27 @@ import (
 	"strings"
 )
 
+// defaultSystemMoxinDir is set at build time via -ldflags:
+//
+//	-X github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=/nix/store/.../share/moxy/moxins
+//
+// This allows nix builds (where the binary and moxins live in separate store
+// paths) to locate builtin moxins without relying on executable path resolution.
+var defaultSystemMoxinDir string
+
 // SystemMoxinDir returns the path to the moxin configs shipped with the moxy
-// binary. It resolves os.Executable() to find <prefix>/share/moxy/moxins/.
-// Returns "" if it doesn't exist (graceful degradation).
+// binary. It checks (in order):
+//  1. Compile-time injected path (nix builds)
+//  2. Executable-relative <prefix>/share/moxy/moxins/ (dev builds)
+//
+// Returns "" if neither exists (graceful degradation).
 func SystemMoxinDir() string {
+	if defaultSystemMoxinDir != "" {
+		if info, err := os.Stat(defaultSystemMoxinDir); err == nil && info.IsDir() {
+			return defaultSystemMoxinDir
+		}
+	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		return ""

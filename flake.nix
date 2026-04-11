@@ -80,45 +80,8 @@
           ];
         };
 
-        moxy = pkgs.buildGoApplication {
-          pname = "moxy";
-          version = "0.1.0";
-          src = moxySrc;
-          subPackages = [ "cmd/moxy" ];
-          modules = ./gomod2nix.toml;
-          go = pkgs-master.go_1_26;
-          GOTOOLCHAIN = "local";
-          nativeBuildInputs = [ pkgs.makeWrapper ];
-          postInstall = ''
-            $out/bin/moxy generate-plugin $out
-            mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
-            cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
-            cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
-            cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
-
-            # Wrap the moxy binary with inline moxin tool dependencies.
-            # Inline scripts (folio, grit, rg, get-hubbed, chix, env, jq)
-            # inherit PATH from the moxy process.
-            wrapProgram $out/bin/moxy \
-              --prefix PATH : ${
-                pkgs.lib.makeBinPath [
-                  pkgs.bash
-                  pkgs.coreutils
-                  pkgs.findutils
-                  pkgs.gawk
-                  pkgs.gnused
-                  pkgs.gzip
-                  pkgs.jq
-                  pkgs.git
-                  pkgs-master.gh
-                  pkgs-master.ripgrep
-                  pkgs.nix
-                  pkgs.util-linux # column
-                ]
-              }
-          '';
-        };
-
+        # moxy-moxins is built first so its store path can be injected into the
+        # moxy binary via ldflags (SystemMoxinDir compile-time override).
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
@@ -151,6 +114,49 @@
             substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
           done
         '';
+
+        moxy = pkgs.buildGoApplication {
+          pname = "moxy";
+          version = "0.1.0";
+          src = moxySrc;
+          subPackages = [ "cmd/moxy" ];
+          modules = ./gomod2nix.toml;
+          go = pkgs-master.go_1_26;
+          GOTOOLCHAIN = "local";
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+          ldflags = [
+            "-X"
+            "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
+          ];
+          postInstall = ''
+            $out/bin/moxy generate-plugin $out
+            mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
+            cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
+            cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
+            cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
+
+            # Wrap the moxy binary with inline moxin tool dependencies.
+            # Inline scripts (folio, grit, rg, get-hubbed, chix, env, jq)
+            # inherit PATH from the moxy process.
+            wrapProgram $out/bin/moxy \
+              --prefix PATH : ${
+                pkgs.lib.makeBinPath [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.findutils
+                  pkgs.gawk
+                  pkgs.gnused
+                  pkgs.gzip
+                  pkgs.jq
+                  pkgs.git
+                  pkgs-master.gh
+                  pkgs-master.ripgrep
+                  pkgs.nix
+                  pkgs.util-linux # column
+                ]
+              }
+          '';
+        };
 
         combined = pkgs.symlinkJoin {
           name = "moxy";
