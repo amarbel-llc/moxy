@@ -1,0 +1,25 @@
+schema = 2
+perms-request = "always-allow"
+description = """Summarize tool results that failed (is_error) or returned empty content across sessions. \
+Shows tool name, error preview, and frequency. Useful for spotting flaky tools or misconfigured servers."""
+command = "__LIBEXEC__/freud-tool-results-summary-failures"
+arg_order = ["project", "days", "tool_name", "limit"]
+
+[input]
+type = "object"
+
+[input.properties.project]
+type = "string"
+description = "Filter sessions by project path substring (case-insensitive). Omit for all projects."
+
+[input.properties.days]
+type = "integer"
+description = "Analyze sessions from the last N days. Defaults to 7."
+
+[input.properties.tool_name]
+type = "string"
+description = "Filter to a specific tool name (case-insensitive substring). Omit for all tools."
+
+[input.properties.limit]
+type = "integer"
+description = "Maximum number of entries to return. Defaults to 30, 0 for unlimited."
