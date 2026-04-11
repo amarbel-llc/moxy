@@ -5,10 +5,8 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,25 +15,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/amarbel-llc/moxy/internal/embedding"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
+	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 )
-
-type manServer struct {
-	mu         sync.Mutex
-	embedder   *embedding.Embedder
-	index      *embedding.Index
-	modelName  string
-	modelCfg   ModelConfig
-	execConfig *ExecConfig
-	execCache  *execResultCache
-	session    string
-	manpath    []string
-}
 
 type pageSection struct {
 	Name      string
@@ -44,239 +27,152 @@ type pageSection struct {
 	LineCount int
 }
 
-var templates = []protocol.ResourceTemplate{
-	{
-		URITemplate: "man://{page}",
-		Name:        "Man page TOC",
-		Description: "Start here: list all sections and subsections of a Unix man page to discover what it covers",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://{section}/{page}",
-		Name:        "Man page TOC (specific section)",
-		Description: "Start here: list all sections and subsections of a Unix man page by section number and name",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://{page}/{section_name}",
-		Name:        "Man page section",
-		Description: "Read a specific section of a Unix man page",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://{section}/{page}/{section_name}",
-		Name:        "Man page section (specific section)",
-		Description: "Read a specific section of a Unix man page by section number and name",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://search/{query}",
-		Name:        "Semantic man page search",
-		Description: "Search for man pages by natural language query. Returns ranked results with page names and scores. Use query parameter top_k to control result count (default 10).",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "maneater.exec://results/{session}/{id}",
-		Name:        "Exec result",
-		Description: "Full output of a cached exec command result. Returned when exec output exceeds the token threshold.",
-		MimeType:    "text/plain",
-	},
+// searcher holds state for the embedding-based search pipeline.
+type searcher struct {
+	mu        sync.Mutex
+	embedder  *embedding.Embedder
+	index     *embedding.Index
+	modelName string
+	modelCfg  ModelConfig
+	manpath   []string
 }
 
-var templatesV1 = []protocol.ResourceTemplateV1{
-	{
-		URITemplate: "man://{page}",
-		Name:        "Man page TOC",
-		Description: "Start here: list all sections and subsections of a Unix man page to discover what it covers",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://{section}/{page}",
-		Name:        "Man page TOC (specific section)",
-		Description: "Start here: list all sections and subsections of a Unix man page by section number and name",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://{page}/{section_name}",
-		Name:        "Man page section",
-		Description: "Read a specific section of a Unix man page",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://{section}/{page}/{section_name}",
-		Name:        "Man page section (specific section)",
-		Description: "Read a specific section of a Unix man page by section number and name",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "man://search/{query}",
-		Name:        "Semantic man page search",
-		Description: "Search for man pages by natural language query. Returns ranked results with page names and scores. Use query parameter top_k to control result count (default 10).",
-		MimeType:    "text/plain",
-	},
-	{
-		URITemplate: "maneater.exec://results/{session}/{id}",
-		Name:        "Exec result",
-		Description: "Full output of a cached exec command result. Returned when exec output exceeds the token threshold.",
-		MimeType:    "text/plain",
-	},
-}
+func newApp() *command.App {
+	app := command.NewApp("maneater", "Man page search index and semantic search CLI")
+	app.Version = "0.6.0"
+	app.Description.Long = "Maneater builds and queries a semantic search index over Unix man pages " +
+		"using vector embeddings. It extracts synopses and tldr descriptions, embeds " +
+		"them with nomic-embed-text-v1.5, and supports ranked search by natural language query."
 
-// Static resources advertise well-known entry points so agents can discover
-// man page search and Go package documentation without knowing the URI
-// templates upfront.
-var staticResources = []protocol.Resource{
-	{
-		URI:         "man://search/",
-		Name:        "Semantic man page search",
-		Description: "Search for man pages by natural language query. Append your query to the URI (e.g. man://search/list+files). Optional ?top_k=N parameter (default 10).",
-		MimeType:    "text/plain",
-	},
-	{
-		URI:         "godoc://packages/",
-		Name:        "Go package documentation",
-		Description: "Look up Go package docs. Append a package path (e.g. godoc://packages/encoding/json), a symbol (godoc://packages/fmt/Println), or source (godoc://packages/fmt/Println/src).",
-		MimeType:    "text/plain",
-	},
-}
-
-var staticResourcesV1 = []protocol.ResourceV1{
-	{
-		URI:         "man://search/",
-		Name:        "Semantic man page search",
-		Description: "Search for man pages by natural language query. Append your query to the URI (e.g. man://search/list+files). Optional ?top_k=N parameter (default 10).",
-		MimeType:    "text/plain",
-	},
-	{
-		URI:         "godoc://packages/",
-		Name:        "Go package documentation",
-		Description: "Look up Go package docs. Append a package path (e.g. godoc://packages/encoding/json), a symbol (godoc://packages/fmt/Println), or source (godoc://packages/fmt/Println/src).",
-		MimeType:    "text/plain",
-	},
-}
-
-// ResourceProvider (base interface)
-
-func (m *manServer) ListResources(_ context.Context) ([]protocol.Resource, error) {
-	return staticResources, nil
-}
-
-func (m *manServer) ReadResource(_ context.Context, uri string) (*protocol.ResourceReadResult, error) {
-	// Check for godoc URI.
-	if strings.HasPrefix(uri, godocPrefix) {
-		pkg, symbol, src, err := parseGodocURI(uri)
-		if err != nil {
-			return nil, err
-		}
-		text, err := handleGodocRead(pkg, symbol, src)
-		if err != nil {
-			return nil, err
-		}
-		return &protocol.ResourceReadResult{
-			Contents: []protocol.ResourceContent{
-				{URI: uri, MimeType: "text/plain", Text: text},
-			},
-		}, nil
-	}
-
-	// Check for exec result URI first.
-	if session, id, ok := parseExecResultURI(uri); ok {
-		cached, err := m.execCache.load(session, id)
-		if err != nil {
-			return nil, err
-		}
-		return &protocol.ResourceReadResult{
-			Contents: []protocol.ResourceContent{
-				{URI: uri, MimeType: "text/plain", Text: cached.Output},
-			},
-		}, nil
-	}
-
-	// Check for search URI.
-	if query, topK, ok := parseSearchURI(uri); ok {
-		text, err := m.handleSearch(query, topK)
-		if err != nil {
-			return nil, err
-		}
-		return &protocol.ResourceReadResult{
-			Contents: []protocol.ResourceContent{
-				{URI: uri, MimeType: "text/plain", Text: text},
-			},
-		}, nil
-	}
-
-	manSection, page, sectionName, err := parseManURI(uri)
-	if err != nil {
-		return nil, err
-	}
-
-	sourcePath, err := locateSource(m.manpath, manSection, page)
-	if err != nil {
-		return nil, err
-	}
-
-	markdown, err := renderMarkdown(sourcePath)
-	if err != nil {
-		return nil, err
-	}
-
-	sections := splitSections(markdown)
-
-	var text string
-	if sectionName == "" {
-		text = formatTOC(page, manSection, sections)
-	} else {
-		found := false
-		for _, s := range sections {
-			if strings.EqualFold(s.Name, sectionName) {
-				text = s.Content
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("section %q not found in %s", sectionName, page)
-		}
-	}
-
-	return &protocol.ResourceReadResult{
-		Contents: []protocol.ResourceContent{
-			{URI: uri, MimeType: "text/plain", Text: text},
+	app.Examples = []command.Example{
+		{
+			Description: "Build or rebuild the search index",
+			Command:     "maneater index",
 		},
-	}, nil
+		{
+			Description: "Search for man pages about listing files",
+			Command:     "maneater search list files",
+		},
+		{
+			Description: "Search with custom result count",
+			Command:     "maneater search --top-k 20 configure network",
+		},
+	}
+
+	app.AddCommand(&command.Command{
+		Name: "index",
+		Description: command.Description{
+			Short: "Build or rebuild the search index",
+			Long: "Loads the embedding model, scans all man pages on the manpath, " +
+				"extracts synopses and tldr descriptions, embeds them, and saves " +
+				"the index to the XDG cache directory.",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			return runIndex()
+		},
+	})
+
+	app.AddCommand(&command.Command{
+		Name: "search",
+		Description: command.Description{
+			Short: "Semantic man page search",
+			Long: "Search for man pages by natural language query. Returns ranked " +
+				"results with page names and cosine similarity scores. Requires a " +
+				"pre-built index (maneater index).",
+		},
+		Params: []command.Param{
+			{
+				Name:        "top-k",
+				Description: "Number of results to return",
+				Type:        command.Int,
+			},
+			{
+				Name:        "query",
+				Description: "Natural language search query",
+				Type:        command.String,
+				Required:    true,
+			},
+		},
+		RunCLI: func(_ context.Context, args json.RawMessage) error {
+			return runSearch(os.Args[2:])
+		},
+	})
+
+	return app
 }
 
-func (m *manServer) ListResourceTemplates(_ context.Context) ([]protocol.ResourceTemplate, error) {
-	return append(templates, godocTemplates...), nil
+func main() {
+	app := newApp()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	if err := app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}); err != nil {
+		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
+		os.Exit(1)
+	}
 }
 
-// ResourceProviderV1 (V1 extensions)
+func runSearch(args []string) error {
+	topK := 10
+	var queryParts []string
 
-func (m *manServer) ListResourcesV1(_ context.Context, _ string) (*protocol.ResourcesListResultV1, error) {
-	return &protocol.ResourcesListResultV1{Resources: staticResourcesV1}, nil
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--top-k" && i+1 < len(args) {
+			n, err := strconv.Atoi(args[i+1])
+			if err != nil {
+				return fmt.Errorf("invalid --top-k value: %s", args[i+1])
+			}
+			topK = n
+			i++
+		} else {
+			queryParts = append(queryParts, args[i])
+		}
+	}
+
+	query := strings.Join(queryParts, " ")
+	if query == "" {
+		return fmt.Errorf("usage: maneater search <query> [--top-k N]")
+	}
+
+	cfg, err := LoadDefaultManeaterHierarchy()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	manpath, err := resolveManpath(cfg.Manpath, cwd)
+	if err != nil {
+		return err
+	}
+
+	s := &searcher{manpath: manpath}
+	result, err := s.handleSearch(query, topK)
+	if err != nil {
+		return err
+	}
+
+	fmt.Print(result)
+	return nil
 }
 
-func (m *manServer) ListResourceTemplatesV1(_ context.Context, _ string) (*protocol.ResourceTemplatesListResultV1, error) {
-	return &protocol.ResourceTemplatesListResultV1{ResourceTemplates: append(templatesV1, godocTemplatesV1...)}, nil
-}
-
-// Search
-
-func (m *manServer) handleSearch(query string, topK int) (string, error) {
-	if err := m.ensureSearchReady(); err != nil {
+func (s *searcher) handleSearch(query string, topK int) (string, error) {
+	if err := s.ensureSearchReady(); err != nil {
 		return "", err
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	queryText := m.modelCfg.QueryPrefix + query
-	queryEmb, err := m.embedder.Embed(queryText)
+	queryText := s.modelCfg.QueryPrefix + query
+	queryEmb, err := s.embedder.Embed(queryText)
 	if err != nil {
 		return "", fmt.Errorf("embedding query: %w", err)
 	}
 
-	results := m.index.Search(queryEmb, topK)
+	results := s.index.Search(queryEmb, topK)
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "Search results for %q (%d matches):\n\n", query, len(results))
@@ -287,44 +183,44 @@ func (m *manServer) handleSearch(query string, topK int) (string, error) {
 	return b.String(), nil
 }
 
-func (m *manServer) ensureSearchReady() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *searcher) ensureSearchReady() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if m.embedder != nil && m.index != nil {
+	if s.embedder != nil && s.index != nil {
 		return nil
 	}
 
-	if m.modelCfg.Path == "" {
+	if s.modelCfg.Path == "" {
 		name, cfg, err := loadActiveModel()
 		if err != nil {
 			return err
 		}
-		m.modelName = name
-		m.modelCfg = cfg
+		s.modelName = name
+		s.modelCfg = cfg
 	}
 
-	if m.embedder == nil {
-		emb, err := embedding.NewEmbedder(m.modelCfg.Path)
+	if s.embedder == nil {
+		emb, err := embedding.NewEmbedder(s.modelCfg.Path)
 		if err != nil {
 			return fmt.Errorf("loading embedding model: %w", err)
 		}
-		m.embedder = emb
+		s.embedder = emb
 	}
 
-	if m.index == nil {
-		idx, err := m.loadOrBuildIndex()
+	if s.index == nil {
+		idx, err := s.loadOrBuildIndex()
 		if err != nil {
 			return fmt.Errorf("building search index: %w", err)
 		}
-		m.index = idx
+		s.index = idx
 	}
 
 	return nil
 }
 
-func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
-	cacheDir := indexCacheDirForModel(m.modelName)
+func (s *searcher) loadOrBuildIndex() (*embedding.Index, error) {
+	cacheDir := indexCacheDirForModel(s.modelName)
 
 	idx, err := embedding.LoadIndex(cacheDir)
 	if err == nil {
@@ -336,12 +232,12 @@ func (m *manServer) loadOrBuildIndex() (*embedding.Index, error) {
 
 	ensureTldrCache()
 
-	pages, err := listManPages(m.manpath)
+	pages, err := listManPages(s.manpath)
 	if err != nil {
 		return nil, err
 	}
 
-	idx, stats := buildIndex(m.embedder, m.modelCfg, pages, m.manpath, os.Stderr)
+	idx, stats := buildIndex(s.embedder, s.modelCfg, pages, s.manpath, os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "maneater: indexed %d entries (%d pages, %d with tldr)\n",
 		len(idx.Entries), len(pages), stats.tldrCount)
@@ -669,45 +565,6 @@ func ensureTldrCache() {
 	cmd.Run()
 }
 
-// parseSearchURI checks if uri is man://search/{query}[?top_k=N]
-// and returns the query, top_k, and whether it matched.
-func parseSearchURI(uri string) (query string, topK int, ok bool) {
-	path := strings.TrimPrefix(uri, "man://")
-
-	// Split query params
-	queryPart := ""
-	if idx := strings.Index(path, "?"); idx >= 0 {
-		queryPart = path[idx+1:]
-		path = path[:idx]
-	}
-
-	if !strings.HasPrefix(path, "search/") {
-		return "", 0, false
-	}
-
-	query = strings.TrimPrefix(path, "search/")
-	if decoded, err := url.PathUnescape(query); err == nil {
-		query = decoded
-	}
-
-	if query == "" {
-		return "", 0, false
-	}
-
-	topK = 10
-	if queryPart != "" {
-		if params, err := url.ParseQuery(queryPart); err == nil {
-			if v := params.Get("top_k"); v != "" {
-				if n, err := strconv.Atoi(v); err == nil && n > 0 {
-					topK = n
-				}
-			}
-		}
-	}
-
-	return query, topK, true
-}
-
 // locateSource finds the roff source file by scanning manpath directories.
 // This avoids a dependency on man-db's "man -w" — only mandoc is needed.
 func locateSource(manpath []string, section, page string) (string, error) {
@@ -877,419 +734,32 @@ func formatTOC(page, manSection string, sections []pageSection) string {
 	return b.String()
 }
 
-// parseManURI extracts man section number, page name, and optional section name.
-//
-// Examples:
-//
-//	man://ls            → ("", "ls", "")
-//	man://ls/DESCRIPTION → ("", "ls", "DESCRIPTION")
-//	man://1/ls          → ("1", "ls", "")
-//	man://1/ls/DESCRIPTION → ("1", "ls", "DESCRIPTION")
-func parseManURI(uri string) (manSection, page, sectionName string, err error) {
-	path := strings.TrimPrefix(uri, "man://")
-	if path == "" {
-		return "", "", "", fmt.Errorf("empty man page URI")
-	}
-
-	parts := strings.SplitN(path, "/", 3)
-
-	switch len(parts) {
-	case 1:
-		// man://page
-		return "", parts[0], "", nil
-
-	case 2:
-		if isManSection(parts[0]) {
-			// man://1/ls
-			return parts[0], parts[1], "", nil
-		}
-		// man://ls/DESCRIPTION
-		return "", parts[0], parts[1], nil
-
-	case 3:
-		if isManSection(parts[0]) {
-			// man://1/ls/DESCRIPTION
-			return parts[0], parts[1], parts[2], nil
-		}
-		// man://page/section/... — treat as page with section name containing /
-		return "", parts[0], parts[1] + "/" + parts[2], nil
-	}
-
-	return "", "", "", fmt.Errorf("invalid man page URI: %s", uri)
-}
-
-func isManSection(s string) bool {
-	return len(s) <= 2 && len(s) > 0 && s[0] >= '1' && s[0] <= '9'
-}
-
-// ToolProvider (base interface)
-
-var execToolSchema = json.RawMessage(`{"type":"object","properties":{"command":{"type":"string","description":"Shell command to execute. Any maneater.exec://results/{session}/{id} substring is rewritten to /dev/fd/N, streaming the cached output via that fd. Multiple distinct results in one command are supported."},"stdin":{"type":"string","description":"Content written to the subprocess's stdin. Either literal text, or a maneater.exec://results/{session}/{id} URI to feed cached output."},"cwd":{"type":"string","description":"Working directory"},"env":{"type":"object","description":"Additional environment variables","additionalProperties":{"type":"string"}},"timeout":{"type":"number","description":"Timeout in milliseconds"}},"required":["command"]}`)
-
-const execToolDescription = "Execute a shell command via sh -c. Prefer reading man pages first to understand flags and behavior before executing.\n\n" +
-	"Cached output reuse: when a previous exec call returned a maneater.exec://results/{session}/{id} URI (because its output exceeded the token threshold), feed that cached output back into a new command without re-reading the resource into context:\n" +
-	"  - Pass the URI as the stdin parameter to write the cached output to the subprocess's stdin (e.g. {\"command\": \"wc -l\", \"stdin\": \"maneater.exec://results/sess/abc\"}).\n" +
-	"  - Embed the URI anywhere inside command to have it rewritten to /dev/fd/N with the cached output streamed via that fd (e.g. {\"command\": \"grep ERROR maneater.exec://results/sess/abc\"} or {\"command\": \"diff maneater.exec://results/sess/abc maneater.exec://results/sess/def\"}). Multiple distinct results in one command are supported.\n\n" +
-	"The stdin parameter also accepts literal text when not a maneater.exec://results/... URI.\n\n" +
-	"Cached results are namespaced by session (read from $CLAUDE_SESSION_ID at maneater startup, falling back to \"no-session\"); the session segment is part of every URI and the on-disk cache layout."
-
-func (m *manServer) ListTools(_ context.Context) ([]protocol.Tool, error) {
-	return []protocol.Tool{
-		{
-			Name:        "exec",
-			Description: execToolDescription,
-			InputSchema: execToolSchema,
-		},
-	}, nil
-}
-
-func (m *manServer) CallTool(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResult, error) {
-	resultV1, err := m.CallToolV1(ctx, name, args)
-	if err != nil {
-		return nil, err
-	}
-	// Downgrade V1 result to V0.
-	result := &protocol.ToolCallResult{IsError: resultV1.IsError}
-	for _, block := range resultV1.Content {
-		result.Content = append(result.Content, protocol.ContentBlock{
-			Type: block.Type,
-			Text: block.Text,
-		})
-	}
-	return result, nil
-}
-
-// ToolProviderV1 (V1 extensions)
-
-func (m *manServer) ListToolsV1(_ context.Context, _ string) (*protocol.ToolsListResultV1, error) {
-	return &protocol.ToolsListResultV1{
-		Tools: []protocol.ToolV1{
-			{
-				Name:        "exec",
-				Description: execToolDescription,
-				InputSchema: execToolSchema,
-			},
-		},
-	}, nil
-}
-
-func (m *manServer) CallToolV1(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
-	if name != "exec" {
-		return protocol.ErrorResultV1(fmt.Sprintf("unknown tool %q", name)), nil
-	}
-	return m.handleExec(ctx, args)
-}
-
-func (m *manServer) handleExec(
-	ctx context.Context,
-	args json.RawMessage,
-) (*protocol.ToolCallResultV1, error) {
-	var params struct {
-		Command string            `json:"command"`
-		Stdin   string            `json:"stdin"`
-		Cwd     string            `json:"cwd"`
-		Env     map[string]string `json:"env"`
-		Timeout float64           `json:"timeout"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("invalid exec args: %v", err),
-		), nil
-	}
-	if params.Command == "" {
-		return protocol.ErrorResultV1("command is required"), nil
-	}
-
-	injectedEnv, err := m.execConfig.CheckPermission(
-		params.Command, params.Cwd, params.Env,
-	)
-	if err != nil {
-		return protocol.ErrorResultV1(err.Error()), nil
-	}
-	if len(injectedEnv) > 0 {
-		if params.Env == nil {
-			params.Env = make(map[string]string)
-		}
-		for k, v := range injectedEnv {
-			if _, exists := params.Env[k]; !exists {
-				params.Env[k] = v
-			}
-		}
-	}
-
-	sub, err := substituteExecURIs(params.Command, m.execCache)
-	if err != nil {
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("resolving exec result references: %v", err),
-		), nil
-	}
-	defer sub.Cleanup()
-
-	if params.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(params.Timeout)*time.Millisecond)
-		defer cancel()
-	}
-
-	cmd := exec.CommandContext(ctx, "sh", "-c", sub.Command)
-	cmd.ExtraFiles = sub.ExtraFiles
-
-	if params.Cwd != "" {
-		cmd.Dir = params.Cwd
-	}
-
-	if len(params.Env) > 0 {
-		cmd.Env = os.Environ()
-		for k, v := range params.Env {
-			cmd.Env = append(cmd.Env, k+"="+v)
-		}
-	}
-
-	if params.Stdin != "" {
-		stdinText := params.Stdin
-		if session, id, ok := parseExecResultURI(params.Stdin); ok {
-			cached, lerr := m.execCache.load(session, id)
-			if lerr != nil {
-				return protocol.ErrorResultV1(
-					fmt.Sprintf("loading stdin from %s: %v", params.Stdin, lerr),
-				), nil
-			}
-			stdinText = cached.Output
-		}
-		cmd.Stdin = strings.NewReader(stdinText)
-	}
-
-	var combined bytes.Buffer
-	cmd.Stdout = &combined
-	cmd.Stderr = &combined
-
-	if startErr := cmd.Start(); startErr != nil {
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("starting command: %v", startErr),
-		), nil
-	}
-	sub.StartWriters()
-	// Close the parent's read-end copies now that the child has them, so
-	// the child sees EOF when the writer goroutines finish.
-	sub.Cleanup()
-	err = cmd.Wait()
-	text := combined.String()
-
-	if err != nil {
-		if text != "" {
-			text += "\n"
-		}
-		text += fmt.Sprintf("error: %v", err)
-		return protocol.ErrorResultV1(text), nil
-	}
-
-	if text == "" {
-		return &protocol.ToolCallResultV1{}, nil
-	}
-
-	tokens := estimateTokens(text)
-	if tokens > execTokenThreshold {
-		id, idErr := newExecResultID()
-		if idErr == nil {
-			cached := cachedExecResult{
-				ID:         id,
-				Session:    m.session,
-				Command:    params.Command,
-				Output:     text,
-				LineCount:  strings.Count(text, "\n"),
-				TokenCount: tokens,
-			}
-			if storeErr := m.execCache.store(cached); storeErr == nil {
-				summary := formatSummary(cached)
-				return &protocol.ToolCallResultV1{
-					Content: []protocol.ContentBlockV1{
-						{Type: "text", Text: summary},
-					},
-				}, nil
-			}
-		}
-	}
-
-	return &protocol.ToolCallResultV1{
-		Content: []protocol.ContentBlockV1{
-			{Type: "text", Text: text},
-		},
-	}, nil
-}
-
-var (
-	_ server.ResourceProviderV1 = (*manServer)(nil)
-	_ server.ToolProviderV1     = (*manServer)(nil)
-)
-
-func main() {
-	flag.Parse()
-
-	if flag.NArg() < 1 {
-		printUsage()
-		os.Exit(1)
-	}
-
-	switch flag.Arg(0) {
-	case "serve":
-		if flag.NArg() < 2 || flag.Arg(1) != "mcp" {
-			fmt.Fprintf(os.Stderr, "usage: maneater serve mcp\n")
-			os.Exit(1)
-		}
-		runServeMCP()
-	case "index":
-		runIndex()
-	case "search":
-		if flag.NArg() < 2 {
-			fmt.Fprintf(os.Stderr, "usage: maneater search <query> [--top-k N]\n")
-			os.Exit(1)
-		}
-		runSearch(flag.Args()[1:])
-	default:
-		printUsage()
-		os.Exit(1)
-	}
-}
-
-func printUsage() {
-	fmt.Fprintf(os.Stderr, "usage: maneater <command>\n\n")
-	fmt.Fprintf(os.Stderr, "commands:\n")
-	fmt.Fprintf(os.Stderr, "  serve mcp          run as MCP server\n")
-	fmt.Fprintf(os.Stderr, "  index              build/rebuild search index\n")
-	fmt.Fprintf(os.Stderr, "  search <query>     semantic man page search\n")
-}
-
-func runSearch(args []string) {
-	topK := 10
-	var queryParts []string
-
-	for i := 0; i < len(args); i++ {
-		if args[i] == "--top-k" && i+1 < len(args) {
-			n, err := strconv.Atoi(args[i+1])
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "maneater: invalid --top-k value: %s\n", args[i+1])
-				os.Exit(1)
-			}
-			topK = n
-			i++
-		} else {
-			queryParts = append(queryParts, args[i])
-		}
-	}
-
-	query := strings.Join(queryParts, " ")
-	if query == "" {
-		fmt.Fprintf(os.Stderr, "usage: maneater search <query> [--top-k N]\n")
-		os.Exit(1)
-	}
-
-	cfg, err := LoadDefaultManeaterHierarchy()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: loading config: %v\n", err)
-		os.Exit(1)
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
-	}
-
-	manpath, err := resolveManpath(cfg.Manpath, cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
-	}
-
-	m := &manServer{manpath: manpath}
-	result, err := m.handleSearch(query, topK)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Print(result)
-}
-
-func runServeMCP() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
-	cfg, err := LoadDefaultManeaterHierarchy()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: loading config: %v\n", err)
-		os.Exit(1)
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
-	}
-
-	manpath, err := resolveManpath(cfg.Manpath, cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: resolving manpath: %v\n", err)
-		os.Exit(1)
-	}
-
-	t := transport.NewStdio(os.Stdin, os.Stdout)
-	m := &manServer{
-		execConfig: cfg.Exec,
-		execCache:  newExecResultCache(),
-		session:    resolveExecSession(cfg.Exec),
-		manpath:    manpath,
-	}
-
-	srv, err := server.New(t, server.Options{
-		ServerName:    "maneater",
-		ServerVersion: "0.5.0",
-		Instructions:  "Unix man page server. Before running a command, read its man page to understand flags, exit codes, and caveats. Start with man://{page} for a table of contents, then man://{page}/{section_name} to read specific sections. Use man://search/{query} to find relevant pages by natural language. The exec tool is available for running commands after you understand their interface. When exec output exceeds the token threshold, a summary with a maneater.exec://results/{session}/{id} resource URI is returned instead of the full output; the session segment namespaces results per Claude session for cleanup. Go package documentation is available via godoc://packages/{package} for a package overview, godoc://packages/{package}/{symbol} for symbol docs, and godoc://packages/{package}/{symbol}/src for source code.",
-		Resources:     m,
-		Tools:         m,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := srv.Run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func runIndex() {
+func runIndex() error {
 	modelName, modelCfg, err := loadActiveModel()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	cfg, err := LoadDefaultManeaterHierarchy()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: loading config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	manpath, err := resolveManpath(cfg.Manpath, cwd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	fmt.Printf("Using model %q from %s\n", modelName, modelCfg.Path)
 
 	emb, err := embedding.NewEmbedder(modelCfg.Path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: loading model: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("loading model: %w", err)
 	}
 	defer emb.Close()
 
@@ -1299,8 +769,7 @@ func runIndex() {
 	fmt.Println("Listing man pages...")
 	pages, err := listManPages(manpath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 	fmt.Printf("Found %d man pages\n", len(pages))
 
@@ -1308,10 +777,10 @@ func runIndex() {
 
 	cacheDir := indexCacheDirForModel(modelName)
 	if err := idx.Save(cacheDir); err != nil {
-		fmt.Fprintf(os.Stderr, "maneater: saving index: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("saving index: %w", err)
 	}
 
 	fmt.Printf("Done: %d entries (%d pages, %d with tldr) saved to %s\n",
 		len(idx.Entries), len(pages), stats.tldrCount, cacheDir)
+	return nil
 }

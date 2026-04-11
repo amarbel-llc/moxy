@@ -1,56 +1,47 @@
-.Dd March 31, 2026
+.Dd April 11, 2026
 .Dt MANEATER 1
 .Os
 .Sh NAME
 .Nm maneater
-.Nd man page MCP server with semantic search
+.Nd man page search index and semantic search CLI
 .Sh SYNOPSIS
 .Nm
-.Cm serve mcp
-.Nm
 .Cm index
+.Nm
+.Cm search
+.Ar query
+.Op Fl -top-k Ar N
 .Sh DESCRIPTION
 .Nm
-is an MCP (Model Context Protocol) server that provides Unix man page
-documentation with progressive disclosure and embedding-based semantic search.
-It runs as a child server behind
-.Xr moxy 1 .
+builds and queries a semantic search index over Unix man pages using vector
+embeddings.
+It extracts synopses and tldr descriptions, embeds them with
+nomic-embed-text-v1.5, and supports ranked search by natural language query.
+.Pp
+Man page rendering, section reading, and Go documentation are provided by
+native moxin tool configs
+.Pq see Xr moxy-native 7
+rather than by
+.Nm
+directly.
 .Pp
 The following commands are available:
-.Bl -tag -width "serve mcp"
-.It Cm serve mcp
-Run as an MCP server over stdio.
-Exposes man pages as resources using the following URI templates:
-.Bl -tag -width "man://search/{query}" -compact
-.It man://{page}
-Table of contents with section names and line counts.
-.It man://{page}/{section_name}
-Read a specific section of a man page.
-.It man://{section}/{page}
-Table of contents for a specific man section number.
-.It man://search/{query}
-Semantic search for man pages by natural language query.
-Accepts an optional
-.Ar top_k
-query parameter (default 10).
-.El
-.Pp
-The search index is built lazily on the first search request if no
-cached index exists.
-.Pp
-An
-.Cm exec
-tool is also available for running shell commands.
-By default, no commands are permitted; allow rules must be configured in
-.Xr maneater.toml 5
-before any command will execute.
+.Bl -tag -width "search"
 .It Cm index
 Build or rebuild the search index with progress output to stdout.
 The index is saved to the cache directory (see
 .Sx FILES )
 and reused by subsequent
-.Cm serve mcp
-sessions.
+.Cm search
+invocations.
+.It Cm search Ar query Op Fl -top-k Ar N
+Search for man pages by natural language query.
+Returns ranked results with page names and cosine similarity scores.
+Requires a pre-built index
+.Pq Cm maneater index .
+The default result count is 10; use
+.Fl -top-k
+to override.
 .El
 .Pp
 Bare invocation with no command prints usage and exits with status 1.
@@ -66,19 +57,8 @@ The Nix wrapper bundles all dependencies
 and sets
 .Ev MANEATER_MODEL_PATH
 to the embedding model automatically.
-.Ss Moxyfile configuration
-Add to a moxyfile to run as a child server behind
-.Xr moxy 1 :
-.Bd -literal -offset indent
-[[servers]]
-name = "man"
-command = "maneater serve mcp"
-generate-resource-tools = true
-.Ed
 .Ss Pre-building the search index
-The search index is built lazily on first query, but this takes several
-minutes.
-To build it ahead of time:
+The search index must be built before searching:
 .Bd -literal -offset indent
 maneater index
 .Ed
@@ -144,7 +124,7 @@ Contains
 .Pa pages.txt
 and
 .Pa embeddings.jsonl .
-Safe to delete; will be rebuilt on next search or
+Safe to delete; will be rebuilt on next
 .Cm index
 invocation.
 .El

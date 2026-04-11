@@ -1,4 +1,4 @@
-.Dd April 7, 2026
+.Dd April 11, 2026
 .Dt MANEATER.TOML 5
 .Os
 .Sh NAME
@@ -9,7 +9,7 @@
 is the configuration file for
 .Xr maneater 1 .
 It uses TOML format and controls model selection, embedding prefixes,
-shell command permissions, and session namespacing.
+and manpath discovery.
 .Sh FILE HIERARCHY
 Configuration files are loaded and merged in order:
 .Bl -enum
@@ -31,13 +31,10 @@ and the current working directory.
 Later files override earlier ones.
 Models are merged by name; keys from the overlay replace keys in the base,
 while unset keys are preserved.
-Manpath include lists and exec rules accumulate: both are appended across
-hierarchy levels.
+Manpath include lists accumulate: they are appended across hierarchy levels.
 The
 .Va manpath.no-auto
-and
-.Va exec.session
-fields are replaced entirely if present in an overlay.
+field is replaced entirely if present in an overlay.
 .Sh TOP-LEVEL KEYS
 .Bl -tag -width "default"
 .It Va default
@@ -138,120 +135,11 @@ To disable heuristic probing in a project:
 [manpath]
 no-auto = true
 .Ed
-.Sh EXEC
-The
-.Va exec
-table controls which shell commands the
-.Cm exec
-tool is allowed to run.
-.Pp
-By default, no commands are permitted.
-The
-.Cm exec
-tool denies all commands until explicit allow rules are configured.
-This applies regardless of whether the
-.Va exec
-table is present: a missing table, an empty table, and a table with
-only deny rules all result in every command being denied.
-.Ss Permission rules
-Rules are defined as arrays of tables under
-.Va exec.allow
-and
-.Va exec.deny .
-Each rule has the following fields:
-.Bl -tag -width "binary"
-.It Va binary
-Basename of the executable to match (e.g.,
-.Dq git ,
-not
-.Dq /usr/bin/git ) .
-Required.
-.It Va args
-Array of argument-prefix patterns.
-Each pattern is split on whitespace and matched as a prefix against the
-command's arguments.
-If empty or omitted, no argument filtering is applied.
-.It Va cwd
-Array of glob patterns that must match the working directory.
-Uses
-.Xr filepath.Match 3
-syntax
-.Pq Li * , Li ? , Li [...] .
-If empty or omitted, no directory restriction is applied.
-.It Va env
-Map of environment variables injected into the executed command.
-Only applied to matching allow rules; deny rules do not inject variables.
-.El
-.Ss Evaluation order
-.Bl -enum
-.It
-If any deny rule matches, the command is denied regardless of allow rules.
-.It
-The command must match at least one allow rule.
-If no allow rules exist, all commands are denied.
-.It
-Within a rule, all non-empty fields must match (AND logic).
-.El
-.Pp
-Example:
-.Bd -literal -offset indent
-[[exec.allow]]
-binary = "git"
-args = ["status", "diff", "log"]
-cwd = ["/home/*/repos/*"]
-env = { GIT_AUTHOR_NAME = "bot" }
-
-[[exec.allow]]
-binary = "jq"
-
-[[exec.deny]]
-binary = "git"
-args = ["push --force"]
-
-[[exec.deny]]
-binary = "sudo"
-.Ed
-.Ss Session namespacing
-The
-.Va exec.session
-sub-table controls how cached exec result URIs are namespaced.
-.Bl -tag -width "fallback"
-.It Va env
-Name of the environment variable used to determine the session bucket.
-Default:
-.Dq CLAUDE_SESSION_ID .
-.It Va fallback
-Value used when the environment variable is unset or empty.
-Default:
-.Dq no-session .
-.El
-.Pp
-Session strings are sanitized to
-.Li [A-Za-z0-9._-]
-only.
-.Pp
-Example:
-.Bd -literal -offset indent
-[exec.session]
-env = "MY_SESSION_ID"
-fallback = "default"
-.Ed
 .Sh EXAMPLES
 Minimal configuration with a single model:
 .Bd -literal -offset indent
 [models.nomic]
 path = "/opt/models/nomic-embed-text-v1.5.Q8_0.gguf"
-.Ed
-.Pp
-Project-local configuration restricting exec to read-only git commands:
-.Bd -literal -offset indent
-[[exec.allow]]
-binary = "git"
-args = ["status", "diff", "log", "show", "blame"]
-
-[[exec.deny]]
-binary = "git"
-args = ["push", "reset", "checkout"]
 .Ed
 .Sh SEE ALSO
 .Xr maneater 1 ,

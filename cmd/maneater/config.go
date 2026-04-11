@@ -13,7 +13,6 @@ import (
 type ManeaterConfig struct {
 	Default string                 `toml:"default"`
 	Models  map[string]ModelConfig `toml:"models"`
-	Exec    *ExecConfig            `toml:"exec"`
 	Manpath *ManpathConfig         `toml:"manpath"`
 }
 
@@ -88,23 +87,6 @@ func MergeConfig(base, overlay ManeaterConfig) ManeaterConfig {
 			mergedMP.Include = append(mergedMP.Include, overlay.Manpath.Include...)
 			mergedMP.NoAuto = overlay.Manpath.NoAuto
 			merged.Manpath = &mergedMP
-		}
-	}
-
-	// Accumulate exec rules; overlay's session sub-table replaces base's.
-	if overlay.Exec != nil {
-		if merged.Exec == nil {
-			cp := *overlay.Exec
-			merged.Exec = &cp
-		} else {
-			mergedExec := *merged.Exec
-			mergedExec.Allow = append(mergedExec.Allow, overlay.Exec.Allow...)
-			mergedExec.Deny = append(mergedExec.Deny, overlay.Exec.Deny...)
-			if overlay.Exec.Session != nil {
-				cp := *overlay.Exec.Session
-				mergedExec.Session = &cp
-			}
-			merged.Exec = &mergedExec
 		}
 	}
 
