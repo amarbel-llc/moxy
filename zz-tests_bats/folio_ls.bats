@@ -54,6 +54,9 @@ function folio_ls_shows_entry_types { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
+  # Verify mimeType is set on the content block
+  echo "$output" | jq -e '.content[0].mimeType == "application/json"'
+
   local entries
   entries=$(echo "$output" | jq -r '.content[0].text')
 

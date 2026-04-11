@@ -1,4 +1,6 @@
-schema = 1
+schema = 2
+result-type = "text"
+content-type = "application/json"
 perms-request = "always-allow"
 description = """List directory contents with type and size metadata. Returns JSON array of entries \
 sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only). \
