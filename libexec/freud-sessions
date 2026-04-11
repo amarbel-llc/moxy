@@ -55,8 +55,7 @@ def main():
     project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
     projects_dir = Path(os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"))
     if not projects_dir.is_dir():
-        print("(no sessions found)")
-        return
+        return emit_mcp_result("(no sessions found)")
 
     # Phase 1: resolve cwd per project (once each)
     cwd_map: dict[str, str] = {}
@@ -88,9 +87,17 @@ def main():
 
     rows.sort(key=lambda r: r[0], reverse=True)
 
-    print(f"{'SESSION':<36}  {'LAST ACTIVITY':<16}  {'MSGS':>5}  {'SIZE':>5}  PROJECT")
+    lines = []
+    lines.append(f"{'SESSION':<36}  {'LAST ACTIVITY':<16}  {'MSGS':>5}  {'SIZE':>5}  PROJECT")
     for _, session, activity, msgs, size, project in rows:
-        print(f"{session:<36}  {activity:<16}  {msgs:>5}  {size:>5}  {project}")
+        lines.append(f"{session:<36}  {activity:<16}  {msgs:>5}  {size:>5}  {project}")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

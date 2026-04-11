@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 perms-request = "always-allow"
 description = """Aggregate tool usage frequency across multiple sessions. Returns a ranked table \
 with counts and percentages. When filtering to a specific tool like Bash, breaks down by \

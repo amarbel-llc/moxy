@@ -142,8 +142,7 @@ def main():
                 session_paths.append(f)
 
     if not session_paths:
-        print(f"No sessions found (days={days}, project={project_filter or 'all'})")
-        return
+        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
 
     # Phase 3: tally across all sessions
     total_counter: Counter = Counter()
@@ -153,18 +152,18 @@ def main():
     total_calls = sum(total_counter.values())
     if total_calls == 0:
         filter_desc = f", tool_name={tool_name_filter}" if tool_name_filter else ""
-        print(f"No tool calls found across {len(session_paths)} sessions{filter_desc}")
-        return
+        return emit_mcp_result(f"No tool calls found across {len(session_paths)} sessions{filter_desc}")
 
     # Phase 4: format output
+    lines = []
     proj_desc = f", project: {project_filter}" if project_filter else ""
     if tool_name_filter:
-        print(f"{tool_name_filter} subcommand frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
-        print(f"Total: {total_calls} {tool_name_filter} calls")
+        lines.append(f"{tool_name_filter} subcommand frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
+        lines.append(f"Total: {total_calls} {tool_name_filter} calls")
         col_header = "Subcommand"
     else:
-        print(f"Tool frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
-        print(f"Total: {total_calls} tool calls")
+        lines.append(f"Tool frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
+        lines.append(f"Total: {total_calls} tool calls")
         col_header = "Tool"
 
     entries = total_counter.most_common(limit if limit > 0 else None)
@@ -173,17 +172,24 @@ def main():
     max_name = max(len(col_header), max(len(name) for name, _ in entries))
     max_count = max(5, max(len(str(count)) for _, count in entries))
 
-    print()
-    print(f"  {'#':>3}  {col_header:<{max_name}}  {'Count':>{max_count}}      %")
+    lines.append("")
+    lines.append(f"  {'#':>3}  {col_header:<{max_name}}  {'Count':>{max_count}}      %")
     for i, (name, count) in enumerate(entries, start=1):
         pct = 100.0 * count / total_calls
-        print(f"  {i:>3}  {name:<{max_name}}  {count:>{max_count}}  {pct:5.1f}%")
+        lines.append(f"  {i:>3}  {name:<{max_name}}  {count:>{max_count}}  {pct:5.1f}%")
 
     # Date range
     mtimes = [p.stat().st_mtime for p in session_paths]
     earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
     latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    print(f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})")
+    lines.append(f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

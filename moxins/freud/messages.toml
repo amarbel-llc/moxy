@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 perms-request = "always-allow"
 description = """Extract conversation messages from a session with the JSONL schema already flattened. \
 Returns one line per message with role, text content, tool calls (as one-line summaries), \

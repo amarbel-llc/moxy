@@ -145,25 +145,33 @@ def main():
     if limit > 0:
         messages = messages[:limit]
 
+    lines = []
     for i, msg in enumerate(messages, start=offset + 1):
         role = msg["role"]
         text = msg["text"]
 
         if text:
-            print(f"[{i}] {role}: {truncate(text, 300)}")
+            lines.append(f"[{i}] {role}: {truncate(text, 300)}")
 
         for tc in msg["tool_calls"]:
             input_str = json.dumps(tc["input"], separators=(",", ":"))
-            print(f"[{i}] {role} tool_call: {tc['name']}({truncate(input_str, 100)})")
+            lines.append(f"[{i}] {role} tool_call: {tc['name']}({truncate(input_str, 100)})")
 
         for tr in msg["tool_results"]:
-            print(f"[{i}] {role} tool_result({tr['tool_use_id']}): {truncate(tr['text'], 200)}")
+            lines.append(f"[{i}] {role} tool_result({tr['tool_use_id']}): {truncate(tr['text'], 200)}")
 
     if total > len(messages) + offset:
         remaining = total - offset - len(messages)
-        print(f"\n--- {remaining} more messages (use offset={offset + len(messages)})")
+        lines.append(f"\n--- {remaining} more messages (use offset={offset + len(messages)})")
     elif offset > 0:
-        print(f"\n--- showing {len(messages)} of {total} messages (offset={offset})")
+        lines.append(f"\n--- showing {len(messages)} of {total} messages (offset={offset})")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

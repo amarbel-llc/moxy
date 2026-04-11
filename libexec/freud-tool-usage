@@ -73,11 +73,19 @@ def main():
     if limit > 0:
         calls = calls[:limit]
 
+    lines = []
     for i, call in enumerate(calls, start=1):
         input_str = json.dumps(call["input"], separators=(",", ":"))
-        print(f"[{i}] {call['name']} \u2192 {truncate(input_str, 150)}")
+        lines.append(f"[{i}] {call['name']} \u2192 {truncate(input_str, 150)}")
 
-    print(f"\n{len(calls)} tool call(s)")
+    lines.append(f"\n{len(calls)} tool call(s)")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

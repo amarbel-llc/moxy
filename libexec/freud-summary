@@ -102,20 +102,28 @@ def main():
             return "?"
         return ts.replace("T", " ").split(".")[0].replace("Z", " UTC")
 
-    print(f"Session: {session_id}")
-    print(f"Project: {project}")
-    print(f"Duration: {fmt_ts(first_ts)} → {fmt_ts(last_ts)}")
-    print(f"Messages: {user_count} user / {assistant_count} assistant / {other_count} other")
+    lines = []
+    lines.append(f"Session: {session_id}")
+    lines.append(f"Project: {project}")
+    lines.append(f"Duration: {fmt_ts(first_ts)} → {fmt_ts(last_ts)}")
+    lines.append(f"Messages: {user_count} user / {assistant_count} assistant / {other_count} other")
 
     if tool_counter:
-        print(f"\nTop tools ({len(tool_counter)} distinct):")
+        lines.append(f"\nTop tools ({len(tool_counter)} distinct):")
         for name, count in tool_counter.most_common(20):
-            print(f"  {name}: {count}")
+            lines.append(f"  {name}: {count}")
 
     if user_prompts:
-        print(f"\nUser prompts ({len(user_prompts)}):")
+        lines.append(f"\nUser prompts ({len(user_prompts)}):")
         for i, prompt in enumerate(user_prompts, start=1):
-            print(f"  [{i}] {truncate(prompt, 120)}")
+            lines.append(f"  [{i}] {truncate(prompt, 120)}")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":
