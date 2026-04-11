@@ -3,7 +3,7 @@
 Go binary in `cmd/maneater`. Pure CLI for building and querying a semantic
 search index over Unix man pages. Man page rendering, section reading, and Go
 documentation are provided by native moxin tool configs (`moxins/man/`,
-`moxins/gordo/`) rather than by maneater directly.
+`moxins/hamster/`) rather than by maneater directly.
 
 ## Subcommands
 

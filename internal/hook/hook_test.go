@@ -35,8 +35,8 @@ func TestParseNativeToolName(t *testing.T) {
 		},
 		{
 			name:   "tool with hyphen",
-			input:  "mcp__moxy__gordo_mod-read",
-			want:   "gordo.mod-read",
+			input:  "mcp__moxy__hamster_mod-read",
+			want:   "hamster.mod-read",
 			wantOK: true,
 		},
 		{
