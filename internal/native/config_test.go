@@ -290,6 +290,96 @@ type = "string"
 	}
 }
 
+func TestParseMoxinDirContentType(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"api": `
+schema = 1
+command = "curl"
+content-type = "application/json"
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := cfg.Tools[0]
+	if tool.ContentType != "application/json" {
+		t.Errorf("content_type = %q, want %q", tool.ContentType, "application/json")
+	}
+	if tool.ResultType != ResultTypeText {
+		t.Errorf("result_type = %q, want %q", tool.ResultType, ResultTypeText)
+	}
+}
+
+func TestParseMoxinDirSchema2Default(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"api": `
+schema = 2
+command = "my-tool"
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := cfg.Tools[0]
+	if tool.ResultType != ResultTypeMCPResult {
+		t.Errorf("result_type = %q, want %q", tool.ResultType, ResultTypeMCPResult)
+	}
+}
+
+func TestParseMoxinDirSchema2TextMode(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"api": `
+schema = 2
+command = "echo"
+result-type = "text"
+content-type = "text/csv"
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := cfg.Tools[0]
+	if tool.ResultType != ResultTypeText {
+		t.Errorf("result_type = %q, want %q", tool.ResultType, ResultTypeText)
+	}
+	if tool.ContentType != "text/csv" {
+		t.Errorf("content_type = %q, want %q", tool.ContentType, "text/csv")
+	}
+}
+
+func TestParseMoxinDirSchema2InvalidResultType(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"api": `
+schema = 2
+command = "echo"
+result-type = "bogus"
+`,
+	})
+
+	_, err := ParseMoxinDir(dir)
+	if err == nil {
+		t.Fatal("expected error for invalid result-type, got nil")
+	}
+}
+
 func TestParseMoxinDirValidation(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -358,5 +448,29 @@ unknown_key = true
 	}
 	if len(result.Undecoded) == 0 {
 		t.Fatal("expected undecoded keys, got none")
+	}
+}
+
+func TestParseMoxinDirContentTypeNotUndecoded(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"tool": `
+schema = 2
+command = "echo"
+content-type = "application/json"
+result-type = "text"
+`,
+	})
+
+	result, err := ParseMoxinDirFull(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, key := range result.Undecoded {
+		if key == "tool.toml: content-type" || key == "tool.toml: result-type" {
+			t.Errorf("content-type or result-type reported as undecoded: %v", result.Undecoded)
+		}
 	}
 }

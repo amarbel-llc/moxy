@@ -118,3 +118,142 @@ EOF
   echo "$output" | jq -e '.tools[] | select(.name == "multi.first")'
   echo "$output" | jq -e '.tools[] | select(.name == "multi.second")'
 }
+
+function native_server_content_type_sets_mimetype { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/typed"
+  cat >"$moxin_dir/typed/_moxin.toml" <<'EOF'
+schema = 1
+name = "typed"
+EOF
+  cat >"$moxin_dir/typed/api.toml" <<'EOF'
+schema = 1
+command = "echo"
+args = ["-n", "{\"ok\":true}"]
+content-type = "application/json"
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  local params='{"name":"typed.api"}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.content[0].mimeType == "application/json"'
+}
+
+function native_server_schema2_mcp_result_passthrough { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/s2"
+  cat >"$moxin_dir/s2/_moxin.toml" <<'EOF'
+schema = 1
+name = "s2"
+EOF
+  cat >"$moxin_dir/s2/api.toml" <<'EOF'
+schema = 2
+command = "echo"
+args = ["-n", "{\"content\":[{\"type\":\"text\",\"text\":\"hello from mcp\",\"mimeType\":\"text/plain\"}]}"]
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  local params='{"name":"s2.api"}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.content[0].text == "hello from mcp"'
+  echo "$output" | jq -e '.content[0].mimeType == "text/plain"'
+}
+
+function native_server_schema2_nonzero_exit_ignores_stdout { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/s2fail"
+  cat >"$moxin_dir/s2fail/_moxin.toml" <<'EOF'
+schema = 1
+name = "s2fail"
+EOF
+  cat >"$moxin_dir/s2fail/bad.toml" <<'EOF'
+schema = 2
+command = "sh"
+args = ["-c", "echo '{\"content\":[{\"type\":\"text\",\"text\":\"should be ignored\"}]}'; exit 1"]
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  local params='{"name":"s2fail.bad"}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.isError == true'
+}
+
+function native_server_schema2_iserror_respected { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/s2err"
+  cat >"$moxin_dir/s2err/_moxin.toml" <<'EOF'
+schema = 1
+name = "s2err"
+EOF
+  cat >"$moxin_dir/s2err/err.toml" <<'EOF'
+schema = 2
+command = "echo"
+args = ["-n", "{\"content\":[{\"type\":\"text\",\"text\":\"tool error\"}],\"isError\":true}"]
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  local params='{"name":"s2err.err"}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.content[0].text == "tool error"'
+}
+
+function native_server_schema2_invalid_json_returns_error { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/s2bad"
+  cat >"$moxin_dir/s2bad/_moxin.toml" <<'EOF'
+schema = 1
+name = "s2bad"
+EOF
+  cat >"$moxin_dir/s2bad/broken.toml" <<'EOF'
+schema = 2
+command = "echo"
+args = ["-n", "not json at all"]
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  local params='{"name":"s2bad.broken"}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.isError == true'
+  assert_output --partial "invalid MCP result JSON"
+}
+
+function native_server_schema2_text_mode { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/s2text"
+  cat >"$moxin_dir/s2text/_moxin.toml" <<'EOF'
+schema = 1
+name = "s2text"
+EOF
+  cat >"$moxin_dir/s2text/plain.toml" <<'EOF'
+schema = 2
+command = "echo"
+args = ["-n", "just plain text"]
+result-type = "text"
+content-type = "text/csv"
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  local params='{"name":"s2text.plain"}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.content[0].text == "just plain text"'
+  echo "$output" | jq -e '.content[0].mimeType == "text/csv"'
+}

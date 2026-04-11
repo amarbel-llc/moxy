@@ -248,6 +248,29 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		return marshalResult(result)
 	}
 
+	if spec.ResultType == ResultTypeMCPResult {
+		return s.buildMCPResult(spec, output)
+	}
+
+	return s.buildTextResult(spec, output)
+}
+
+func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage, error) {
+	if output == "" {
+		return marshalResult(&protocol.ToolCallResultV1{})
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		return marshalResult(protocol.ErrorResultV1(
+			fmt.Sprintf("tool %q: invalid MCP result JSON: %v\nraw output:\n%s",
+				spec.Name, err, output),
+		))
+	}
+	return marshalResult(&result)
+}
+
+func (s *Server) buildTextResult(spec *ToolSpec, output string) (json.RawMessage, error) {
 	if output == "" {
 		return marshalResult(&protocol.ToolCallResultV1{})
 	}
@@ -272,8 +295,12 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		}
 	}
 
+	block := protocol.ContentBlockV1{Type: "text", Text: output}
+	if spec.ContentType != "" {
+		block.MimeType = spec.ContentType
+	}
 	return marshalResult(&protocol.ToolCallResultV1{
-		Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
+		Content: []protocol.ContentBlockV1{block},
 	})
 }
 

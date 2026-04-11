@@ -25,6 +25,16 @@ const (
 	PermsEachUse PermsRequest = "each-use"
 )
 
+// ResultType controls how a tool's stdout is interpreted.
+type ResultType string
+
+const (
+	// ResultTypeText wraps stdout as a text content block (default for schema 1).
+	ResultTypeText ResultType = "text"
+	// ResultTypeMCPResult parses stdout as a ToolCallResultV1 JSON object.
+	ResultTypeMCPResult ResultType = "mcp-result"
+)
+
 // NativeConfig is the assembled output consumed by Server, proxy, and hooks.
 type NativeConfig struct {
 	Name        string
@@ -41,6 +51,8 @@ type ToolSpec struct {
 	ArgOrder     []string
 	StdinParam   string
 	PermsRequest PermsRequest
+	ContentType  string
+	ResultType   ResultType
 	Input        json.RawMessage
 }
 
@@ -61,6 +73,8 @@ type rawToolFile struct {
 	ArgOrder     []string     `toml:"arg_order"`
 	StdinParam   string       `toml:"stdin_param"`
 	PermsRequest PermsRequest `toml:"perms-request"`
+	ContentType  string       `toml:"content-type"`
+	ResultType   string       `toml:"result-type"`
 	Input        any          `toml:"input"`
 }
 
@@ -138,8 +152,8 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			return nil, fmt.Errorf("parsing tool file %s: %w", filename, err)
 		}
 
-		if raw.Schema != 1 {
-			return nil, fmt.Errorf("tool file %s: unsupported schema %d (want 1)", filename, raw.Schema)
+		if raw.Schema < 1 || raw.Schema > 2 {
+			return nil, fmt.Errorf("tool file %s: unsupported schema %d (want 1 or 2)", filename, raw.Schema)
 		}
 		if raw.Command == "" {
 			return nil, fmt.Errorf("tool file %s: command is required", filename)
@@ -155,6 +169,11 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
 
+		resultType, err := resolveResultType(raw.Schema, raw.ResultType)
+		if err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
+		}
+
 		ts := ToolSpec{
 			Name:         toolName,
 			Description:  raw.Description,
@@ -163,6 +182,8 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			ArgOrder:     raw.ArgOrder,
 			StdinParam:   raw.StdinParam,
 			PermsRequest: raw.PermsRequest,
+			ContentType:  raw.ContentType,
+			ResultType:   resultType,
 		}
 
 		if raw.Input != nil {
@@ -178,6 +199,27 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 	}
 
 	return &ParseResult{Config: cfg, Undecoded: allUndecoded}, nil
+}
+
+func resolveResultType(schema int, raw string) (ResultType, error) {
+	switch schema {
+	case 1:
+		// Schema 1 tools are always text mode; result-type field is ignored.
+		return ResultTypeText, nil
+	case 2:
+		if raw == "" {
+			return ResultTypeMCPResult, nil
+		}
+		rt := ResultType(raw)
+		switch rt {
+		case ResultTypeText, ResultTypeMCPResult:
+			return rt, nil
+		default:
+			return "", fmt.Errorf("invalid result-type %q (want text or mcp-result)", raw)
+		}
+	default:
+		return "", fmt.Errorf("unsupported schema %d", schema)
+	}
 }
 
 func validatePermsRequest(pr PermsRequest) error {
@@ -218,6 +260,7 @@ func detectUndecodedTool(data []byte, filename string) []string {
 	for _, key := range []string{
 		"schema", "name", "description", "command", "args",
 		"arg_order", "stdin_param", "perms-request",
+		"content-type", "result-type",
 	} {
 		if doc.HasInContainer(doc.Root(), key) {
 			consumed[key] = true
