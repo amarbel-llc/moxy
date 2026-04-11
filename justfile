@@ -12,6 +12,7 @@ build-moxins:
   mkdir -p build/moxins
   cp -r moxins/*/ build/moxins/
   find build/moxins -name '*.toml' -exec sed -i "s|__LIBEXEC__|{{justfile_directory()}}/libexec|g" {} +
+  chmod +x libexec/*
 
 generate:
   go generate ./internal/config/
