@@ -92,7 +92,19 @@ func DefaultMoxinPath(home, cwd, systemDir string) string {
 // Dirs are processed from last to first; earlier path entries override later
 // ones by server name. systemDir is appended as the lowest-priority entry
 // (pass "" to omit).
+//
+// When moxinPath is empty, the default hierarchy is computed from the current
+// working directory (same directories as `moxy moxin-path`), so discovery
+// works without an explicit MOXIN_PATH env var.
 func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error) {
+	if moxinPath == "" {
+		home, _ := os.UserHomeDir()
+		cwd, _ := os.Getwd()
+		if home != "" && cwd != "" {
+			moxinPath = DefaultMoxinPath(home, cwd, "")
+		}
+	}
+
 	dirs := ParseMoxinPath(moxinPath)
 	if systemDir != "" {
 		dirs = append(dirs, systemDir)

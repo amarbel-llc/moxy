@@ -86,7 +86,7 @@
             commonGoFiles
             ./cmd/moxy
             ./internal
-            ./builtin-servers
+            ./moxins
             ./libexec
           ]) ./internal/embedding;
         };
