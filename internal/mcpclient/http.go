@@ -13,6 +13,10 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 )
 
+// headerMCPSessionID is the MCP session header name (inlined since
+// go-mcp removed its HTTP transport in v0.0.5+).
+const headerMCPSessionID = "Mcp-Session-Id"
+
 // HTTPTransport implements transport.Transport for MCP Streamable HTTP.
 // It POSTs JSON-RPC messages to a remote server and reads responses
 // from the HTTP response body (plain JSON or SSE).
@@ -90,7 +94,7 @@ func (t *HTTPTransport) Write(msg *jsonrpc.Message) error {
 	t.mu.Unlock()
 
 	if sessionID != "" {
-		req.Header.Set(transport.HeaderMCPSessionID, sessionID)
+		req.Header.Set(headerMCPSessionID, sessionID)
 	}
 
 	for k, v := range t.headers {
@@ -104,7 +108,7 @@ func (t *HTTPTransport) Write(msg *jsonrpc.Message) error {
 	defer resp.Body.Close()
 
 	// Save session ID from initialize response
-	if sid := resp.Header.Get(transport.HeaderMCPSessionID); sid != "" {
+	if sid := resp.Header.Get(headerMCPSessionID); sid != "" {
 		t.mu.Lock()
 		t.sessionID = sid
 		t.mu.Unlock()
@@ -185,7 +189,7 @@ func (t *HTTPTransport) Close() error {
 	if sessionID != "" {
 		req, err := http.NewRequest(http.MethodDelete, t.url, nil)
 		if err == nil {
-			req.Header.Set(transport.HeaderMCPSessionID, sessionID)
+			req.Header.Set(headerMCPSessionID, sessionID)
 			for k, v := range t.headers {
 				req.Header.Set(k, v)
 			}

@@ -2,8 +2,8 @@ github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
-github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.4 h1:Xyq57MegLHgS/UU/IYWZUdQ4oiMA3Ggr7fY4w0N0zVM=
-github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.4/go.mod h1:l/5fqg8ZEzjVxK8OqdiN9vxsz1gVUGQaYd6rgFIOU7I=
+github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.10 h1:Hd7m3WWc7l/LSQkATtr2x8u1JJ+4MZAHhDwCh89MlCk=
+github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.10/go.mod h1:4QNwpEtQWg+aF++9BpxQq93cnj6puQfsARZ0Z4fHIHk=
 github.com/amarbel-llc/tommy v0.0.0-20260405143331-87255e87bf37 h1:OQA0sRnQMO5c4qcOXdxp0mKQMWIEcs9yvPfkoXafMtQ=
 github.com/amarbel-llc/tommy v0.0.0-20260405143331-87255e87bf37/go.mod h1:eAaOHBrPo/hzBU/CkWgXP67Qq6v5aMyVtiAZ3tYUuOc=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=

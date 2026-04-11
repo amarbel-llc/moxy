@@ -6,8 +6,8 @@ schema = 3
     hash = 'sha256-ptdUJvuc21ixeLt+M5way/na3aCnCO4MYHWulWp8NEY='
 
   [mod.'github.com/amarbel-llc/purse-first/libs/go-mcp']
-    version = 'v0.0.4'
-    hash = 'sha256-xEmWi8sABzRWp8fbPavpZKznx943HWqVcLv6pckTP+k='
+    version = 'v0.0.10'
+    hash = 'sha256-kN4l2Ix2qCI0mRmfFjWU1gFi/8BLHbgQeKAD60PCEVY='
 
   [mod.'github.com/amarbel-llc/tommy']
     version = 'v0.0.0-20260405143331-87255e87bf37'
