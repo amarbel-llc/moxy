@@ -8,11 +8,12 @@ arg_order = ["file_path", "delete_start", "delete_end"]
 args = ["-c", """
 set -euo pipefail
 assert_within_cwd() {
+  case "$1" in /dev/fd/*) return ;; esac
   local resolved cwd
   resolved=$(realpath -m "$1")
   cwd=$(realpath -m "$PWD")
   case "$resolved" in
-    /dev/fd/*|"$cwd"|"$cwd"/*) ;;
+    "$cwd"|"$cwd"/*) ;;
     *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
   esac
 }

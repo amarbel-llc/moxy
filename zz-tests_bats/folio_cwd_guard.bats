@@ -109,6 +109,32 @@ function folio_write_rejects_path_outside_cwd { # @test
   [ ! -f "$HOME/other/evil.txt" ]
 }
 
+function folio_read_allows_dev_fd_path { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir"
+  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+
+  mkdir -p "$HOME/project"
+  echo "fd content" > "$HOME/project/test.txt"
+
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+
+  # Pass a /dev/fd path by using process substitution via a temp file
+  # that moxy's native server will open as an fd. We simulate this by
+  # reading a file whose content is delivered via /dev/fd — the key
+  # assertion is that assert_within_cwd does not reject /dev/fd/N paths
+  # on Linux where realpath resolves /dev/fd to /proc/self/fd.
+  local params
+  params=$(jq -cn --arg n "folio.read" \
+    '{name: $n, arguments: {file_path: "/dev/fd/0"}}')
+  # Feed content via stdin so /dev/fd/0 is readable
+  run_moxy_mcp "tools/call" "$params" <<< "stdin line"
+  assert_success
+  # Should NOT contain the "outside CWD" error
+  refute_output --partial "outside CWD"
+}
+
 function folio_external_allows_path_outside_cwd { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
