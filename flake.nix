@@ -86,8 +86,6 @@
             commonGoFiles
             ./cmd/moxy
             ./internal
-            ./moxins
-            ./libexec
           ]) ./internal/embedding;
         };
 
@@ -107,45 +105,7 @@
             cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
             cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
 
-            # Install moxin directories
-            mkdir -p $out/share/moxy/moxins
-            cp -r ${./moxins}/*/ $out/share/moxy/moxins/
-            chmod -R u+w $out/share/moxy/moxins
-
-            # Install freud scripts and wrap with python3 on PATH
-            mkdir -p $out/libexec/moxy
-            cp ${./libexec}/* $out/libexec/moxy/
-            chmod +x $out/libexec/moxy/*
-            for f in $out/libexec/moxy/freud-*; do
-              wrapProgram "$f" --set PATH ${pkgs.python3}/bin
-            done
-            for f in $out/libexec/moxy/just-*; do
-              wrapProgram "$f" \
-                --set PATH ${pkgs.lib.makeBinPath [ pkgs.bash pkgs.just pkgs.jq ]}
-            done
-            for f in $out/libexec/moxy/man-*; do
-              wrapProgram "$f" \
-                --set PATH ${
-                  pkgs.lib.makeBinPath [ pkgs.mandoc pkgs.pandoc maneater ]
-                }
-            done
-            for f in $out/libexec/moxy/chix-*; do
-              wrapProgram "$f" \
-                --set PATH ${pkgs.lib.makeBinPath [ pkgs.manix ]}
-            done
-            for f in $out/libexec/moxy/jira-*; do
-              wrapProgram "$f" \
-                --set PATH ${pkgs.lib.makeBinPath [ pkgs-master-unfree.acli pkgs.jq ]}
-            done
-
-            # Rewrite @LIBEXEC@ placeholder to absolute nix store path.
-            # Uses --replace-fail so a typo (@LIBEXE@) breaks the build
-            # instead of silently leaving a broken path.
-            for f in $(grep -rl '@LIBEXEC@' $out/share/moxy/moxins); do
-              substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
-            done
-
-            # Wrap the moxy binary with all inline moxin tool dependencies.
+            # Wrap the moxy binary with inline moxin tool dependencies.
             # Inline scripts (folio, grit, rg, get-hubbed, chix, env, jq)
             # inherit PATH from the moxy process.
             wrapProgram $out/bin/moxy \
@@ -162,7 +122,6 @@
                   pkgs-master.gh
                   pkgs-master.ripgrep
                   pkgs.nix
-                  pkgs-master.go_1_26
                   pkgs.util-linux # column
                 ]
               }
@@ -226,11 +185,45 @@
               cp ${./cmd/maneater/maneater.1} $out/share/man/man1/maneater.1
               cp ${./cmd/maneater/maneater.toml.5} $out/share/man/man5/maneater.toml.5
             '';
+        moxy-moxins = pkgs.runCommand "moxy-moxins" {
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+        } ''
+          mkdir -p $out/share/moxy/moxins
+          cp -r ${./moxins}/*/ $out/share/moxy/moxins/
+          chmod -R u+w $out/share/moxy/moxins
+
+          mkdir -p $out/libexec/moxy
+          cp ${./libexec}/* $out/libexec/moxy/
+          chmod +x $out/libexec/moxy/*
+          for f in $out/libexec/moxy/*; do
+            wrapProgram "$f" \
+              --set PATH ${
+                pkgs.lib.makeBinPath [
+                  pkgs.bash
+                  pkgs.python3
+                  pkgs.jq
+                  pkgs.just
+                  pkgs.mandoc
+                  pkgs.pandoc
+                  pkgs.manix
+                  pkgs-master.go_1_26
+                  pkgs-master-unfree.acli
+                  maneater
+                ]
+              }
+          done
+
+          for f in $(grep -rl '@LIBEXEC@' $out/share/moxy/moxins); do
+            substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
+          done
+        '';
+
         combined = pkgs.symlinkJoin {
           name = "moxy";
           paths = [
             moxy
             maneater
+            moxy-moxins
           ];
         };
       in

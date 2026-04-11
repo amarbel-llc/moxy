@@ -1,25 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Show documentation for a Go package or symbol. Returns the same output as 'go doc'."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-pkg="$1"
-
-# Auto-detect local packages: rewrite module prefix to ./
-mod=$(go list -m 2>/dev/null) || mod=""
-if [ -n "$mod" ] && [ "$pkg" != "$mod" ]; then
-  case "$pkg" in
-    "$mod"/*) pkg="./${pkg#"$mod"/}" ;;
-  esac
-fi
-
-if [ -n "${2:-}" ]; then
-  go doc -all "$pkg.$2"
-else
-  go doc -all "$pkg"
-fi
-""", "_"]
+command = "@LIBEXEC@/hamster-doc"
+arg_order = ["package", "symbol"]
 
 [input]
 type = "object"
