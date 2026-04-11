@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def find_session_dir(session_id: str) -> Path | None:
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return None
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        session_dir = proj_dir / session_id
+        if session_dir.is_dir():
+            return session_dir
+        # Also check if bare JSONL exists (session without subagents dir)
+        if (proj_dir / f"{session_id}.jsonl").exists():
+            return proj_dir
+    return None
+
+
+def truncate(s: str, max_len: int) -> str:
+    s = s.replace("\n", " ").strip()
+    if len(s) > max_len:
+        return s[:max_len] + "..."
+    return s
+
+
+def analyze_subagent(path: Path) -> dict:
+    """Extract summary info from a subagent JSONL."""
+    prompt = ""
+    tool_count = 0
+    msg_count = 0
+    agent_id = path.stem  # agent-XXXX
+
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = obj.get("type")
+            if msg_type not in ("user", "assistant"):
+                continue
+
+            msg_count += 1
+            content = obj.get("message", {}).get("content")
+
+            if msg_type == "user" and not prompt:
+                if isinstance(content, str):
+                    prompt = content
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            prompt = block.get("text", "")
+                            break
+
+            if msg_type == "assistant" and isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_count += 1
+
+    return {
+        "agent_id": agent_id,
+        "prompt": prompt,
+        "tool_count": tool_count,
+        "msg_count": msg_count,
+    }
+
+
+def main():
+    session_id = sys.argv[1] if len(sys.argv) > 1 else ""
+
+    if not session_id:
+        print("Usage: freud-subagents <session_id>", file=sys.stderr)
+        sys.exit(1)
+
+    # Find the subagents directory
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return emit_mcp_result("(no sessions found)")
+
+    subagents_dir = None
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        candidate = proj_dir / session_id / "subagents"
+        if candidate.is_dir():
+            subagents_dir = candidate
+            break
+
+    if subagents_dir is None:
+        return emit_mcp_result(f"No subagents found for session {session_id}")
+
+    agent_files = sorted(subagents_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime)
+    if not agent_files:
+        return emit_mcp_result(f"No subagent transcripts in {subagents_dir}")
+
+    agents = [analyze_subagent(f) for f in agent_files]
+
+    lines = []
+    lines.append(f"{len(agents)} subagent(s) in session {session_id}")
+
+    max_id = max(len(a["agent_id"]) for a in agents)
+
+    lines.append("")
+    lines.append(f"  {'#':>3}  {'Agent ID':<{max_id}}  {'Msgs':>5}  {'Tools':>5}  Prompt")
+    for i, a in enumerate(agents, start=1):
+        lines.append(
+            f"  {i:>3}  {a['agent_id']:<{max_id}}  {a['msg_count']:>5}  {a['tool_count']:>5}  {truncate(a['prompt'], 100)}"
+        )
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    main()

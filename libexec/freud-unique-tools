@@ -71,6 +71,38 @@ def extract_tool_names(path: Path) -> set[str]:
     return tools
 
 
+def subagent_paths(session_path: Path) -> list[Path]:
+    """Return subagent JSONL paths for a session, if any."""
+    sub_dir = session_path.parent / session_path.stem / "subagents"
+    if sub_dir.is_dir():
+        return list(sub_dir.glob("*.jsonl"))
+    return []
+
+
+def tally_tools(path: Path, session_tools: set[str], total_calls: defaultdict[str, int]):
+    """Extract tool names from a JSONL, adding to session_tools and total_calls."""
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if obj.get("type") != "assistant":
+                continue
+
+            content = obj.get("message", {}).get("content")
+            if not isinstance(content, list):
+                continue
+
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    name = block.get("name", "")
+                    if name:
+                        session_tools.add(name)
+                        total_calls[name] += 1
+
+
 def main():
     project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
     days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 7
@@ -120,32 +152,15 @@ def main():
     if not session_paths:
         return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
 
-    # Collect tools per session
+    # Collect tools per session (including subagents)
     tool_sessions: defaultdict[str, int] = defaultdict(int)
     total_calls: defaultdict[str, int] = defaultdict(int)
 
     for path in session_paths:
         session_tools: set[str] = set()
-        with open(path) as f:
-            for line in f:
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                if obj.get("type") != "assistant":
-                    continue
-
-                content = obj.get("message", {}).get("content")
-                if not isinstance(content, list):
-                    continue
-
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_use":
-                        name = block.get("name", "")
-                        if name:
-                            session_tools.add(name)
-                            total_calls[name] += 1
+        all_paths = [path] + subagent_paths(path)
+        for p in all_paths:
+            tally_tools(p, session_tools, total_calls)
 
         for name in session_tools:
             tool_sessions[name] += 1

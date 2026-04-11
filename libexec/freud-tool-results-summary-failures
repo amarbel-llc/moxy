@@ -108,6 +108,14 @@ def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
     return failures
 
 
+def subagent_paths(session_path: Path) -> list[Path]:
+    """Return subagent JSONL paths for a session, if any."""
+    sub_dir = session_path.parent / session_path.stem / "subagents"
+    if sub_dir.is_dir():
+        return list(sub_dir.glob("*.jsonl"))
+    return []
+
+
 def main():
     project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
     days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 7
@@ -146,10 +154,12 @@ def main():
     if not session_paths:
         return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
 
-    # Phase 3: collect failures across all sessions
+    # Phase 3: collect failures across all sessions (including subagents)
     all_failures: list[dict] = []
     for path in session_paths:
         all_failures.extend(collect_failures(path, tool_name_filter))
+        for sub in subagent_paths(path):
+            all_failures.extend(collect_failures(sub, tool_name_filter))
 
     if not all_failures:
         filter_desc = f", tool={tool_name_filter}" if tool_name_filter else ""
