@@ -1,0 +1,31 @@
+schema = 1
+perms-request = "always-allow"
+description = "Reopen a closed issue with optional comment"
+command = "bash"
+arg_order = ["number", "comment"]
+args = ["-c", """
+set -euo pipefail
+number="$1"
+comment="${2:-}"
+gh_args=(issue reopen "$number")
+
+[ -n "$comment" ] && gh_args+=(--comment "$comment")
+gh "${gh_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.comment]
+type = "string"
+description = "Optional comment to add when reopening"
+
+[annotations]
+destructive-hint = true
+idempotent-hint = true
+open-world-hint = true

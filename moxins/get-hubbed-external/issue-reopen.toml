@@ -1,0 +1,39 @@
+schema = 1
+description = "Reopen a closed issue with optional comment"
+command = "bash"
+arg_order = ["repo", "number", "comment"]
+args = ["-c", """
+set -euo pipefail
+repo="$1"
+if [[ "$repo" != */* ]]; then
+  owner=$(gh repo view --json owner -q '.owner.login')
+  repo="$owner/$repo"
+fi
+number="$2"
+comment="${3:-}"
+gh_args=(issue reopen "$number" -R "$repo")
+
+[ -n "$comment" ] && gh_args+=(--comment "$comment")
+gh "${gh_args[@]}"
+""", "_"]
+
+[input]
+type = "object"
+required = ["repo", "number"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format, or just REPO to default owner from the current repo's org"
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.comment]
+type = "string"
+description = "Optional comment to add when reopening"
+
+[annotations]
+destructive-hint = true
+idempotent-hint = true
+open-world-hint = true
