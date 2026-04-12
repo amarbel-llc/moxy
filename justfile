@@ -9,6 +9,7 @@ build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
 build-scripts:
+  bun install --frozen-lockfile
   mkdir -p build/scripts
   for f in scripts/tools/*.ts; do \
     name=$(basename "$f" .ts); \
