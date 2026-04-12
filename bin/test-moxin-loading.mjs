@@ -1,21 +1,27 @@
 #!/usr/bin/env zx
 
 // Test moxin loading by bootstrapping a temp workspace with the local build,
-// running moxy validate-mcp against it, and printing the moxin.log trace.
+// running a JSON-RPC initialize + tools/list handshake, and printing the
+// moxin.log trace.
 //
 // Usage:
 //   zx bin/test-moxin-loading.mjs
 //
-// Builds moxy + moxins from the working tree, creates a temp directory with
-// MOXIN_PATH pointing at build/moxins, runs a JSON-RPC initialize + tools/list
-// handshake, and prints the moxin discovery log so you can see exactly what
-// loaded (or didn't).
+// Environment setup:
+//   - Builds moxy + moxins from the working tree
+//   - Creates a temp HOME that sources the real HOME's .envrc (so nix paths,
+//     XDG vars, etc. are available) but has no ~/.config/moxy/moxyfile
+//   - Sets MOXIN_PATH to build/moxins
+//   - CWD is a temp dir with no moxyfile hierarchy
+//
+// This reproduces the environment a non-moxy repo (e.g. madder) would see.
 
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 
 $.verbose = false
 
+const REAL_HOME = homedir()
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..')
 const MOXY_BIN = path.join(REPO_ROOT, 'build', 'moxy')
@@ -38,14 +44,20 @@ if (!(await fs.pathExists(MOXY_BIN))) {
 
 // --- Moxin log ---
 
-const logHome = process.env.XDG_LOG_HOME || path.join(homedir(), '.local', 'log')
+const logHome = process.env.XDG_LOG_HOME || path.join(REAL_HOME, '.local', 'log')
 const MOXIN_LOG = path.join(logHome, 'moxy', 'moxin.log')
 
 // Truncate the log so we only see entries from this run.
 await fs.writeFile(MOXIN_LOG, '').catch(() => {})
 
-// --- Create temp workspace ---
+// --- Create temp HOME and workspace ---
+//
+// We need a fake HOME so moxy doesn't load ~/.config/moxy/moxyfile (which
+// has servers like dodder/lsp that won't exist in the test env). But the
+// fake HOME must source the real HOME's .envrc so env vars (XDG paths,
+// GOPATH, SSH_AUTH_SOCK, etc.) are available.
 
+const FAKE_HOME = await fs.mkdtemp(path.join(REPO_ROOT, '.moxin-test-home-'))
 const WORK_DIR = await fs.mkdtemp(path.join(REPO_ROOT, '.moxin-test-'))
 
 let cleaningUp = false
@@ -53,6 +65,7 @@ async function cleanup() {
   if (cleaningUp) return
   cleaningUp = true
   await fs.remove(WORK_DIR).catch(() => {})
+  await fs.remove(FAKE_HOME).catch(() => {})
 }
 
 let signalReceived = false
@@ -66,8 +79,43 @@ async function handleSignal(code) {
 process.on('SIGINT', () => handleSignal(130))
 process.on('SIGTERM', () => handleSignal(143))
 
-// Minimal moxyfile so moxy starts clean (no global config interference).
-await fs.writeFile(path.join(WORK_DIR, 'moxyfile'), '')
+// Symlink dotfiles from real HOME that the .envrc chain sources.
+for (const name of ['.env', '.envrc', '.envrc.local', '.secrets-nix.env']) {
+  const src = path.join(REAL_HOME, name)
+  if (await fs.pathExists(src)) {
+    await fs.symlink(src, path.join(FAKE_HOME, name))
+  }
+}
+
+// Platform-specific env file (e.g. .env-linux).
+const platform = (await $`uname -s`).stdout.trim().toLowerCase()
+const platformEnv = `.env-${platform}`
+if (await fs.pathExists(path.join(REAL_HOME, platformEnv))) {
+  await fs.symlink(
+    path.join(REAL_HOME, platformEnv),
+    path.join(FAKE_HOME, platformEnv),
+  )
+}
+
+// Symlink .local/log so moxin.log writes go to the real location.
+await fs.ensureDir(path.join(FAKE_HOME, '.local'))
+await fs.symlink(path.join(REAL_HOME, '.local', 'log'), path.join(FAKE_HOME, '.local', 'log'))
+
+// Resolve env vars by sourcing the real .envrc through direnv.
+// This gives us the full set of env vars the user would have.
+let envFromDirenv = {}
+try {
+  const result = await $`HOME=${FAKE_HOME} direnv exec ${FAKE_HOME} env`
+  for (const line of result.stdout.split('\n')) {
+    const eq = line.indexOf('=')
+    if (eq > 0) {
+      envFromDirenv[line.slice(0, eq)] = line.slice(eq + 1)
+    }
+  }
+} catch {
+  // direnv not available or .envrc fails — fall back to process.env
+  envFromDirenv = { ...process.env }
+}
 
 // --- Run moxy with JSON-RPC handshake ---
 
@@ -75,6 +123,8 @@ console.log('')
 console.log('Running moxy initialize + tools/list handshake...')
 console.log(`  moxy binary: ${MOXY_BIN}`)
 console.log(`  moxins dir:  ${MOXINS_DIR}`)
+console.log(`  real home:   ${REAL_HOME}`)
+console.log(`  fake home:   ${FAKE_HOME}`)
 console.log(`  work dir:    ${WORK_DIR}`)
 console.log('')
 
@@ -104,9 +154,9 @@ let stderr = ''
 const moxyChild = spawn(MOXY_BIN, [], {
   cwd: WORK_DIR,
   env: {
-    ...process.env,
+    ...envFromDirenv,
     MOXIN_PATH: MOXINS_DIR,
-    HOME: WORK_DIR, // isolate from global moxyfile
+    HOME: FAKE_HOME,
   },
   stdio: ['pipe', 'pipe', 'pipe'],
 })
