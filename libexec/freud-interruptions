@@ -38,12 +38,6 @@ def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
     return lower in resolved_cwd.lower() or lower in dir_name.lower()
 
 
-def truncate(s: str, max_len: int) -> str:
-    s = s.replace("\n", " ").strip()
-    if len(s) > max_len:
-        return s[:max_len] + "..."
-    return s
-
 
 def scan_session(path: Path) -> tuple[Counter, Counter]:
     """Scan a session for interruptions and rejections.

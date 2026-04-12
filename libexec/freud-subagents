@@ -24,11 +24,8 @@ def find_session_dir(session_id: str) -> Path | None:
     return None
 
 
-def truncate(s: str, max_len: int) -> str:
-    s = s.replace("\n", " ").strip()
-    if len(s) > max_len:
-        return s[:max_len] + "..."
-    return s
+def oneline(s: str) -> str:
+    return s.replace("\n", " ").strip()
 
 
 def analyze_subagent(path: Path) -> dict:
@@ -115,7 +112,7 @@ def main():
     lines.append(f"  {'#':>3}  {'Agent ID':<{max_id}}  {'Msgs':>5}  {'Tools':>5}  Prompt")
     for i, a in enumerate(agents, start=1):
         lines.append(
-            f"  {i:>3}  {a['agent_id']:<{max_id}}  {a['msg_count']:>5}  {a['tool_count']:>5}  {truncate(a['prompt'], 100)}"
+            f"  {i:>3}  {a['agent_id']:<{max_id}}  {a['msg_count']:>5}  {a['tool_count']:>5}  {oneline(a['prompt'])}"
         )
 
     emit_mcp_result("\n".join(lines))

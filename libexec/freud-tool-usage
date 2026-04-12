@@ -21,11 +21,8 @@ def find_session(session_id: str) -> Path | None:
     return None
 
 
-def truncate(s: str, max_len: int) -> str:
-    s = s.replace("\n", " ").strip()
-    if len(s) > max_len:
-        return s[:max_len] + "..."
-    return s
+def oneline(s: str) -> str:
+    return s.replace("\n", " ").strip()
 
 
 def main():
@@ -76,7 +73,7 @@ def main():
     lines = []
     for i, call in enumerate(calls, start=1):
         input_str = json.dumps(call["input"], separators=(",", ":"))
-        lines.append(f"[{i}] {call['name']} \u2192 {truncate(input_str, 150)}")
+        lines.append(f"[{i}] {call['name']} \u2192 {oneline(input_str)}")
 
     lines.append(f"\n{len(calls)} tool call(s)")
 

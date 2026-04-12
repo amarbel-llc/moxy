@@ -70,11 +70,8 @@ def extract_tool_results(content) -> list[dict]:
     return results
 
 
-def truncate(s: str, max_len: int) -> str:
-    s = s.replace("\n", " ").strip()
-    if len(s) > max_len:
-        return s[:max_len] + "..."
-    return s
+def oneline(s: str) -> str:
+    return s.replace("\n", " ").strip()
 
 
 def main():
@@ -151,14 +148,14 @@ def main():
         text = msg["text"]
 
         if text:
-            lines.append(f"[{i}] {role}: {truncate(text, 300)}")
+            lines.append(f"[{i}] {role}: {oneline(text)}")
 
         for tc in msg["tool_calls"]:
             input_str = json.dumps(tc["input"], separators=(",", ":"))
-            lines.append(f"[{i}] {role} tool_call: {tc['name']}({truncate(input_str, 100)})")
+            lines.append(f"[{i}] {role} tool_call: {tc['name']}({oneline(input_str)})")
 
         for tr in msg["tool_results"]:
-            lines.append(f"[{i}] {role} tool_result({tr['tool_use_id']}): {truncate(tr['text'], 200)}")
+            lines.append(f"[{i}] {role} tool_result({tr['tool_use_id']}): {oneline(tr['text'])}")
 
     if total > len(messages) + offset:
         remaining = total - offset - len(messages)

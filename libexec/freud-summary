@@ -38,11 +38,8 @@ def resolve_cwd(path: Path) -> str:
     return "(unknown)"
 
 
-def truncate(s: str, max_len: int) -> str:
-    s = s.replace("\n", " ").strip()
-    if len(s) > max_len:
-        return s[:max_len] + "..."
-    return s
+def oneline(s: str) -> str:
+    return s.replace("\n", " ").strip()
 
 
 def main():
@@ -134,7 +131,7 @@ def main():
     if user_prompts:
         lines.append(f"\nUser prompts ({len(user_prompts)}):")
         for i, prompt in enumerate(user_prompts, start=1):
-            lines.append(f"  [{i}] {truncate(prompt, 120)}")
+            lines.append(f"  [{i}] {oneline(prompt)}")
 
     emit_mcp_result("\n".join(lines))
 
