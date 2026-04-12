@@ -3,7 +3,7 @@ perms-request = "always-allow"
 description = """Search file contents using ripgrep. Returns file paths by default \
 (output_mode=files_with_matches). Use output_mode=content for matching lines with \
 context, or output_mode=count for match counts per file."""
-command = "bash"
+command = "@BIN@/search"
 arg_order = [
   "pattern",
   "path",
@@ -14,40 +14,6 @@ arg_order = [
   "case_insensitive",
   "multiline",
 ]
-args = ["-c", """
-set -euo pipefail
-pattern="$1"
-path="${2:-.}"
-glob="${3:-}"
-filetype="${4:-}"
-output_mode="${5:-files_with_matches}"
-context="${6:-}"
-case_insensitive="${7:-}"
-multiline="${8:-}"
-
-rg_args=()
-
-case "$output_mode" in
-  files_with_matches) rg_args+=(-l) ;;
-  count)              rg_args+=(-c) ;;
-  content)            rg_args+=(-n) ;;
-  *) echo "Unknown output_mode: $output_mode" >&2; exit 1 ;;
-esac
-
-[ -n "$glob" ] && rg_args+=(--glob "$glob")
-
-[ -n "$filetype" ] && rg_args+=(--type "$filetype")
-
-[ -n "$context" ] && rg_args+=(-C "$context")
-
-[ "$case_insensitive" = "true" ] && rg_args+=(-i)
-
-[ "$multiline" = "true" ] && rg_args+=(-U --multiline-dotall)
-
-output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1) || true
-
-printf '%s\n' "$output"
-""", "_"]
 
 [input]
 type = "object"

@@ -138,6 +138,22 @@
           done
         '';
 
+        rg-moxin = pkgs.runCommand "rg-moxin" {
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+        } ''
+          cp -r ${./moxins/rg} $out
+          chmod -R u+w $out
+          chmod +x $out/bin/*
+          for f in $out/bin/*; do
+            wrapProgram "$f" --set PATH ${
+              pkgs.lib.makeBinPath [ pkgs.bash pkgs-master.ripgrep ]
+            }
+          done
+          for f in $(grep -rl '@BIN@' $out); do
+            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+          done
+        '';
+
         # Monolithic derivation for moxins not yet migrated to per-moxin builds.
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
@@ -147,7 +163,7 @@
           # Copy non-migrated moxins (skip those with own derivations).
           for d in ${./moxins}/*/; do
             name=$(basename "$d")
-            case "$name" in freud|hamster) continue;; esac
+            case "$name" in freud|hamster|rg) continue;; esac
             cp -r "$d" "$out/share/moxy/moxins/$name"
           done
           chmod -R u+w $out/share/moxy/moxins
@@ -155,6 +171,7 @@
           # Link migrated moxins from their own derivations.
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud
           ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
+          ln -s ${rg-moxin} $out/share/moxy/moxins/rg
 
           mkdir -p $out/libexec/moxy
           cp ${./libexec}/* $out/libexec/moxy/
