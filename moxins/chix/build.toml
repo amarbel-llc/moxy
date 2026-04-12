@@ -3,27 +3,8 @@ result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Build a nix flake package. Returns store paths on success."
-command = "bash"
+command = "@BIN@/build"
 arg_order = ["installable", "flake_dir", "print_build_logs"]
-args = ["-c", """
-set -euo pipefail
-installable="${1:-.#default}"
-flake_dir="${2:-.}"
-print_build_logs="${3:-true}"
-
-cd "$flake_dir"
-nix_args=(build --json --print-out-paths)
-if [ "$print_build_logs" = "true" ]; then
-  nix_args+=(-L)
-fi
-nix_args+=("$installable")
-
-stderr_file=$(mktemp)
-trap 'rm -f "$stderr_file"' EXIT
-output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
-
-echo "$output"
-""", "_"]
 
 [input.properties.installable]
 type = "string"

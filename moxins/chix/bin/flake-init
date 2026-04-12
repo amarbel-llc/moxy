@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+template="${1:-}"
+flake_dir="${2:-.}"
+
+cd "$flake_dir"
+nix_args=(flake init)
+if [ -n "$template" ]; then
+  nix_args+=(-t "$template")
+fi
+
+nix "${nix_args[@]}"

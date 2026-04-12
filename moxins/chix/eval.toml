@@ -3,34 +3,8 @@ result-type = "text"
 content-type = "application/json"
 description = """Evaluate a nix expression. The expr and apply parameters accept full Nix syntax \
 including attribute sets, string interpolation, let bindings, lambdas, and all Nix operators."""
-command = "bash"
+command = "@BIN@/eval"
 arg_order = ["expr", "installable", "apply", "flake_dir"]
-args = ["-c", """
-set -euo pipefail
-expr="${1:-}"
-installable="${2:-}"
-apply="${3:-}"
-flake_dir="${4:-.}"
-
-cd "$flake_dir"
-nix_args=(eval --json)
-if [ -n "$expr" ]; then
-  nix_args+=(--expr "$expr")
-elif [ -n "$installable" ]; then
-  nix_args+=("$installable")
-else
-  nix_args+=(".#default")
-fi
-if [ -n "$apply" ]; then
-  nix_args+=(--apply "$apply")
-fi
-
-stderr_file=$(mktemp)
-trap 'rm -f "$stderr_file"' EXIT
-output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
-
-echo "$output"
-""", "_"]
 
 [input.properties.expr]
 type = "string"

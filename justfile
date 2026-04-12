@@ -1,5 +1,4 @@
 export MOXIN_PATH := justfile_directory() / "build" / "moxins"
-export NODE_PATH := justfile_directory() / "node_modules"
 
 default: build test
 
@@ -8,36 +7,15 @@ build: build-go build-nix
 build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
-build-scripts:
-  bun install --frozen-lockfile
-  mkdir -p build/scripts
-  for f in scripts/tools/*.ts; do \
-    name=$(basename "$f" .ts); \
-    bun build --compile --minify --bytecode "$f" --outfile "build/scripts/$name"; \
-  done
-
-build-moxins: build-scripts
-  mkdir -p build/moxins
-  cp -r moxins/*/ build/moxins/
-  find build/moxins -name '*.toml' -exec sed -i "s|@LIBEXEC@|{{justfile_directory()}}/libexec|g" {} +
-  find build/moxins -name '*.toml' -exec sed -i "s|@SCRIPTS@|{{justfile_directory()}}/build/scripts|g" {} +
-  # Per-moxin bin/ directories
-  for d in build/moxins/*/bin; do \
-    moxin_dir=$(dirname "$d"); \
-    find "$moxin_dir" -name '*.toml' -exec sed -i "s|@BIN@|{{justfile_directory()}}/$d|g" {} +; \
-    chmod +x "$d"/*; \
-  done
-  chmod +x libexec/*
+build-moxins:
+  nix build .#moxy-moxins -o build/moxins-nix
+  ln -sfn $(readlink build/moxins-nix)/share/moxy/moxins build/moxins
 
 generate:
   go generate ./internal/config/
 
 build-gomod2nix:
   gomod2nix
-
-build-bun2nix:
-  bun install --frozen-lockfile
-  bun2nix -o bun.nix
 
 build-nix: build-gomod2nix
   nix build --show-trace
@@ -86,16 +64,11 @@ test-mcp: build-go
 run-nix *ARGS:
   nix run . -- {{ARGS}}
 
-update: update-go update-bun
+update: update-go
 
 update-go:
   env GOPROXY=direct go get -u -t ./...
   go mod tidy
-
-# Update bun dependencies and regenerate bun.nix lockfile
-update-bun:
-  bun install
-  bun2nix -o bun.nix
 
 man-list section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u

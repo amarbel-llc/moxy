@@ -1,17 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Reopen a closed issue with optional comment"
-command = "bash"
+command = "@BIN@/issue-reopen"
 arg_order = ["number", "comment"]
-args = ["-c", """
-set -euo pipefail
-number="$1"
-comment="${2:-}"
-gh_args=(issue reopen "$number")
-
-[ -n "$comment" ] && gh_args+=(--comment "$comment")
-gh "${gh_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ref="$1"
+repo="${2:-.}"
+cd "$repo"
+current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+if [ "$current" = "main" ] || [ "$current" = "master" ]; then
+  echo "ERROR: hard reset on main/master is blocked for safety" >&2
+  exit 1
+fi
+git reset --hard "$ref"

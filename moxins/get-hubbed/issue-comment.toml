@@ -1,14 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Post a comment on an issue or pull request"
-command = "bash"
+command = "@BIN@/issue-comment"
 arg_order = ["number", "body"]
-args = ["-c", """
-set -euo pipefail
-number="$1"
-body="$2"
-gh issue comment "$number" --body "$body"
-""", "_"]
 
 [input]
 type = "object"

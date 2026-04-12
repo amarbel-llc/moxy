@@ -1,44 +1,7 @@
 schema = 1
 description = "Push commits to a remote repository"
-command = "bash"
+command = "@BIN@/push"
 arg_order = ["remote", "branch", "set_upstream", "force", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-remote="${1:-}"
-branch="${2:-}"
-set_upstream="${3:-}"
-force="${4:-}"
-repo="${5:-.}"
-cd "$repo"
-
-if [ "$force" = "true" ]; then
-  target="$branch"
-  if [ -z "$target" ]; then
-    target=$(git rev-parse --abbrev-ref HEAD)
-  fi
-  if [ "$target" = "main" ] || [ "$target" = "master" ]; then
-    echo "ERROR: force push to main/master is blocked for safety" >&2
-    exit 1
-  fi
-fi
-
-git_args=(push)
-
-[ "$force" = "true" ] && git_args+=(--force)
-
-[ "$set_upstream" = "true" ] && git_args+=(-u)
-
-# Default remote to origin when a branch is specified, so git doesn't
-# interpret the branch name as a remote.
-if [ -n "$branch" ] && [ -z "$remote" ]; then
-  remote="origin"
-fi
-
-[ -n "$remote" ] && git_args+=("$remote")
-
-[ -n "$branch" ] && git_args+=("$branch")
-git "${git_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

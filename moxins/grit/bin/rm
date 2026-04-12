@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+paths="$1"
+force="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
+git_args=(rm)
+
+[ "$force" = "true" ] && git_args+=(-f)
+git_args+=(--)
+git_args+=("${files[@]}")
+git "${git_args[@]}"

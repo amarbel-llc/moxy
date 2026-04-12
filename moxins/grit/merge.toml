@@ -1,40 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Merge a branch into the current branch"
-command = "bash"
+command = "@BIN@/merge"
 arg_order = ["branch", "no_ff", "squash", "abort", "continue", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-branch="${1:-}"
-no_ff="${2:-}"
-squash="${3:-}"
-do_abort="${4:-}"
-do_continue="${5:-}"
-repo="${6:-.}"
-cd "$repo"
-
-# Safety: block merge into main/master
-current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-if [ "$current" = "main" ] || [ "$current" = "master" ]; then
-  echo "ERROR: merging into main/master is blocked for safety" >&2
-  exit 1
-fi
-
-if [ "$do_continue" = "true" ]; then
-  git merge --continue
-elif [ "$do_abort" = "true" ]; then
-  git merge --abort
-else
-  git_args=(merge)
-
-  [ "$no_ff" = "true" ] && git_args+=(--no-ff)
-
-  [ "$squash" = "true" ] && git_args+=(--squash)
-
-  [ -n "$branch" ] && git_args+=("$branch")
-  git "${git_args[@]}"
-fi
-""", "_"]
 
 [input]
 type = "object"

@@ -3,29 +3,8 @@ result-type = "text"
 perms-request = "always-allow"
 description = """Get file content or directory listing from a repository. For files, returns decoded content. \
 For directories, returns a JSON listing with name, type, size, and path for each entry."""
-command = "bash"
+command = "@BIN@/content-get"
 arg_order = ["path", "ref"]
-args = ["-c", """
-set -euo pipefail
-repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
-path="${1:-.}"
-ref="${2:-}"
-
-gh_args=(api "repos/$repo/contents/$path")
-[ -n "$ref" ] && gh_args+=(-f ref="$ref")
-
-raw=$(gh "${gh_args[@]}")
-
-# Detect if response is a file (object) or directory (array)
-kind=$(printf '%s' "$raw" | jq -r 'if type == "array" then "dir" else .type // "file" end')
-
-if [ "$kind" = "dir" ]; then
-  printf '%s' "$raw" | jq '[.[] | {name, type, size, path}]'
-else
-  # File: decode base64 content
-  printf '%s' "$raw" | jq -r '.content' | tr -d '\n' | base64 -d
-fi
-""", "_"]
 
 [input]
 type = "object"

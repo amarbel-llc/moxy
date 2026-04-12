@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+paths_json="$1"
+soft="${2:-}"
+ref="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+if [ "$soft" = "true" ]; then
+  git reset --soft "${ref:-HEAD~1}"
+elif [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  mapfile -t files < <(printf '%s' "$paths_json" | jq -r '.[]')
+  git reset HEAD -- "${files[@]}"
+else
+  git reset HEAD
+fi

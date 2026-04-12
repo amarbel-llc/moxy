@@ -1,23 +1,7 @@
 schema = 1
 description = "Delete a local branch"
-command = "bash"
+command = "@BIN@/branch-delete"
 arg_order = ["name", "force", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-name="$1"
-force="${2:-}"
-repo="${3:-.}"
-cd "$repo"
-if [ "$name" = "main" ] || [ "$name" = "master" ]; then
-  echo "ERROR: deleting main/master is blocked for safety" >&2
-  exit 1
-fi
-if [ "$force" = "true" ]; then
-  git branch -D "$name"
-else
-  git branch -d "$name"
-fi
-""", "_"]
 
 [input]
 type = "object"

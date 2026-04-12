@@ -1,23 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Create a new issue"
-command = "bash"
+command = "@BIN@/issue-create"
 arg_order = ["title", "body", "labels"]
-args = ["-c", """
-set -euo pipefail
-title="$1"
-body="${2:-}"
-labels_json="${3:-}"
-gh_args=(issue create --title "$title")
-
-[ -n "$body" ] && gh_args+=(--body "$body")
-if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
-  while IFS= read -r label; do
-    gh_args+=(--label "$label")
-  done < <(printf '%s' "$labels_json" | jq -r '.[]')
-fi
-gh "${gh_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

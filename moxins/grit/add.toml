@@ -1,17 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Stage files for commit"
-command = "bash"
+command = "@BIN@/add"
 arg_order = ["paths", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-paths="$1"
-repo="${2:-.}"
-cd "$repo"
-mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
-git add -- "${files[@]}"
-printf 'Staged %d file(s)\n' "${#files[@]}"
-""", "_"]
 
 [input]
 type = "object"

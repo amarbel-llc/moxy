@@ -1,18 +1,7 @@
 schema = 1
 description = "Post a comment on an issue or pull request"
-command = "bash"
+command = "@BIN@/issue-comment"
 arg_order = ["repo", "number", "body"]
-args = ["-c", """
-set -euo pipefail
-repo="$1"
-if [[ "$repo" != */* ]]; then
-  owner=$(gh repo view --json owner -q '.owner.login')
-  repo="$owner/$repo"
-fi
-number="$2"
-body="$3"
-gh issue comment "$number" -R "$repo" --body "$body"
-""", "_"]
 
 [input]
 type = "object"

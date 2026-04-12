@@ -3,24 +3,8 @@ perms-request = "always-allow"
 description = """Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. \
 Output format: `     N\\tcontent` per line. Accepts moxy.native:// result URIs as file paths, replacing `sed` \
 deletion piping on command output."""
-command = "bash"
+command = "@BIN@/read-excluding"
 arg_order = ["file_path", "delete_start", "delete_end"]
-args = ["-c", """
-set -euo pipefail
-assert_within_cwd() {
-  case "$1" in /dev/fd/*) return ;; esac
-  local resolved cwd
-  resolved=$(realpath -m "$1")
-  cwd=$(realpath -m "$PWD")
-  case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
-    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
-  esac
-}
-file="$1"; ds="$2"; de="$3"
-assert_within_cwd "$file"
-awk -v ds="$ds" -v de="$de" '!(NR>=ds && NR<=de){printf "%6d\\t%s\\n", NR, $0}' "$file"
-""", "_"]
 
 [input]
 type = "object"

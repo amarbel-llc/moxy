@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+long="${2:-false}"
+
+# Resolve symlinks and validate under /nix/store/
+resolved=$(readlink -f "$path")
+case "$resolved" in
+  /nix/store/*) ;;
+  *) echo "Error: path must be under /nix/store/, got: $resolved" >&2; exit 1 ;;
+esac
+
+if [ ! -d "$resolved" ]; then
+  echo "Error: not a directory: $resolved" >&2
+  exit 1
+fi
+
+if [ "$long" = "true" ]; then
+  find "$resolved" -maxdepth 1 -mindepth 1 -printf '%y\t%s\t%f\n' | sort -t$'\t' -k3 | \
+    jq -R -s '[split("\n") | .[] | select(length > 0) | split("\t") |
+      { name: .[2],
+        type: (if .[0] == "d" then "directory" elif .[0] == "l" then "symlink" else "file" end),
+        size: (if .[0] == "f" then (.[1] | tonumber) else null end) }]'
+else
+  find "$resolved" -maxdepth 1 -mindepth 1 -printf '%y\t%f\n' | sort -t$'\t' -k2 | \
+    jq -R -s '[split("\n") | .[] | select(length > 0) | split("\t") |
+      { name: .[1],
+        type: (if .[0] == "d" then "directory" elif .[0] == "l" then "symlink" else "file" end) }]'
+fi

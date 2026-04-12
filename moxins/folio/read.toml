@@ -3,36 +3,8 @@ perms-request = "always-allow"
 description = """Read an entire file with line numbers. Output format: `     N\\tcontent` per line. \
 Large files (>2000 lines) return a head+tail summary instead — use read_range for specific sections. \
 Accepts moxy.native:// result URIs as file paths, replacing `head` and `tail` piping on command output."""
-command = "bash"
+command = "@BIN@/read"
 arg_order = ["file_path"]
-args = ["-c", """
-set -euo pipefail
-assert_within_cwd() {
-  case "$1" in /dev/fd/*) return ;; esac
-  local resolved cwd
-  resolved=$(realpath -m "$1")
-  cwd=$(realpath -m "$PWD")
-  case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
-    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
-  esac
-}
-file="$1"
-assert_within_cwd "$file"
-total=$(wc -l < "$file")
-if [ "$total" -gt 2000 ]; then
-  echo "File $file has $total lines (showing head and tail)."
-  echo "Use read_range for specific sections."
-  echo ""
-  echo "--- Head ---"
-  awk 'NR<=50{printf "%6d\\t%s\\n", NR, $0}' "$file"
-  echo ""
-  echo "--- Tail ---"
-  awk -v t="$total" 'NR>(t-20){printf "%6d\\t%s\\n", NR, $0}' "$file"
-else
-  awk '{printf "%6d\\t%s\\n", NR, $0}' "$file"
-fi
-""", "_"]
 
 [input]
 type = "object"

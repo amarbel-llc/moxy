@@ -1,6 +1,6 @@
 schema = 2
 description = "Create a new Jira issue"
-command = "@LIBEXEC@/jira-create-issue"
+command = "@BIN@/create-issue"
 arg_order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent", "output_format"]
 
 [input]

@@ -1,50 +1,8 @@
 schema = 2
 perms-request = "always-allow"
 description = "Show changes in the working tree or between commits"
-command = "bash"
+command = "@BIN@/diff"
 arg_order = ["ref", "paths", "staged", "stat_only", "context_lines", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-ref="${1:-}"
-paths_json="${2:-}"
-staged="${3:-}"
-stat_only="${4:-}"
-context="${5:-}"
-repo="${6:-.}"
-cd "$repo"
-
-git_args=(diff)
-
-[ -n "$context" ] && git_args+=("--unified=$context")
-
-[ "$stat_only" = "true" ] && git_args+=(--stat)
-
-if [ "$staged" = "true" ]; then
-  git_args+=(--cached)
-elif [ "$staged" = "false" ]; then
-  : # unstaged only (default git diff behavior)
-fi
-
-[ -n "$ref" ] && git_args+=("$ref")
-
-if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
-  git_args+=(--)
-  while IFS= read -r p; do
-    git_args+=("$p")
-  done < <(printf '%s' "$paths_json" | jq -r '.[]')
-fi
-
-output=$(git "${git_args[@]}" 2>&1) || true
-
-if [ "$stat_only" = "true" ]; then
-  mime="text/plain"
-else
-  mime="text/x-diff"
-fi
-
-jq -cn --arg text "$output" --arg mime "$mime" \
-  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
-""", "_"]
 
 [input]
 type = "object"

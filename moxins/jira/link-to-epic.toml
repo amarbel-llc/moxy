@@ -1,6 +1,6 @@
 schema = 2
 description = "Link an issue to an epic by setting its parent"
-command = "@LIBEXEC@/jira-link-to-epic"
+command = "@BIN@/link-to-epic"
 arg_order = ["issue_key", "epic_key"]
 
 [input]

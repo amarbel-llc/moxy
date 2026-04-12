@@ -1,49 +1,9 @@
 schema = 2
 perms-request = "always-allow"
 description = "Execute a jq filter. Only jq is invoked — no shell evaluation. Cached result URIs (moxy.native://results/{session}/{id}) in args are rewritten to /dev/fd/N for streaming."
-command = "bash"
+command = "@BIN@/jq"
 arg_order = ["filter", "flags", "files", "cwd"]
 stdin_param = "stdin"
-args = ["-c", """
-set -euo pipefail
-filter="$1"
-flags_json="${2:-}"
-files_json="${3:-}"
-cwd_val="${4:-}"
-
-[ -n "$cwd_val" ] && cd "$cwd_val"
-
-jq_flags=()
-raw_output=false
-if [ -n "$flags_json" ] && [ "$flags_json" != "null" ]; then
-  while IFS= read -r f; do
-    jq_flags+=("$f")
-    case "$f" in -r|--raw-output|--raw-output0) raw_output=true ;; esac
-  done < <(printf '%s' "$flags_json" | jq -r '.[]')
-fi
-
-jq_files=()
-if [ -n "$files_json" ] && [ "$files_json" != "null" ]; then
-  while IFS= read -r f; do
-    jq_files+=("$f")
-  done < <(printf '%s' "$files_json" | jq -r '.[]')
-fi
-
-if [ ${#jq_files[@]} -gt 0 ]; then
-  text=$(jq "${jq_flags[@]}" "$filter" "${jq_files[@]}")
-else
-  text=$(jq "${jq_flags[@]}" "$filter")
-fi
-
-if [ "$raw_output" = "true" ]; then
-  mime="text/plain"
-else
-  mime="application/json"
-fi
-
-jq -cn --arg text "$text" --arg mime "$mime" \
-  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
-""", "_"]
 
 [input]
 type = "object"

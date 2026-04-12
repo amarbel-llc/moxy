@@ -1,24 +1,7 @@
 schema = 1
 description = "Close an issue with optional comment"
-command = "bash"
+command = "@BIN@/issue-close"
 arg_order = ["repo", "number", "comment", "reason"]
-args = ["-c", """
-set -euo pipefail
-repo="$1"
-if [[ "$repo" != */* ]]; then
-  owner=$(gh repo view --json owner -q '.owner.login')
-  repo="$owner/$repo"
-fi
-number="$2"
-comment="${3:-}"
-reason="${4:-}"
-gh_args=(issue close "$number" -R "$repo")
-
-[ -n "$comment" ] && gh_args+=(--comment "$comment")
-
-[ -n "$reason" ] && gh_args+=(--reason "$reason")
-gh "${gh_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

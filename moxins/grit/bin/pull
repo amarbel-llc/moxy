@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+remote="${1:-}"
+branch="${2:-}"
+rebase="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+git_args=(pull)
+
+[ "$rebase" = "true" ] && git_args+=(--rebase)
+
+[ -n "$remote" ] && git_args+=("$remote")
+
+[ -n "$branch" ] && git_args+=("$branch")
+git "${git_args[@]}"

@@ -1,7 +1,7 @@
 schema = 1
 perms-request = "always-allow"
 description = "Execute a justfile recipe with optional arguments. Use list-recipes first to discover available recipes."
-command = "@LIBEXEC@/just-run-recipe"
+command = "@BIN@/run-recipe"
 arg_order = ["recipe", "args", "variables", "dry_run"]
 
 [input]

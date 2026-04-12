@@ -1,25 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Run a flake app."
-command = "bash"
+command = "@BIN@/run"
 arg_order = ["installable", "args", "flake_dir"]
-args = ["-c", """
-set -euo pipefail
-installable="${1:-.#default}"
-args_json="${2:-}"
-flake_dir="${3:-.}"
-
-cd "$flake_dir"
-nix_args=(run "$installable")
-if [ -n "$args_json" ] && [ "$args_json" != "null" ] && [ "$args_json" != "[]" ]; then
-  nix_args+=(--)
-  while IFS= read -r arg; do
-    nix_args+=("$arg")
-  done < <(printf '%s' "$args_json" | jq -r '.[]')
-fi
-
-nix "${nix_args[@]}"
-""", "_"]
 
 [input.properties.installable]
 type = "string"

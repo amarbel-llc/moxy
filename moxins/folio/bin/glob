@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+assert_within_cwd() {
+  case "$1" in /dev/fd/*) return ;; esac
+  local resolved cwd
+  resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
+  case "$resolved" in
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
+  esac
+}
+pattern="$1"
+dir="${2:-.}"
+assert_within_cwd "$dir"
+
+cd "$dir"
+shopt -s globstar nullglob dotglob
+
+files=()
+for f in $pattern; do
+
+  [ -f "$f" ] && files+=("$f")
+done
+
+if [ ${#files[@]} -eq 0 ]; then
+  echo "No files found"
+  exit 0
+fi
+
+# Sort by modification time (newest first)
+for f in "${files[@]}"; do
+  printf '%s\t%s\n' "$(stat -c '%Y' "$f")" "$f"
+done | sort -rn | cut -f2-

@@ -1,6 +1,6 @@
 schema = 2
 description = "Update fields on an existing Jira issue"
-command = "@LIBEXEC@/jira-update-issue"
+command = "@BIN@/update-issue"
 arg_order = ["issue_key", "summary", "description", "assignee", "labels", "issuetype", "output_format"]
 
 [input]

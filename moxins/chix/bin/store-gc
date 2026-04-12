@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+dry_run="${1:-false}"
+max_freed="${2:-}"
+
+nix_args=(store gc)
+if [ "$dry_run" = "true" ]; then
+  nix_args+=(--dry-run)
+fi
+if [ -n "$max_freed" ]; then
+  nix_args+=(--max "$max_freed")
+fi
+
+nix "${nix_args[@]}"

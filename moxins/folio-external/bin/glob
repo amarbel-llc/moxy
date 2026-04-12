@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+pattern="$1"
+dir="${2:-.}"
+
+cd "$dir"
+shopt -s globstar nullglob dotglob
+
+files=()
+for f in $pattern; do
+
+  [ -f "$f" ] && files+=("$f")
+done
+
+if [ ${#files[@]} -eq 0 ]; then
+  echo "No files found"
+  exit 0
+fi
+
+# Sort by modification time (newest first)
+for f in "${files[@]}"; do
+  printf '%s\t%s\n' "$(stat -c '%Y' "$f")" "$f"
+done | sort -rn | cut -f2-

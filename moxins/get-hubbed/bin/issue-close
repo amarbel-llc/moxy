@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+comment="${2:-}"
+reason="${3:-}"
+gh_args=(issue close "$number")
+
+[ -n "$comment" ] && gh_args+=(--comment "$comment")
+
+[ -n "$reason" ] && gh_args+=(--reason "$reason")
+gh "${gh_args[@]}"

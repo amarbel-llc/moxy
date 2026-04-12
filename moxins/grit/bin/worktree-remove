@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+wt_path="$1"
+force="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+git_args=(worktree remove)
+
+[ "$force" = "true" ] && git_args+=(--force)
+git_args+=("$wt_path")
+git "${git_args[@]}"

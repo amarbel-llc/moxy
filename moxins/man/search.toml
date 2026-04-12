@@ -1,7 +1,7 @@
 schema = 1
 perms-request = "always-allow"
 description = "Search for man pages by keyword (apropos). Returns matching page names with short descriptions."
-command = "@LIBEXEC@/man-search"
+command = "@BIN@/search"
 
 [input]
 type = "object"

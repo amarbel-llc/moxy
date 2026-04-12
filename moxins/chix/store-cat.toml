@@ -1,26 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Read file contents from a nix store path. Use head/tail to limit output for large files."
-command = "bash"
+command = "@BIN@/store-cat"
 arg_order = ["path"]
-args = ["-c", """
-set -euo pipefail
-path="$1"
-
-# Resolve symlinks and validate under /nix/store/
-resolved=$(readlink -f "$path")
-case "$resolved" in
-  /nix/store/*) ;;
-  *) echo "Error: path must be under /nix/store/, got: $resolved" >&2; exit 1 ;;
-esac
-
-if [ ! -f "$resolved" ]; then
-  echo "Error: not a regular file: $resolved" >&2
-  exit 1
-fi
-
-cat "$resolved"
-""", "_"]
 
 [input]
 required = ["path"]

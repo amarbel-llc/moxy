@@ -1,21 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Apply commits from other branches onto the current branch"
-command = "bash"
+command = "@BIN@/cherry-pick"
 arg_order = ["commits", "no_commit", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-commits_json="$1"
-no_commit="${2:-}"
-repo="${3:-.}"
-cd "$repo"
-mapfile -t commits < <(printf '%s' "$commits_json" | jq -r '.[]')
-git_args=(cherry-pick)
-
-[ "$no_commit" = "true" ] && git_args+=(--no-commit)
-git_args+=("${commits[@]}")
-git "${git_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

@@ -1,7 +1,7 @@
 schema = 1
 perms-request = "always-allow"
 description = "Print the value of a single environment variable by name."
-command = "printenv"
+command = "@BIN@/print"
 arg_order = ["name"]
 
 [input]

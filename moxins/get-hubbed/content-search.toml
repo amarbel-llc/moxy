@@ -3,38 +3,8 @@ result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Search for code within a repository"
-command = "bash"
+command = "@BIN@/content-search"
 arg_order = ["query", "path", "extension", "per_page", "page"]
-args = ["-c", """
-set -euo pipefail
-repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
-query="$1"
-path="${2:-}"
-extension="${3:-}"
-per_page="${4:-30}"
-page="${5:-1}"
-q="$query repo:$repo"
-
-[ -n "$path" ] && q="$q path:$path"
-
-[ -n "$extension" ] && q="$q extension:$extension"
-gh api search/code \
-  -H "Accept: application/vnd.github.text-match+json" \
-  -f q="$q" \
-  -f per_page="$per_page" \
-  -f page="$page" \
-  | jq '{
-    total_count: .total_count,
-    items: [.items[] | {
-      name: .name,
-      path: .path,
-      sha: .sha[0:7],
-      url: .html_url,
-      score: .score,
-      text_matches: [.text_matches[]? | {fragment: .fragment, matches: [.matches[]? | {text: .text, indices: .indices}]}]
-    }]
-  }'
-""", "_"]
 
 [input]
 type = "object"

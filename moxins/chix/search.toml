@@ -3,38 +3,8 @@ result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Search for packages in a flake. Returns JSON results with optional pagination."
-command = "bash"
+command = "@BIN@/search"
 arg_order = ["query", "flake_ref", "exclude", "limit", "offset"]
-args = ["-c", """
-set -euo pipefail
-query="$1"
-flake_ref="${2:-nixpkgs}"
-exclude_json="${3:-}"
-limit="${4:-}"
-offset="${5:-0}"
-
-nix_args=(search --json "$flake_ref" "$query")
-if [ -n "$exclude_json" ] && [ "$exclude_json" != "null" ] && [ "$exclude_json" != "[]" ]; then
-  while IFS= read -r pat; do
-    nix_args+=(--exclude "$pat")
-  done < <(printf '%s' "$exclude_json" | jq -r '.[]')
-fi
-
-stderr_file=$(mktemp)
-trap 'rm -f "$stderr_file"' EXIT
-output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
-
-# nix search --json returns an object; convert to sorted array with pagination
-if [ -n "$limit" ]; then
-  printf '%s' "$output" | jq --argjson off "${offset:-0}" --argjson lim "$limit" \
-    '[to_entries | sort_by(.key)] | .[$off:$off+$lim] | from_entries'
-elif [ "${offset:-0}" != "0" ]; then
-  printf '%s' "$output" | jq --argjson off "$offset" \
-    '[to_entries | sort_by(.key)] | .[$off:] | from_entries'
-else
-  echo "$output"
-fi
-""", "_"]
 
 [input]
 required = ["query"]

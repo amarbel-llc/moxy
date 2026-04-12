@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name="$1"
+force="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+if [ "$name" = "main" ] || [ "$name" = "master" ]; then
+  echo "ERROR: deleting main/master is blocked for safety" >&2
+  exit 1
+fi
+if [ "$force" = "true" ]; then
+  git branch -D "$name"
+else
+  git branch -d "$name"
+fi

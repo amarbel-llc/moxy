@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="$1"
+if [[ "$repo" != */* ]]; then
+  owner=$(gh repo view --json owner -q '.owner.login')
+  repo="$owner/$repo"
+fi
+number="$2"
+body="$3"
+gh issue comment "$number" -R "$repo" --body "$body"

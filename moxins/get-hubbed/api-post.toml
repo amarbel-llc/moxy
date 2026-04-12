@@ -2,36 +2,8 @@ schema = 2
 result-type = "text"
 content-type = "application/json"
 description = "Make an authenticated POST request to the GitHub REST API"
-command = "bash"
+command = "@BIN@/api-post"
 arg_order = ["endpoint", "body", "params", "headers"]
-args = ["-c", """
-set -euo pipefail
-endpoint="$1"
-body="${2:-}"
-params_json="${3:-}"
-headers_json="${4:-}"
-gh_args=(api "$endpoint" --method POST)
-
-if [ -n "$body" ] && [ "$body" != "null" ] && [ "$body" != "{}" ]; then
-  gh_args+=(--input -)
-fi
-if [ -n "$params_json" ] && [ "$params_json" != "null" ] && [ "$params_json" != "{}" ]; then
-  while IFS=$'\t' read -r key val; do
-    gh_args+=(-f "$key=$val")
-  done < <(printf '%s' "$params_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
-fi
-if [ -n "$headers_json" ] && [ "$headers_json" != "null" ]; then
-  while IFS= read -r h; do
-    gh_args+=(-H "$h")
-  done < <(printf '%s' "$headers_json" | jq -r '.[]')
-fi
-
-if [ -n "$body" ] && [ "$body" != "null" ] && [ "$body" != "{}" ]; then
-  printf '%s' "$body" | gh "${gh_args[@]}"
-else
-  gh "${gh_args[@]}"
-fi
-""", "_"]
 
 [input]
 type = "object"

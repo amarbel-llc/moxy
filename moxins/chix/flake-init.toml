@@ -1,21 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Initialize a new flake in the specified directory."
-command = "bash"
+command = "@BIN@/flake-init"
 arg_order = ["template", "flake_dir"]
-args = ["-c", """
-set -euo pipefail
-template="${1:-}"
-flake_dir="${2:-.}"
-
-cd "$flake_dir"
-nix_args=(flake init)
-if [ -n "$template" ]; then
-  nix_args+=(-t "$template")
-fi
-
-nix "${nix_args[@]}"
-""", "_"]
 
 [input.properties.template]
 type = "string"

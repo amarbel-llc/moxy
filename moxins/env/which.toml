@@ -1,7 +1,7 @@
 schema = 1
 perms-request = "always-allow"
 description = "Locate a program on PATH. Returns the absolute path if found, exits nonzero if not."
-command = "which"
+command = "@BIN@/which"
 arg_order = ["name"]
 
 [input]

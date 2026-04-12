@@ -1,21 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Create a new branch"
-command = "bash"
+command = "@BIN@/branch-create"
 arg_order = ["name", "start_point", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-name="$1"
-start="${2:-}"
-repo="${3:-.}"
-cd "$repo"
-if [ -n "$start" ]; then
-  git branch "$name" "$start"
-else
-  git branch "$name"
-fi
-echo "Created branch $name"
-""", "_"]
 
 [input]
 type = "object"

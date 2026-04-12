@@ -3,23 +3,8 @@ result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Execute a read-only GraphQL query against the GitHub API"
-command = "bash"
+command = "@BIN@/graphql-query"
 arg_order = ["query", "variables", "paginate"]
-args = ["-c", """
-set -euo pipefail
-query="$1"
-variables_json="${2:-}"
-paginate="${3:-}"
-gh_args=(api graphql -f "query=$query")
-
-[ "$paginate" = "true" ] && gh_args+=(--paginate)
-if [ -n "$variables_json" ] && [ "$variables_json" != "null" ] && [ "$variables_json" != "{}" ]; then
-  while IFS=$'\t' read -r key val; do
-    gh_args+=(-F "$key=$val")
-  done < <(printf '%s' "$variables_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
-fi
-gh "${gh_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

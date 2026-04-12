@@ -1,7 +1,7 @@
 schema = 1
 perms-request = "always-allow"
 description = "List all environment variables and their values."
-command = "printenv"
+command = "@BIN@/list"
 
 [annotations]
 read-only-hint = true

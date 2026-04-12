@@ -1,24 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Fetch from a remote repository"
-command = "bash"
+command = "@BIN@/fetch"
 arg_order = ["remote", "prune", "all", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-remote="${1:-}"
-prune="${2:-}"
-all="${3:-}"
-repo="${4:-.}"
-cd "$repo"
-git_args=(fetch)
-
-[ "$prune" = "true" ] && git_args+=(--prune)
-
-[ "$all" = "true" ] && git_args+=(--all)
-
-[ -z "$all" ] && [ -n "$remote" ] && git_args+=("$remote")
-git "${git_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

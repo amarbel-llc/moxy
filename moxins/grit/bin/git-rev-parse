@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ref="$1"
+repo="${2:-.}"
+cd "$repo"
+git rev-parse --verify "$ref"

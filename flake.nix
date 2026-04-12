@@ -88,121 +88,98 @@
 
         bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
-        # Single bun install + bun build, one wrapper per tool (~219B each).
-        moxy-scripts = bunLib.buildBunBinaries {
-          pname = "moxy-scripts";
-          version = "0.1.0";
-          src = pkgs.lib.fileset.toSource {
-            root = ./.;
-            fileset = with pkgs.lib.fileset; unions [
-              ./scripts
-              ./package.json
-              ./bun.lock
-            ];
-          };
-          bunNix = ./bun.nix;
-          entrypoints = {
-            "gh-issue-get" = "scripts/tools/gh-issue-get.ts";
-            "nix-flake-show" = "scripts/tools/nix-flake-show.ts";
-          };
-        };
-
-        # Per-moxin derivations for self-contained moxins with bin/.
-        freud-moxin = pkgs.runCommand "freud-moxin" {
+        # Helper: build a moxin with bin/ scripts wrapped with PATH deps.
+        mkMoxin = name: deps: pkgs.runCommand "${name}-moxin" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
-          cp -r ${./moxins/freud} $out
-          chmod -R u+w $out
-          for f in $out/bin/*; do
-            wrapProgram "$f" --set PATH ${
-              pkgs.lib.makeBinPath [ pkgs.python3 pkgs.jq ]
-            }
-          done
-          for f in $(grep -rl '@BIN@' $out); do
-            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
-          done
-        '';
-
-        hamster-moxin = pkgs.runCommand "hamster-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper ];
-        } ''
-          cp -r ${./moxins/hamster} $out
-          chmod -R u+w $out
-          for f in $out/bin/*; do
-            wrapProgram "$f" --set PATH ${
-              pkgs.lib.makeBinPath [ pkgs.bash pkgs-master.go_1_26 ]
-            }
-          done
-          for f in $(grep -rl '@BIN@' $out); do
-            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
-          done
-        '';
-
-        rg-moxin = pkgs.runCommand "rg-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper ];
-        } ''
-          cp -r ${./moxins/rg} $out
+          cp -r ${./moxins/${name}} $out
           chmod -R u+w $out
           chmod +x $out/bin/*
           for f in $out/bin/*; do
-            wrapProgram "$f" --set PATH ${
-              pkgs.lib.makeBinPath [ pkgs.bash pkgs-master.ripgrep ]
-            }
+            wrapProgram "$f" --set PATH ${pkgs.lib.makeBinPath deps}
           done
           for f in $(grep -rl '@BIN@' $out); do
             substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
           done
         '';
 
-        # Monolithic derivation for moxins not yet migrated to per-moxin builds.
-        moxy-moxins = pkgs.runCommand "moxy-moxins" {
+        # Helper: build a moxin that has bun+zx compiled scripts in src/.
+        mkBunMoxin = name: deps: extraEntrypoints: let
+          bunBinaries = bunLib.buildBunBinaries {
+            pname = "${name}-moxin-scripts";
+            version = "0.1.0";
+            src = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = with pkgs.lib.fileset; unions [
+                ./moxins/${name}/src
+                ./package.json
+                ./bun.lock
+              ];
+            };
+            bunNix = ./bun.nix;
+            entrypoints = extraEntrypoints;
+            runtimeInputs = deps;
+          };
+        in pkgs.runCommand "${name}-moxin" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
+          cp -r ${./moxins/${name}} $out
+          chmod -R u+w $out
+          rm -rf $out/src
+          chmod +x $out/bin/*
+          # Link bun-compiled binaries into bin/.
+          for f in ${bunBinaries}/bin/*; do
+            ln -sf "$f" "$out/bin/$(basename "$f")"
+          done
+          for f in $out/bin/*; do
+            [ -L "$f" ] && continue
+            wrapProgram "$f" --set PATH ${pkgs.lib.makeBinPath deps}
+          done
+          for f in $(grep -rl '@BIN@' $out); do
+            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+          done
+        '';
+
+        # Per-moxin derivations — each moxin is self-contained with its deps.
+        chix-moxin = mkBunMoxin "chix" [ pkgs.bash pkgs.nix ] {
+          "flake-show" = "moxins/chix/src/flake-show.ts";
+        };
+        env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils ];
+        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils ];
+        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils ];
+        freud-moxin = mkMoxin "freud" [ pkgs.python3 pkgs.jq ];
+        get-hubbed-moxin = mkBunMoxin "get-hubbed" [ pkgs.bash pkgs-master.gh pkgs.jq ] {
+          "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
+        };
+        get-hubbed-external-moxin = mkMoxin "get-hubbed-external" [ pkgs.bash pkgs-master.gh pkgs.jq ];
+        grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git ];
+        hamster-moxin = mkMoxin "hamster" [ pkgs.bash pkgs-master.go_1_26 ];
+        jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs-master-unfree.acli ];
+        jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ];
+        just-us-agents-moxin = mkMoxin "just-us-agents" [ pkgs.bash pkgs.just pkgs.coreutils pkgs.findutils ];
+        man-moxin = mkMoxin "man" [
+          pkgs.bash pkgs.gzip pkgs.man-db pkgs.mandoc pkgs.pandoc pkgs.manix
+          maneater.packages.${system}.default
+        ];
+        rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ];
+
+        # Symlink-only aggregation of all per-moxin derivations.
+        moxy-moxins = pkgs.runCommand "moxy-moxins" {} ''
           mkdir -p $out/share/moxy/moxins
-
-          # Copy non-migrated moxins (skip those with own derivations).
-          for d in ${./moxins}/*/; do
-            name=$(basename "$d")
-            case "$name" in freud|hamster|rg) continue;; esac
-            cp -r "$d" "$out/share/moxy/moxins/$name"
-          done
-          chmod -R u+w $out/share/moxy/moxins
-
-          # Link migrated moxins from their own derivations.
+          ln -s ${chix-moxin} $out/share/moxy/moxins/chix
+          ln -s ${env-moxin} $out/share/moxy/moxins/env
+          ln -s ${folio-moxin} $out/share/moxy/moxins/folio
+          ln -s ${folio-external-moxin} $out/share/moxy/moxins/folio-external
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud
+          ln -s ${get-hubbed-moxin} $out/share/moxy/moxins/get-hubbed
+          ln -s ${get-hubbed-external-moxin} $out/share/moxy/moxins/get-hubbed-external
+          ln -s ${grit-moxin} $out/share/moxy/moxins/grit
           ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
+          ln -s ${jira-moxin} $out/share/moxy/moxins/jira
+          ln -s ${jq-moxin} $out/share/moxy/moxins/jq
+          ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents
+          ln -s ${man-moxin} $out/share/moxy/moxins/man
           ln -s ${rg-moxin} $out/share/moxy/moxins/rg
-
-          mkdir -p $out/libexec/moxy
-          cp ${./libexec}/* $out/libexec/moxy/
-          chmod +x $out/libexec/moxy/*
-          for f in $out/libexec/moxy/*; do
-            wrapProgram "$f" \
-              --set PATH ${
-                pkgs.lib.makeBinPath [
-                  pkgs.bash
-                  pkgs.gzip
-                  pkgs.nix
-                  pkgs.jq
-                  pkgs.just
-                  pkgs.man-db
-                  pkgs.mandoc
-                  pkgs.pandoc
-                  pkgs.manix
-                  pkgs-master-unfree.acli
-                  maneater.packages.${system}.default
-                ]
-              }
-          done
-
-          for f in $(grep -rl '@LIBEXEC@' $out/share/moxy/moxins); do
-            substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
-          done
-
-          # Bun+zx script wrappers — each tool is its own binary.
-          for f in $(grep -rl '@SCRIPTS@' $out/share/moxy/moxins); do
-            substitute "$f" "$f" --replace-fail "@SCRIPTS@" "${moxy-scripts}/bin"
-          done
         '';
 
         moxy = pkgs.buildGoApplication {
@@ -226,24 +203,13 @@
             cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
             cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
 
-            # Wrap the moxy binary with inline moxin tool dependencies.
-            # Inline scripts (folio, grit, rg, get-hubbed, chix, env, jq)
-            # inherit PATH from the moxy process.
+            # Moxin tools have their own PATH via wrapProgram in per-moxin
+            # derivations. The moxy binary itself only needs bash for
+            # process management.
             wrapProgram $out/bin/moxy \
               --prefix PATH : ${
                 pkgs.lib.makeBinPath [
                   pkgs.bash
-                  pkgs.coreutils
-                  pkgs.findutils
-                  pkgs.gawk
-                  pkgs.gnused
-                  pkgs.gzip
-                  pkgs.jq
-                  pkgs.git
-                  pkgs-master.gh
-                  pkgs-master.ripgrep
-                  pkgs.nix
-                  pkgs.util-linux # column
                 ]
               }
           '';
@@ -265,7 +231,6 @@
 
         devShells.default = pkgs-master.mkShell {
           packages = [
-            pkgs-master.bun
             pkgs-master.go_1_26
             pkgs-master.delve
             pkgs-master.gofumpt

@@ -1,15 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Apply a stash to the working tree without removing it from the stash list"
-command = "bash"
+command = "@BIN@/stash-apply"
 arg_order = ["stash_ref", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-stash_ref="${1:-stash@{0}}"
-repo="${2:-.}"
-cd "$repo"
-git stash apply "$stash_ref"
-""", "_"]
 
 [input]
 type = "object"

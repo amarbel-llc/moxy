@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+flake_ref="${1:-.}"
+flake_dir="${2:-.}"
+keep_going="${3:-true}"
+
+cd "$flake_dir"
+nix_args=(flake check)
+if [ "$keep_going" = "true" ]; then
+  nix_args+=(--keep-going)
+fi
+nix_args+=("$flake_ref")
+
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
+
+echo "$output"

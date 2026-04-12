@@ -1,22 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Delete files and stage the deletion (git rm)"
-command = "bash"
+command = "@BIN@/rm"
 arg_order = ["paths", "force", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-paths="$1"
-force="${2:-}"
-repo="${3:-.}"
-cd "$repo"
-mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
-git_args=(rm)
-
-[ "$force" = "true" ] && git_args+=(-f)
-git_args+=(--)
-git_args+=("${files[@]}")
-git "${git_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

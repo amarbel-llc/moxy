@@ -1,14 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "List all git worktrees with path, HEAD, branch, and lock/prune state"
-command = "bash"
+command = "@BIN@/worktree-list"
 arg_order = ["repo_path"]
-args = ["-c", """
-set -euo pipefail
-repo="${1:-.}"
-cd "$repo"
-git worktree list --porcelain
-""", "_"]
 
 [input]
 type = "object"

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+upstream="${1:-}"
+branch="${2:-}"
+autostash="${3:-}"
+do_continue="${4:-}"
+do_abort="${5:-}"
+do_skip="${6:-}"
+repo="${7:-.}"
+cd "$repo"
+
+# Safety: block rebase on main/master
+current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+target="${branch:-$current}"
+if [ "$target" = "main" ] || [ "$target" = "master" ]; then
+  echo "ERROR: rebasing main/master is blocked for safety" >&2
+  exit 1
+fi
+
+if [ "$do_continue" = "true" ]; then
+  git rebase --continue
+elif [ "$do_abort" = "true" ]; then
+  git rebase --abort
+elif [ "$do_skip" = "true" ]; then
+  git rebase --skip
+else
+  git_args=(rebase)
+
+  [ "$autostash" = "true" ] && git_args+=(--autostash)
+
+  [ -n "$upstream" ] && git_args+=("$upstream")
+
+  [ -n "$branch" ] && git_args+=("$branch")
+  git "${git_args[@]}"
+fi

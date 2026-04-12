@@ -1,21 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Save uncommitted changes to a stash"
-command = "bash"
+command = "@BIN@/stash-save"
 arg_order = ["message", "include_untracked", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-message="${1:-}"
-include_untracked="${2:-}"
-repo="${3:-.}"
-cd "$repo"
-git_args=(stash push)
-
-[ "$include_untracked" = "true" ] && git_args+=(-u)
-
-[ -n "$message" ] && git_args+=(-m "$message")
-git "${git_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

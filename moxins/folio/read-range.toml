@@ -3,24 +3,8 @@ perms-request = "always-allow"
 description = """Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. \
 Output format: `     N\\tcontent` per line. Replaces `head`/`tail` piping — use on moxy.native:// result URIs \
 to read specific line ranges from cached command output."""
-command = "bash"
+command = "@BIN@/read-range"
 arg_order = ["file_path", "start", "end"]
-args = ["-c", """
-set -euo pipefail
-assert_within_cwd() {
-  case "$1" in /dev/fd/*) return ;; esac
-  local resolved cwd
-  resolved=$(realpath -m "$1")
-  cwd=$(realpath -m "$PWD")
-  case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
-    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
-  esac
-}
-file="$1"; start="$2"; end="$3"
-assert_within_cwd "$file"
-awk -v s="$start" -v e="$end" 'NR>=s && NR<=e{printf "%6d\\t%s\\n", NR, $0} NR>e{exit}' "$file"
-""", "_"]
 
 [input]
 type = "object"

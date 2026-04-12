@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+title="$1"
+body="${2:-}"
+base="${3:-}"
+head="${4:-}"
+draft="${5:-}"
+labels_json="${6:-}"
+gh_args=(pr create --title "$title")
+
+[ -n "$body" ] && gh_args+=(--body "$body")
+
+[ -n "$base" ] && gh_args+=(--base "$base")
+
+[ -n "$head" ] && gh_args+=(--head "$head")
+
+[ "$draft" = "true" ] && gh_args+=(--draft)
+if [ -n "$labels_json" ] && [ "$labels_json" != "null" ]; then
+  while IFS= read -r label; do
+    gh_args+=(--label "$label")
+  done < <(printf '%s' "$labels_json" | jq -r '.[]')
+fi
+gh "${gh_args[@]}"

@@ -1,40 +1,8 @@
 schema = 1
 description = """Run commands inside a flake's devShell. Each command runs as a separate \
 nix develop invocation. Execution stops on the first failure."""
-command = "bash"
+command = "@BIN@/develop-run"
 arg_order = ["commands", "flake_ref", "flake_dir"]
-args = ["-c", """
-set -euo pipefail
-commands_json="$1"
-flake_ref="${2:-.}"
-flake_dir="${3:-.}"
-
-cd "$flake_dir"
-
-run_output=""
-count=$(printf '%s' "$commands_json" | jq 'length')
-for ((i=0; i<count; i++)); do
-  cmd=$(printf '%s' "$commands_json" | jq -r ".[$i].command")
-  mapfile -t cmd_args < <(printf '%s' "$commands_json" | jq -r ".[$i].args // [] | .[]")
-
-  nix_args=(develop "$flake_ref" -c "$cmd")
-  if [ ${#cmd_args[@]} -gt 0 ]; then
-    nix_args+=("${cmd_args[@]}")
-  fi
-
-  stderr_file=$(mktemp)
-  step_output=$(nix "${nix_args[@]}" 2>"$stderr_file") || {
-    run_output+="$(cat "$stderr_file")"$'\n'"$step_output"
-    rm -f "$stderr_file"
-    printf '%s' "$run_output"
-    exit 1
-  }
-  rm -f "$stderr_file"
-  run_output+="$step_output"$'\n'
-done
-
-printf '%s' "$run_output"
-""", "_"]
 
 [input]
 required = ["commands"]

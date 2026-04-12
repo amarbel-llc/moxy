@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ref="${1:-}"
+create="${2:-}"
+paths_json="${3:-}"
+ours="${4:-}"
+theirs="${5:-}"
+repo="${6:-.}"
+cd "$repo"
+
+git_args=(checkout)
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  # File restore mode
+
+  [ "$ours" = "true" ] && git_args+=(--ours)
+
+  [ "$theirs" = "true" ] && git_args+=(--theirs)
+
+  [ -n "$ref" ] && git_args+=("$ref")
+  git_args+=(--)
+  while IFS= read -r p; do
+    git_args+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+else
+  # Branch switch mode
+
+  [ "$create" = "true" ] && git_args+=(-b)
+
+  [ -n "$ref" ] && git_args+=("$ref")
+fi
+
+git "${git_args[@]}"

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+dir="${1:-.}"
+flags="${2:-}"
+
+if [ ! -d "$dir" ]; then
+  echo "not a directory: $dir" >&2
+  exit 1
+fi
+
+if [ -n "$flags" ]; then
+  text=$(ls $flags -- "$dir")
+  mime="text/plain"
+else
+  first=true
+  text="["
+  for entry in "$dir"/*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    name=$(basename "$entry")
+
+    if [ -L "$entry" ]; then
+      type="symlink"
+    elif [ -d "$entry" ]; then
+      type="directory"
+    else
+      type="file"
+    fi
+
+    $first || text+=","
+    first=false
+
+    if [ "$type" = "file" ]; then
+      size=$(stat -c '%s' "$entry")
+      text+=$(printf '\n  {"name": %s, "type": "%s", "size": %s}' "$(printf '%s' "$name" | jq -Rs .)" "$type" "$size")
+    else
+      text+=$(printf '\n  {"name": %s, "type": "%s"}' "$(printf '%s' "$name" | jq -Rs .)" "$type")
+    fi
+  done
+  text+=$'\n]'
+  mime="application/json"
+fi
+
+jq -cn --arg text "$text" --arg mime "$mime" \
+  '{content:[{type:"text",text:$text,mimeType:$mime}]}'

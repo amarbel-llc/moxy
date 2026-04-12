@@ -1,20 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Create a new commit with staged changes"
-command = "bash"
+command = "@BIN@/commit"
 arg_order = ["message", "amend", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-message="$1"
-amend="${2:-}"
-repo="${3:-.}"
-cd "$repo"
-git_args=(commit)
-
-[ "$amend" = "true" ] && git_args+=(--amend)
-git_args+=(-m "$message")
-git "${git_args[@]}"
-""", "_"]
 
 [input]
 type = "object"

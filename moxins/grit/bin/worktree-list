@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="${1:-.}"
+cd "$repo"
+git worktree list --porcelain

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+body="$2"
+gh issue comment "$number" --body "$body"

@@ -1,14 +1,7 @@
 schema = 1
 description = "Delete a stash entry"
-command = "bash"
+command = "@BIN@/stash-drop"
 arg_order = ["stash_ref", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-stash_ref="$1"
-repo="${2:-.}"
-cd "$repo"
-git stash drop "$stash_ref"
-""", "_"]
 
 [input]
 type = "object"

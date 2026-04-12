@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "List Jira agile boards"
-command = "@LIBEXEC@/jira-get-agile-boards"
+command = "@BIN@/get-agile-boards"
 arg_order = ["project", "name", "max_results", "output_format"]
 
 [input]

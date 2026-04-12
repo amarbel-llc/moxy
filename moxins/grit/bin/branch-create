@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name="$1"
+start="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+if [ -n "$start" ]; then
+  git branch "$name" "$start"
+else
+  git branch "$name"
+fi
+echo "Created branch $name"

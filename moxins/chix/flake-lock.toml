@@ -1,49 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Lock flake inputs without building."
-command = "bash"
+command = "@BIN@/flake-lock"
 arg_order = ["flake_ref", "update_inputs", "override_inputs", "flake_dir", "head", "tail", "max_bytes"]
-args = ["-c", """
-set -euo pipefail
-flake_ref="${1:-.}"
-update_inputs_json="${2:-}"
-override_inputs_json="${3:-}"
-flake_dir="${4:-.}"
-head_n="${5:-}"
-tail_n="${6:-}"
-max_bytes="${7:-}"
-
-cd "$flake_dir"
-nix_args=(flake lock)
-
-if [ -n "$update_inputs_json" ] && [ "$update_inputs_json" != "null" ] && [ "$update_inputs_json" != "[]" ]; then
-  while IFS= read -r inp; do
-    nix_args+=(--update-input "$inp")
-  done < <(printf '%s' "$update_inputs_json" | jq -r '.[]')
-fi
-
-if [ -n "$override_inputs_json" ] && [ "$override_inputs_json" != "null" ] && [ "$override_inputs_json" != "{}" ]; then
-  while IFS=$'\t' read -r key val; do
-    nix_args+=(--override-input "$key" "$val")
-  done < <(printf '%s' "$override_inputs_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
-fi
-
-nix_args+=("$flake_ref")
-
-stderr_file=$(mktemp)
-trap 'rm -f "$stderr_file"' EXIT
-output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
-
-if [ -n "$tail_n" ]; then
-  echo "$output" | tail -n "$tail_n"
-elif [ -n "$head_n" ]; then
-  echo "$output" | head -n "$head_n"
-elif [ -n "$max_bytes" ]; then
-  echo "$output" | head -c "$max_bytes"
-else
-  echo "$output"
-fi
-""", "_"]
 
 [input.properties.flake_ref]
 type = "string"

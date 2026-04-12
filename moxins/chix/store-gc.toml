@@ -1,22 +1,7 @@
 schema = 1
 description = "Run garbage collection on the Nix store."
-command = "bash"
+command = "@BIN@/store-gc"
 arg_order = ["dry_run", "max_freed"]
-args = ["-c", """
-set -euo pipefail
-dry_run="${1:-false}"
-max_freed="${2:-}"
-
-nix_args=(store gc)
-if [ "$dry_run" = "true" ]; then
-  nix_args+=(--dry-run)
-fi
-if [ -n "$max_freed" ]; then
-  nix_args+=(--max "$max_freed")
-fi
-
-nix "${nix_args[@]}"
-""", "_"]
 
 [input.properties.dry_run]
 type = "string"

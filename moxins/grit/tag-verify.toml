@@ -1,15 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Verify the GPG signature of a tag"
-command = "bash"
+command = "@BIN@/tag-verify"
 arg_order = ["name", "repo_path"]
-args = ["-c", """
-set -euo pipefail
-name="$1"
-repo="${2:-.}"
-cd "$repo"
-git tag -v "$name"
-""", "_"]
 
 [input]
 type = "object"

@@ -3,27 +3,8 @@ result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Compare two refs (branches, tags, or commits) showing commits and file changes"
-command = "bash"
+command = "@BIN@/content-compare"
 arg_order = ["base", "head", "per_page", "page"]
-args = ["-c", """
-set -euo pipefail
-repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
-base="$1"
-head="$2"
-per_page="${3:-30}"
-page="${4:-1}"
-gh api "repos/$repo/compare/$base...$head" \
-  -f per_page="$per_page" \
-  -f page="$page" \
-  | jq '{
-    status: .status,
-    ahead_by: .ahead_by,
-    behind_by: .behind_by,
-    total_commits: .total_commits,
-    commits: [.commits[] | {sha: .sha[0:7], message: (.commit.message | split("\n")[0]), author: .commit.author.name, date: .commit.author.date}],
-    files: [.files[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]
-  }'
-""", "_"]
 
 [input]
 type = "object"

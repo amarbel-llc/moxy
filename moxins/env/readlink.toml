@@ -1,18 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Resolve a symbolic link, printing its target. With canonicalize=true, follow every symlink recursively (-f)."
-command = "bash"
+command = "@BIN@/readlink"
 arg_order = ["path", "canonicalize"]
-args = ["-c", """
-set -euo pipefail
-path="$1"
-canonicalize="${2:-}"
-if [ "$canonicalize" = "true" ]; then
-  readlink -f "$path"
-else
-  readlink "$path"
-fi
-""", "_"]
 
 [input]
 type = "object"

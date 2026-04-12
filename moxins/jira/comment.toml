@@ -1,6 +1,6 @@
 schema = 2
 description = "Post a comment on an issue or pull request"
-command = "@LIBEXEC@/jira-comment"
+command = "@BIN@/comment"
 arg_order = ["issue_key", "body", "output_format"]
 
 [input]

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+paths="$1"
+repo="${2:-.}"
+cd "$repo"
+mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
+git add -- "${files[@]}"
+printf 'Staged %d file(s)\n' "${#files[@]}"

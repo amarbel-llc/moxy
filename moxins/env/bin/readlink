@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+canonicalize="${2:-}"
+if [ "$canonicalize" = "true" ]; then
+  readlink -f "$path"
+else
+  readlink "$path"
+fi

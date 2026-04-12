@@ -1,20 +1,8 @@
 schema = 1
 perms-request = "always-allow"
 description = "Close an issue with optional comment"
-command = "bash"
+command = "@BIN@/issue-close"
 arg_order = ["number", "comment", "reason"]
-args = ["-c", """
-set -euo pipefail
-number="$1"
-comment="${2:-}"
-reason="${3:-}"
-gh_args=(issue close "$number")
-
-[ -n "$comment" ] && gh_args+=(--comment "$comment")
-
-[ -n "$reason" ] && gh_args+=(--reason "$reason")
-gh "${gh_args[@]}"
-""", "_"]
 
 [input]
 type = "object"
