@@ -125,6 +125,70 @@ func TestServerToolsCallUnknown(t *testing.T) {
 	}
 }
 
+// TestBuildMCPResultRewritesMimeTypeToResourceBlock verifies that when a
+// schema=2 tool outputs a text block with mimeType, buildMCPResult rewrites
+// it into a valid resource block. Regression test for #92.
+func TestBuildMCPResultRewritesMimeTypeToResourceBlock(t *testing.T) {
+	cacheDir := t.TempDir()
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:       "diff-tool",
+				Command:    "bash",
+				Args:       []string{"-c", `echo -n '{"content":[{"type":"text","text":"--- a/f\n+++ b/f","mimeType":"text/x-diff"}]}'`},
+				ResultType: ResultTypeMCPResult,
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.cache = newResultCache(cacheDir)
+	srv.SetSession("test-session")
+
+	params := protocol.ToolCallParams{
+		Name: "diff-tool",
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	rawStr := string(raw)
+	t.Logf("raw JSON: %s", rawStr)
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	block := result.Content[0]
+
+	// Must NOT be a text block with mimeType (MCP spec violation).
+	if block.Type == "text" && block.MimeType != "" {
+		t.Errorf("text block has mimeType=%q — violates MCP spec", block.MimeType)
+	}
+
+	// Must be rewritten to a resource block.
+	if block.Type != "resource" {
+		t.Errorf("type = %q, want %q", block.Type, "resource")
+	}
+	if block.Resource == nil {
+		t.Fatalf("Resource is nil — rewrite produced malformed block: %s", rawStr)
+	}
+	if block.Resource.Text != "--- a/f\n+++ b/f" {
+		t.Errorf("resource.text = %q, want diff content", block.Resource.Text)
+	}
+	if block.Resource.MimeType != "text/x-diff" {
+		t.Errorf("resource.mimeType = %q, want %q", block.Resource.MimeType, "text/x-diff")
+	}
+	if !strings.HasPrefix(block.Resource.URI, "moxy.native://results/") {
+		t.Errorf("resource.uri = %q, want moxy.native:// prefix", block.Resource.URI)
+	}
+}
+
 func TestServerToolsCallContentTypeResourceBlock(t *testing.T) {
 	cfg := &NativeConfig{
 		Name: "test-server",

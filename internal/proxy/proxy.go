@@ -1749,6 +1749,14 @@ func downgradeContentBlocks(
 ) []protocol.ContentBlock {
 	out := make([]protocol.ContentBlock, len(blocks))
 	for i, b := range blocks {
+		// V1 resource blocks have no V0 equivalent — flatten to text.
+		if b.Type == "resource" && b.Resource != nil {
+			out[i] = protocol.ContentBlock{
+				Type: "text",
+				Text: b.Resource.Text,
+			}
+			continue
+		}
 		out[i] = protocol.ContentBlock{
 			Type:     b.Type,
 			Text:     b.Text,
