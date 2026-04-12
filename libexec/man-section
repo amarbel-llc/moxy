@@ -2,14 +2,19 @@
 set -euo pipefail
 
 page="$1"; section_name="$2"
-src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null) || true
+src=$(man -w "$page" 2>/dev/null) || true
 src="${src%%$'\n'*}"
 
 [ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
-rendered=$(case "$src" in
+raw=$(case "$src" in
   *.gz) gzip -dc "$src" ;;
   *)    cat "$src" ;;
-esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
+esac)
+# pandoc reads groff man macros directly; mandoc -T man converts mdoc→man first
+rendered=$(echo "$raw" | pandoc -f man -t markdown 2>/dev/null)
+if ! grep -q '^#' <<< "$rendered"; then
+  rendered=$(echo "$raw" | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
+fi
 result=$(awk -v target="$section_name" '
 BEGIN { found=0; IGNORECASE=1 }
 /^#+ / {

@@ -125,6 +125,7 @@
                   pkgs.python3
                   pkgs.jq
                   pkgs.just
+                  pkgs.man-db
                   pkgs.mandoc
                   pkgs.pandoc
                   pkgs.manix
@@ -217,6 +218,7 @@
             gomod2nix.packages.${system}.default
             pkgs.just
             pkgs.manix
+            pkgs.man-db
             pkgs.mandoc
             pkgs.pandoc
             pkgs.ripgrep

@@ -2,11 +2,17 @@
 set -euo pipefail
 
 page="$1"
-src=$(MANPATH=$(manpath 2>/dev/null) man -w "$page" 2>/dev/null) || true
+src=$(man -w "$page" 2>/dev/null) || true
 src="${src%%$'\n'*}"
 
 [ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }
-case "$src" in
+raw=$(case "$src" in
   *.gz) gzip -dc "$src" ;;
   *)    cat "$src" ;;
-esac | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null | awk '/^#+ /{print}'
+esac)
+# pandoc reads groff man macros directly; mandoc -T man converts mdoc→man first
+md=$(echo "$raw" | pandoc -f man -t markdown 2>/dev/null)
+if ! grep -q '^#' <<< "$md"; then
+  md=$(echo "$raw" | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
+fi
+echo "$md" | awk '/^#+ /{print}'
