@@ -9,6 +9,10 @@ arg_order = ["repo", "ref"]
 args = ["-c", """
 set -euo pipefail
 repo="$1"
+if [[ "$repo" != */* ]]; then
+  owner=$(gh repo view --json owner -q '.owner.login')
+  repo="$owner/$repo"
+fi
 ref="${2:-}"
 
 # Default to the repo's default branch when no ref given
@@ -29,7 +33,7 @@ required = ["repo"]
 
 [input.properties.repo]
 type = "string"
-description = "Repository in OWNER/REPO format"
+description = "Repository in OWNER/REPO format, or just REPO to default owner from the current repo's org"
 
 [input.properties.ref]
 type = "string"
