@@ -1,4 +1,5 @@
 export MOXIN_PATH := justfile_directory() / "build" / "moxins"
+export NODE_PATH := justfile_directory() / "node_modules"
 
 default: build test
 
@@ -18,6 +19,10 @@ generate:
 
 build-gomod2nix:
   gomod2nix
+
+build-bun2nix:
+  bun install --frozen-lockfile
+  bun2nix -o bun.nix
 
 build-nix: build-gomod2nix
   nix build --show-trace
@@ -66,11 +71,16 @@ test-mcp: build-go
 run-nix *ARGS:
   nix run . -- {{ARGS}}
 
-update: update-go
+update: update-go update-bun
 
 update-go:
   env GOPROXY=direct go get -u -t ./...
   go mod tidy
+
+# Update bun dependencies and regenerate bun.nix lockfile
+update-bun:
+  bun install
+  bun2nix -o bun.nix
 
 man-list section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u

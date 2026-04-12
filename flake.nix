@@ -36,6 +36,11 @@
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
+
+    bun2nix = {
+      url = "github:nix-community/bun2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -49,6 +54,7 @@
       tommy,
       maneater,
       bob,
+      bun2nix,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -80,6 +86,13 @@
           ];
         };
 
+        # zx node_modules for bun-based moxin scripts.
+        # Generated via: bun install && bun2nix -o bun.nix
+        bun2nix-pkg = bun2nix.packages.${system}.default;
+        zx-modules = bun2nix-pkg.fetchBunDeps {
+          bunNix = ./bun.nix;
+        };
+
         # moxy-moxins is built first so its store path can be injected into the
         # moxy binary via ldflags (SystemMoxinDir compile-time override).
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
@@ -94,11 +107,13 @@
           chmod +x $out/libexec/moxy/*
           for f in $out/libexec/moxy/*; do
             wrapProgram "$f" \
+              --set NODE_PATH "${zx-modules}/node_modules" \
               --set PATH ${
                 pkgs.lib.makeBinPath [
                   pkgs.bash
                   pkgs.python3
                   pkgs.jq
+                  pkgs-master.bun
                   pkgs.just
                   pkgs.mandoc
                   pkgs.pandoc
@@ -175,6 +190,8 @@
 
         devShells.default = pkgs-master.mkShell {
           packages = [
+            pkgs-master.bun
+            bun2nix-pkg
             pkgs-master.go_1_26
             pkgs-master.delve
             pkgs-master.gofumpt

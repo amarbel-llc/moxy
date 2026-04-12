@@ -1,45 +1,8 @@
 schema = 2
 perms-request = "always-allow"
 description = "Get a GitHub issue by number"
-command = "bash"
+command = "@LIBEXEC@/gh-issue-get"
 arg_order = ["number", "fields", "output_format"]
-args = ["-c", """
-set -euo pipefail
-number="$1"
-fields="${2:-}"
-output_format="${3:-}"
-
-if [ -z "$fields" ]; then
-  fields="number,title,state,stateReason,body,labels,assignees,milestone,comments,createdAt,updatedAt,url"
-fi
-
-raw=$(gh issue view "$number" --json "$fields")
-
-if [ "$output_format" = "json" ]; then
-  mime="application/json"
-  text="$raw"
-else
-  mime="text/plain"
-  text=$(printf '%s' "$raw" | jq -r '
-    "# #\\(.number): \\(.title)\\n" +
-    "State: \\(.state)" +
-    (if .stateReason then " (\\(.stateReason))" else "" end) + "\\n" +
-    (if .labels and (.labels | length > 0) then "Labels: \\([.labels[].name] | join(", "))\\n" else "" end) +
-    (if .assignees and (.assignees | length > 0) then "Assignees: \\([.assignees[].login] | join(", "))\\n" else "" end) +
-    (if .milestone then "Milestone: \\(.milestone.title)\\n" else "" end) +
-    "Created: \\(.createdAt)\\nUpdated: \\(.updatedAt)\\n" +
-    (if .url then "URL: \\(.url)\\n" else "" end) +
-    "\\n\\(.body // "")" +
-    (if .comments and (.comments | length > 0) then
-      "\\n\\n---\\n## Comments (\\(.comments | length))\\n" +
-      ([.comments[] | "### @\\(.author.login) (\\(.createdAt))\\n\\(.body)"] | join("\\n\\n"))
-    else "" end)
-  ')
-fi
-
-jq -cn --arg text "$text" --arg mime "$mime" \
-  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
-""", "_"]
 
 [input]
 type = "object"

@@ -1,0 +1,7 @@
+{
+  "name": "moxy-scripts",
+  "private": true,
+  "dependencies": {
+    "zx": "^8"
+  }
+}
