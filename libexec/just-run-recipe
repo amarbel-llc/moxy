@@ -24,4 +24,8 @@ if [ -n "$args_json" ] && [ "$args_json" != "null" ]; then
   done < <(printf '%s' "$args_json" | jq -r '.[]')
 fi
 
-just "${just_args[@]}"
+if [ -f flake.nix ]; then
+  nix develop -c just "${just_args[@]}"
+else
+  just "${just_args[@]}"
+fi
