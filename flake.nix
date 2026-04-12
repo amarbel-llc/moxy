@@ -131,6 +131,7 @@
               --set PATH ${
                 pkgs.lib.makeBinPath [
                   pkgs.bash
+                  pkgs.nix
                   pkgs.python3
                   pkgs.jq
                   pkgs.just
