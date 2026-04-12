@@ -147,6 +147,7 @@
               --set PATH ${
                 pkgs.lib.makeBinPath [
                   pkgs.bash
+                  pkgs.gzip
                   pkgs.nix
                   pkgs.jq
                   pkgs.just
