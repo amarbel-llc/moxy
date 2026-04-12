@@ -1,7 +1,7 @@
 schema = 1
 perms-request = "always-allow"
 description = "Show documentation for a Go package or symbol. Returns the same output as 'go doc'."
-command = "@LIBEXEC@/hamster-doc"
+command = "@BIN@/doc"
 arg_order = ["package", "symbol"]
 
 [input]

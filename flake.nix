@@ -122,22 +122,38 @@
           done
         '';
 
+        hamster-moxin = pkgs.runCommand "hamster-moxin" {
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+        } ''
+          cp -r ${./moxins/hamster} $out
+          chmod -R u+w $out
+          for f in $out/bin/*; do
+            wrapProgram "$f" --set PATH ${
+              pkgs.lib.makeBinPath [ pkgs.bash pkgs-master.go_1_26 ]
+            }
+          done
+          for f in $(grep -rl '@BIN@' $out); do
+            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+          done
+        '';
+
         # Monolithic derivation for moxins not yet migrated to per-moxin builds.
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
           mkdir -p $out/share/moxy/moxins
 
-          # Copy non-migrated moxins (skip freud — has its own derivation).
+          # Copy non-migrated moxins (skip those with own derivations).
           for d in ${./moxins}/*/; do
             name=$(basename "$d")
-            [ "$name" = "freud" ] && continue
+            case "$name" in freud|hamster) continue;; esac
             cp -r "$d" "$out/share/moxy/moxins/$name"
           done
           chmod -R u+w $out/share/moxy/moxins
 
-          # Link freud from its own derivation.
+          # Link migrated moxins from their own derivations.
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud
+          ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
 
           mkdir -p $out/libexec/moxy
           cp ${./libexec}/* $out/libexec/moxy/
@@ -155,7 +171,6 @@
                   pkgs.mandoc
                   pkgs.pandoc
                   pkgs.manix
-                  pkgs-master.go_1_26
                   pkgs-master-unfree.acli
                   maneater.packages.${system}.default
                 ]
