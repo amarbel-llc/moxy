@@ -2,6 +2,9 @@ import { $ } from "zx";
 
 $.verbose = false;
 
+// IIFE wrapper needed for local `bun build --compile` which doesn't
+// support top-level await. The fork's buildBunBinary handles this
+// automatically; remove when nixpkgs bun catches up.
 (async () => {
   const [number, fields, outputFormat] = process.argv.slice(2);
 
