@@ -5,11 +5,11 @@ perms-request = "always-allow"
 description = """Get the full file tree of a repository at a given ref. Returns a flat JSON array of all \
 files and directories with path, type (blob/tree), and size."""
 command = "bash"
-arg_order = ["repo", "ref"]
+arg_order = ["ref"]
 args = ["-c", """
 set -euo pipefail
-repo="$1"
-ref="${2:-}"
+repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+ref="${1:-}"
 
 # Default to the repo's default branch when no ref given
 if [ -z "$ref" ]; then
@@ -25,11 +25,6 @@ gh api "repos/$repo/git/trees/$tree_sha?recursive=1" \
 
 [input]
 type = "object"
-required = ["repo"]
-
-[input.properties.repo]
-type = "string"
-description = "Repository in OWNER/REPO format"
 
 [input.properties.ref]
 type = "string"

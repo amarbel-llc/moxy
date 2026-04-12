@@ -4,14 +4,14 @@ content-type = "application/json"
 perms-request = "always-allow"
 description = "Compare two refs (branches, tags, or commits) showing commits and file changes"
 command = "bash"
-arg_order = ["repo", "base", "head", "per_page", "page"]
+arg_order = ["base", "head", "per_page", "page"]
 args = ["-c", """
 set -euo pipefail
-repo="$1"
-base="$2"
-head="$3"
-per_page="${4:-30}"
-page="${5:-1}"
+repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+base="$1"
+head="$2"
+per_page="${3:-30}"
+page="${4:-1}"
 gh api "repos/$repo/compare/$base...$head" \
   -f per_page="$per_page" \
   -f page="$page" \
@@ -27,11 +27,7 @@ gh api "repos/$repo/compare/$base...$head" \
 
 [input]
 type = "object"
-required = ["repo", "base", "head"]
-
-[input.properties.repo]
-type = "string"
-description = "Repository in OWNER/REPO format"
+required = ["base", "head"]
 
 [input.properties.base]
 type = "string"

@@ -4,15 +4,15 @@ content-type = "application/json"
 perms-request = "always-allow"
 description = "Search for code within a repository"
 command = "bash"
-arg_order = ["repo", "query", "path", "extension", "per_page", "page"]
+arg_order = ["query", "path", "extension", "per_page", "page"]
 args = ["-c", """
 set -euo pipefail
-repo="$1"
-query="$2"
-path="${3:-}"
-extension="${4:-}"
-per_page="${5:-30}"
-page="${6:-1}"
+repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+query="$1"
+path="${2:-}"
+extension="${3:-}"
+per_page="${4:-30}"
+page="${5:-1}"
 q="$query repo:$repo"
 
 [ -n "$path" ] && q="$q path:$path"
@@ -38,11 +38,7 @@ gh api search/code \
 
 [input]
 type = "object"
-required = ["repo", "query"]
-
-[input.properties.repo]
-type = "string"
-description = "Repository in OWNER/REPO format"
+required = ["query"]
 
 [input.properties.query]
 type = "string"
