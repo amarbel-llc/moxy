@@ -2,7 +2,7 @@ schema = 2
 perms-request = "always-allow"
 description = """List subagents spawned during a session. Returns agent ID, prompt snippet, tool count, \
 and message count. Use the agent ID with messages or tool-usage tools to drill into subagent details."""
-command = "__LIBEXEC__/freud-subagents"
+command = "@BIN@/subagents"
 arg_order = ["session_id"]
 
 [input]

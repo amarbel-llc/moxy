@@ -2,7 +2,7 @@ schema = 2
 perms-request = "always-allow"
 description = """Summarize tool results that failed (is_error) or returned empty content across sessions. \
 Shows tool name, error preview, and frequency. Useful for spotting flaky tools or misconfigured servers."""
-command = "@LIBEXEC@/freud-tool-results-summary-failures"
+command = "@BIN@/tool-results-summary-failures"
 arg_order = ["project", "days", "tool_name", "limit"]
 
 [input]

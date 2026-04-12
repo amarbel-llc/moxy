@@ -20,6 +20,12 @@ build-moxins: build-scripts
   cp -r moxins/*/ build/moxins/
   find build/moxins -name '*.toml' -exec sed -i "s|@LIBEXEC@|{{justfile_directory()}}/libexec|g" {} +
   find build/moxins -name '*.toml' -exec sed -i "s|@SCRIPTS@|{{justfile_directory()}}/build/scripts|g" {} +
+  # Per-moxin bin/ directories
+  for d in build/moxins/*/bin; do \
+    moxin_dir=$(dirname "$d"); \
+    find "$moxin_dir" -name '*.toml' -exec sed -i "s|@BIN@|{{justfile_directory()}}/$d|g" {} +; \
+    chmod +x "$d"/*; \
+  done
   chmod +x libexec/*
 
 generate:

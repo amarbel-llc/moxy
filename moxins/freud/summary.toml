@@ -3,7 +3,7 @@ perms-request = "always-allow"
 description = """High-level overview of a session: project, duration, message counts, top tools \
 by frequency, and user prompts. Use this to understand what happened in a session before \
 diving into messages or tool_usage."""
-command = "@LIBEXEC@/freud-summary"
+command = "@BIN@/summary"
 
 [input]
 type = "object"

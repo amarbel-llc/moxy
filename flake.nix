@@ -106,12 +106,38 @@
           };
         };
 
+        # Per-moxin derivations for self-contained moxins with bin/.
+        freud-moxin = pkgs.runCommand "freud-moxin" {
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+        } ''
+          cp -r ${./moxins/freud} $out
+          chmod -R u+w $out
+          for f in $out/bin/*; do
+            wrapProgram "$f" --set PATH ${
+              pkgs.lib.makeBinPath [ pkgs.python3 pkgs.jq ]
+            }
+          done
+          for f in $(grep -rl '@BIN@' $out); do
+            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+          done
+        '';
+
+        # Monolithic derivation for moxins not yet migrated to per-moxin builds.
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
           mkdir -p $out/share/moxy/moxins
-          cp -r ${./moxins}/*/ $out/share/moxy/moxins/
+
+          # Copy non-migrated moxins (skip freud — has its own derivation).
+          for d in ${./moxins}/*/; do
+            name=$(basename "$d")
+            [ "$name" = "freud" ] && continue
+            cp -r "$d" "$out/share/moxy/moxins/$name"
+          done
           chmod -R u+w $out/share/moxy/moxins
+
+          # Link freud from its own derivation.
+          ln -s ${freud-moxin} $out/share/moxy/moxins/freud
 
           mkdir -p $out/libexec/moxy
           cp ${./libexec}/* $out/libexec/moxy/
@@ -122,7 +148,6 @@
                 pkgs.lib.makeBinPath [
                   pkgs.bash
                   pkgs.nix
-                  pkgs.python3
                   pkgs.jq
                   pkgs.just
                   pkgs.man-db

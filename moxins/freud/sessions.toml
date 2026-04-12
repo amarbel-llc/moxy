@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "List all past Claude Code sessions across all projects, sorted by most recent activity. Returns columnar text with SESSION, LAST ACTIVITY, MSGS, SIZE, and PROJECT columns."
-command = "@LIBEXEC@/freud-sessions"
+command = "@BIN@/sessions"
 
 [input]
 type = "object"
