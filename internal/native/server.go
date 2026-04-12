@@ -280,26 +280,35 @@ func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage,
 	// Rewrite text blocks that carry mimeType into resource blocks with
 	// cache URIs — the MCP spec only allows mimeType on resource blocks.
 	// Skip empty text — EmbeddedResourceContents requires non-empty text or blob.
-	for i, block := range result.Content {
+	cleaned := result.Content[:0]
+	for _, block := range result.Content {
 		if block.Type == "text" && block.MimeType != "" {
 			if block.Text != "" {
 				uri, cacheErr := s.cacheAndGetURI(block.Text)
 				if cacheErr == nil {
-					result.Content[i] = protocol.ContentBlockV1{
+					cleaned = append(cleaned, protocol.ContentBlockV1{
 						Type: "resource",
 						Resource: &protocol.EmbeddedResourceContents{
 							URI:      uri,
 							Text:     block.Text,
 							MimeType: block.MimeType,
 						},
-					}
+					})
 					continue
 				}
 			}
-			// Strip mimeType from text blocks — the MCP spec doesn't allow it.
-			result.Content[i].MimeType = ""
+			// Strip mimeType — the MCP spec doesn't allow it on text blocks.
+			// Drop empty text blocks entirely: V1's omitempty on the Text
+			// field would produce {"type":"text"} with no text property,
+			// which fails Claude Code's Zod validator (invalid_union).
+			if block.Text == "" {
+				continue
+			}
+			block.MimeType = ""
 		}
+		cleaned = append(cleaned, block)
 	}
+	result.Content = cleaned
 
 	return marshalResult(&result)
 }
