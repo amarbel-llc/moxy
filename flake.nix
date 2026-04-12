@@ -103,6 +103,7 @@
           bunNix = ./bun.nix;
           entrypoints = {
             "gh-issue-get" = "scripts/tools/gh-issue-get.ts";
+            "nix-flake-show" = "scripts/tools/nix-flake-show.ts";
           };
         };
 
