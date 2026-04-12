@@ -88,30 +88,22 @@
 
         bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
-        scriptsSrc = pkgs.lib.fileset.toSource {
-          root = ./.;
-          fileset = with pkgs.lib.fileset; unions [
-            ./scripts
-            ./package.json
-            ./bun.lock
-          ];
-        };
-
-        buildScript = name: entrypoint: bunLib.buildBunBinary {
-          pname = name;
+        # Single bun install + bun build, one wrapper per tool (~219B each).
+        moxy-scripts = bunLib.buildBunBinaries {
+          pname = "moxy-scripts";
           version = "0.1.0";
-          src = scriptsSrc;
-          inherit entrypoint;
+          src = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = with pkgs.lib.fileset; unions [
+              ./scripts
+              ./package.json
+              ./bun.lock
+            ];
+          };
           bunNix = ./bun.nix;
-        };
-
-        # Each bun+zx tool gets its own tiny wrapper (~219B) referencing
-        # the shared nix-store bun + a pre-built bytecode bundle.
-        moxy-scripts = pkgs.symlinkJoin {
-          name = "moxy-scripts";
-          paths = [
-            (buildScript "gh-issue-get" "scripts/tools/gh-issue-get.ts")
-          ];
+          entrypoints = {
+            "gh-issue-get" = "scripts/tools/gh-issue-get.ts";
+          };
         };
 
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
