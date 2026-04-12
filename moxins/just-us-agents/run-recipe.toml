@@ -10,7 +10,7 @@ required = ["recipe"]
 
 [input.properties.recipe]
 type = "string"
-description = "Recipe name to execute"
+description = "Recipe name to execute. Supports dir/recipe syntax for child justfiles in subdirectories."
 
 [input.properties.args]
 type = "array"

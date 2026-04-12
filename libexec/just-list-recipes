@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-just --dump --dump-format json | jq -r '
+recipe_jq_filter='
 .recipes | to_entries | sort_by(.key) | .[] | .value |
-"\(.name)\(
+select(.name | startswith("_") | not) |
+"\($prefix)\(.name)\(
   .parameters | map(
     " " + (if .kind == "star" then "*" else "" end) + .name +
     (if .default then "=" + (.default | tostring) else "" end)
@@ -16,3 +17,18 @@ just --dump --dump-format json | jq -r '
   else "" end
 )"
 '
+
+# List root justfile recipes
+just --dump --dump-format json | jq -r --arg prefix "" "$recipe_jq_filter"
+
+# Discover and list recipes from child justfiles in subdirectories
+find . -mindepth 2 -maxdepth 3 -name justfile \
+  -not -path './.worktrees/*' \
+  -not -path './.git/*' \
+  -not -path './.claude/*' \
+  | sort | while read -r child; do
+  dir=$(dirname "$child")
+  dir="${dir#./}"
+  just --dump --dump-format json --justfile "$child" --working-directory "$dir" 2>/dev/null \
+    | jq -r --arg prefix "$dir/" "$recipe_jq_filter" || true
+done

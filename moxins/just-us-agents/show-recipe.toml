@@ -11,7 +11,7 @@ required = ["recipe"]
 
 [input.properties.recipe]
 type = "string"
-description = "Recipe name to show"
+description = "Recipe name to show. Supports dir/recipe syntax for child justfiles in subdirectories."
 
 [annotations]
 read-only-hint = true
