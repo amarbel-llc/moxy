@@ -37,8 +37,8 @@
       inputs.utils.follows = "utils";
     };
 
-    bun2nix = {
-      url = "github:nix-community/bun2nix";
+    bun = {
+      url = "github:amarbel-llc/bun";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -54,7 +54,7 @@
       tommy,
       maneater,
       bob,
-      bun2nix,
+      bun,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -86,14 +86,12 @@
           ];
         };
 
-        bun2nix-pkg = bun2nix.packages.${system}.default;
-        bunDeps = bun2nix-pkg.fetchBunDeps { bunNix = ./bun.nix; };
+        bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
         # moxy-moxins is built first so its store path can be injected into the
         # moxy binary via ldflags (SystemMoxinDir compile-time override).
-        # Compiled bun+zx scripts binary (self-contained, no runtime deps).
-        # Uses bun2nix mkDerivation to install deps from cache, then compiles.
-        moxy-scripts = bun2nix-pkg.mkDerivation {
+        # Thin wrapper (~700B) + bytecode bundle that references nix-store bun.
+        moxy-scripts = bunLib.buildBunBinary {
           pname = "moxy-scripts";
           version = "0.1.0";
           src = pkgs.lib.fileset.toSource {
@@ -104,16 +102,8 @@
               ./bun.lock
             ];
           };
-          inherit bunDeps;
-          dontUseBunBuild = true;
-          dontUseBunCheck = true;
-          dontUseBunInstall = true;
-          installPhase = ''
-            bun build --compile --minify --bytecode \
-              scripts/main.ts --outfile moxy-scripts
-            mkdir -p $out/bin
-            cp moxy-scripts $out/bin/moxy-scripts
-          '';
+          entrypoint = "scripts/main.ts";
+          bunNix = ./bun.nix;
         };
 
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
@@ -216,7 +206,6 @@
         devShells.default = pkgs-master.mkShell {
           packages = [
             pkgs-master.bun
-            bun2nix-pkg
             pkgs-master.go_1_26
             pkgs-master.delve
             pkgs-master.gofumpt
