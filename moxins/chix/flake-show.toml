@@ -1,0 +1,13 @@
+schema = 2
+perms-request = "always-allow"
+description = "Show flake outputs (packages, devShells, apps, etc.). Returns JSON tree of all outputs for any flake reference."
+command = "@SCRIPTS@/nix-flake-show"
+arg_order = ["flake_ref"]
+
+[input.properties.flake_ref]
+type = "string"
+description = "Flake reference (e.g., '.', 'nixpkgs', 'github:owner/repo'). Defaults to '.'."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
