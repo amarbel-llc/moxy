@@ -36,11 +36,8 @@ def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
     return lower in resolved_cwd.lower() or lower in dir_name.lower()
 
 
-def truncate(s: str, max_len: int) -> str:
-    s = s.replace("\n", " ").strip()
-    if len(s) > max_len:
-        return s[:max_len] + "..."
-    return s
+def normalize_preview(s: str) -> str:
+    return s.strip()
 
 
 def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
@@ -108,7 +105,7 @@ def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
                         "is_error": is_error and not is_rejected,
                         "is_empty": is_empty,
                         "is_rejected": is_rejected,
-                        "preview": truncate(text, 120) if text else "(empty)",
+                        "preview": normalize_preview(text) if text else "(empty)",
                     })
 
     return failures
