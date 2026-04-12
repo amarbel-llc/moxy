@@ -8,10 +8,15 @@ build: build-go build-nix
 build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
-build-moxins:
+build-scripts:
+  mkdir -p build
+  bun build --compile --minify --bytecode scripts/main.ts --outfile build/moxy-scripts
+
+build-moxins: build-scripts
   mkdir -p build/moxins
   cp -r moxins/*/ build/moxins/
   find build/moxins -name '*.toml' -exec sed -i "s|@LIBEXEC@|{{justfile_directory()}}/libexec|g" {} +
+  find build/moxins -name '*.toml' -exec sed -i "s|@SCRIPTS@|{{justfile_directory()}}/build/moxy-scripts|g" {} +
   chmod +x libexec/*
 
 generate:

@@ -1,8 +1,9 @@
 schema = 2
 perms-request = "always-allow"
 description = "Get a GitHub issue by number"
-command = "@LIBEXEC@/gh-issue-get"
+command = "@SCRIPTS@"
 arg_order = ["number", "fields", "output_format"]
+args = ["gh-issue-get"]
 
 [input]
 type = "object"

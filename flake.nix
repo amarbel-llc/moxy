@@ -86,15 +86,36 @@
           ];
         };
 
-        # zx node_modules for bun-based moxin scripts.
-        # Generated via: bun install && bun2nix -o bun.nix
         bun2nix-pkg = bun2nix.packages.${system}.default;
-        zx-modules = bun2nix-pkg.fetchBunDeps {
-          bunNix = ./bun.nix;
-        };
+        bunDeps = bun2nix-pkg.fetchBunDeps { bunNix = ./bun.nix; };
 
         # moxy-moxins is built first so its store path can be injected into the
         # moxy binary via ldflags (SystemMoxinDir compile-time override).
+        # Compiled bun+zx scripts binary (self-contained, no runtime deps).
+        # Uses bun2nix mkDerivation to install deps from cache, then compiles.
+        moxy-scripts = bun2nix-pkg.mkDerivation {
+          pname = "moxy-scripts";
+          version = "0.1.0";
+          src = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = with pkgs.lib.fileset; unions [
+              ./scripts
+              ./package.json
+              ./bun.lock
+            ];
+          };
+          inherit bunDeps;
+          dontUseBunBuild = true;
+          dontUseBunCheck = true;
+          dontUseBunInstall = true;
+          installPhase = ''
+            bun build --compile --minify --bytecode \
+              scripts/main.ts --outfile moxy-scripts
+            mkdir -p $out/bin
+            cp moxy-scripts $out/bin/moxy-scripts
+          '';
+        };
+
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
@@ -107,13 +128,11 @@
           chmod +x $out/libexec/moxy/*
           for f in $out/libexec/moxy/*; do
             wrapProgram "$f" \
-              --set NODE_PATH "${zx-modules}/node_modules" \
               --set PATH ${
                 pkgs.lib.makeBinPath [
                   pkgs.bash
                   pkgs.python3
                   pkgs.jq
-                  pkgs-master.bun
                   pkgs.just
                   pkgs.mandoc
                   pkgs.pandoc
@@ -127,6 +146,11 @@
 
           for f in $(grep -rl '@LIBEXEC@' $out/share/moxy/moxins); do
             substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
+          done
+
+          # Compiled bun+zx scripts — self-contained, no wrapper needed.
+          for f in $(grep -rl '@SCRIPTS@' $out/share/moxy/moxins); do
+            substitute "$f" "$f" --replace-fail "@SCRIPTS@" "${moxy-scripts}/bin/moxy-scripts"
           done
         '';
 
