@@ -88,22 +88,30 @@
 
         bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
-        # moxy-moxins is built first so its store path can be injected into the
-        # moxy binary via ldflags (SystemMoxinDir compile-time override).
-        # Thin wrapper (~700B) + bytecode bundle that references nix-store bun.
-        moxy-scripts = bunLib.buildBunBinary {
-          pname = "moxy-scripts";
+        scriptsSrc = pkgs.lib.fileset.toSource {
+          root = ./.;
+          fileset = with pkgs.lib.fileset; unions [
+            ./scripts
+            ./package.json
+            ./bun.lock
+          ];
+        };
+
+        buildScript = name: entrypoint: bunLib.buildBunBinary {
+          pname = name;
           version = "0.1.0";
-          src = pkgs.lib.fileset.toSource {
-            root = ./.;
-            fileset = with pkgs.lib.fileset; unions [
-              ./scripts
-              ./package.json
-              ./bun.lock
-            ];
-          };
-          entrypoint = "scripts/main.ts";
+          src = scriptsSrc;
+          inherit entrypoint;
           bunNix = ./bun.nix;
+        };
+
+        # Each bun+zx tool gets its own tiny wrapper (~219B) referencing
+        # the shared nix-store bun + a pre-built bytecode bundle.
+        moxy-scripts = pkgs.symlinkJoin {
+          name = "moxy-scripts";
+          paths = [
+            (buildScript "gh-issue-get" "scripts/tools/gh-issue-get.ts")
+          ];
         };
 
         moxy-moxins = pkgs.runCommand "moxy-moxins" {
@@ -139,9 +147,9 @@
             substitute "$f" "$f" --replace-fail "@LIBEXEC@" "$out/libexec/moxy"
           done
 
-          # Compiled bun+zx scripts — self-contained, no wrapper needed.
+          # Bun+zx script wrappers — each tool is its own binary.
           for f in $(grep -rl '@SCRIPTS@' $out/share/moxy/moxins); do
-            substitute "$f" "$f" --replace-fail "@SCRIPTS@" "${moxy-scripts}/bin/moxy-scripts"
+            substitute "$f" "$f" --replace-fail "@SCRIPTS@" "${moxy-scripts}/bin"
           done
         '';
 

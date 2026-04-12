@@ -1,9 +1,8 @@
 schema = 2
 perms-request = "always-allow"
 description = "Get a GitHub issue by number"
-command = "@SCRIPTS@"
+command = "@SCRIPTS@/gh-issue-get"
 arg_order = ["number", "fields", "output_format"]
-args = ["gh-issue-get"]
 
 [input]
 type = "object"

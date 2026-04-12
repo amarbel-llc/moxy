@@ -9,14 +9,17 @@ build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
 build-scripts:
-  mkdir -p build
-  bun build --compile --minify --bytecode scripts/main.ts --outfile build/moxy-scripts
+  mkdir -p build/scripts
+  for f in scripts/tools/*.ts; do \
+    name=$(basename "$f" .ts); \
+    bun build --compile --minify --bytecode "$f" --outfile "build/scripts/$name"; \
+  done
 
 build-moxins: build-scripts
   mkdir -p build/moxins
   cp -r moxins/*/ build/moxins/
   find build/moxins -name '*.toml' -exec sed -i "s|@LIBEXEC@|{{justfile_directory()}}/libexec|g" {} +
-  find build/moxins -name '*.toml' -exec sed -i "s|@SCRIPTS@|{{justfile_directory()}}/build/moxy-scripts|g" {} +
+  find build/moxins -name '*.toml' -exec sed -i "s|@SCRIPTS@|{{justfile_directory()}}/build/scripts|g" {} +
   chmod +x libexec/*
 
 generate:

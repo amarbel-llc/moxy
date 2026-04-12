@@ -2,8 +2,8 @@ import { $ } from "zx";
 
 $.verbose = false;
 
-export default async function (args: string[]) {
-  const [number, fields, outputFormat] = args;
+(async () => {
+  const [number, fields, outputFormat] = process.argv.slice(2);
 
   const defaultFields =
     "number,title,state,stateReason,body,labels,assignees,milestone,comments,createdAt,updatedAt,url";
@@ -52,4 +52,4 @@ export default async function (args: string[]) {
 
   const result = { content: [{ type: "text", text, mimeType: mime }] };
   process.stdout.write(JSON.stringify(result));
-}
+})();
