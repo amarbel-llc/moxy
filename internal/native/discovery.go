@@ -2,10 +2,37 @@ package native
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+var moxinLogger *log.Logger
+
+func init() {
+	logHome := os.Getenv("XDG_LOG_HOME")
+	if logHome == "" {
+		home, _ := os.UserHomeDir()
+		logHome = filepath.Join(home, ".local", "log")
+	}
+	logDir := filepath.Join(logHome, "moxy")
+	os.MkdirAll(logDir, 0o755)
+	f, err := os.OpenFile(
+		filepath.Join(logDir, "moxin.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o644,
+	)
+	if err == nil {
+		moxinLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func debugMoxin(format string, args ...any) {
+	if moxinLogger != nil {
+		moxinLogger.Printf(format, args...)
+	}
+}
 
 // defaultSystemMoxinDir is set at build time via -ldflags:
 //
@@ -24,16 +51,20 @@ var defaultSystemMoxinDir string
 func SystemMoxinDir() string {
 	if defaultSystemMoxinDir != "" {
 		if info, err := os.Stat(defaultSystemMoxinDir); err == nil && info.IsDir() {
+			debugMoxin("SystemMoxinDir: compile-time path %q", defaultSystemMoxinDir)
 			return defaultSystemMoxinDir
 		}
+		debugMoxin("SystemMoxinDir: compile-time path %q not found or not a dir", defaultSystemMoxinDir)
 	}
 
 	exe, err := os.Executable()
 	if err != nil {
+		debugMoxin("SystemMoxinDir: os.Executable error: %v", err)
 		return ""
 	}
 	exe, err = filepath.EvalSymlinks(exe)
 	if err != nil {
+		debugMoxin("SystemMoxinDir: EvalSymlinks error: %v", err)
 		return ""
 	}
 
@@ -41,8 +72,10 @@ func SystemMoxinDir() string {
 	prefix := filepath.Dir(filepath.Dir(exe))
 	dir := filepath.Join(prefix, "share", "moxy", "moxins")
 	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		debugMoxin("SystemMoxinDir: exe-relative path %q", dir)
 		return dir
 	}
+	debugMoxin("SystemMoxinDir: no system moxin dir found (exe=%s)", exe)
 	return ""
 }
 
@@ -136,11 +169,14 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 
 	for i := len(dirs) - 1; i >= 0; i-- {
 		moxyDir := dirs[i]
+		debugMoxin("DiscoverAll: scanning dir %s", moxyDir)
 		entries, err := os.ReadDir(moxyDir)
 		if os.IsNotExist(err) {
+			debugMoxin("DiscoverAll: dir %s does not exist, skipping", moxyDir)
 			continue
 		}
 		if err != nil {
+			debugMoxin("DiscoverAll: ReadDir error %s: %v", moxyDir, err)
 			return DiscoverResult{}, fmt.Errorf("reading %s: %w", moxyDir, err)
 		}
 
@@ -151,10 +187,13 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 			dirPath := filepath.Join(moxyDir, e.Name())
 			metaPath := filepath.Join(dirPath, "_moxin.toml")
 			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
+				debugMoxin("DiscoverAll: no _moxin.toml in %s, skipping", dirPath)
 				continue
 			}
+			debugMoxin("DiscoverAll: parsing %s", dirPath)
 			cfg, err := ParseMoxinDir(dirPath)
 			if err != nil {
+				debugMoxin("DiscoverAll: parse error %s: %v", dirPath, err)
 				loadErrors = append(loadErrors, MoxinError{Dir: dirPath, Err: err})
 				continue
 			}
@@ -163,6 +202,7 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 				order = append(order, cfg.Name)
 			}
 			byName[cfg.Name] = cfg
+			debugMoxin("DiscoverAll: loaded %s (name=%s, %d tools)", e.Name(), cfg.Name, len(cfg.Tools))
 		}
 	}
 
@@ -170,6 +210,7 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 	for _, name := range order {
 		result = append(result, byName[name])
 	}
+	debugMoxin("DiscoverAll: result: %d configs, %d errors", len(result), len(loadErrors))
 	return DiscoverResult{Configs: result, Errors: loadErrors}, nil
 }
 
@@ -180,11 +221,15 @@ func resolveMoxinDirs(moxinPath, systemDir string) []string {
 		if home != "" && cwd != "" {
 			moxinPath = DefaultMoxinPath(home, cwd, "")
 		}
+		debugMoxin("resolveMoxinDirs: computed default moxinPath=%q", moxinPath)
+	} else {
+		debugMoxin("resolveMoxinDirs: explicit MOXIN_PATH=%q", moxinPath)
 	}
 	dirs := ParseMoxinPath(moxinPath)
 	if systemDir != "" {
 		dirs = append(dirs, systemDir)
 	}
+	debugMoxin("resolveMoxinDirs: systemDir=%q dirs=%v", systemDir, dirs)
 	return dirs
 }
 
@@ -197,33 +242,43 @@ func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error
 	// Load from last to first so earlier entries override later ones.
 	for i := len(dirs) - 1; i >= 0; i-- {
 		moxyDir := dirs[i]
+		debugMoxin("DiscoverConfigs: scanning dir %s", moxyDir)
 		entries, err := os.ReadDir(moxyDir)
 		if os.IsNotExist(err) {
+			debugMoxin("DiscoverConfigs: dir %s does not exist, skipping", moxyDir)
 			continue
 		}
 		if err != nil {
+			debugMoxin("DiscoverConfigs: ReadDir error %s: %v", moxyDir, err)
 			return nil, fmt.Errorf("reading %s: %w", moxyDir, err)
 		}
 
 		for _, e := range entries {
 			if !e.IsDir() {
+				debugMoxin("DiscoverConfigs: %s/%s not a dir, skipping", moxyDir, e.Name())
 				continue
 			}
 			dirPath := filepath.Join(moxyDir, e.Name())
 			metaPath := filepath.Join(dirPath, "_moxin.toml")
 			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
+				debugMoxin("DiscoverConfigs: no _moxin.toml in %s, skipping", dirPath)
 				continue
 			}
+			debugMoxin("DiscoverConfigs: parsing %s", dirPath)
 			cfg, err := ParseMoxinDir(dirPath)
 			if err != nil {
+				debugMoxin("DiscoverConfigs: parse error %s: %v", dirPath, err)
 				fmt.Fprintf(os.Stderr, "moxy: skipping moxin %s: %v\n", dirPath, err)
 				continue
 			}
 			cfg.SourceDir = dirPath
-			if _, exists := byName[cfg.Name]; !exists {
+			if prev, exists := byName[cfg.Name]; exists {
+				debugMoxin("DiscoverConfigs: %s (name=%s) overrides previous from %s", dirPath, cfg.Name, prev.SourceDir)
+			} else {
 				order = append(order, cfg.Name)
 			}
 			byName[cfg.Name] = cfg
+			debugMoxin("DiscoverConfigs: loaded %s (name=%s, %d tools, source=%s)", e.Name(), cfg.Name, len(cfg.Tools), dirPath)
 		}
 	}
 
@@ -231,6 +286,7 @@ func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error
 	for _, name := range order {
 		result = append(result, byName[name])
 	}
+	debugMoxin("DiscoverConfigs: result: %d configs", len(result))
 	return result, nil
 }
 
