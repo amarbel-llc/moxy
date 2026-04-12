@@ -130,10 +130,12 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 
 	spec, ok := s.toolIdx[callParams.Name]
 	if !ok {
+		debugMoxin("toolCall %s.%s: unknown tool", s.config.Name, callParams.Name)
 		return marshalResult(protocol.ErrorResultV1(
 			fmt.Sprintf("unknown tool %q", callParams.Name),
 		))
 	}
+	debugMoxin("toolCall %s.%s: command=%s args=%v", s.config.Name, spec.Name, spec.Command, spec.Args)
 
 	// If stdin_param is configured, extract that key from the arguments
 	// before positional arg building.  The framework will pipe its value
@@ -224,6 +226,7 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	cmd.Stderr = &stderr
 
 	if startErr := cmd.Start(); startErr != nil {
+		debugMoxin("toolCall %s.%s: start error: %v (command=%s args=%v)", s.config.Name, spec.Name, startErr, spec.Command, allArgs)
 		return marshalResult(protocol.ErrorResultV1(
 			fmt.Sprintf("starting command: %v", startErr),
 		))
@@ -250,6 +253,7 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		if output == "" {
 			output = err.Error()
 		}
+		debugMoxin("toolCall %s.%s: exec error: %v stderr=%q", s.config.Name, spec.Name, err, stderr.String())
 		result := &protocol.ToolCallResultV1{
 			Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
 			IsError: true,
