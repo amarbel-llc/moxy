@@ -32,6 +32,10 @@ test-bats: build-go
 test-bats-file file: build-go
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
 
+# Smoke-test migrated bun+zx tool scripts against real APIs
+test-migrated-tools: build-moxins
+  nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
+
 test-go:
   MOXIN_PATH="" go vet ./...
   MOXIN_PATH="" go test ./... -v

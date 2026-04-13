@@ -149,6 +149,7 @@
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq pkgs.manix pkgs.nix
         ] {
           "flake-show" = "moxins/chix/src/flake-show.ts";
+          "store-ls" = "moxins/chix/src/store-ls.ts";
         };
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ];
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
@@ -158,17 +159,27 @@
           pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
         ] {
           "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
+          "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
+          "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
+          "content-search" = "moxins/get-hubbed/src/content-search.ts";
         };
-        get-hubbed-external-moxin = mkMoxin "get-hubbed-external" [
+        get-hubbed-external-moxin = mkBunMoxin "get-hubbed-external" [
           pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
-        ];
+        ] {
+          "issue-get" = "moxins/get-hubbed-external/src/issue-get.ts";
+          "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
+        };
         grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git pkgs.jq pkgs.openssh ];
         hamster-moxin = mkMoxin "hamster" [
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs-master.go_1_26
         ];
         jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs.jq pkgs-master-unfree.acli ];
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ];
-        just-us-agents-moxin = mkMoxin "just-us-agents" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.jq pkgs.just pkgs.nix ];
+        just-us-agents-moxin = mkBunMoxin "just-us-agents" [
+          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.jq pkgs.just pkgs.nix
+        ] {
+          "list-recipes" = "moxins/just-us-agents/src/list-recipes.ts";
+        };
         man-moxin = mkMoxin "man" [
           pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnugrep pkgs.gzip
           pkgs.man-db pkgs.mandoc pkgs.manix pkgs.pandoc
