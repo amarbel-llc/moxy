@@ -421,10 +421,27 @@
           mkdir -p $out
           tar -czf $out/moxy-0.1.0-${os}-${arch}.tar.gz -C $TMPDIR moxy
         '';
+
+        # Per-moxin tarballs for standalone install script. Each contains a
+        # single moxin directory suitable for extraction to
+        # ~/.local/share/moxy/moxins/<name>/
+        mkStandaloneMoxinTarball = name: drv: let
+          arch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64"
+                 else "amd64";
+          os = if pkgs.stdenv.isDarwin then "darwin" else "linux";
+        in pkgs.runCommand "${name}-moxin-tarball" {} ''
+          staging=$TMPDIR/${name}
+          cp -rL ${drv} $staging
+          chmod -R u+w $staging
+          mkdir -p $out
+          tar -czf $out/${name}-moxin-${os}-${arch}.tar.gz -C $TMPDIR ${name}
+        '';
+
+        standalone-moxin-tarballs = builtins.mapAttrs mkStandaloneMoxinTarball brew-moxins;
       in
       {
         packages = {
-          inherit moxy moxy-moxins moxy-static brew-tarball;
+          inherit moxy moxy-moxins moxy-static brew-tarball standalone-moxin-tarballs;
           default = combined;
         };
 
