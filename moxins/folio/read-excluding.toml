@@ -12,7 +12,7 @@ required = ["file_path", "delete_start", "delete_end"]
 
 [input.properties.file_path]
 type = "string"
-description = "Path to the file to read (must be within CWD)"
+description = "Path to the file to read (must be within CWD or be a moxy.native:// result URI)"
 
 [input.properties.delete_start]
 type = "integer"

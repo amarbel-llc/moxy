@@ -12,7 +12,7 @@ required = ["file_path"]
 
 [input.properties.file_path]
 type = "string"
-description = "Path to the file to read (must be within CWD)"
+description = "Path to the file to read (must be within CWD or be a moxy.native:// result URI)"
 
 [annotations]
 read-only-hint = true
