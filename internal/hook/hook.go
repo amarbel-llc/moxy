@@ -173,7 +173,15 @@ func tryPermsDecision(toolName string, w io.Writer) bool {
 
 	perms := discoverPermissions()
 	debugHook("  perms map has %d entries, looking up %q", len(perms), serverTool)
+	if len(perms) > 0 {
+		keys := make([]string, 0, len(perms))
+		for k := range perms {
+			keys = append(keys, k)
+		}
+		debugHook("  perms keys: %v", keys)
+	}
 	perm, exists := perms[serverTool]
+	debugHook("  lookup %q: exists=%v perm=%q", serverTool, exists, perm)
 	if !exists {
 		return false // delegate-to-client: fall through
 	}
