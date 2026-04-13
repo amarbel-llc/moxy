@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="$1"
+if [[ "$repo" != */* ]]; then
+  owner=$(gh repo view --json owner -q '.owner.login')
+  repo="$owner/$repo"
+fi
+path="$2"
+content="$3"
+message="$4"
+branch="${5:-}"
+
+gh_args=(api "repos/$repo/contents/$path" --method PUT --input -)
+
+# Build the request body. Fetch existing file sha for updates.
+sha=""
+if existing=$(gh api "repos/$repo/contents/$path" ${branch:+-f ref="$branch"} 2>/dev/null); then
+  sha=$(printf '%s' "$existing" | jq -r '.sha // empty')
+fi
+
+body=$(jq -n \
+  --arg message "$message" \
+  --arg content "$content" \
+  --arg sha "$sha" \
+  --arg branch "$branch" \
+  '{message: $message, content: ($content | @base64)}
+   + (if $sha != "" then {sha: $sha} else {} end)
+   + (if $branch != "" then {branch: $branch} else {} end)')
+
+printf '%s' "$body" | gh "${gh_args[@]}"

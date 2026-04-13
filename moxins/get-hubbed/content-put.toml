@@ -1,0 +1,31 @@
+schema = 2
+result-type = "text"
+content-type = "application/json"
+description = """Create or update a file in the repository via the GitHub Contents API. \
+Automatically fetches the existing file's SHA for updates (upsert). \
+Content is provided as plain text and base64-encoded by the tool."""
+command = "@BIN@/content-put"
+arg_order = ["path", "content", "message", "branch"]
+
+[input]
+type = "object"
+required = ["path", "content", "message"]
+
+[input.properties.path]
+type = "string"
+description = "File path within the repo (e.g. 'Formula/moxy.rb', 'README.md')"
+
+[input.properties.content]
+type = "string"
+description = "File content as plain text (will be base64-encoded automatically)"
+
+[input.properties.message]
+type = "string"
+description = "Commit message for the file change"
+
+[input.properties.branch]
+type = "string"
+description = "Target branch (default: repo's default branch)"
+
+[annotations]
+open-world-hint = true
