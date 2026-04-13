@@ -1,7 +1,7 @@
 [direnv]
 # TODO(amarbel-llc/spinclass#19): switch to dotenv when supported
 # dotenv = { MOXIN_PATH = "$WORKTREE/build/moxins" }
-envrc = ["source_up", "use flake", "export MOXIN_PATH=$PWD/build/moxins"]
+envrc = ["source_up", "use flake", "export MOXIN_PATH=$PWD/result/share/moxy/moxins"]
 
 [hooks]
 pre-merge = "just"

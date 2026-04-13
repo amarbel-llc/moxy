@@ -4,6 +4,7 @@ setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
   export output
+  # MOXIN_PATH inherited from justfile
 }
 
 teardown() {
@@ -11,15 +12,10 @@ teardown() {
 }
 
 function folio_read_allows_file_within_cwd { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   echo "hello world" > "$HOME/project/test.txt"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.read" \
@@ -30,16 +26,11 @@ function folio_read_allows_file_within_cwd { # @test
 }
 
 function folio_read_rejects_absolute_path_outside_cwd { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
   echo "secret" > "$HOME/other/secret.txt"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.read" --arg p "$HOME/other/secret.txt" \
@@ -51,15 +42,10 @@ function folio_read_rejects_absolute_path_outside_cwd { # @test
 }
 
 function folio_read_rejects_dotdot_traversal { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   echo "secret" > "$HOME/secret.txt"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.read" \
@@ -70,15 +56,10 @@ function folio_read_rejects_dotdot_traversal { # @test
 }
 
 function folio_ls_rejects_path_outside_cwd { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.ls" --arg p "$HOME/other" \
@@ -89,15 +70,10 @@ function folio_ls_rejects_path_outside_cwd { # @test
 }
 
 function folio_write_rejects_path_outside_cwd { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.write" --arg p "$HOME/other/evil.txt" \
@@ -110,15 +86,10 @@ function folio_write_rejects_path_outside_cwd { # @test
 }
 
 function folio_read_allows_dev_fd_path { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   echo "fd content" > "$HOME/project/test.txt"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   # Pass a /dev/fd path by using process substitution via a temp file
   # that moxy's native server will open as an fd. We simulate this by
@@ -136,16 +107,11 @@ function folio_read_allows_dev_fd_path { # @test
 }
 
 function folio_external_allows_path_outside_cwd { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio-external" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
   echo "accessible" > "$HOME/other/file.txt"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio-external.read" --arg p "$HOME/other/file.txt" \

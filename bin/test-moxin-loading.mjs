@@ -23,7 +23,7 @@ $.verbose = false
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..')
 const MOXY_BIN = path.join(REPO_ROOT, 'build', 'moxy')
-const MOXINS_DIR = path.join(REPO_ROOT, 'build', 'moxins')
+const MOXINS_DIR = path.join(REPO_ROOT, 'result', 'share', 'moxy', 'moxins')
 
 // --- Build ---
 

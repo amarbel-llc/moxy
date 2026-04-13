@@ -4,6 +4,7 @@ setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
   export output
+  # MOXIN_PATH inherited from justfile
 }
 
 teardown() {
@@ -11,10 +12,6 @@ teardown() {
 }
 
 function folio_ls_lists_directory_contents { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   # Create project dir with known contents (ls within CWD)
   mkdir -p "$HOME/project/testdir/subdir"
   echo "hello" > "$HOME/project/testdir/file1.txt"
@@ -22,7 +19,6 @@ function folio_ls_lists_directory_contents { # @test
   ln -s "$HOME/project/testdir/file1.txt" "$HOME/project/testdir/link1"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.ls" \
@@ -39,16 +35,11 @@ function folio_ls_lists_directory_contents { # @test
 }
 
 function folio_ls_shows_entry_types { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project/testdir/subdir"
   echo "hello" > "$HOME/project/testdir/file.txt"
   ln -s "$HOME/project/testdir/file.txt" "$HOME/project/testdir/link"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.ls" \
@@ -70,15 +61,10 @@ function folio_ls_shows_entry_types { # @test
 }
 
 function folio_ls_defaults_to_cwd { # @test
-  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
-  mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
-
   mkdir -p "$HOME/project"
   echo "hello" > "$HOME/project/readme.txt"
 
   cd "$HOME/project"
-  export MOXIN_PATH="$moxin_dir"
 
   local params
   params=$(jq -cn --arg n "folio.ls" '{name: $n, arguments: {}}')

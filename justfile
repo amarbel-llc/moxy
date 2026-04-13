@@ -1,4 +1,4 @@
-export MOXIN_PATH := justfile_directory() / "build" / "moxins"
+export MOXIN_PATH := justfile_directory() / "result" / "share" / "moxy" / "moxins"
 
 default: build test
 
@@ -11,9 +11,7 @@ build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
 build-moxins:
-  nix build .#moxy-moxins -o build/moxins-nix
-  rm -rf build/moxins
-  ln -s $(readlink build/moxins-nix)/share/moxy/moxins build/moxins
+  nix build .#moxy-moxins
 
 generate:
   go generate ./internal/config/

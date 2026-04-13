@@ -8,7 +8,7 @@ setup() {
   export XDG_CACHE_HOME="$HOME/.cache"
 
   # Use the real grit moxin from the source tree.
-  export MOXIN_PATH="$BATS_TEST_DIRNAME/../build/moxins"
+  # MOXIN_PATH inherited from justfile
 
   # Create an isolated git repo.
   mkdir -p "$HOME/repo"
