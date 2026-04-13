@@ -378,6 +378,11 @@
             "src" = "moxins/hamster/src/src.ts";
             "mod-read" = "moxins/hamster/src/mod-read.ts";
           };
+          just-us-agents = mkBrewBunMoxin "just-us-agents" {
+            "list-recipes" = "moxins/just-us-agents/src/list-recipes.ts";
+          };
+          man = mkBrewMoxin "man";
+          sisyphus = mkBrewMoxin "sisyphus";
         };
 
         # Tarball for Homebrew distribution. Layout:
