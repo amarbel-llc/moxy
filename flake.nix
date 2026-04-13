@@ -128,7 +128,8 @@
           cp -r ${./moxins/${name}} $out
           chmod -R u+w $out
           rm -rf $out/src
-          chmod +x $out/bin/*
+          mkdir -p $out/bin
+          for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
           # Link bun-compiled binaries into bin/.
           for f in ${bunBinaries}/bin/*; do
             ln -sf "$f" "$out/bin/$(basename "$f")"
@@ -170,9 +171,13 @@
           "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
         } {};
         grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git pkgs.jq ] { inheritPath = true; };
-        hamster-moxin = mkMoxin "hamster" [
+        hamster-moxin = mkBunMoxin "hamster" [
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs-master.go_1_26
-        ] {};
+        ] {
+          "doc" = "moxins/hamster/src/doc.ts";
+          "src" = "moxins/hamster/src/src.ts";
+          "mod-read" = "moxins/hamster/src/mod-read.ts";
+        } {};
         jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs.jq pkgs-master-unfree.acli ] {};
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
         just-us-agents-moxin = mkBunMoxin "just-us-agents" [
