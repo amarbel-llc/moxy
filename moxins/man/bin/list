@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# List all available man pages: name and short description, one per line.
+man -k . 2>/dev/null | awk -F' +\\(' '{name=$1} /-/{sub(/.*- /,""); print name" - "$0}' | sort || echo "No man pages found"

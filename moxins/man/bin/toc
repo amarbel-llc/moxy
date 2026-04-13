@@ -10,9 +10,7 @@ raw=$(case "$src" in
   *.gz) gzip -dc "$src" ;;
   *)    cat "$src" ;;
 esac)
-# pandoc reads groff man macros directly; mandoc -T man converts mdoc→man first
-md=$(echo "$raw" | pandoc -f man -t markdown 2>/dev/null)
-if ! grep -q '^#' <<< "$md"; then
-  md=$(echo "$raw" | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
-fi
-echo "$md" | awk '/^#+ /{print}'
+# Extract section and subsection headings from raw roff source.
+# Handles both mdoc(7) (.Sh/.Ss) and man(7) (.SH/.SS) macros.
+awk '/^\.(Sh|SH) /{sub(/^\.(Sh|SH) /,""); gsub(/^"|"$/,""); print "# "$0}
+     /^\.(Ss|SS) /{sub(/^\.(Ss|SS) /,""); gsub(/^"|"$/,""); print "## "$0}' <<< "$raw"

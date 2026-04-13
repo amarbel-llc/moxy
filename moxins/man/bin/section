@@ -10,23 +10,21 @@ raw=$(case "$src" in
   *.gz) gzip -dc "$src" ;;
   *)    cat "$src" ;;
 esac)
-# pandoc reads groff man macros directly; mandoc -T man converts mdoc→man first
-rendered=$(echo "$raw" | pandoc -f man -t markdown 2>/dev/null)
-if ! grep -q '^#' <<< "$rendered"; then
-  rendered=$(echo "$raw" | mandoc -T man 2>/dev/null | pandoc -f man -t markdown 2>/dev/null)
-fi
+# Extract a section by name from raw roff source.
+# Handles both mdoc(7) (.Sh) and man(7) (.SH) section macros.
 result=$(awk -v target="$section_name" '
 BEGIN { found=0; IGNORECASE=1 }
-/^#+ / {
+/^\.(Sh|SH) / {
   if (found) exit
-  name = $0; sub(/^#+ /, "", name)
+  name = $0; sub(/^\.(Sh|SH) /, "", name)
+  gsub(/^"|"$/, "", name)
   if (tolower(name) == tolower(target)) found=1
 }
 found { print }
-' <<< "$rendered") || true
+' <<< "$raw") || true
 if [ -z "$result" ]; then
   echo "Section \"$section_name\" not found in $page. Available sections:"
-  awk '/^#+ /{print}' <<< "$rendered"
+  awk '/^\.(Sh|SH) /{sub(/^\.(Sh|SH) /,""); gsub(/^"|"$/,""); print}' <<< "$raw"
   exit 1
 fi
 echo "$result"

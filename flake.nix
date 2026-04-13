@@ -206,7 +206,11 @@
           pkgs.man-db pkgs.mandoc pkgs.manix pkgs.pandoc
           maneater.packages.${system}.default
         ] {
-          extraWrapArgs = [ "--prefix" "MANPATH" ":" "${moxy-man}/share/man" ];
+          extraWrapArgs = [
+            # Prefix moxy's own man pages while preserving the caller's MANPATH.
+            "--prefix" "MANPATH" ":" "${moxy-man}/share/man"
+          ];
+          pathMode = "suffix";
         };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {};
 
