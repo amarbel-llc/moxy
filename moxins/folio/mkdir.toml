@@ -1,0 +1,17 @@
+schema = 1
+perms-request = "always-allow"
+description = """Create a directory and any missing parent directories. No error if the \
+directory already exists."""
+command = "@BIN@/mkdir"
+arg_order = ["path"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Directory path to create (must be within CWD)"
+
+[annotations]
+idempotent-hint = true

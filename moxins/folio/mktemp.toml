@@ -1,0 +1,20 @@
+schema = 1
+perms-request = "always-allow"
+description = """Create a temporary file or directory under .tmp/ in the current working directory. \
+Returns the path of the created file or directory. The .tmp/ directory is created automatically."""
+command = "@BIN@/mktemp"
+arg_order = ["directory", "suffix"]
+
+[input]
+type = "object"
+
+[input.properties.directory]
+type = "boolean"
+description = "Create a temporary directory instead of a file. Default false."
+
+[input.properties.suffix]
+type = "string"
+description = "Suffix to append to the generated name (e.g. \".txt\", \".json\")."
+
+[annotations]
+idempotent-hint = false

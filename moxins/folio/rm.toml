@@ -1,0 +1,24 @@
+schema = 1
+description = """Remove files or directories. Removes the specified paths within the current \
+working directory. Use force to ignore nonexistent paths, recursive to remove directories."""
+command = "@BIN@/rm"
+arg_order = ["paths", "force", "recursive"]
+
+[input]
+type = "object"
+required = ["paths"]
+
+[input.properties.paths]
+type = "string"
+description = "Space-separated file or directory paths to remove (must be within CWD)"
+
+[input.properties.force]
+type = "boolean"
+description = "Ignore nonexistent files (no error). Default false."
+
+[input.properties.recursive]
+type = "boolean"
+description = "Remove directories and their contents recursively. Default false."
+
+[annotations]
+destructive-hint = true
