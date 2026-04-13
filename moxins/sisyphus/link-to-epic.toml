@@ -1,0 +1,20 @@
+schema = 2
+description = "Link an issue to an epic by setting its parent"
+command = "@BIN@/link-to-epic"
+arg_order = ["issue_key", "epic_key"]
+
+[input]
+type = "object"
+required = ["issue_key", "epic_key"]
+
+[input.properties.issue_key]
+type = "string"
+description = "Issue key to link (e.g. XORCH-703)"
+
+[input.properties.epic_key]
+type = "string"
+description = "Epic issue key (e.g. XORCH-500)"
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

@@ -1,0 +1,23 @@
+schema = 2
+description = "Post a comment on an issue or pull request"
+command = "@BIN@/comment"
+arg_order = ["issue_key", "body", "output_format"]
+
+[input]
+type = "object"
+required = ["issue_key", "body"]
+
+[input.properties.issue_key]
+type = "string"
+description = "Issue or pull request key (e.g. XORCH-703)"
+
+[input.properties.body]
+type = "string"
+description = "Comment body (markdown supported)"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+open-world-hint = true

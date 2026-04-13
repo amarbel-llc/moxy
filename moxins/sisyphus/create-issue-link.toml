@@ -1,0 +1,28 @@
+schema = 2
+description = "Create a link between two Jira issues"
+command = "@BIN@/create-issue-link"
+arg_order = ["type", "outward_issue", "inward_issue", "output_format"]
+
+[input]
+type = "object"
+required = ["type", "outward_issue", "inward_issue"]
+
+[input.properties.type]
+type = "string"
+description = "Link type (e.g. 'Blocks', 'Relates')"
+
+[input.properties.outward_issue]
+type = "string"
+description = "Outward issue key (e.g. XORCH-703)"
+
+[input.properties.inward_issue]
+type = "string"
+description = "Inward issue key (e.g. XORCH-704)"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

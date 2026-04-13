@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import _lib
+
+board_id = sys.argv[1]
+state = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+max_results = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 50
+output_format = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else ""
+
+jira = _lib.make_client()
+result = jira.get_all_sprints_from_board(
+    board_id=board_id,
+    state=state,
+    limit=max_results,
+)
+
+if output_format == "json":
+    _lib.emit(result)
+else:
+    sprints = result.get("values", [])
+    lines = [f"Found {len(sprints)} sprints\n"]
+    for s in sprints:
+        lines.append(f"  {s.get('id', ''):>6}  {s.get('state', ''):10s}  {s.get('name', '')}")
+    _lib.emit("\n".join(lines))

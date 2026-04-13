@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import _lib
+
+issue_key = sys.argv[1]
+epic_key = sys.argv[2]
+
+jira = _lib.make_client()
+jira.update_issue_field(issue_key, {"parent": {"key": epic_key}})
+_lib.emit({"status": "linked", "issue": issue_key, "epic": epic_key})

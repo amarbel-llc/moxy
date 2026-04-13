@@ -1,0 +1,30 @@
+schema = 2
+perms-request = "always-allow"
+description = "Search for issues using JQL"
+command = "@BIN@/search"
+arg_order = ["jql", "fields", "max_results", "output_format"]
+
+[input]
+type = "object"
+required = ["jql"]
+
+[input.properties.jql]
+type = "string"
+description = "JQL query string (e.g. 'project = XORCH AND status = Open')"
+
+[input.properties.fields]
+type = "string"
+description = "Comma-separated field names to display (default: issuetype,key,assignee,priority,status,summary)"
+
+[input.properties.max_results]
+type = "integer"
+description = "Maximum number of issues to return (default 50)"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true
