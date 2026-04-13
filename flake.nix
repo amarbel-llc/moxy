@@ -151,12 +151,12 @@
         folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
         freud-moxin = mkMoxin "freud" [ pkgs.python3 pkgs.jq ];
         get-hubbed-moxin = mkBunMoxin "get-hubbed" [
-          pkgs.bash pkgs.coreutils pkgs-master.gh pkgs.jq pkgs.util-linux
+          pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
         ] {
           "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
         };
         get-hubbed-external-moxin = mkMoxin "get-hubbed-external" [
-          pkgs.bash pkgs.coreutils pkgs-master.gh pkgs.jq pkgs.util-linux
+          pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
         ];
         grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git pkgs.jq ];
         hamster-moxin = mkMoxin "hamster" [
