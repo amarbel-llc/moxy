@@ -2,6 +2,9 @@ export MOXIN_PATH := justfile_directory() / "build" / "moxins"
 
 default: build test
 
+dev: build-go
+  zx bin/dev.mjs
+
 build: build-go build-nix
 
 build-go: generate build-moxins
