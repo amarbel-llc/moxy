@@ -22,7 +22,8 @@ func FormatInstructions(servers []ServerSummary) string {
 	b.WriteString("MCP proxy aggregating tools, resources, and prompts from child servers.\n\n")
 	b.WriteString("Tool results include `moxy.native://results/{session}/{id}` URIs pointing to cached full output. ")
 	b.WriteString("These URIs can be used anywhere a file path is accepted (e.g. folio-external read tools, jq input) — ")
-	b.WriteString("moxy rewrites them to file descriptors at invocation time.")
+	b.WriteString("moxy rewrites them to file descriptors at invocation time.\n\n")
+	b.WriteString("Prefer tools marked [perms: always-allow] over those requiring permission prompts, unless the task specifically needs a permissioned tool.")
 
 	if len(servers) == 0 {
 		return b.String()

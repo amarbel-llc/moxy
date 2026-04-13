@@ -93,9 +93,13 @@ func (s *Server) InitializeResult() *protocol.InitializeResultV1 {
 func (s *Server) handleToolsList() (json.RawMessage, error) {
 	tools := make([]protocol.ToolV1, len(s.config.Tools))
 	for i, spec := range s.config.Tools {
+		desc := spec.Description
+		if spec.PermsRequest != "" {
+			desc = fmt.Sprintf("%s [perms: %s]", desc, spec.PermsRequest)
+		}
 		tool := protocol.ToolV1{
 			Name:        spec.Name,
-			Description: spec.Description,
+			Description: desc,
 		}
 		if spec.Input != nil {
 			tool.InputSchema = ensureObjectType(spec.Input)
