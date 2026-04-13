@@ -12,7 +12,8 @@ build-go: generate build-moxins
 
 build-moxins:
   nix build .#moxy-moxins -o build/moxins-nix
-  ln -sfn $(readlink build/moxins-nix)/share/moxy/moxins build/moxins
+  rm -rf build/moxins
+  ln -s $(readlink build/moxins-nix)/share/moxy/moxins build/moxins
 
 generate:
   go generate ./internal/config/

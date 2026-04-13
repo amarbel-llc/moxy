@@ -18,8 +18,9 @@ func init() {
 	}
 	logDir := filepath.Join(logHome, "moxy")
 	os.MkdirAll(logDir, 0o755)
+	logFile := filepath.Join(logDir, fmt.Sprintf("moxin.%d.log", os.Getpid()))
 	f, err := os.OpenFile(
-		filepath.Join(logDir, "moxin.log"),
+		logFile,
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		0o644,
 	)

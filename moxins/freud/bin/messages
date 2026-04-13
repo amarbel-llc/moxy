@@ -131,6 +131,8 @@ def main():
             for tc in msg["tool_calls"]:
                 haystack += " " + tc["name"].lower()
                 haystack += " " + json.dumps(tc["input"]).lower()
+            for tr in msg["tool_results"]:
+                haystack += " " + tr["text"].lower()
             if search in haystack:
                 filtered.append(msg)
         messages = filtered
