@@ -1,0 +1,28 @@
+schema = 1
+perms-request = "always-allow"
+description = "Create a new gist from provided content. Returns the URL of the created gist."
+command = "@BIN@/gist-create"
+arg_order = ["filename", "content", "description", "public"]
+
+[input]
+type = "object"
+required = ["filename", "content"]
+
+[input.properties.filename]
+type = "string"
+description = "Filename for the gist (e.g. 'example.py', 'notes.md')"
+
+[input.properties.content]
+type = "string"
+description = "Content of the file"
+
+[input.properties.description]
+type = "string"
+description = "Description of the gist"
+
+[input.properties.public]
+type = "boolean"
+description = "Create a public gist (default: secret)"
+
+[annotations]
+open-world-hint = true

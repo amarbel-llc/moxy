@@ -1,0 +1,23 @@
+schema = 2
+result-type = "text"
+perms-request = "always-allow"
+description = "View the contents of a gist. Returns all files by default, or a single file if filename is specified."
+command = "@BIN@/gist-view"
+arg_order = ["id", "filename"]
+
+[input]
+type = "object"
+required = ["id"]
+
+[input.properties.id]
+type = "string"
+description = "Gist ID or URL"
+
+[input.properties.filename]
+type = "string"
+description = "View a single file from the gist by name"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

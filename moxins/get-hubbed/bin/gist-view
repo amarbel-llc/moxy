@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+id="$1"
+filename="${2:-}"
+gh_args=(gist view "$id")
+[ -n "$filename" ] && gh_args+=(--filename "$filename")
+gh "${gh_args[@]}"

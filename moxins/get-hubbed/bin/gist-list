@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+limit="${1:-10}"
+public="${2:-}"
+gh_args=(gist list --limit "$limit")
+[ "$public" = "true" ] && gh_args+=(--public)
+gh "${gh_args[@]}"

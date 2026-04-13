@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+id="$1"
+gh gist delete "$id" --yes

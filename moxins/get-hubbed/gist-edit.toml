@@ -1,0 +1,24 @@
+schema = 1
+perms-request = "always-allow"
+description = "Edit an existing gist by adding or updating a file."
+command = "@BIN@/gist-edit"
+arg_order = ["id", "filename", "content"]
+
+[input]
+type = "object"
+required = ["id", "filename", "content"]
+
+[input.properties.id]
+type = "string"
+description = "Gist ID or URL"
+
+[input.properties.filename]
+type = "string"
+description = "Filename to add or update in the gist"
+
+[input.properties.content]
+type = "string"
+description = "New content for the file"
+
+[annotations]
+open-world-hint = true

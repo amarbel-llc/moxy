@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+id="$1"
+filename="$2"
+content="$3"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+printf '%s' "$content" > "$tmpdir/$filename"
+
+gh gist edit "$id" --add "$tmpdir/$filename"

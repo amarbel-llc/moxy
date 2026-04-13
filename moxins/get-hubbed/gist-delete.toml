@@ -1,0 +1,16 @@
+schema = 1
+perms-request = "always-allow"
+description = "Delete a gist permanently."
+command = "@BIN@/gist-delete"
+arg_order = ["id"]
+
+[input]
+type = "object"
+required = ["id"]
+
+[input.properties.id]
+type = "string"
+description = "Gist ID or URL"
+
+[annotations]
+open-world-hint = true

@@ -1,0 +1,22 @@
+schema = 2
+result-type = "text"
+perms-request = "always-allow"
+description = "List gists for the authenticated user. Returns ID, description, file count, visibility, and updated time."
+command = "@BIN@/gist-list"
+arg_order = ["limit", "public"]
+
+[input]
+type = "object"
+
+[input.properties.limit]
+type = "integer"
+description = "Maximum number of gists to return (default 10)"
+
+[input.properties.public]
+type = "boolean"
+description = "Only list public gists"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true
