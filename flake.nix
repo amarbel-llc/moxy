@@ -145,8 +145,8 @@
           "flake-show" = "moxins/chix/src/flake-show.ts";
         };
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils ];
-        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk ];
-        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk ];
+        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
+        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
         freud-moxin = mkMoxin "freud" [ pkgs.python3 pkgs.jq ];
         get-hubbed-moxin = mkBunMoxin "get-hubbed" [ pkgs.bash pkgs-master.gh pkgs.jq ] {
           "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
