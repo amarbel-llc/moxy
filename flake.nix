@@ -102,7 +102,7 @@
         '';
 
         # Helper: build a moxin with bin/ scripts wrapped with PATH deps.
-        mkMoxin = name: deps: { inheritPath ? false, extraWrapArgs ? [] }: pkgs.runCommand "${name}-moxin" {
+        mkMoxin = name: deps: { pathMode ? "set", extraWrapArgs ? [] }: pkgs.runCommand "${name}-moxin" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
           cp -r ${./moxins/${name}} $out
@@ -110,7 +110,7 @@
           chmod +x $out/bin/*
           for f in $out/bin/*; do
             wrapProgram "$f" \
-              --${if inheritPath then "prefix" else "set"} PATH ${if inheritPath then ": " else ""}${pkgs.lib.makeBinPath deps} \
+              ${if pathMode != "inherit" then "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}" else ""} \
               --unset LD_LIBRARY_PATH \
               ${pkgs.lib.concatStringsSep " " extraWrapArgs}
           done
@@ -120,7 +120,7 @@
         '';
 
         # Helper: build a moxin that has bun+zx compiled scripts in src/.
-        mkBunMoxin = name: deps: extraEntrypoints: { inheritPath ? false }: let
+        mkBunMoxin = name: deps: extraEntrypoints: { pathMode ? "set" }: let
           bunBinaries = bunLib.buildBunBinaries {
             pname = "${name}-moxin-scripts";
             version = "0.1.0";
@@ -151,7 +151,7 @@
           for f in $out/bin/*; do
             [ -L "$f" ] && continue
             wrapProgram "$f" \
-              --${if inheritPath then "prefix" else "set"} PATH ${if inheritPath then ": " else ""}${pkgs.lib.makeBinPath deps} \
+              ${if pathMode != "inherit" then "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}" else ""} \
               --unset LD_LIBRARY_PATH
           done
           for f in $(grep -rl '@BIN@' $out); do
@@ -166,7 +166,7 @@
           "flake-show" = "moxins/chix/src/flake-show.ts";
           "store-ls" = "moxins/chix/src/store-ls.ts";
         } {};
-        env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] {};
+        env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ] {};
         folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ] {};
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] {};
@@ -184,7 +184,7 @@
           "issue-get" = "moxins/get-hubbed-external/src/issue-get.ts";
           "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
         } {};
-        grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git pkgs.jq ] { inheritPath = true; };
+        grit-moxin = mkMoxin "grit" [ ] { pathMode = "inherit"; };
         hamster-moxin = mkBunMoxin "hamster" [
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs-master.go_1_26
         ] {
