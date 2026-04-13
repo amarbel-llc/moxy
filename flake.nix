@@ -96,7 +96,9 @@
           chmod -R u+w $out
           chmod +x $out/bin/*
           for f in $out/bin/*; do
-            wrapProgram "$f" --set PATH ${pkgs.lib.makeBinPath deps}
+            wrapProgram "$f" \
+              --set PATH ${pkgs.lib.makeBinPath deps} \
+              --unset LD_LIBRARY_PATH
           done
           for f in $(grep -rl '@BIN@' $out); do
             substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
@@ -133,7 +135,9 @@
           done
           for f in $out/bin/*; do
             [ -L "$f" ] && continue
-            wrapProgram "$f" --set PATH ${pkgs.lib.makeBinPath deps}
+            wrapProgram "$f" \
+              --set PATH ${pkgs.lib.makeBinPath deps} \
+              --unset LD_LIBRARY_PATH
           done
           for f in $(grep -rl '@BIN@' $out); do
             substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"

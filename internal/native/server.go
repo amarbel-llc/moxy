@@ -253,7 +253,7 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		if output == "" {
 			output = err.Error()
 		}
-		debugMoxin("toolCall %s.%s: exec error: %v stderr=%q", s.config.Name, spec.Name, err, stderr.String())
+		debugMoxin("toolCall %s.%s: exec error: %v args=%v stderr=%q", s.config.Name, spec.Name, err, allArgs, stderr.String())
 		result := &protocol.ToolCallResultV1{
 			Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
 			IsError: true,
