@@ -28,6 +28,12 @@ curl -fsSL https://github.com/amarbel-llc/moxy/releases/latest/download/install-
   over stdio
 - `moxy list-moxins` -- enumerates available moxins with name, tool count, and
   description
+- `moxy-static` nix derivation -- `CGO_ENABLED=0` static Go binary
+- `mkBrewMoxin` / `mkBrewBunMoxin` nix helpers -- unwrapped moxin builders
+- `brew-moxins` -- 11 moxins already building (env, folio, folio-external,
+  freud, grit, jq, rg, get-hubbed, get-hubbed-external, hamster)
+- `brew-tarball` -- combined tarball for Homebrew distribution
+- `brew-build` / `brew-release` justfile recipes
 
 ## Release Artifacts
 
@@ -41,39 +47,22 @@ Each tagged release (e.g. `v0.1.0`) publishes:
 
 ### Building Through Nix
 
-All artifacts are built through nix, reusing infrastructure from the
-stark-mahogany branch:
+All artifacts are built through nix. The core infrastructure already exists on
+master (`moxy-static`, `mkBrewMoxin`, `mkBrewBunMoxin`, `brew-moxins`,
+`brew-tarball`). Remaining work extends this:
 
-**`moxy-static`** -- `buildGoApplication` with `CGO_ENABLED=0`, no
-`wrapProgram`, no ldflags. Exe-relative moxin discovery (`SystemMoxinDir`)
-resolves `../share/moxy/moxins/` relative to the binary.
+**Already done:**
+- `moxy-static` -- static Go binary (`CGO_ENABLED=0`)
+- `mkBrewMoxin` -- unwrapped bash/python moxin builder
+- `mkBrewBunMoxin` -- bun-compiled moxin builder with portable JS wrappers
+- `brew-moxins` -- 11 moxins (env, folio, folio-external, freud, grit, jq, rg,
+  get-hubbed, get-hubbed-external, hamster)
+- `brew-tarball` -- combined tarball for Homebrew
 
-**`mkBrewMoxin`** -- copies raw moxin directories without `wrapProgram`. Scripts
-use `#!/usr/bin/env bash` and rely on ambient PATH. `@BIN@` is left
-unsubstituted (resolved at Go runtime; see below).
-
-**`mkBrewBunMoxin`** -- compiles TypeScript sources via `buildBunBinaries`,
-extracts JS bundles into `lib/`, creates portable wrapper scripts:
-```bash
-#!/usr/bin/env bash
-exec bun "$(dirname "$0")/../lib/<name>.js" "$@"
-```
-
-No nix store references in any output.
-
-### Per-Moxin Nix Outputs
-
-Each standalone-eligible moxin gets a flake output:
-
-```nix
-packages = {
-  "standalone-env" = mkBrewMoxin "env";
-  "standalone-grit" = mkBrewMoxin "grit";
-  # ...
-};
-```
-
-CI builds each with `nix build .#standalone-<name>`.
+**New work:**
+- Add sisyphus, just-us-agents, and man to `brew-moxins`
+- Add per-moxin tarball outputs for the install script (the combined
+  `brew-tarball` serves Homebrew; per-moxin tarballs serve `install-moxin.bash`)
 
 ## `@BIN@` Runtime Resolution
 
@@ -190,7 +179,9 @@ Trigger: push tag matching `v*`.
 ### Coexistence
 
 The existing `nix.yml` workflow (build + FlakeHub publish on master push) is
-unchanged. The release workflow only fires on tags.
+unchanged. The release workflow only fires on tags. The existing `brew-build` /
+`brew-release` justfile recipes continue to serve the Homebrew tap flow
+independently.
 
 ## Install Layout
 
