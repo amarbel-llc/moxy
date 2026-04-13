@@ -171,6 +171,19 @@ func newApp() *command.App {
 	})
 
 	app.AddCommand(&command.Command{
+		Name: "list-moxins",
+		Description: command.Description{
+			Short: "List available builtin moxins",
+			Long: "Enumerates moxins from the system moxin directory and MOXIN_PATH, " +
+				"printing each name and description. Useful for discovering which " +
+				"moxins can be served standalone via 'moxy serve-moxin'.",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			return listMoxins()
+		},
+	})
+
+	app.AddCommand(&command.Command{
 		Name: "serve-moxin",
 		Description: command.Description{
 			Short: "Serve a single builtin moxin as a standalone MCP server",

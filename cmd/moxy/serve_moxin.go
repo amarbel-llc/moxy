@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
+	"text/tabwriter"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
@@ -56,4 +58,27 @@ func runMoxinServer(name string) error {
 
 	fmt.Fprintf(os.Stderr, "moxy: serving moxin %q (%d tools)\n", found.Name, len(found.Tools))
 	return mcpSrv.Run(ctx)
+}
+
+func listMoxins() error {
+	configs, err := native.DiscoverConfigs(os.Getenv("MOXIN_PATH"), native.SystemMoxinDir())
+	if err != nil {
+		return fmt.Errorf("discovering moxins: %w", err)
+	}
+
+	if len(configs) == 0 {
+		fmt.Println("no moxins found")
+		return nil
+	}
+
+	sort.Slice(configs, func(i, j int) bool {
+		return configs[i].Name < configs[j].Name
+	})
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "NAME\tTOOLS\tDESCRIPTION")
+	for _, cfg := range configs {
+		fmt.Fprintf(w, "%s\t%d\t%s\n", cfg.Name, len(cfg.Tools), cfg.Description)
+	}
+	return w.Flush()
 }
