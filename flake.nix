@@ -266,10 +266,156 @@
             moxy-moxins
           ];
         };
+
+        # Static Go binary for non-nix distribution (no wrapProgram, no
+        # ldflags). Moxin discovery uses exe-relative path resolution.
+        moxy-static = pkgs.buildGoApplication {
+          pname = "moxy";
+          version = "0.1.0";
+          src = moxySrc;
+          subPackages = [ "cmd/moxy" ];
+          modules = ./gomod2nix.toml;
+          go = pkgs-master.go_1_26;
+          GOTOOLCHAIN = "local";
+          CGO_ENABLED = 0;
+        };
+
+        # Unwrapped moxin helper: copies source scripts with @BIN@
+        # substitution but no wrapProgram. Scripts rely on ambient PATH
+        # (provided by Homebrew depends_on).
+        mkBrewMoxin = name: pkgs.runCommand "${name}-brew-moxin" {} ''
+          cp -r ${./moxins/${name}} $out
+          chmod -R u+w $out
+          rm -rf $out/src
+          chmod +x $out/bin/* 2>/dev/null || true
+        '';
+
+        # Unwrapped bun moxin helper: builds JS bundles from TypeScript
+        # sources and creates portable wrapper scripts that call bun from
+        # PATH (no nix store references). entrypoints is an attrset of
+        # name → source path relative to the flake root.
+        mkBrewBunMoxin = name: entrypoints: let
+          # Reuse buildBunBinaries to get the nix-wrapped output, then
+          # extract the bundle path from the wrapper scripts.
+          bunBins = bunLib.buildBunBinaries {
+            pname = "${name}-brew-moxin-scripts";
+            version = "0.1.0";
+            src = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = with pkgs.lib.fileset; unions [
+                ./moxins/${name}/src
+                ./package.json
+                ./bun.lock
+              ];
+            };
+            bunNix = ./bun.nix;
+            entrypoints = entrypoints;
+            runtimeInputs = [];
+          };
+        in pkgs.runCommand "${name}-brew-moxin" {} ''
+          cp -r ${./moxins/${name}} $out
+          chmod -R u+w $out
+          rm -rf $out/src
+          mkdir -p $out/bin $out/lib
+
+          # Extract the bundle dir from one of the wrapper scripts.
+          # Wrappers look like: exec /nix/store/.../bin/bun /nix/store/.../<name>.js "$@"
+          bundle_dir=""
+          for f in ${bunBins}/bin/*; do
+            js_path=$(grep -oE '/nix/store/[^ ]+\.js' "$f" | head -1)
+            if [[ -n "$js_path" ]]; then
+              bundle_dir=$(dirname "$js_path")
+              break
+            fi
+          done
+          if [[ -z "$bundle_dir" ]]; then
+            echo "ERROR: could not extract bundle dir from wrapper scripts" >&2
+            exit 1
+          fi
+
+          # Copy all bundled JS files into lib/.
+          cp "$bundle_dir"/*.js $out/lib/
+
+          # For each bun entrypoint, create a portable wrapper.
+          for f in ${bunBins}/bin/*; do
+            binname=$(basename "$f")
+            js_path=$(grep -oE '/nix/store/[^ ]+\.js' "$f" | head -1)
+            jsfile=$(basename "$js_path")
+            cat > "$out/bin/$binname" <<WRAPPER
+          #!/usr/bin/env bash
+          exec bun "\$(dirname "\$0")/../lib/$jsfile" "\$@"
+          WRAPPER
+            chmod +x "$out/bin/$binname"
+          done
+        '';
+
+        # Moxins included in Homebrew distribution (those with deps
+        # available in Homebrew).
+        brew-moxins = {
+          env = mkBrewMoxin "env";
+          folio = mkBrewMoxin "folio";
+          folio-external = mkBrewMoxin "folio-external";
+          freud = mkBrewMoxin "freud";
+          grit = mkBrewMoxin "grit";
+          jq = mkBrewMoxin "jq";
+          rg = mkBrewMoxin "rg";
+          get-hubbed = mkBrewBunMoxin "get-hubbed" {
+            "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
+            "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
+            "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
+            "content-search" = "moxins/get-hubbed/src/content-search.ts";
+          };
+          get-hubbed-external = mkBrewBunMoxin "get-hubbed-external" {
+            "issue-get" = "moxins/get-hubbed-external/src/issue-get.ts";
+            "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
+          };
+          hamster = mkBrewBunMoxin "hamster" {
+            "doc" = "moxins/hamster/src/doc.ts";
+            "src" = "moxins/hamster/src/src.ts";
+            "mod-read" = "moxins/hamster/src/mod-read.ts";
+          };
+        };
+
+        # Tarball for Homebrew distribution. Layout:
+        #   bin/moxy
+        #   share/moxy/moxins/{env,folio,...}/
+        #   share/man/man{1,5,7}/
+        brew-tarball = let
+          arch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64"
+                 else "amd64";
+          os = if pkgs.stdenv.isDarwin then "darwin" else "linux";
+        in pkgs.runCommand "moxy-brew-tarball" {} ''
+          staging=$TMPDIR/moxy
+          mkdir -p $staging/bin
+          mkdir -p $staging/share/moxy/moxins
+          mkdir -p $staging/share/man/man1
+          mkdir -p $staging/share/man/man5
+          mkdir -p $staging/share/man/man7
+
+          # Static Go binary
+          cp ${moxy-static}/bin/moxy $staging/bin/moxy
+
+          # Unwrapped moxins — @BIN@ left as placeholder, resolved by the
+          # Homebrew formula at install time via inreplace.
+          ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: drv: ''
+            cp -rL ${drv} $staging/share/moxy/moxins/${name}
+            chmod -R u+w $staging/share/moxy/moxins/${name}
+          '') brew-moxins)}
+
+          # Man pages
+          cp ${./cmd/moxy/moxy.1} $staging/share/man/man1/moxy.1
+          cp ${./cmd/moxy/moxyfile.5} $staging/share/man/man5/moxyfile.5
+          cp ${./cmd/moxy/moxy-hooks.5} $staging/share/man/man5/moxy-hooks.5
+          cp ${./cmd/moxy/moxin.7} $staging/share/man/man7/moxin.7
+
+          # Create tarball
+          mkdir -p $out
+          tar -czf $out/moxy-0.1.0-${os}-${arch}.tar.gz -C $TMPDIR moxy
+        '';
       in
       {
         packages = {
-          inherit moxy moxy-moxins;
+          inherit moxy moxy-moxins moxy-static brew-tarball;
           default = combined;
         };
 

@@ -186,7 +186,21 @@ man-search-download-model:
     echo "Downloaded to: $model_path"
   fi
 
+brew-build:
+  nix build .#brew-tarball -o result-brew
+  @echo "Tarball: $(ls result-brew/*.tar.gz)"
+
+brew-release version:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  just brew-build
+  gh release create "v{{version}}" \
+    result-brew/*.tar.gz \
+    --repo amarbel-llc/moxy \
+    --title "v{{version}}" \
+    --notes "Release v{{version}}"
+
 clean: clean-build
 
 clean-build:
-  rm -rf result build/
+  rm -rf result result-brew build/
