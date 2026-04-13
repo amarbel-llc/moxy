@@ -4,7 +4,7 @@ description = """Extract tool calls from a session, already structured. Returns 
 call with sequence number, tool name, and truncated input JSON. Much faster than parsing raw \
 JSONL transcripts with jq."""
 command = "@BIN@/tool-usage"
-arg_order = ["session_id", "tool_name", "limit"]
+arg_order = ["session_id", "tool_name", "limit", "include_results"]
 
 [input]
 type = "object"
@@ -21,6 +21,10 @@ description = "Filter by tool name substring (case-insensitive). Omit for all to
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of tool calls to return. Defaults to 0 (unlimited)."
+
+[input.properties.include_results]
+type = "boolean"
+description = "Include truncated result/error text alongside each tool call. Defaults to false."
 
 [annotations]
 read-only-hint = true

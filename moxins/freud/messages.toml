@@ -20,7 +20,7 @@ description = "Filter by role: 'user' or 'assistant'. Omit for both."
 
 [input.properties.search]
 type = "string"
-description = "Case-insensitive keyword filter on message text and tool names"
+description = "Case-insensitive keyword filter on message text, tool names, and tool result content"
 
 [input.properties.offset]
 type = "integer"
