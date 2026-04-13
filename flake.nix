@@ -149,7 +149,7 @@
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ];
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
         folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
-        freud-moxin = mkMoxin "freud" [ pkgs.python3 pkgs.jq ];
+        freud-moxin = mkMoxin "freud" [ pkgs.python3 ];
         get-hubbed-moxin = mkBunMoxin "get-hubbed" [
           pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
         ] {
