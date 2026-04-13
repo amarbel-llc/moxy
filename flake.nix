@@ -158,7 +158,7 @@
         get-hubbed-external-moxin = mkMoxin "get-hubbed-external" [
           pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
         ];
-        grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git pkgs.jq ];
+        grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git pkgs.jq pkgs.openssh ];
         hamster-moxin = mkMoxin "hamster" [
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs-master.go_1_26
         ];
