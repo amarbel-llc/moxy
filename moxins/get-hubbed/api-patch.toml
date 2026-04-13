@@ -1,0 +1,35 @@
+schema = 2
+result-type = "text"
+content-type = "application/json"
+description = "Make an authenticated PATCH request to the GitHub REST API"
+command = "@BIN@/api-patch"
+arg_order = ["endpoint", "body", "params", "headers"]
+
+[input]
+type = "object"
+required = ["endpoint"]
+
+[input.properties.endpoint]
+type = "string"
+description = "REST API path, e.g. /repos/{owner}/{repo}/issues/{issue_number}"
+
+[input.properties.body]
+type = "string"
+description = "JSON request body"
+
+[input.properties.params]
+type = "object"
+description = "Query string parameters as key-value pairs"
+
+[input.properties.params.additionalProperties]
+type = "string"
+
+[input.properties.headers]
+type = "array"
+description = "Additional headers in key:value format"
+
+[input.properties.headers.items]
+type = "string"
+
+[annotations]
+open-world-hint = true
