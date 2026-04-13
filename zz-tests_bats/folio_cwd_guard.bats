@@ -13,7 +13,7 @@ teardown() {
 function folio_read_allows_file_within_cwd { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   echo "hello world" > "$HOME/project/test.txt"
@@ -32,7 +32,7 @@ function folio_read_allows_file_within_cwd { # @test
 function folio_read_rejects_absolute_path_outside_cwd { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
@@ -53,7 +53,7 @@ function folio_read_rejects_absolute_path_outside_cwd { # @test
 function folio_read_rejects_dotdot_traversal { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   echo "secret" > "$HOME/secret.txt"
@@ -72,7 +72,7 @@ function folio_read_rejects_dotdot_traversal { # @test
 function folio_ls_rejects_path_outside_cwd { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
@@ -91,7 +91,7 @@ function folio_ls_rejects_path_outside_cwd { # @test
 function folio_write_rejects_path_outside_cwd { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
@@ -112,7 +112,7 @@ function folio_write_rejects_path_outside_cwd { # @test
 function folio_read_allows_dev_fd_path { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   echo "fd content" > "$HOME/project/test.txt"
@@ -138,7 +138,7 @@ function folio_read_allows_dev_fd_path { # @test
 function folio_external_allows_path_outside_cwd { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio-external" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio-external" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"

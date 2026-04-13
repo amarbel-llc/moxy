@@ -433,7 +433,7 @@ TOML
 
 function v0_grit_diff_content_blocks_claude_compatible { # @test
   # Use the real grit moxin from the source tree.
-  export MOXIN_PATH="$BATS_TEST_DIRNAME/../moxins"
+  export MOXIN_PATH="$BATS_TEST_DIRNAME/../build/moxins"
 
   mkdir -p "$HOME/repo"
   cd "$HOME/repo"

@@ -13,7 +13,7 @@ teardown() {
 function folio_ls_lists_directory_contents { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   # Create project dir with known contents (ls within CWD)
   mkdir -p "$HOME/project/testdir/subdir"
@@ -41,7 +41,7 @@ function folio_ls_lists_directory_contents { # @test
 function folio_ls_shows_entry_types { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project/testdir/subdir"
   echo "hello" > "$HOME/project/testdir/file.txt"
@@ -72,7 +72,7 @@ function folio_ls_shows_entry_types { # @test
 function folio_ls_defaults_to_cwd { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir"
-  cp -r "$BATS_TEST_DIRNAME/../moxins/folio" "$moxin_dir/"
+  cp -r "$BATS_TEST_DIRNAME/../build/moxins/folio" "$moxin_dir/"
 
   mkdir -p "$HOME/project"
   echo "hello" > "$HOME/project/readme.txt"

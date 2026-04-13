@@ -225,7 +225,7 @@
       in
       {
         packages = {
-          inherit moxy;
+          inherit moxy moxy-moxins;
           default = combined;
         };
 
