@@ -88,8 +88,21 @@
 
         bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
+        # Man pages as a standalone derivation, referenced by both the moxy
+        # binary package and the man moxin (avoids circular dependency).
+        moxy-man = pkgs.runCommand "moxy-man" {
+          nativeBuildInputs = [ pkgs.man-db ];
+        } ''
+          mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
+          cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
+          cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
+          cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
+          cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
+          MANPATH=$out/share/man mandb --no-purge --create $out/share/man
+        '';
+
         # Helper: build a moxin with bin/ scripts wrapped with PATH deps.
-        mkMoxin = name: deps: { inheritPath ? false }: pkgs.runCommand "${name}-moxin" {
+        mkMoxin = name: deps: { inheritPath ? false, extraWrapArgs ? [] }: pkgs.runCommand "${name}-moxin" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
         } ''
           cp -r ${./moxins/${name}} $out
@@ -98,7 +111,8 @@
           for f in $out/bin/*; do
             wrapProgram "$f" \
               --${if inheritPath then "prefix" else "set"} PATH ${if inheritPath then ": " else ""}${pkgs.lib.makeBinPath deps} \
-              --unset LD_LIBRARY_PATH
+              --unset LD_LIBRARY_PATH \
+              ${pkgs.lib.concatStringsSep " " extraWrapArgs}
           done
           for f in $(grep -rl '@BIN@' $out); do
             substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
@@ -191,7 +205,9 @@
           pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnugrep pkgs.gzip
           pkgs.man-db pkgs.mandoc pkgs.manix pkgs.pandoc
           maneater.packages.${system}.default
-        ] {};
+        ] {
+          extraWrapArgs = [ "--prefix" "MANPATH" ":" "${moxy-man}/share/man" ];
+        };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {};
 
         # Symlink-only aggregation of all per-moxin derivations.
@@ -229,11 +245,7 @@
           ];
           postInstall = ''
             $out/bin/moxy generate-plugin $out
-            mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
-            cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
-            cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
-            cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
-            cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
+            cp -rn ${moxy-man}/share/man/* $out/share/man/
 
             # Moxin tools have their own PATH via wrapProgram in per-moxin
             # derivations. The moxy binary itself only needs bash for
