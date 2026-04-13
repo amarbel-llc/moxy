@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Prevent git from opening an editor (no TTY available in MCP context).
+# `true` exits 0, accepting the default commit message.
+export GIT_EDITOR=true
+export GIT_SEQUENCE_EDITOR=true
 upstream="${1:-}"
 branch="${2:-}"
 autostash="${3:-}"

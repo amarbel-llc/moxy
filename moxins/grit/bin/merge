@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Prevent git from opening an editor (no TTY available in MCP context).
+export GIT_EDITOR=true
 branch="${1:-}"
 no_ff="${2:-}"
 squash="${3:-}"
