@@ -141,24 +141,33 @@
         '';
 
         # Per-moxin derivations — each moxin is self-contained with its deps.
-        chix-moxin = mkBunMoxin "chix" [ pkgs.bash pkgs.nix pkgs.findutils ] {
+        chix-moxin = mkBunMoxin "chix" [
+          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq pkgs.manix pkgs.nix
+        ] {
           "flake-show" = "moxins/chix/src/flake-show.ts";
         };
-        env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils ];
+        env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ];
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
         folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ];
         freud-moxin = mkMoxin "freud" [ pkgs.python3 pkgs.jq ];
-        get-hubbed-moxin = mkBunMoxin "get-hubbed" [ pkgs.bash pkgs-master.gh pkgs.jq ] {
+        get-hubbed-moxin = mkBunMoxin "get-hubbed" [
+          pkgs.bash pkgs.coreutils pkgs-master.gh pkgs.jq pkgs.util-linux
+        ] {
           "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
         };
-        get-hubbed-external-moxin = mkMoxin "get-hubbed-external" [ pkgs.bash pkgs-master.gh pkgs.jq ];
-        grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git ];
-        hamster-moxin = mkMoxin "hamster" [ pkgs.bash pkgs-master.go_1_26 pkgs.gnused pkgs.findutils ];
-        jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs-master-unfree.acli ];
+        get-hubbed-external-moxin = mkMoxin "get-hubbed-external" [
+          pkgs.bash pkgs.coreutils pkgs-master.gh pkgs.jq pkgs.util-linux
+        ];
+        grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git pkgs.jq ];
+        hamster-moxin = mkMoxin "hamster" [
+          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs-master.go_1_26
+        ];
+        jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs.jq pkgs-master-unfree.acli ];
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ];
-        just-us-agents-moxin = mkMoxin "just-us-agents" [ pkgs.bash pkgs.just pkgs.coreutils pkgs.findutils ];
+        just-us-agents-moxin = mkMoxin "just-us-agents" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.jq pkgs.just pkgs.nix ];
         man-moxin = mkMoxin "man" [
-          pkgs.bash pkgs.gzip pkgs.gnugrep pkgs.gawk pkgs.man-db pkgs.mandoc pkgs.pandoc pkgs.manix
+          pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnugrep pkgs.gzip
+          pkgs.man-db pkgs.mandoc pkgs.manix pkgs.pandoc
           maneater.packages.${system}.default
         ];
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ];
