@@ -141,24 +141,24 @@
         '';
 
         # Per-moxin derivations — each moxin is self-contained with its deps.
-        chix-moxin = mkBunMoxin "chix" [ pkgs.bash pkgs.nix ] {
+        chix-moxin = mkBunMoxin "chix" [ pkgs.bash pkgs.nix pkgs.findutils ] {
           "flake-show" = "moxins/chix/src/flake-show.ts";
         };
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils ];
-        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils ];
-        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils ];
+        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk ];
+        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk ];
         freud-moxin = mkMoxin "freud" [ pkgs.python3 pkgs.jq ];
         get-hubbed-moxin = mkBunMoxin "get-hubbed" [ pkgs.bash pkgs-master.gh pkgs.jq ] {
           "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
         };
         get-hubbed-external-moxin = mkMoxin "get-hubbed-external" [ pkgs.bash pkgs-master.gh pkgs.jq ];
         grit-moxin = mkMoxin "grit" [ pkgs.bash pkgs.git ];
-        hamster-moxin = mkMoxin "hamster" [ pkgs.bash pkgs-master.go_1_26 ];
+        hamster-moxin = mkMoxin "hamster" [ pkgs.bash pkgs-master.go_1_26 pkgs.gnused pkgs.findutils ];
         jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs-master-unfree.acli ];
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ];
         just-us-agents-moxin = mkMoxin "just-us-agents" [ pkgs.bash pkgs.just pkgs.coreutils pkgs.findutils ];
         man-moxin = mkMoxin "man" [
-          pkgs.bash pkgs.gzip pkgs.man-db pkgs.mandoc pkgs.pandoc pkgs.manix
+          pkgs.bash pkgs.gzip pkgs.gnugrep pkgs.gawk pkgs.man-db pkgs.mandoc pkgs.pandoc pkgs.manix
           maneater.packages.${system}.default
         ];
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ];
