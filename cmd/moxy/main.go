@@ -18,9 +18,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/amarbel-llc/moxy/internal/add"
-	"github.com/amarbel-llc/moxy/internal/hook"
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/credentials"
+	"github.com/amarbel-llc/moxy/internal/hook"
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/oauth"
@@ -167,6 +167,37 @@ func newApp() *command.App {
 				return command.TextErrorResult(fmt.Sprintf("discovering moxins: %v", err)), nil
 			}
 			return command.TextResult(formatStatus(hierarchy, discovered, moxinPath, systemDir)), nil
+		},
+	})
+
+	app.AddCommand(&command.Command{
+		Name: "serve-moxin",
+		Description: command.Description{
+			Short: "Serve a single builtin moxin as a standalone MCP server",
+			Long: "Looks up a moxin by name from the builtin system moxins, " +
+				"then serves it as a standalone MCP server over stdio. " +
+				"No proxy, no moxyfile — just the named moxin's tools. " +
+				"Use this to run individual moxins without the full moxy proxy.",
+		},
+		Params: []command.Param{
+			{
+				Name:        "name",
+				Type:        command.String,
+				Description: "Name of the builtin moxin to serve",
+				Required:    true,
+			},
+		},
+		RunCLI: func(_ context.Context, argsJSON json.RawMessage) error {
+			var args struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal(argsJSON, &args); err != nil {
+				return err
+			}
+			if args.Name == "" {
+				return fmt.Errorf("moxin name is required")
+			}
+			return runMoxinServer(args.Name)
 		},
 	})
 
