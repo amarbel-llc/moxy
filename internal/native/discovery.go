@@ -182,10 +182,10 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 		}
 
 		for _, e := range entries {
-			if !e.IsDir() {
+			dirPath := filepath.Join(moxyDir, e.Name())
+			if !dirExists(dirPath) {
 				continue
 			}
-			dirPath := filepath.Join(moxyDir, e.Name())
 			metaPath := filepath.Join(dirPath, "_moxin.toml")
 			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
 				debugMoxin("DiscoverAll: no _moxin.toml in %s, skipping", dirPath)
@@ -255,11 +255,11 @@ func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error
 		}
 
 		for _, e := range entries {
-			if !e.IsDir() {
-				debugMoxin("DiscoverConfigs: %s/%s not a dir, skipping", moxyDir, e.Name())
+			dirPath := filepath.Join(moxyDir, e.Name())
+			if !dirExists(dirPath) {
+				debugMoxin("DiscoverConfigs: %s not a dir, skipping", dirPath)
 				continue
 			}
-			dirPath := filepath.Join(moxyDir, e.Name())
 			metaPath := filepath.Join(dirPath, "_moxin.toml")
 			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
 				debugMoxin("DiscoverConfigs: no _moxin.toml in %s, skipping", dirPath)
