@@ -7,12 +7,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
+
+// resolveBinPlaceholder replaces the @BIN@ placeholder in a tool command
+// with the moxin's bin directory. This is a runtime fallback for standalone
+// (non-nix) installs where @BIN@ was not substituted at build time.
+func resolveBinPlaceholder(command, sourceDir string) string {
+	if !strings.Contains(command, "@BIN@") {
+		return command
+	}
+	return strings.ReplaceAll(command, "@BIN@", filepath.Join(sourceDir, "bin"))
+}
 
 // Server implements proxy.ServerBackend for native (config-declared) tools.
 // It dispatches MCP method calls locally without spawning a child MCP server.
@@ -220,7 +231,8 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	}
 	defer sub.Cleanup()
 
-	cmd := exec.CommandContext(ctx, spec.Command, allArgs...)
+	command := resolveBinPlaceholder(spec.Command, s.config.SourceDir)
+	cmd := exec.CommandContext(ctx, command, allArgs...)
 	cmd.ExtraFiles = sub.ExtraFiles
 	if stdinContent != "" {
 		cmd.Stdin = strings.NewReader(stdinContent)
