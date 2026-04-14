@@ -15,25 +15,25 @@ INSTALL_SHARE="$HOME/.local/share/moxy/moxins"
 declare -A MOXIN_DEPS=(
   [env]=""
   [folio]="jq gawk"
-  [folio-external]="jq gawk"
+  [folio - external]="jq gawk"
   [freud]="python3"
   [grit]="git jq"
   [jq]="jq"
   [rg]="ripgrep"
-  [get-hubbed]="git gh jq"
-  [get-hubbed-external]="git gh jq"
+  [get - hubbed]="git gh jq"
+  [get - hubbed - external]="git gh jq"
   [hamster]="go"
   [sisyphus]="python3"
-  [just-us-agents]="just jq"
+  [just - us - agents]="just jq"
   [man]="pandoc mandoc"
 )
 
 # Bun-based moxins need bun at runtime.
 declare -A MOXIN_NEEDS_BUN=(
-  [get-hubbed]=1
-  [get-hubbed-external]=1
+  [get - hubbed]=1
+  [get - hubbed - external]=1
   [hamster]=1
-  [just-us-agents]=1
+  [just - us - agents]=1
 )
 
 # Pip packages needed by moxins.
@@ -44,27 +44,30 @@ declare -A MOXIN_PIP_DEPS=(
 # Env vars that must be set for a moxin to function.
 declare -A MOXIN_ENV_NOTES=(
   [sisyphus]="Requires: JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN"
-  [get-hubbed]="Requires: GH_TOKEN or gh auth login"
-  [get-hubbed-external]="Requires: GH_TOKEN or gh auth login"
+  [get - hubbed]="Requires: GH_TOKEN or gh auth login"
+  [get - hubbed - external]="Requires: GH_TOKEN or gh auth login"
 )
 
 ELIGIBLE_MOXINS=($(echo "${!MOXIN_DEPS[@]}" | tr ' ' '\n' | sort))
 
-die() { echo "error: $*" >&2; exit 1; }
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
 
 detect_platform() {
   local os arch
   os=$(uname -s | tr '[:upper:]' '[:lower:]')
   arch=$(uname -m)
   case "$os" in
-    darwin) os="darwin" ;;
-    linux) os="linux" ;;
-    *) die "unsupported OS: $os" ;;
+  darwin) os="darwin" ;;
+  linux) os="linux" ;;
+  *) die "unsupported OS: $os" ;;
   esac
   case "$arch" in
-    arm64 | aarch64) arch="arm64" ;;
-    x86_64) arch="amd64" ;;
-    *) die "unsupported architecture: $arch" ;;
+  arm64 | aarch64) arch="arm64" ;;
+  x86_64) arch="amd64" ;;
+  *) die "unsupported architecture: $arch" ;;
   esac
   PLATFORM="${os}-${arch}"
 }
@@ -77,16 +80,16 @@ ensure_gum() {
   else
     local tmp
     tmp=$(mktemp -d)
-    curl -fsSL "https://github.com/charmbracelet/gum/releases/latest/download/gum_$(uname -s)_$(uname -m).tar.gz" \
-      | tar -xz -C "$tmp"
+    curl -fsSL "https://github.com/charmbracelet/gum/releases/latest/download/gum_$(uname -s)_$(uname -m).tar.gz" |
+      tar -xz -C "$tmp"
     install -m 755 "$tmp/gum" "$INSTALL_BIN/gum"
     rm -rf "$tmp"
   fi
 }
 
 get_latest_tag() {
-  curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-    | grep '"tag_name"' | head -1 | cut -d'"' -f4
+  curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
+    grep '"tag_name"' | head -1 | cut -d'"' -f4
 }
 
 download_and_extract() {
@@ -106,18 +109,18 @@ install_deps() {
   local needs_bun="${MOXIN_NEEDS_BUN[$name]:-}"
   local pip_deps="${MOXIN_PIP_DEPS[$name]:-}"
 
-  if [[ -n "$needs_bun" ]]; then
+  if [[ -n $needs_bun ]]; then
     deps="$deps bun"
   fi
 
-  if [[ -z "$deps" && -z "$pip_deps" ]]; then return; fi
+  if [[ -z $deps && -z $pip_deps ]]; then return; fi
 
   local missing=()
   for dep in $deps; do
     local check_cmd="$dep"
     case "$dep" in
-      ripgrep) check_cmd="rg" ;;
-      python3) check_cmd="python3" ;;
+    ripgrep) check_cmd="rg" ;;
+    python3) check_cmd="python3" ;;
     esac
     if ! command -v "$check_cmd" &>/dev/null; then
       missing+=("$dep")
@@ -137,7 +140,7 @@ install_deps() {
     fi
   fi
 
-  if [[ -n "$pip_deps" ]]; then
+  if [[ -n $pip_deps ]]; then
     echo "Installing pip packages: $pip_deps"
     pip3 install --user $pip_deps
   fi
@@ -161,20 +164,20 @@ main() {
   detect_platform
 
   local name="${1:-}"
-  if [[ -z "$name" ]]; then
+  if [[ -z $name ]]; then
     ensure_gum
     name=$(printf '%s\n' "${ELIGIBLE_MOXINS[@]}" | gum choose --header "Select a moxin to install:")
-    [[ -n "$name" ]] || die "no moxin selected"
+    [[ -n $name ]] || die "no moxin selected"
   fi
 
   # Validate moxin name.
-  if [[ -z "${MOXIN_DEPS[$name]+x}" ]]; then
+  if [[ -z ${MOXIN_DEPS[$name]+x} ]]; then
     die "unknown moxin: $name (available: ${ELIGIBLE_MOXINS[*]})"
   fi
 
   local tag
   tag=$(get_latest_tag)
-  [[ -n "$tag" ]] || die "could not determine latest release"
+  [[ -n $tag ]] || die "could not determine latest release"
   local base_url="https://github.com/$REPO/releases/download/$tag"
 
   # Download and install moxy binary.
@@ -198,7 +201,7 @@ main() {
   echo "  Moxin:   $INSTALL_SHARE/$name/"
 
   local notes="${MOXIN_ENV_NOTES[$name]:-}"
-  if [[ -n "$notes" ]]; then
+  if [[ -n $notes ]]; then
     echo ""
     echo "  $notes"
   fi
