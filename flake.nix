@@ -495,6 +495,7 @@
             pkgs.mandoc
             pkgs.pandoc
             pkgs.ripgrep
+            pkgs.which # sandcastle's whichSync shells out to `which` (bob#98)
             # Pinned inputs for deterministic bats man-page tests. Without
             # these, `manpath(1)` falls back to whatever man pages the host
             # environment provides (Ubuntu 22.04 system jq 1.6 on CI vs
