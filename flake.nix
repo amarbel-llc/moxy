@@ -495,7 +495,6 @@
             pkgs.mandoc
             pkgs.pandoc
             pkgs.ripgrep
-            pkgs.which # sandcastle's whichSync shells out to `which` (bob#98)
             # Pinned inputs for deterministic bats man-page tests. Without
             # these, `manpath(1)` falls back to whatever man pages the host
             # environment provides (Ubuntu 22.04 system jq 1.6 on CI vs
@@ -513,6 +512,12 @@
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default
           ];
+          # sandcastle needs macOS system binaries (sandbox-exec, which) that
+          # live in /usr/bin. Nix devshells don't include /usr/bin on PATH by
+          # default. See bob#98.
+          shellHook = ''
+            export PATH="$PATH:/usr/bin"
+          '';
         };
       }
     ));
