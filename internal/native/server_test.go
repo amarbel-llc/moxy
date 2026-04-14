@@ -389,6 +389,71 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 	}
 }
 
+func TestValidateEnumConstraints(t *testing.T) {
+	schema := &InputSchema{
+		Type: "object",
+		Properties: map[string]PropertySchema{
+			"reason": {
+				Type: "string",
+				Enum: []string{"completed", "not planned", "duplicate"},
+			},
+			"title": {
+				Type: "string",
+			},
+		},
+	}
+
+	t.Run("valid enum value", func(t *testing.T) {
+		err := validateEnumConstraints(
+			json.RawMessage(`{"reason":"completed","title":"test"}`),
+			schema,
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("invalid enum value", func(t *testing.T) {
+		err := validateEnumConstraints(
+			json.RawMessage(`{"reason":"bogus"}`),
+			schema,
+		)
+		if err == nil {
+			t.Fatal("expected error for invalid enum value, got nil")
+		}
+		if !strings.Contains(err.Error(), `"bogus"`) {
+			t.Errorf("error should mention the invalid value: %v", err)
+		}
+		if !strings.Contains(err.Error(), "reason") {
+			t.Errorf("error should mention the parameter name: %v", err)
+		}
+	})
+
+	t.Run("non-enum field not validated", func(t *testing.T) {
+		err := validateEnumConstraints(
+			json.RawMessage(`{"title":"anything goes"}`),
+			schema,
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("nil schema", func(t *testing.T) {
+		err := validateEnumConstraints(json.RawMessage(`{"reason":"bogus"}`), nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("absent enum field", func(t *testing.T) {
+		err := validateEnumConstraints(json.RawMessage(`{"title":"test"}`), schema)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
 func TestBuildExtraArgs(t *testing.T) {
 	t.Run("nil arguments", func(t *testing.T) {
 		args, err := buildExtraArgs(nil, nil, nil)

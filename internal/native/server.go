@@ -217,6 +217,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		}
 	}
 
+	if err := validateEnumConstraints(arguments, spec.InputParsed); err != nil {
+		return marshalResult(protocol.ErrorResultV1(err.Error()))
+	}
+
 	// Extract caller-supplied arguments and append them (as strings) after
 	// spec.Args.  Ordering follows the input schema's "required" array so
 	// positional semantics are deterministic; any remaining keys are appended
@@ -449,6 +453,44 @@ func (s *Server) cacheAndGetURI(output string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("moxy.native://results/%s/%s", s.session, id), nil
+}
+
+// validateEnumConstraints checks that any argument with an enum constraint
+// in the input schema has a value that is one of the allowed options.
+func validateEnumConstraints(arguments json.RawMessage, schema *InputSchema) error {
+	if schema == nil || len(arguments) == 0 {
+		return nil
+	}
+
+	var argMap map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &argMap); err != nil {
+		return nil // let buildExtraArgs handle parse errors
+	}
+
+	for name, prop := range schema.Properties {
+		if len(prop.Enum) == 0 {
+			continue
+		}
+		raw, ok := argMap[name]
+		if !ok {
+			continue
+		}
+		var val string
+		if err := json.Unmarshal(raw, &val); err != nil {
+			continue // non-string value; skip enum check
+		}
+		found := false
+		for _, allowed := range prop.Enum {
+			if val == allowed {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("invalid value %q for parameter %q: must be one of %v", val, name, prop.Enum)
+		}
+	}
+	return nil
 }
 
 // buildExtraArgs extracts string argument values from the caller's JSON
