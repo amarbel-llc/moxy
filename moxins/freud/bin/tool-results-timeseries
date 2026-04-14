@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+import time
+from collections import defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def resolve_cwd(proj_dir: Path) -> str | None:
+    """Extract cwd from the newest JSONL in a project directory."""
+    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not jsonls:
+        return None
+
+    with open(jsonls[0]) as f:
+        for i, line in enumerate(f):
+            if i >= 200:
+                break
+            try:
+                obj = json.loads(line)
+                cwd = obj.get("cwd")
+                if cwd:
+                    return cwd
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    name = proj_dir.name.lstrip("-")
+    return "/" + name.replace("-", "/") + " (heuristic)"
+
+
+def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
+    lower = filter_str.lower()
+    return lower in resolved_cwd.lower() or lower in dir_name.lower()
+
+
+def session_bucket(path: Path, group_by: str) -> str:
+    """Return the time bucket label for a session based on its mtime."""
+    dt = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    if group_by == "week":
+        return dt.strftime("%G-W%V")
+    return dt.strftime("%m-%d")
+
+
+def collect_results(path: Path, tool_name_filter: str) -> dict:
+    """Count tool results by outcome for a single JSONL file."""
+    tool_names: dict[str, str] = {}
+    counts = {"ok": 0, "err": 0, "empty": 0, "rej": 0}
+
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = obj.get("type")
+            content = obj.get("message", {}).get("content")
+            if not isinstance(content, list):
+                continue
+
+            if msg_type == "assistant":
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_names[block.get("id", "")] = block.get("name", "?")
+
+            elif msg_type == "user":
+                for block in content:
+                    if not isinstance(block, dict) or block.get("type") != "tool_result":
+                        continue
+
+                    tool_use_id = block.get("tool_use_id", "")
+                    is_error = block.get("is_error", False)
+                    inner = block.get("content", "")
+
+                    if isinstance(inner, list):
+                        text = " ".join(
+                            b.get("text", "")
+                            for b in inner
+                            if isinstance(b, dict) and b.get("type") == "text"
+                        ).strip()
+                    elif isinstance(inner, str):
+                        text = inner.strip()
+                    else:
+                        text = str(inner).strip()
+
+                    name = tool_names.get(tool_use_id, "?")
+
+                    if tool_name_filter and tool_name_filter.lower() not in name.lower():
+                        continue
+
+                    is_empty = not text
+                    is_rejected = is_error and (
+                        "The user doesn't want to proceed" in text
+                        or "User rejected tool use" in text
+                    )
+
+                    if is_rejected:
+                        counts["rej"] += 1
+                    elif is_error:
+                        counts["err"] += 1
+                    elif is_empty:
+                        counts["empty"] += 1
+                    else:
+                        counts["ok"] += 1
+
+    return counts
+
+
+def subagent_paths(session_path: Path) -> list[Path]:
+    sub_dir = session_path.parent / session_path.stem / "subagents"
+    if sub_dir.is_dir():
+        return list(sub_dir.glob("*.jsonl"))
+    return []
+
+
+def render_sparkline(values: list[int], labels: list[str], title: str, rows: int = 12) -> list[str]:
+    """Render an ASCII sparkline chart."""
+    total = sum(values)
+    if total == 0:
+        return []
+
+    max_val = max(values) or 1
+    block = "\u2588"
+
+    lines = [f"{title} ({total} total):"]
+    for row in range(rows, 0, -1):
+        threshold = max_val * row / rows
+        line = "  "
+        for v in values:
+            line += block if v >= threshold else " "
+            line += " "
+        # Skip fully empty rows
+        if block in line:
+            lines.append(line)
+
+    lines.append("  " + " ".join(labels))
+    return lines
+
+
+def main():
+    project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
+    days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 14
+    tool_name_filter = sys.argv[3] if len(sys.argv) > 3 else ""
+    group_by = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else "day"
+
+    if group_by not in ("day", "week"):
+        group_by = "day"
+
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return emit_mcp_result("(no sessions found)")
+
+    cutoff = time.time() - (days * 86400)
+
+    # Phase 1: resolve cwd per project directory
+    cwd_map: dict[str, str] = {}
+    for proj_dir in sorted(projects_dir.iterdir()):
+        if not proj_dir.is_dir():
+            continue
+        cwd = resolve_cwd(proj_dir)
+        if cwd:
+            cwd_map[proj_dir.name] = cwd
+
+    # Phase 2: collect matching session files with their buckets
+    session_files: list[tuple[Path, str]] = []  # (path, bucket)
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
+            continue
+        project = cwd_map[proj_dir.name]
+        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            continue
+        for f in proj_dir.glob("*.jsonl"):
+            if f.stat().st_mtime >= cutoff:
+                bucket = session_bucket(f, group_by)
+                session_files.append((f, bucket))
+
+    if not session_files:
+        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+
+    # Phase 3: collect results per time bucket
+    buckets: dict[str, dict] = defaultdict(lambda: {"ok": 0, "err": 0, "empty": 0, "rej": 0})
+
+    for path, bucket in session_files:
+        counts = collect_results(path, tool_name_filter)
+        for key in ("ok", "err", "empty", "rej"):
+            buckets[bucket][key] += counts[key]
+        for sub in subagent_paths(path):
+            sub_counts = collect_results(sub, tool_name_filter)
+            for key in ("ok", "err", "empty", "rej"):
+                buckets[bucket][key] += sub_counts[key]
+
+    sorted_buckets = sorted(buckets.keys())
+
+    # Check if any data
+    grand_total = sum(b["ok"] + b["err"] + b["empty"] + b["rej"] for b in buckets.values())
+    if grand_total == 0:
+        filter_desc = f", tool={tool_name_filter}" if tool_name_filter else ""
+        return emit_mcp_result(
+            f"No tool results across {len(session_files)} sessions{filter_desc}"
+        )
+
+    # Phase 4: format output
+    lines = []
+    proj_desc = f", project: {project_filter}" if project_filter else ""
+    tool_desc = f", tool: {tool_name_filter}" if tool_name_filter else ""
+    bucket_desc = f", by {group_by}"
+    lines.append(
+        f"Tool results timeseries across {len(session_files)} sessions"
+        f" ({days} days{proj_desc}{tool_desc}{bucket_desc})"
+    )
+    lines.append("")
+
+    date_label = "Week" if group_by == "week" else "Date"
+    date_width = max(len(date_label), max(len(b) for b in sorted_buckets))
+    lines.append(
+        f"  {date_label:<{date_width}}  {'Total':>6}  {'OK':>6}"
+        f"  {'Err':>5}  {'Empty':>5}  {'Rej':>5}  {'Err%':>5}"
+    )
+
+    for bucket in sorted_buckets:
+        d = buckets[bucket]
+        total = d["ok"] + d["err"] + d["empty"] + d["rej"]
+        err_pct = 100.0 * d["err"] / total if total > 0 else 0.0
+        lines.append(
+            f"  {bucket:<{date_width}}  {total:>6}  {d['ok']:>6}"
+            f"  {d['err']:>5}  {d['empty']:>5}  {d['rej']:>5}  {err_pct:4.1f}%"
+        )
+
+    # Totals row
+    total_ok = sum(b["ok"] for b in buckets.values())
+    total_err = sum(b["err"] for b in buckets.values())
+    total_empty = sum(b["empty"] for b in buckets.values())
+    total_rej = sum(b["rej"] for b in buckets.values())
+    total_err_pct = 100.0 * total_err / grand_total if grand_total > 0 else 0.0
+    lines.append(
+        f"  {'TOTAL':<{date_width}}  {grand_total:>6}  {total_ok:>6}"
+        f"  {total_err:>5}  {total_empty:>5}  {total_rej:>5}  {total_err_pct:4.1f}%"
+    )
+
+    # Sparklines
+    if group_by == "week":
+        spark_labels = [b[-3:] for b in sorted_buckets]  # W14, W15, etc.
+    else:
+        spark_labels = [b[-2:] for b in sorted_buckets]  # day of month
+
+    err_values = [buckets[b]["err"] for b in sorted_buckets]
+    vol_values = [buckets[b]["ok"] + buckets[b]["err"] + buckets[b]["empty"] + buckets[b]["rej"]
+                  for b in sorted_buckets]
+
+    lines.append("")
+    lines.extend(render_sparkline(err_values, spark_labels, "Errors"))
+
+    lines.append("")
+    lines.extend(render_sparkline(vol_values, spark_labels, "Volume"))
+
+    # Date range
+    mtimes = [p.stat().st_mtime for p, _ in session_files]
+    earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    lines.append(f"\n{len(session_files)} sessions analyzed ({earliest} \u2192 {latest})")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    main()
