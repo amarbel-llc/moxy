@@ -198,7 +198,7 @@
         sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
         just-us-agents-moxin = mkBunMoxin "just-us-agents" [
-          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.jq pkgs.just pkgs.nix
+          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.jq
         ] {
           "list-recipes" = "moxins/just-us-agents/src/list-recipes.ts";
         } { pathMode = "inherit"; };
