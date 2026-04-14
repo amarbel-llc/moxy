@@ -238,6 +238,9 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	defer sub.Cleanup()
 
 	command := resolveBinPlaceholder(spec.Command, s.config.SourceDir)
+	if !filepath.IsAbs(command) && s.config.SourceDir != "" {
+		command = filepath.Join(s.config.SourceDir, command)
+	}
 	cmd := exec.CommandContext(ctx, command, allArgs...)
 	cmd.ExtraFiles = sub.ExtraFiles
 	if stdinContent != "" {

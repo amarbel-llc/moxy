@@ -306,14 +306,18 @@
           CGO_ENABLED = 0;
         };
 
-        # Unwrapped moxin helper: copies source scripts with @BIN@
-        # substitution but no wrapProgram. Scripts rely on ambient PATH
-        # (provided by Homebrew depends_on).
+        # Unwrapped moxin helper: replaces @BIN@ with relative "bin"
+        # path (resolved at runtime by moxy against the moxin SourceDir).
+        # Scripts rely on ambient PATH (provided by Homebrew depends_on).
         mkBrewMoxin = name: pkgs.runCommand "${name}-brew-moxin" {} ''
           cp -r ${./moxins/${name}} $out
           chmod -R u+w $out
           rm -rf $out/src
           chmod +x $out/bin/* 2>/dev/null || true
+          for f in $out/*.toml; do
+            [ "$(basename "$f")" = "_moxin.toml" ] && continue
+            ${pkgs.gnused}/bin/sed -i 's|@BIN@|bin|g' "$f"
+          done
         '';
 
         # Unwrapped bun moxin helper: builds JS bundles from TypeScript
@@ -372,6 +376,12 @@
           exec bun "\$(dirname "\$0")/../lib/$jsfile" "\$@"
           WRAPPER
             chmod +x "$out/bin/$binname"
+          done
+
+          # Resolve @BIN@ to relative bin path (resolved at runtime via SourceDir).
+          for f in $out/*.toml; do
+            [ "$(basename "$f")" = "_moxin.toml" ] && continue
+            ${pkgs.gnused}/bin/sed -i 's|@BIN@|bin|g' "$f"
           done
         '';
 
