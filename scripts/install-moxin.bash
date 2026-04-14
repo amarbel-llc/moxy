@@ -15,25 +15,25 @@ INSTALL_SHARE="$HOME/.local/share/moxy/moxins"
 declare -A MOXIN_DEPS=(
   [env]=""
   [folio]="jq gawk"
-  [folio - external]="jq gawk"
+  [folio-external]="jq gawk"
   [freud]="python3"
   [grit]="git jq"
   [jq]="jq"
   [rg]="ripgrep"
-  [get - hubbed]="git gh jq"
-  [get - hubbed - external]="git gh jq"
+  [get-hubbed]="git gh jq"
+  [get-hubbed-external]="git gh jq"
   [hamster]="go"
   [sisyphus]="python3"
-  [just - us - agents]="just jq"
+  [just-us-agents]="just jq"
   [man]="pandoc mandoc"
 )
 
 # Bun-based moxins need bun at runtime.
 declare -A MOXIN_NEEDS_BUN=(
-  [get - hubbed]=1
-  [get - hubbed - external]=1
+  [get-hubbed]=1
+  [get-hubbed-external]=1
   [hamster]=1
-  [just - us - agents]=1
+  [just-us-agents]=1
 )
 
 # Pip packages needed by moxins.
@@ -44,8 +44,8 @@ declare -A MOXIN_PIP_DEPS=(
 # Env vars that must be set for a moxin to function.
 declare -A MOXIN_ENV_NOTES=(
   [sisyphus]="Requires: JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN"
-  [get - hubbed]="Requires: GH_TOKEN or gh auth login"
-  [get - hubbed - external]="Requires: GH_TOKEN or gh auth login"
+  [get-hubbed]="Requires: GH_TOKEN or gh auth login"
+  [get-hubbed-external]="Requires: GH_TOKEN or gh auth login"
 )
 
 ELIGIBLE_MOXINS=($(echo "${!MOXIN_DEPS[@]}" | tr ' ' '\n' | sort))
