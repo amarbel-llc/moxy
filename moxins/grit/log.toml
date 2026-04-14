@@ -1,0 +1,35 @@
+schema = 1
+perms-request = "always-allow"
+description = "Show commit log history"
+command = "@BIN@/log"
+arg_order = ["ref", "max_count", "oneline", "paths", "repo_path"]
+
+[input]
+type = "object"
+
+[input.properties.ref]
+type = "string"
+description = "Branch, tag, or commit to start from (default HEAD)"
+
+[input.properties.max_count]
+type = "integer"
+description = "Maximum number of commits to show (git -n)"
+
+[input.properties.oneline]
+type = "boolean"
+description = "Compact one-line format (--oneline)"
+
+[input.properties.paths]
+type = "array"
+description = "Limit log to commits touching these paths"
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

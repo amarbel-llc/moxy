@@ -1,0 +1,24 @@
+schema = 1
+perms-request = "always-allow"
+description = "Revert one or more commits by creating new commits that undo their changes"
+command = "@BIN@/revert"
+arg_order = ["commits", "no_commit", "repo_path"]
+
+[input]
+type = "object"
+required = ["commits"]
+
+[input.properties.commits]
+type = "array"
+description = "Commit hashes to revert (applied in order)"
+
+[input.properties.commits.items]
+type = "string"
+
+[input.properties.no_commit]
+type = "boolean"
+description = "Apply reverts without creating commits (--no-commit)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+commits_json="$1"
+no_commit="${2:-}"
+repo="${3:-.}"
+cd "$repo"
+export GIT_EDITOR=true
+mapfile -t commits < <(printf '%s' "$commits_json" | jq -r '.[]')
+git_args=(revert)
+
+[ "$no_commit" = "true" ] && git_args+=(--no-commit)
+git_args+=("${commits[@]}")
+git "${git_args[@]}"

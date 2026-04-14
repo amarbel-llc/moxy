@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ref="${1:-}"
+max_count="${2:-}"
+oneline="${3:-}"
+paths_json="${4:-}"
+repo="${5:-.}"
+cd "$repo"
+
+git_args=(log)
+
+[ -n "$max_count" ] && git_args+=(-n "$max_count")
+[ "$oneline" = "true" ] && git_args+=(--oneline)
+[ -n "$ref" ] && git_args+=("$ref")
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  git_args+=(--)
+  while IFS= read -r p; do
+    git_args+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+fi
+
+git "${git_args[@]}"
