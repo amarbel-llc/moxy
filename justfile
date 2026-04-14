@@ -58,6 +58,43 @@ test-validate-mcp: build-go
   cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
+# Bisect helper: build and validate MCP loading at current commit
+# Usage: git bisect start HEAD <known-good> -- && git bisect run just bisect-validate
+[group: 'debug']
+bisect-validate: build-go
+  #!/usr/bin/env bash
+  set -euo pipefail
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  export HOME="$tmpdir/home"
+  mkdir -p "$HOME/repo"
+  export MOXIN_PATH="{{justfile_directory()}}/result/share/moxy/moxins"
+  cat >"$HOME/repo/moxyfile" <<EOF
+  [[servers]]
+  name = "test"
+  command = ["bash", "{{justfile_directory()}}/zz-tests_bats/test-fixtures/tool-server.bash"]
+  EOF
+  cd "$HOME/repo"
+  moxy="{{justfile_directory()}}/{{dir_build}}/moxy"
+
+  # Phase 1: MCP protocol compliance
+  purse-first validate-mcp "$moxy" serve mcp
+
+  # Phase 2: verify moxin tools are actually discovered
+  init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"bisect","version":"0.1"}}}'
+  notif='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  list='{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+  tools=$(timeout --preserve-status 10s bash -c \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | "$0" serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result.tools"' \
+    "$moxy" "$init" "$notif" "$list")
+  count=$(echo "$tools" | jq 'length')
+  # With moxins loaded we expect 100+ tools; without them only ~5 (test server + meta tools)
+  if (( count < 20 )); then
+    echo "FAIL: only $count tools found (expected 100+), moxins likely failed to load" >&2
+    exit 1
+  fi
+  echo "ok: $count tools discovered (moxins loaded)"
+
 mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
 
 test-mcp: build-go
