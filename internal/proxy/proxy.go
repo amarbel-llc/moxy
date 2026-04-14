@@ -432,11 +432,19 @@ func (p *Proxy) ListToolsV1(
 
 	allTools := make([]protocol.ToolV1, 0)
 
+	debugLog("ListToolsV1: %d children, %d failed", len(children), len(failed))
 	for _, child := range children {
+		debugLog("ListToolsV1: child %q caps.Tools=%v progressive=%v",
+			child.Client.Name(),
+			child.Capabilities.Tools != nil,
+			child.Config.IsProgressiveDisclosure(p.globalProgressiveDisclosure))
+
 		if child.Capabilities.Tools == nil {
+			debugLog("ListToolsV1: SKIP %q — Capabilities.Tools is nil", child.Client.Name())
 			continue
 		}
 		if child.Config.IsProgressiveDisclosure(p.globalProgressiveDisclosure) {
+			debugLog("ListToolsV1: SKIP %q — progressive disclosure", child.Client.Name())
 			continue
 		}
 
@@ -446,6 +454,7 @@ func (p *Proxy) ListToolsV1(
 			cursorParams(cursor),
 		)
 		if err != nil {
+			debugLog("ListToolsV1: ERROR listing tools for %q: %v", child.Client.Name(), err)
 			p.markFailed(
 				child.Client.Name(),
 				fmt.Errorf("listing tools: %w", err),
@@ -455,6 +464,7 @@ func (p *Proxy) ListToolsV1(
 
 		tools, err := decodeToolsList(raw)
 		if err != nil {
+			debugLog("ListToolsV1: ERROR decoding tools for %q: %v", child.Client.Name(), err)
 			p.markFailed(
 				child.Client.Name(),
 				fmt.Errorf("decoding tools: %w", err),
@@ -462,11 +472,13 @@ func (p *Proxy) ListToolsV1(
 			continue
 		}
 
+		debugLog("ListToolsV1: %q returned %d tools", child.Client.Name(), len(tools))
 		for _, tool := range tools {
 			if !matchesAnnotationFilter(
 				tool.Annotations,
 				child.Config.Annotations,
 			) {
+				debugLog("ListToolsV1: FILTERED %q.%q by annotation", child.Client.Name(), tool.Name)
 				continue
 			}
 			tool.Name = child.Client.Name() + "." + tool.Name
@@ -599,6 +611,7 @@ func (p *Proxy) ListToolsV1(
 		},
 	})
 
+	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
 

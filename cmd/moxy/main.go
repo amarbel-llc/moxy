@@ -334,11 +334,23 @@ func runServer(app *command.App) error {
 	var systemDir string
 	if cfg.BuiltinNative == nil || *cfg.BuiltinNative {
 		systemDir = native.SystemMoxinDir()
+		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native enabled, systemDir=%q\n", systemDir)
+	} else {
+		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native DISABLED (cfg.BuiltinNative=%v)\n", *cfg.BuiltinNative)
 	}
 
-	nativeConfigs, err := native.DiscoverConfigs(os.Getenv("MOXIN_PATH"), systemDir)
+	moxinPath := os.Getenv("MOXIN_PATH")
+	fmt.Fprintf(os.Stderr, "moxy: bootstrap: MOXIN_PATH=%q\n", moxinPath)
+	nativeConfigs, err := native.DiscoverConfigs(moxinPath, systemDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: warning: moxin discovery: %v\n", err)
+	}
+	fmt.Fprintf(os.Stderr, "moxy: bootstrap: discovered %d moxin configs\n", len(nativeConfigs))
+	for i, nc := range nativeConfigs {
+		fmt.Fprintf(os.Stderr, "moxy: bootstrap:   [%d] name=%q tools=%d source=%q\n", i, nc.Name, len(nc.Tools), nc.SourceDir)
+		for j, t := range nc.Tools {
+			fmt.Fprintf(os.Stderr, "moxy: bootstrap:     tool[%d] %q (cmd=%q)\n", j, t.Name, t.Command)
+		}
 	}
 
 	existingNames := make(map[string]bool)
@@ -351,6 +363,7 @@ func runServer(app *command.App) error {
 	for _, s := range cfg.Servers {
 		existingNames[s.Name] = true
 	}
+	fmt.Fprintf(os.Stderr, "moxy: bootstrap: existing server names (collision set): %v\n", existingNames)
 
 	for _, nc := range nativeConfigs {
 		if existingNames[nc.Name] {
@@ -359,6 +372,8 @@ func runServer(app *command.App) error {
 		}
 		srv := native.NewServer(nc)
 		initResult := srv.InitializeResult()
+		hasCaps := initResult.Capabilities.Tools != nil
+		fmt.Fprintf(os.Stderr, "moxy: bootstrap: moxin %q initResult.Capabilities.Tools=%v (hasCaps=%v)\n", nc.Name, initResult.Capabilities.Tools, hasCaps)
 		children = append(children, proxy.ChildEntry{
 			Client:       srv,
 			Config:       config.ServerConfig{Name: nc.Name},
@@ -368,6 +383,7 @@ func runServer(app *command.App) error {
 		})
 		fmt.Fprintf(os.Stderr, "moxy: registered moxin %s (%d tools)\n", nc.Name, len(nc.Tools))
 	}
+	fmt.Fprintf(os.Stderr, "moxy: bootstrap: total children after moxin registration: %d\n", len(children))
 
 	// Resolve a session ID for native server cache scoping.
 	// Fallback chain: CLAUDE_SESSION_ID > SPINCLASS_SESSION_ID > generated UUID.

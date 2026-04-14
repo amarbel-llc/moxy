@@ -107,6 +107,7 @@ func ParseMoxinDir(dirPath string) (*NativeConfig, error) {
 
 // ParseMoxinDirFull parses a moxin directory and reports undecoded keys.
 func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
+	debugMoxin("ParseMoxinDirFull: parsing %s", dirPath)
 	// Parse _moxin.toml metadata.
 	metaPath := filepath.Join(dirPath, "_moxin.toml")
 	metaData, err := os.ReadFile(metaPath)
@@ -145,6 +146,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		toolFiles = append(toolFiles, e.Name())
 	}
 	sort.Strings(toolFiles)
+	debugMoxin("ParseMoxinDirFull: %s: found %d tool files: %v", meta.Name, len(toolFiles), toolFiles)
 
 	cfg := &NativeConfig{
 		Name:        meta.Name,
@@ -208,9 +210,11 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		}
 
 		cfg.Tools = append(cfg.Tools, ts)
+		debugMoxin("ParseMoxinDirFull: %s: parsed tool %q (cmd=%q, args=%v)", meta.Name, toolName, raw.Command, raw.Args)
 		allUndecoded = append(allUndecoded, detectUndecodedTool(data, filename)...)
 	}
 
+	debugMoxin("ParseMoxinDirFull: %s: completed with %d tools", meta.Name, len(cfg.Tools))
 	return &ParseResult{Config: cfg, Undecoded: allUndecoded}, nil
 }
 

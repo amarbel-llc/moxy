@@ -95,15 +95,21 @@ func (s *Server) InitializeResult() *protocol.InitializeResultV1 {
 			Name: s.config.Name,
 		},
 	}
+	debugMoxin("InitializeResult: server=%q numTools=%d", s.config.Name, len(s.config.Tools))
 	if len(s.config.Tools) > 0 {
 		result.Capabilities.Tools = &protocol.ToolsCapability{}
+		debugMoxin("InitializeResult: server=%q → setting Tools capability", s.config.Name)
+	} else {
+		debugMoxin("InitializeResult: server=%q → NO tools, Capabilities.Tools will be nil", s.config.Name)
 	}
 	return result
 }
 
 func (s *Server) handleToolsList() (json.RawMessage, error) {
+	debugMoxin("handleToolsList: server=%q numTools=%d", s.config.Name, len(s.config.Tools))
 	tools := make([]protocol.ToolV1, len(s.config.Tools))
 	for i, spec := range s.config.Tools {
+		debugMoxin("handleToolsList: server=%q tool[%d]=%q cmd=%q", s.config.Name, i, spec.Name, spec.Command)
 		desc := spec.Description
 		if spec.PermsRequest != "" {
 			desc = fmt.Sprintf("%s [perms: %s]", desc, spec.PermsRequest)
