@@ -40,12 +40,10 @@ def normalize_preview(s: str) -> str:
     return s.strip()
 
 
-def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
-    """Extract tool results that are errors or have empty content."""
-    # Build a map from tool_use_id -> tool name from assistant messages
+def collect_results(path: Path, tool_name_filter: str) -> list[dict]:
+    """Extract all tool results with their outcome classification."""
     tool_names: dict[str, str] = {}
-    # Collect tool_result blocks from user messages
-    failures: list[dict] = []
+    results: list[dict] = []
 
     with open(path) as f:
         for line in f:
@@ -73,7 +71,6 @@ def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
                     is_error = block.get("is_error", False)
                     inner = block.get("content", "")
 
-                    # Extract text from content
                     if isinstance(inner, list):
                         text = " ".join(
                             b.get("text", "")
@@ -92,23 +89,23 @@ def collect_failures(path: Path, tool_name_filter: str) -> list[dict]:
                         or "User rejected tool use" in text
                     )
 
-                    if not is_error and not is_empty:
-                        continue
-
                     name = tool_names.get(tool_use_id, "?")
 
                     if tool_name_filter and tool_name_filter.lower() not in name.lower():
                         continue
 
-                    failures.append({
+                    is_success = not is_error and not is_empty
+
+                    results.append({
                         "tool": name,
+                        "is_success": is_success,
                         "is_error": is_error and not is_rejected,
                         "is_empty": is_empty,
                         "is_rejected": is_rejected,
-                        "preview": normalize_preview(text) if text else "(empty)",
+                        "preview": normalize_preview(text) if (text and not is_success) else "",
                     })
 
-    return failures
+    return results
 
 
 def subagent_paths(session_path: Path) -> list[Path]:
@@ -157,43 +154,43 @@ def main():
     if not session_paths:
         return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
 
-    # Phase 3: collect failures across all sessions (including subagents)
-    all_failures: list[dict] = []
+    # Phase 3: collect all results across sessions (including subagents)
+    all_results: list[dict] = []
     for path in session_paths:
-        all_failures.extend(collect_failures(path, tool_name_filter))
+        all_results.extend(collect_results(path, tool_name_filter))
         for sub in subagent_paths(path):
-            all_failures.extend(collect_failures(sub, tool_name_filter))
+            all_results.extend(collect_results(sub, tool_name_filter))
 
-    if not all_failures:
+    if not all_results:
         filter_desc = f", tool={tool_name_filter}" if tool_name_filter else ""
         return emit_mcp_result(
-            f"No failed or empty tool results across {len(session_paths)} sessions{filter_desc}"
+            f"No tool results across {len(session_paths)} sessions{filter_desc}"
         )
 
-    # Phase 4: aggregate by tool name and failure type
+    # Phase 4: aggregate by tool name and result type
+    total_counter: Counter = Counter()
+    success_counter: Counter = Counter()
     error_counter: Counter = Counter()
     empty_counter: Counter = Counter()
     rejected_counter: Counter = Counter()
     example_previews: dict[str, str] = {}
 
-    for f in all_failures:
-        tool = f["tool"]
-        if f.get("is_rejected"):
+    for r in all_results:
+        tool = r["tool"]
+        total_counter[tool] += 1
+        if r["is_success"]:
+            success_counter[tool] += 1
+        if r.get("is_rejected"):
             rejected_counter[tool] += 1
-        elif f["is_error"]:
+        elif r["is_error"]:
             error_counter[tool] += 1
-        if f["is_empty"]:
+        if r["is_empty"]:
             empty_counter[tool] += 1
-        if tool not in example_previews and not f.get("is_rejected"):
-            example_previews[tool] = f["preview"]
+        if tool not in example_previews and r["preview"]:
+            example_previews[tool] = r["preview"]
 
-    # Combine and sort by total failures
-    all_tools = set(error_counter.keys()) | set(empty_counter.keys()) | set(rejected_counter.keys())
-    ranked = sorted(
-        all_tools,
-        key=lambda t: error_counter[t] + empty_counter[t] + rejected_counter[t],
-        reverse=True,
-    )
+    # Sort by total calls descending
+    ranked = sorted(total_counter.keys(), key=lambda t: total_counter[t], reverse=True)
 
     if limit > 0:
         ranked = ranked[:limit]
@@ -202,22 +199,37 @@ def main():
     lines = []
     proj_desc = f", project: {project_filter}" if project_filter else ""
     tool_desc = f", tool: {tool_name_filter}" if tool_name_filter else ""
-    lines.append(f"Tool result failures across {len(session_paths)} sessions ({days} days{proj_desc}{tool_desc})")
+    lines.append(f"Tool results across {len(session_paths)} sessions ({days} days{proj_desc}{tool_desc})")
+
+    grand_total = sum(total_counter.values())
+    total_success = sum(success_counter.values())
     total_errs = sum(error_counter.values())
     total_empty = sum(empty_counter.values())
     total_rejected = sum(rejected_counter.values())
-    lines.append(f"Total: {len(all_failures)} failures ({total_errs} errors, {total_empty} empty, {total_rejected} rejected)")
+    lines.append(
+        f"Total: {grand_total} calls "
+        f"({total_success} ok, {total_errs} errors, {total_empty} empty, {total_rejected} rejected)"
+    )
 
     max_name = max(4, max(len(t) for t in ranked))
 
     lines.append("")
-    lines.append(f"  {'#':>3}  {'Tool':<{max_name}}  {'Errors':>6}  {'Empty':>5}  {'Rejected':>8}  Example")
+    lines.append(
+        f"  {'#':>3}  {'Tool':<{max_name}}  {'Total':>5}  {'OK':>5}"
+        f"  {'Err':>5}  {'Empty':>5}  {'Rej':>5}  {'Err%':>5}  Example"
+    )
     for i, tool in enumerate(ranked, start=1):
+        total = total_counter[tool]
+        ok = success_counter[tool]
         errs = error_counter[tool]
         empties = empty_counter[tool]
         rejects = rejected_counter[tool]
+        err_pct = 100.0 * errs / total if total > 0 else 0.0
         preview = example_previews.get(tool, "")
-        lines.append(f"  {i:>3}  {tool:<{max_name}}  {errs:>6}  {empties:>5}  {rejects:>8}  {preview}")
+        lines.append(
+            f"  {i:>3}  {tool:<{max_name}}  {total:>5}  {ok:>5}"
+            f"  {errs:>5}  {empties:>5}  {rejects:>5}  {err_pct:4.1f}%  {preview}"
+        )
 
     # Date range
     mtimes = [p.stat().st_mtime for p in session_paths]

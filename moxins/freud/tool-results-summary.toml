@@ -1,8 +1,9 @@
 schema = 2
 perms-request = "always-allow"
-description = """Summarize tool results that failed (is_error) or returned empty content across sessions. \
-Shows tool name, error preview, and frequency. Useful for spotting flaky tools or misconfigured servers."""
-command = "@BIN@/tool-results-summary-failures"
+description = """Summarize tool results across sessions: total calls, successes, errors, empty results, \
+and rejections per tool. Shows error rates and example error previews. Useful for understanding tool \
+reliability and identifying flaky tools or misconfigured servers."""
+command = "@BIN@/tool-results-summary"
 arg_order = ["project", "days", "tool_name", "limit"]
 
 [input]
