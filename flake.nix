@@ -201,7 +201,7 @@
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.jq pkgs.just pkgs.nix
         ] {
           "list-recipes" = "moxins/just-us-agents/src/list-recipes.ts";
-        } {};
+        } { pathMode = "inherit"; };
         man-moxin = mkMoxin "man" [
           pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnugrep pkgs.gzip
           pkgs.man-db pkgs.mandoc pkgs.manix pkgs.pandoc
