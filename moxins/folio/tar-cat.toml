@@ -1,0 +1,21 @@
+schema = 1
+perms-request = "always-allow"
+description = """Extract and print a single file from a tarball to stdout. \
+Use tar-list first to discover available members."""
+command = "@BIN@/tar-cat"
+arg_order = ["path", "member"]
+
+[input]
+required = ["path", "member"]
+
+[input.properties.path]
+type = "string"
+description = "Path to the tarball (e.g. '/nix/store/...-tarball/foo.tar.gz')."
+
+[input.properties.member]
+type = "string"
+description = "Path of the member to extract (e.g. 'moxy/bin/moxy', 'moxy/share/moxy/moxins/folio/read.toml')."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+hash_type="${2:-sha256}"
+encoding="${3:-base16}"
+
+if [ ! -e "$path" ]; then
+  echo "Error: path does not exist: $path" >&2
+  exit 1
+fi
+
+case "$encoding" in
+  base16|base32|base64|sri) ;;
+  *) echo "Error: unsupported encoding: $encoding (use base16, base32, base64, or sri)" >&2; exit 1 ;;
+esac
+
+case "$hash_type" in
+  sha256|sha1|sha512|md5) ;;
+  *) echo "Error: unsupported hash type: $hash_type (use sha256, sha1, sha512, or md5)" >&2; exit 1 ;;
+esac
+
+if [ "$encoding" = "sri" ]; then
+  nix-hash --type "$hash_type" --sri --flat "$path"
+else
+  nix-hash --type "$hash_type" "--$encoding" --flat "$path"
+fi

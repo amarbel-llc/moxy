@@ -1,0 +1,16 @@
+schema = 1
+description = """Identify file type using magic bytes. Returns a human-readable \
+description (e.g. 'ELF 64-bit executable', 'Bash script, ASCII text')."""
+command = "@BIN@/file-type"
+arg_order = ["path"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Absolute path to the file to identify."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

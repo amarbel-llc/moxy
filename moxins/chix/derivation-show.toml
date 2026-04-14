@@ -1,0 +1,23 @@
+schema = 2
+result-type = "text"
+content-type = "application/json"
+perms-request = "always-allow"
+description = """Show the JSON representation of a derivation. Optionally \
+apply a jq filter to extract specific fields."""
+command = "@BIN@/derivation-show"
+arg_order = ["path", "jq_filter"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Derivation path or installable (e.g., '/nix/store/...-hello.drv', '.#default')."
+
+[input.properties.jq_filter]
+type = "string"
+description = "Optional jq expression to apply to the output (e.g., '.[] | .env')."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

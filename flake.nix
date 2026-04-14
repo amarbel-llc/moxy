@@ -166,9 +166,10 @@
           "flake-show" = "moxins/chix/src/flake-show.ts";
           "store-ls" = "moxins/chix/src/store-ls.ts";
         } {};
+        conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
-        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ] {};
-        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.jq ] {};
+        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
+        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] {};
         get-hubbed-moxin = mkBunMoxin "get-hubbed" [
           pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
@@ -218,6 +219,7 @@
         moxy-moxins = pkgs.runCommand "moxy-moxins" {} ''
           mkdir -p $out/share/moxy/moxins
           ln -s ${chix-moxin} $out/share/moxy/moxins/chix
+          ln -s ${conch-moxin} $out/share/moxy/moxins/conch
           ln -s ${env-moxin} $out/share/moxy/moxins/env
           ln -s ${folio-moxin} $out/share/moxy/moxins/folio
           ln -s ${folio-external-moxin} $out/share/moxy/moxins/folio-external
@@ -356,6 +358,7 @@
         # Moxins included in Homebrew distribution (those with deps
         # available in Homebrew).
         brew-moxins = {
+          conch = mkBrewMoxin "conch";
           env = mkBrewMoxin "env";
           folio = mkBrewMoxin "folio";
           folio-external = mkBrewMoxin "folio-external";

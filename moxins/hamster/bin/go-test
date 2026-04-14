@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+packages="${1:-./...}"
+run="${2:-}"
+verbose="${3:-false}"
+count="${4:-}"
+
+args=(test)
+if [ "$verbose" = "true" ]; then
+  args+=(-v)
+fi
+if [ -n "$run" ]; then
+  args+=(-run "$run")
+fi
+if [ -n "$count" ]; then
+  args+=(-count "$count")
+fi
+args+=("$packages")
+
+go "${args[@]}"

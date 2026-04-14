@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = """Compute the hash of a file or path. Returns the hash string \
+in the requested encoding."""
+command = "@BIN@/nix-hash"
+arg_order = ["path", "hash_type", "encoding"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path to the file or directory to hash."
+
+[input.properties.hash_type]
+type = "string"
+description = "Hash algorithm: sha256 (default), sha1, sha512, md5."
+
+[input.properties.encoding]
+type = "string"
+description = "Output encoding: base16 (default), base32, base64, sri."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

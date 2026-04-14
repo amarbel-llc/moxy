@@ -1,0 +1,16 @@
+schema = 1
+perms-request = "always-allow"
+description = "Check shell script syntax without executing. Runs bash -n to parse and report errors."
+command = "@BIN@/syntax-check"
+arg_order = ["path"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path to the shell script to check (e.g. 'scripts/install.bash')."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

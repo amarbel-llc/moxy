@@ -1,0 +1,21 @@
+schema = 1
+perms-request = "always-allow"
+description = """List contents of a tarball (.tar.gz, .tar.bz2, .tar, etc). \
+Optionally filter entries by a grep pattern."""
+command = "@BIN@/tar-list"
+arg_order = ["path", "pattern"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path to the tarball (e.g. '/nix/store/...-tarball/foo.tar.gz')."
+
+[input.properties.pattern]
+type = "string"
+description = "Optional grep pattern to filter entries (e.g. 'bin/' or '\\.toml$')."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+jq_filter="${2:-}"
+
+if [ -n "$jq_filter" ]; then
+  nix derivation show "$path" | jq "$jq_filter"
+else
+  nix derivation show "$path"
+fi

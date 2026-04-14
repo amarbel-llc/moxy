@@ -1,0 +1,27 @@
+schema = 1
+perms-request = "always-allow"
+description = """Run Go tests. Equivalent to 'go test' with optional package \
+filter, test name pattern, verbose output, and run count."""
+command = "@BIN@/go-test"
+arg_order = ["packages", "run", "verbose", "count"]
+
+[input]
+
+[input.properties.packages]
+type = "string"
+description = "Package pattern to test (default './...'). Examples: './internal/config/...', './cmd/moxy'."
+
+[input.properties.run]
+type = "string"
+description = "Run only tests matching this regexp (passed to -run)."
+
+[input.properties.verbose]
+type = "boolean"
+description = "Enable verbose output (-v). Defaults to false."
+
+[input.properties.count]
+type = "integer"
+description = "Run tests this many times (passed to -count). Useful for detecting flaky tests."
+
+[annotations]
+idempotent-hint = true

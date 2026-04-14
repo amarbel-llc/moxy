@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+
+if [ ! -f "$path" ]; then
+  echo "Error: not a file: $path" >&2
+  exit 1
+fi
+
+bash -n "$path"
+echo "syntax ok: $path"

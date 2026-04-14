@@ -1,0 +1,16 @@
+schema = 1
+perms-request = "always-allow"
+description = """Build a derivation and return the output store path(s). \
+Equivalent to nix-store -r. Accepts .drv paths or installables."""
+command = "@BIN@/store-realize"
+arg_order = ["path"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Derivation path (e.g., '/nix/store/...-hello.drv') or installable to realize."
+
+[annotations]
+idempotent-hint = true

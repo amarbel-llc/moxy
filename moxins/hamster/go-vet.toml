@@ -1,0 +1,16 @@
+schema = 1
+perms-request = "always-allow"
+description = """Run Go vet static analysis. Reports suspicious constructs \
+that the compiler does not catch."""
+command = "@BIN@/go-vet"
+arg_order = ["packages"]
+
+[input]
+
+[input.properties.packages]
+type = "string"
+description = "Package pattern to vet (default './...'). Examples: './internal/...', './cmd/moxy'."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
