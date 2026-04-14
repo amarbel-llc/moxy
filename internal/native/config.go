@@ -52,6 +52,30 @@ type ToolAnnotations struct {
 	OpenWorldHint   *bool  `toml:"open-world-hint"`
 }
 
+// InputSchema is the typed representation of a moxin tool's [input] section.
+// Only the JSON Schema keywords actually used by moxin TOML files are modeled.
+type InputSchema struct {
+	Type        string                    `toml:"type"        json:"type"`
+	Description string                    `toml:"description" json:"description,omitempty"`
+	Required    []string                  `toml:"required"    json:"required,omitempty"`
+	Properties  map[string]PropertySchema `toml:"properties"  json:"properties,omitempty"`
+}
+
+// PropertySchema describes a single property within an input schema.
+type PropertySchema struct {
+	Type                 string     `toml:"type"                  json:"type"`
+	Description          string     `toml:"description"           json:"description,omitempty"`
+	Enum                 []string   `toml:"enum"                  json:"enum,omitempty"`
+	Items                *SchemaRef `toml:"items"                 json:"items,omitempty"`
+	AdditionalProperties *SchemaRef `toml:"additionalProperties"  json:"additionalProperties,omitempty"`
+}
+
+// SchemaRef is a leaf schema reference (for array items or map values).
+type SchemaRef struct {
+	Type        string `toml:"type"        json:"type"`
+	Description string `toml:"description" json:"description,omitempty"`
+}
+
 // ToolSpec describes a single tool within a moxin.
 type ToolSpec struct {
 	Name         string
@@ -65,6 +89,7 @@ type ToolSpec struct {
 	ResultType   ResultType
 	Annotations  *ToolAnnotations
 	Input        json.RawMessage
+	InputParsed  *InputSchema
 }
 
 // MoxinMeta is the parsed content of _moxin.toml.
@@ -87,7 +112,7 @@ type rawToolFile struct {
 	ContentType  string           `toml:"content-type"`
 	ResultType   string           `toml:"result-type"`
 	Annotations  *ToolAnnotations `toml:"annotations"`
-	Input        any              `toml:"input"`
+	Input        *InputSchema     `toml:"input"`
 }
 
 // ParseResult holds the parsed config and any undecoded keys found in the TOML files.
@@ -207,6 +232,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 				return nil, fmt.Errorf("tool file %s: marshaling input schema: %w", filename, err)
 			}
 			ts.Input = jsonBytes
+			ts.InputParsed = raw.Input
 		}
 
 		cfg.Tools = append(cfg.Tools, ts)
