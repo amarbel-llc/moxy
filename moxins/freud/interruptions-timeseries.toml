@@ -1,0 +1,26 @@
+schema = 2
+perms-request = "always-allow"
+description = """Interruption events (permission prompts, rejections, user interruptions) bucketed by day \
+or week. Returns a table with per-bucket counts and approval rates, plus ASCII sparklines. Use to spot \
+changes in agent autonomy and permission friction over time."""
+command = "@BIN@/interruptions-timeseries"
+arg_order = ["project", "days", "group_by"]
+
+[input]
+type = "object"
+
+[input.properties.project]
+type = "string"
+description = "Filter sessions by project path substring (case-insensitive). Omit for all projects."
+
+[input.properties.days]
+type = "integer"
+description = "Analyze sessions from the last N days. Defaults to 14."
+
+[input.properties.group_by]
+type = "string"
+description = "Bucket size: 'day' (default) or 'week'."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

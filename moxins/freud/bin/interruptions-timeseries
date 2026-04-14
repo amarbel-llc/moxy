@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+import time
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+REJECTION_MARKER = "User rejected tool use"
+INTERRUPTION_PREFIX = "[Request interrupted by user"
+PROCEED_MARKER = "The user doesn't want to proceed with this tool use"
+
+
+def resolve_cwd(proj_dir: Path) -> str | None:
+    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not jsonls:
+        return None
+    with open(jsonls[0]) as f:
+        for i, line in enumerate(f):
+            if i >= 200:
+                break
+            try:
+                obj = json.loads(line)
+                cwd = obj.get("cwd")
+                if cwd:
+                    return cwd
+            except (json.JSONDecodeError, KeyError):
+                continue
+    name = proj_dir.name.lstrip("-")
+    return "/" + name.replace("-", "/") + " (heuristic)"
+
+
+def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
+    lower = filter_str.lower()
+    return lower in resolved_cwd.lower() or lower in dir_name.lower()
+
+
+def session_bucket(path: Path, group_by: str) -> str:
+    dt = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    if group_by == "week":
+        return dt.strftime("%G-W%V")
+    return dt.strftime("%m-%d")
+
+
+def scan_session(path: Path) -> tuple[int, int]:
+    """Scan a session for interruption and rejection counts (tool-agnostic)."""
+    interrupts = 0
+    rejects = 0
+
+    tool_names: dict[str, str] = {}
+
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = obj.get("type")
+
+            if msg_type == "assistant":
+                content = obj.get("message", {}).get("content")
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "tool_use":
+                            tool_names[block.get("id", "")] = block.get("name", "?")
+
+            elif msg_type == "user":
+                tur = obj.get("toolUseResult")
+                if tur == REJECTION_MARKER:
+                    rejects += 1
+
+                content = obj.get("message", {}).get("content")
+
+                if isinstance(content, str):
+                    if content.startswith(INTERRUPTION_PREFIX):
+                        interrupts += 1
+
+                elif isinstance(content, list):
+                    for block in content:
+                        if not isinstance(block, dict):
+                            continue
+
+                        if block.get("type") == "text":
+                            text = block.get("text", "")
+                            if text.startswith(INTERRUPTION_PREFIX):
+                                interrupts += 1
+
+                        elif block.get("type") == "tool_result" and block.get("is_error"):
+                            inner = block.get("content", "")
+                            text = ""
+                            if isinstance(inner, str):
+                                text = inner
+                            elif isinstance(inner, list):
+                                text = " ".join(
+                                    b.get("text", "")
+                                    for b in inner
+                                    if isinstance(b, dict) and b.get("type") == "text"
+                                )
+                            if PROCEED_MARKER in text:
+                                rejects += 1
+
+    return interrupts, rejects
+
+
+def scan_hook_logs_by_session(cutoff: float, session_ids: set[str]) -> dict[str, int]:
+    """Scan hook logs and return prompted count per session ID."""
+    per_session: dict[str, int] = defaultdict(int)
+
+    log_home = os.environ.get("XDG_LOG_HOME", "")
+    if not log_home:
+        log_home = str(Path.home() / ".local" / "log")
+    log_dir = Path(log_home) / "moxy" / "hooks"
+
+    if not log_dir.is_dir():
+        return per_session
+
+    for log_file in log_dir.glob("*.jsonl"):
+        sid = log_file.stem
+        if session_ids and sid not in session_ids:
+            continue
+        if log_file.stat().st_mtime < cutoff:
+            continue
+
+        with open(log_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get("hook_event_name") == "PermissionRequest":
+                    per_session[sid] += 1
+
+    return per_session
+
+
+def subagent_paths(session_path: Path) -> list[Path]:
+    sub_dir = session_path.parent / session_path.stem / "subagents"
+    if sub_dir.is_dir():
+        return list(sub_dir.glob("*.jsonl"))
+    return []
+
+
+def render_sparkline(values: list[int], labels: list[str], title: str, rows: int = 12) -> list[str]:
+    total = sum(values)
+    if total == 0:
+        return []
+
+    max_val = max(values) or 1
+    block = "\u2588"
+
+    lines = [f"{title} ({total} total):"]
+    for row in range(rows, 0, -1):
+        threshold = max_val * row / rows
+        line = "  "
+        for v in values:
+            line += block if v >= threshold else " "
+            line += " "
+        if block in line:
+            lines.append(line)
+
+    lines.append("  " + " ".join(labels))
+    return lines
+
+
+def main():
+    project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
+    days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 14
+    group_by = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else "day"
+
+    if group_by not in ("day", "week"):
+        group_by = "day"
+
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return emit_mcp_result("(no sessions found)")
+
+    cutoff = time.time() - (days * 86400)
+
+    # Phase 1: resolve cwd per project directory
+    cwd_map: dict[str, str] = {}
+    for proj_dir in sorted(projects_dir.iterdir()):
+        if not proj_dir.is_dir():
+            continue
+        cwd = resolve_cwd(proj_dir)
+        if cwd:
+            cwd_map[proj_dir.name] = cwd
+
+    # Phase 2: collect matching session files with their buckets
+    session_files: list[tuple[Path, str]] = []
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
+            continue
+        project = cwd_map[proj_dir.name]
+        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            continue
+        for f in proj_dir.glob("*.jsonl"):
+            if f.stat().st_mtime >= cutoff:
+                bucket = session_bucket(f, group_by)
+                session_files.append((f, bucket))
+
+    if not session_files:
+        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+
+    # Build session_id → bucket mapping for hook log attribution
+    sid_to_bucket: dict[str, str] = {}
+    for path, bucket in session_files:
+        sid_to_bucket[path.stem] = bucket
+
+    # Phase 3: scan sessions for interruptions and rejections per bucket
+    buckets: dict[str, dict] = defaultdict(lambda: {"prompted": 0, "rejected": 0, "interrupted": 0})
+
+    for path, bucket in session_files:
+        ic, rc = scan_session(path)
+        buckets[bucket]["interrupted"] += ic
+        buckets[bucket]["rejected"] += rc
+        for sub in subagent_paths(path):
+            sic, src = scan_session(sub)
+            buckets[bucket]["interrupted"] += sic
+            buckets[bucket]["rejected"] += src
+
+    # Phase 3b: scan hook logs for prompted counts, attributed to buckets
+    session_ids = {p.stem for p, _ in session_files}
+    prompted_per_session = scan_hook_logs_by_session(cutoff, session_ids)
+    for sid, count in prompted_per_session.items():
+        bucket = sid_to_bucket.get(sid)
+        if bucket:
+            buckets[bucket]["prompted"] += count
+
+    sorted_buckets = sorted(buckets.keys())
+
+    # Check if any data
+    grand_prompted = sum(b["prompted"] for b in buckets.values())
+    grand_rejected = sum(b["rejected"] for b in buckets.values())
+    grand_interrupted = sum(b["interrupted"] for b in buckets.values())
+
+    if grand_prompted == 0 and grand_rejected == 0 and grand_interrupted == 0:
+        proj_desc = f", project={project_filter}" if project_filter else ""
+        return emit_mcp_result(
+            f"No agent pauses found across {len(session_files)} sessions{proj_desc}"
+        )
+
+    grand_approved = max(0, grand_prompted - grand_rejected)
+
+    # Phase 4: format output
+    lines = []
+    proj_desc = f", project: {project_filter}" if project_filter else ""
+    bucket_desc = f", by {group_by}"
+    lines.append(
+        f"Interruptions timeseries across {len(session_files)} sessions"
+        f" ({days} days{proj_desc}{bucket_desc})"
+    )
+    lines.append(
+        f"Total: {grand_prompted} prompted, {grand_approved} approved,"
+        f" {grand_rejected} rejected, {grand_interrupted} interrupted"
+    )
+    lines.append("")
+
+    date_label = "Week" if group_by == "week" else "Date"
+    date_width = max(len(date_label), max(len(b) for b in sorted_buckets))
+    lines.append(
+        f"  {date_label:<{date_width}}  {'Prompted':>8}  {'Approved':>8}"
+        f"  {'Rejected':>8}  {'Interrupted':>11}  {'Total':>5}"
+    )
+
+    for bucket in sorted_buckets:
+        d = buckets[bucket]
+        approved = max(0, d["prompted"] - d["rejected"])
+        total = d["prompted"] + d["interrupted"]
+        lines.append(
+            f"  {bucket:<{date_width}}  {d['prompted']:>8}  {approved:>8}"
+            f"  {d['rejected']:>8}  {d['interrupted']:>11}  {total:>5}"
+        )
+
+    # Totals row
+    grand_total = grand_prompted + grand_interrupted
+    lines.append(
+        f"  {'TOTAL':<{date_width}}  {grand_prompted:>8}  {grand_approved:>8}"
+        f"  {grand_rejected:>8}  {grand_interrupted:>11}  {grand_total:>5}"
+    )
+
+    # Sparklines
+    if group_by == "week":
+        spark_labels = [b[-3:] for b in sorted_buckets]
+    else:
+        spark_labels = [b[-2:] for b in sorted_buckets]
+
+    rejected_values = [buckets[b]["rejected"] for b in sorted_buckets]
+    interrupted_values = [buckets[b]["interrupted"] for b in sorted_buckets]
+
+    lines.append("")
+    lines.extend(render_sparkline(rejected_values, spark_labels, "Rejected"))
+
+    lines.append("")
+    lines.extend(render_sparkline(interrupted_values, spark_labels, "Interrupted"))
+
+    # Date range
+    mtimes = [p.stat().st_mtime for p, _ in session_files]
+    earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    lines.append(f"\n{len(session_files)} sessions analyzed ({earliest} \u2192 {latest})")
+
+    emit_mcp_result("\n".join(lines))
+
+
+def emit_mcp_result(text: str, mime: str = "text/plain"):
+    result = {"content": [{"type": "text", "text": text, "mimeType": mime}]}
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    main()
