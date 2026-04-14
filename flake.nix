@@ -161,11 +161,11 @@
 
         # Per-moxin derivations — each moxin is self-contained with its deps.
         chix-moxin = mkBunMoxin "chix" [
-          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq pkgs.manix pkgs.nix
+          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq pkgs.manix
         ] {
           "flake-show" = "moxins/chix/src/flake-show.ts";
           "store-ls" = "moxins/chix/src/store-ls.ts";
-        } {};
+        } { pathMode = "inherit"; };
         conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
