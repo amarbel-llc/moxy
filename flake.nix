@@ -192,7 +192,7 @@
           "doc" = "moxins/hamster/src/doc.ts";
           "src" = "moxins/hamster/src/src.ts";
           "mod-read" = "moxins/hamster/src/mod-read.ts";
-        } {};
+        } { pathMode = "inherit"; };
         jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs.jq pkgs-master-unfree.acli ] {};
         sisyphus-python = pkgs.python3.withPackages (ps: [ ps.atlassian-python-api ]);
         sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
