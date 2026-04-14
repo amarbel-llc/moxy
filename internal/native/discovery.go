@@ -157,10 +157,14 @@ type MoxinError struct {
 type DiscoverResult struct {
 	Configs []*NativeConfig
 	Errors  []MoxinError
+	// Dirs lists the MOXIN_PATH directories that were scanned, in priority
+	// order (highest first). Useful for status display.
+	Dirs []string
 }
 
 // DiscoverAll loads moxin configs and collects load failures instead of
-// logging them to stderr. Used by `moxy list` to show error details.
+// logging them to stderr. Uses the same resolution and merge logic as
+// DiscoverConfigs (the server runtime path).
 func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 	dirs := resolveMoxinDirs(moxinPath, systemDir)
 
@@ -212,7 +216,7 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 		result = append(result, byName[name])
 	}
 	debugMoxin("DiscoverAll: result: %d configs, %d errors", len(result), len(loadErrors))
-	return DiscoverResult{Configs: result, Errors: loadErrors}, nil
+	return DiscoverResult{Configs: result, Errors: loadErrors, Dirs: dirs}, nil
 }
 
 func resolveMoxinDirs(moxinPath, systemDir string) []string {

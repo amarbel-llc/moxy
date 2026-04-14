@@ -12,7 +12,7 @@ teardown() {
 
 function no_moxyfile_reports_no_servers { # @test
   cd "$HOME"
-  run_moxy validate
+  run_moxy status
   assert_failure
   assert_output --partial "no servers configured"
 }
@@ -26,7 +26,7 @@ command = "true"
 EOF
 
   cd "$HOME/repo"
-  run_moxy validate
+  run_moxy status
   assert_success
   assert_output --partial "repo/moxyfile valid"
   assert_output --partial "1 server(s)"
@@ -42,7 +42,7 @@ EOF
 
   mkdir -p "$HOME/repo"
   cd "$HOME/repo"
-  run_moxy validate
+  run_moxy status
   assert_success
   assert_output --partial ".config/moxy/moxyfile valid"
   assert_output --partial "1 server(s)"
@@ -57,7 +57,7 @@ command = "true"
 EOF
 
   cd "$HOME/eng/repos/myrepo"
-  run_moxy validate
+  run_moxy status
   assert_success
   assert_output --partial "eng/moxyfile valid"
   assert_output --partial "1 server(s)"
@@ -79,7 +79,7 @@ command = "echo --repo"
 EOF
 
   cd "$HOME/repo"
-  run_moxy validate
+  run_moxy status
   assert_success
   assert_output --partial "1 server(s)"
 }
@@ -100,7 +100,7 @@ command = "true"
 EOF
 
   cd "$HOME/repo"
-  run_moxy validate
+  run_moxy status
   assert_success
   assert_output --partial "2 server(s)"
 }
@@ -114,7 +114,7 @@ command = "echo mcp --verbose"
 EOF
 
   cd "$HOME/repo"
-  run_moxy validate
+  run_moxy status
   assert_success
 }
 
@@ -127,11 +127,11 @@ command = ["echo", "--lsp-dir", "/path with spaces"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy validate
+  run_moxy status
   assert_success
 }
 
-function validate_fails_when_command_not_on_path { # @test
+function status_fails_when_command_not_on_path { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<'EOF'
 [[servers]]
@@ -140,7 +140,7 @@ command = "nonexistent-mcp-server-binary"
 EOF
 
   cd "$HOME/repo"
-  run_moxy validate
+  run_moxy status
   assert_failure
   assert_output --partial 'not found on $PATH'
 }

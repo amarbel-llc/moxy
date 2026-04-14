@@ -1,4 +1,4 @@
-package validate
+package status
 
 import (
 	"bytes"
@@ -18,7 +18,6 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-// writeMoxinDir creates a directory-based moxin with _moxin.toml and tool files.
 func writeMoxinDir(t *testing.T, parentDir, name string, moxinToml string, tools map[string]string) {
 	t.Helper()
 	dir := filepath.Join(parentDir, name)
@@ -53,11 +52,14 @@ command = "grit mcp"
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d\noutput:\n%s", code, output)
 	}
-	if !strings.Contains(output, "merged: 2 server") == false && !strings.Contains(output, "merged: 1 server") {
+	if !strings.Contains(output, "1 server(s)") {
 		t.Errorf("expected merged server count in output:\n%s", output)
 	}
 	if !strings.Contains(output, "all servers valid") {
 		t.Errorf("expected 'all servers valid' in output:\n%s", output)
+	}
+	if !strings.Contains(output, "all checks passed") {
+		t.Errorf("expected 'all checks passed' in output:\n%s", output)
 	}
 }
 
@@ -151,8 +153,8 @@ command = "grit"
 	Run(&buf, home, dir)
 	output := buf.String()
 
-	if !strings.Contains(output, "SKIP") {
-		t.Errorf("expected SKIP for missing repo moxyfile:\n%s", output)
+	if !strings.Contains(output, "not found") {
+		t.Errorf("expected 'not found' for missing repo moxyfile:\n%s", output)
 	}
 	if !strings.Contains(output, "valid") {
 		t.Errorf("expected valid for global moxyfile:\n%s", output)
@@ -164,7 +166,6 @@ func TestRunMoxinValid(t *testing.T) {
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
 
-	// Need at least one moxyfile server to avoid "no servers configured"
 	writeFile(t, filepath.Join(dir, "moxyfile"), `
 [[servers]]
 name = "grit"
@@ -221,8 +222,8 @@ command = "grit"
 	if code != 1 {
 		t.Fatalf("expected exit 1, got %d\noutput:\n%s", code, output)
 	}
-	if !strings.Contains(output, "not ok") {
-		t.Errorf("expected not-ok for broken moxin config:\n%s", output)
+	if !strings.Contains(output, "FAIL") {
+		t.Errorf("expected FAIL for broken moxin config:\n%s", output)
 	}
 }
 
@@ -320,5 +321,36 @@ command = "lux"
 	}
 	if !strings.Contains(output, "2 server") {
 		t.Errorf("expected '2 server' in output:\n%s", output)
+	}
+}
+
+func TestRunPerLevelDisplay(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "repo")
+	os.MkdirAll(dir, 0o755)
+
+	writeFile(t, filepath.Join(home, ".config", "moxy", "moxyfile"), `
+[[servers]]
+name = "grit"
+command = "grit"
+`)
+	writeFile(t, filepath.Join(dir, "moxyfile"), `
+[[servers]]
+name = "lux"
+command = "lux"
+`)
+
+	var buf bytes.Buffer
+	Run(&buf, home, dir)
+	output := buf.String()
+
+	if !strings.Contains(output, "Moxyfile hierarchy:") {
+		t.Errorf("expected 'Moxyfile hierarchy:' header:\n%s", output)
+	}
+	if !strings.Contains(output, "grit") && !strings.Contains(output, "command=grit") {
+		t.Errorf("expected global server 'grit' listed:\n%s", output)
+	}
+	if !strings.Contains(output, "lux") && !strings.Contains(output, "command=lux") {
+		t.Errorf("expected repo server 'lux' listed:\n%s", output)
 	}
 }

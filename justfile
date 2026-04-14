@@ -1,6 +1,6 @@
 export MOXIN_PATH := justfile_directory() / "result" / "share" / "moxy" / "moxins"
 
-default: build test
+default: build test test-status-clean-env
 
 dev: build-go
   zx bin/dev.mjs
@@ -24,7 +24,7 @@ build-nix: build-gomod2nix
 
 dir_build := "build"
 
-test: test-go test-bats test-validate-mcp test-validate
+test: test-go test-bats test-validate-mcp test-status
 
 test-bats: build-go
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
@@ -40,8 +40,25 @@ test-go:
   MOXIN_PATH="" go vet ./...
   MOXIN_PATH="" go test ./... -v
 
-test-validate: build-go
-  {{justfile_directory()}}/{{dir_build}}/moxy validate
+test-status: build-go
+  {{justfile_directory()}}/{{dir_build}}/moxy status
+
+# Verify the nix-built binary discovers system moxins without ambient env
+test-status-clean-env: build-nix
+  #!/usr/bin/env bash
+  set -euo pipefail
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  mkdir -p "$tmpdir/home/repo"
+  true_bin=$(type -P true)
+  printf '[[servers]]\nname = "test"\ncommand = "%s"\n' "$true_bin" \
+    >"$tmpdir/home/repo/moxyfile"
+  cd "$tmpdir/home/repo"
+  out=$(env -i HOME="$tmpdir/home" PATH="$(dirname "$true_bin")" \
+    "{{justfile_directory()}}/result/bin/moxy" status)
+  echo "$out"
+  echo "$out" | grep -q "moxin(s)"
+  echo "$out" | grep -q "all checks passed"
 
 test-validate-mcp: build-go
   #!/usr/bin/env bash

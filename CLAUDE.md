@@ -17,7 +17,7 @@ automatically.
 just                  # build + test (default target)
 just build-go         # go build only -> build/{moxy,maneater}
 just build-nix        # nix build (runs gomod2nix first)
-just test             # all tests (go + bats + validate-mcp)
+just test             # all tests (go + bats + validate-mcp + status)
 just test-go          # go vet + go test
 just test-bats        # bats integration tests (builds first)
 
@@ -166,7 +166,7 @@ via inline shell commands. No separate binary.
   processes
 - `internal/proxy` -- aggregates children, implements `ToolProviderV1`,
   `ResourceProviderV1`, and `PromptProviderV1`
-- `internal/validate` -- TAP-14 output validation of moxyfile hierarchy
+- `internal/status` -- unified status display and validation of moxyfile hierarchy
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/embedding` -- vector index, cosine similarity, CGo llama bindings
@@ -176,7 +176,7 @@ via inline shell commands. No separate binary.
 Dispatched in `cmd/moxy/main.go`:
 
 - (default) -- run as MCP proxy server
-- `validate` -- validate moxyfile hierarchy, output TAP-14
+- `status` -- show per-level config hierarchy, moxins, and validation
 - `add [path]` -- interactive form to add a server entry
 - `install-mcp` / `generate-plugin` / `hook` -- purse-first integration
 

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
@@ -25,7 +24,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/oauth"
 	"github.com/amarbel-llc/moxy/internal/proxy"
-	"github.com/amarbel-llc/moxy/internal/validate"
+	"github.com/amarbel-llc/moxy/internal/status"
 )
 
 func newApp() *command.App {
@@ -45,8 +44,8 @@ func newApp() *command.App {
 			Command:     "moxy serve mcp",
 		},
 		{
-			Description: "Validate moxyfile configuration hierarchy",
-			Command:     "moxy validate",
+			Description: "Show config hierarchy, moxins, and validation",
+			Command:     "moxy status",
 		},
 		{
 			Description: "Interactively add a server to the local moxyfile",
@@ -64,28 +63,6 @@ func newApp() *command.App {
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
 			return runServer(app)
-		},
-	})
-
-	app.AddCommand(&command.Command{
-		Name: "validate",
-		Description: command.Description{
-			Short: "Validate moxyfile hierarchy and output TAP-14",
-			Long: "Loads all moxyfiles in the hierarchy, checks TOML syntax, " +
-				"validates server names and commands, verifies executables exist " +
-				"on $PATH, and outputs results in TAP version 14 format.",
-		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("getting home dir: %w", err)
-			}
-			cwd, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("getting cwd: %w", err)
-			}
-			os.Exit(validate.Run(os.Stdout, home, cwd))
-			return nil
 		},
 	})
 
@@ -149,24 +126,38 @@ func newApp() *command.App {
 		Description: command.Description{
 			Short: "Show all configured servers and moxins with their sources",
 			Long: "Loads the moxyfile hierarchy and discovers moxins from MOXIN_PATH, " +
-				"then prints each server and moxin with its source file or directory. " +
-				"Useful for debugging which configs are active and where they come from.",
+				"shows each config level with its servers and moxins, validates TOML " +
+				"syntax, server commands, and moxin configs. Exit code 1 on validation failure.",
 		},
 		Annotations: &protocol.ToolAnnotations{
 			ReadOnlyHint: boolPtr(true),
 		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("getting home dir: %w", err)
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting cwd: %w", err)
+			}
+			os.Exit(status.Run(os.Stdout, home, cwd))
+			return nil
+		},
 		Run: func(_ context.Context, _ json.RawMessage, _ command.Prompter) (*command.Result, error) {
-			hierarchy, err := config.LoadDefaultHierarchy()
+			home, err := os.UserHomeDir()
 			if err != nil {
-				return command.TextErrorResult(fmt.Sprintf("loading moxyfile hierarchy: %v", err)), nil
+				return command.TextErrorResult(fmt.Sprintf("getting home dir: %v", err)), nil
 			}
-			moxinPath := os.Getenv("MOXIN_PATH")
-			systemDir := native.SystemMoxinDir()
-			discovered, err := native.DiscoverAll(moxinPath, systemDir)
+			cwd, err := os.Getwd()
 			if err != nil {
-				return command.TextErrorResult(fmt.Sprintf("discovering moxins: %v", err)), nil
+				return command.TextErrorResult(fmt.Sprintf("getting cwd: %v", err)), nil
 			}
-			return command.TextResult(formatStatus(hierarchy, discovered, moxinPath, systemDir)), nil
+			text, err := status.Format(home, cwd)
+			if err != nil {
+				return command.TextErrorResult(err.Error()), nil
+			}
+			return command.TextResult(text), nil
 		},
 	})
 
@@ -534,58 +525,6 @@ func sanitizeSessionSegment(s string) string {
 			b.WriteRune(r)
 		}
 	}
-	return b.String()
-}
-
-func formatStatus(
-	hierarchy config.Hierarchy,
-	discovered native.DiscoverResult,
-	moxinPath string,
-	systemDir string,
-) string {
-	var b strings.Builder
-
-	// Build server-name → source-path mapping (last source wins, matching merge semantics)
-	serverSource := make(map[string]string)
-	for _, src := range hierarchy.Sources {
-		if !src.Found {
-			continue
-		}
-		for _, srv := range src.File.Servers {
-			serverSource[srv.Name] = src.Path
-		}
-	}
-
-	b.WriteString("Moxyfile servers:\n")
-	if len(hierarchy.Merged.Servers) == 0 {
-		b.WriteString("  (none)\n")
-	}
-	for _, srv := range hierarchy.Merged.Servers {
-		fmt.Fprintf(&b, "  %-24s %s\n", srv.Name, serverSource[srv.Name])
-	}
-
-	b.WriteString("\nMoxins:\n")
-	if len(discovered.Configs) == 0 && len(discovered.Errors) == 0 {
-		b.WriteString("  (none)\n")
-	}
-	for _, nc := range discovered.Configs {
-		fmt.Fprintf(&b, "  %-24s %s (%d tools)\n", nc.Name, nc.SourceDir, len(nc.Tools))
-	}
-	for _, me := range discovered.Errors {
-		fmt.Fprintf(&b, "  %-24s %s (FAILED: %v)\n", filepath.Base(me.Dir), me.Dir, me.Err)
-	}
-
-	// Show effective MOXIN_PATH
-	effectivePath := moxinPath
-	if effectivePath == "" {
-		home, _ := os.UserHomeDir()
-		cwd, _ := os.Getwd()
-		if home != "" && cwd != "" {
-			effectivePath = native.DefaultMoxinPath(home, cwd, systemDir)
-		}
-	}
-	fmt.Fprintf(&b, "\nMOXIN_PATH: %s\n", effectivePath)
-
 	return b.String()
 }
 
