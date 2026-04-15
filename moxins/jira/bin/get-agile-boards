@@ -4,7 +4,7 @@ project="${1:-}"
 name="${2:-}"
 max_results="${3:-50}"
 output_format="${4:-}"
-args=(jira board list --limit "$max_results")
+args=(jira board search --limit "$max_results")
 [ -n "$project" ] && args+=(--project "$project")
 [ -n "$name" ] && args+=(--name "$name")
 if [ "$output_format" = "json" ]; then args+=(--json); mime="application/json"; else mime="text/plain"; fi
