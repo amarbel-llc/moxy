@@ -2,7 +2,7 @@ schema = 1
 perms-request = "always-allow"
 description = "Stage files for commit"
 command = "@BIN@/add"
-arg_order = ["paths", "repo_path"]
+arg_order = ["paths", "repo_path", "intent_to_add"]
 
 [input]
 type = "object"
@@ -18,6 +18,10 @@ type = "string"
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[input.properties.intent_to_add]
+type = "boolean"
+description = "Record only the intent to add paths (git add -N). Files appear in diffs as new but their content is not staged."
 
 [annotations]
 idempotent-hint = true

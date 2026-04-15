@@ -2,7 +2,16 @@
 set -euo pipefail
 paths="$1"
 repo="${2:-.}"
+intent_to_add="${3:-false}"
 cd "$repo"
 mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
-git add -- "${files[@]}"
-printf 'Staged %d file(s)\n' "${#files[@]}"
+git_args=(add)
+if [ "$intent_to_add" = "true" ]; then
+  git_args+=(-N)
+fi
+git "${git_args[@]}" -- "${files[@]}"
+if [ "$intent_to_add" = "true" ]; then
+  printf 'Recorded intent to add %d file(s)\n' "${#files[@]}"
+else
+  printf 'Staged %d file(s)\n' "${#files[@]}"
+fi
