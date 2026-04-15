@@ -197,11 +197,31 @@
         sisyphus-python = pkgs.python3.withPackages (ps: [ ps.atlassian-python-api ]);
         sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
-        just-us-agents-moxin = mkBunMoxin "just-us-agents" [
-          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.jq
-        ] {
-          "list-recipes" = "moxins/just-us-agents/src/list-recipes.ts";
-        } { pathMode = "inherit"; };
+        just-us-agents-moxin = let
+          listRecipes = bunLib.buildZxScript {
+            pname = "just-list-recipes";
+            version = "0.1.0";
+            src = ./moxins/just-us-agents/src;
+            entrypoint = "list-recipes.ts";
+            runtimeInputs = [];
+          };
+        in pkgs.runCommand "just-us-agents-moxin" {
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+        } ''
+          cp -r ${./moxins/just-us-agents} $out
+          chmod -R u+w $out
+          rm -rf $out/src
+          mkdir -p $out/bin
+          for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
+          ln -sf ${listRecipes}/bin/just-list-recipes $out/bin/list-recipes
+          for f in $out/bin/*; do
+            [ -L "$f" ] && continue
+            wrapProgram "$f" --unset LD_LIBRARY_PATH
+          done
+          for f in $(grep -rl '@BIN@' $out); do
+            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+          done
+        '';
         man-moxin = mkMoxin "man" [
           pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnugrep pkgs.gzip
           pkgs.man-db pkgs.mandoc pkgs.manix pkgs.pandoc
