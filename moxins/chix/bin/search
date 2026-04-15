@@ -20,10 +20,10 @@ output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$
 # nix search --json returns an object; convert to sorted array with pagination
 if [ -n "$limit" ]; then
   printf '%s' "$output" | jq --argjson off "${offset:-0}" --argjson lim "$limit" \
-    '[to_entries | sort_by(.key)] | .[$off:$off+$lim] | from_entries'
+    'to_entries | sort_by(.key) | .[$off:$off+$lim] | from_entries'
 elif [ "${offset:-0}" != "0" ]; then
   printf '%s' "$output" | jq --argjson off "$offset" \
-    '[to_entries | sort_by(.key)] | .[$off:] | from_entries'
+    'to_entries | sort_by(.key) | .[$off:] | from_entries'
 else
   echo "$output"
 fi
