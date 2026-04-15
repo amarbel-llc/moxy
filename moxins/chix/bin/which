@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+query="$1"
+flake_ref="${2:-nixpkgs}"
+
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+
+# nix search returns an object keyed by fully-qualified attribute paths
+output=$(nix search --json "$flake_ref" "$query" 2>"$stderr_file") || {
+  cat "$stderr_file" >&2
+  exit 1
+}
+
+# Find entries whose attribute leaf matches the query exactly.
+# e.g., query "hello" matches "legacyPackages.aarch64-darwin.hello"
+# and query "python3Packages.requests" matches "...python3Packages.requests"
+printf '%s' "$output" | jq --arg q "$query" --arg flake "$flake_ref" '
+  to_entries
+  | map(select(
+      .key == $q
+      or (.key | endswith("." + $q))
+    ))
+  | sort_by(.key | split(".") | length)
+  | if length == 0 then
+      {
+        found: false,
+        query: $q,
+        hint: "No exact match. Try chix.search for fuzzy/partial matches."
+      }
+    else
+      {
+        found: true,
+        query: $q,
+        matches: map(
+          .key as $attr
+          | ($attr | split(".") | if .[0] == "legacyPackages" then .[2:] else . end | join(".")) as $short
+          | {
+              attribute: $attr,
+              version: .value.version,
+              description: .value.description,
+              installable: ($flake + "#" + $short)
+            }
+        )
+      }
+    end
+'

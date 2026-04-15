@@ -1,0 +1,23 @@
+schema = 2
+result-type = "text"
+content-type = "application/json"
+perms-request = "always-allow"
+description = """Look up a Nix package by exact name. Returns version, description, and installable \
+if found, or a not-found hint suggesting chix.search for fuzzy matches."""
+command = "@BIN@/which"
+arg_order = ["query", "flake_ref"]
+
+[input]
+required = ["query"]
+
+[input.properties.query]
+type = "string"
+description = "Package attribute name (e.g., 'hello', 'acli', 'python3Packages.requests'). Qualified paths work if nix search returns them; use the leaf name (e.g., 'requests') when unsure."
+
+[input.properties.flake_ref]
+type = "string"
+description = "Flake to search (e.g., 'nixpkgs'). Defaults to 'nixpkgs'."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
