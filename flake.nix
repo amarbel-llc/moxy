@@ -193,7 +193,6 @@
           "src" = "moxins/hamster/src/src.ts";
           "mod-read" = "moxins/hamster/src/mod-read.ts";
         } { pathMode = "inherit"; };
-        jira-moxin = mkMoxin "jira" [ pkgs.bash pkgs.jq pkgs-master-unfree.acli ] {};
         sisyphus-python = pkgs.python3.withPackages (ps: [ ps.atlassian-python-api ]);
         sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
@@ -248,7 +247,6 @@
           ln -s ${get-hubbed-external-moxin} $out/share/moxy/moxins/get-hubbed-external
           ln -s ${grit-moxin} $out/share/moxy/moxins/grit
           ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
-          ln -s ${jira-moxin} $out/share/moxy/moxins/jira
           ln -s ${sisyphus-moxin} $out/share/moxy/moxins/sisyphus
           ln -s ${jq-moxin} $out/share/moxy/moxins/jq
           ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents

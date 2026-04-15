@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-issue_key="$1"
-status="$2"
-output_format="${3:-}"
-args=(jira workitem transition "$issue_key" --status "$status" --yes)
-if [ "$output_format" = "json" ]; then args+=(--json); mime="application/json"; else mime="text/plain"; fi
-output=$(acli "${args[@]}")
-jq -cn --arg text "$output" --arg mime "$mime" '{content:[{type:"text",text:$text,mimeType:$mime}]}'

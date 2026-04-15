@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-issue_key="$1"
-epic_key="$2"
-output=$(acli jira workitem update "$issue_key" --parent "$epic_key" --json)
-jq -cn --arg text "$output" '{content:[{type:"text",text:$text,mimeType:"application/json"}]}'

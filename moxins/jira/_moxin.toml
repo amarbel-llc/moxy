@@ -1,3 +1,0 @@
-schema = 1
-name = "jira"
-description = "Jira Cloud tools via Atlassian CLI (acli). Supports issue CRUD, transitions, linking, sprints, and search via JQL."
