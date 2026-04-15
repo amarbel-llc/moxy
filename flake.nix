@@ -269,6 +269,15 @@
           ];
           postInstall = ''
             $out/bin/moxy generate-plugin $out
+
+            # Static hooks — go-mcp's GenerateHooks no-ops (no MapsTools),
+            # so we install them at the correct plugin path.
+            mkdir -p $out/share/purse-first/moxy/hooks
+            cp ${./hooks/hooks.json} $out/share/purse-first/moxy/hooks/hooks.json
+            substitute ${./hooks/pre-tool-use} $out/share/purse-first/moxy/hooks/pre-tool-use \
+              --replace-fail "@MOXY@" "$out/bin/moxy"
+            chmod +x $out/share/purse-first/moxy/hooks/pre-tool-use
+
             cp -rn ${moxy-man}/share/man/* $out/share/man/
 
             # Moxin tools have their own PATH via wrapProgram in per-moxin

@@ -237,15 +237,6 @@ func main() {
 			if err := app.HandleGeneratePlugin(os.Args[2:], os.Stdout); err != nil {
 				log.Fatalf("generating plugin: %v", err)
 			}
-			// Expand the hooks.json matcher to include moxy MCP tool names
-			// so PreToolUse fires for auto-allowed native tools.
-			dir := "."
-			if len(os.Args) >= 3 && os.Args[2] != "-" {
-				dir = os.Args[2]
-			}
-			if err := hook.ExpandHooksMatcher(dir, app.Name); err != nil {
-				log.Fatalf("expanding hooks matcher: %v", err)
-			}
 			return
 		}
 	}
