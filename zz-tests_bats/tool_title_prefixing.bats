@@ -54,20 +54,6 @@ EOF
   echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command") | .title == null'
 }
 
-function moxy_builtin_restart_has_title { # @test
-  mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<EOF
-[[servers]]
-name = "srv"
-command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
-EOF
-
-  cd "$HOME/repo"
-  run_moxy_mcp_v1 tools/list
-  assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .title == "Restart Server"'
-}
-
 function moxy_builtin_exec_mcp_has_title { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF
@@ -80,18 +66,4 @@ EOF
   run_moxy_mcp_v1 tools/list
   assert_success
   echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp") | .title == "Execute Tool on Server"'
-}
-
-function moxy_builtin_restart_has_annotation_title { # @test
-  mkdir -p "$HOME/repo"
-  cat >"$HOME/repo/moxyfile" <<EOF
-[[servers]]
-name = "srv"
-command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
-EOF
-
-  cd "$HOME/repo"
-  run_moxy_mcp_v1 tools/list
-  assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .annotations.title == "Restart Server"'
 }

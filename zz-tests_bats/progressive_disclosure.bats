@@ -29,7 +29,7 @@ EOF
   [[ $tool_count -eq 0 ]]
 }
 
-function exec_mcp_and_restart_tools_visible_when_progressive_disclosure_enabled { # @test
+function exec_mcp_tool_visible_when_progressive_disclosure_enabled { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
@@ -42,7 +42,6 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp")'
-  echo "$output" | jq -e '.tools[] | select(.name == "restart")'
 }
 
 function moxy_tools_resource_template_appears { # @test

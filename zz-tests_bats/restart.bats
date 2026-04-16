@@ -11,7 +11,7 @@ teardown() {
   teardown_test_home
 }
 
-function restart_tool_appears_in_tools_list { # @test
+function restart_tool_not_listed { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
@@ -22,8 +22,9 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "restart")'
-  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .inputSchema.required == ["server"]'
+  # restart tool is disabled — should not appear in tools/list
+  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"restart\")'"
+  assert_failure
 }
 
 function restart_running_server_succeeds { # @test

@@ -588,17 +588,9 @@ func (p *Proxy) ListToolsV1(
 		}
 	}
 
-	allTools = append(allTools, protocol.ToolV1{
-		Name:        "restart",
-		Title:       "Restart Server",
-		Description: "Restart an MCP server by name. Closes and re-spawns the server process. Moxins are not supported — restart the moxy process itself to reload moxin changes.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name to restart"}},"required":["server"]}`),
-		Annotations: &protocol.ToolAnnotations{
-			Title:           "Restart Server",
-			DestructiveHint: boolPtr(true),
-			IdempotentHint:  boolPtr(true),
-		},
-	})
+	// NOTE: restart tool disabled — kept in code but not listed.
+	// The handleRestart path in CallToolV1 is still reachable if called
+	// directly, but agents won't discover it via tools/list.
 
 	allTools = append(allTools, protocol.ToolV1{
 		Name:        "exec-mcp",
