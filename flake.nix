@@ -88,6 +88,9 @@
 
         bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
+        moxyVersion = "0.2.0";
+        moxyCommit = self.shortRev or self.dirtyShortRev or "unknown";
+
         # Man pages as a standalone derivation, referenced by both the moxy
         # binary package and the man moxin (avoids circular dependency).
         moxy-man = pkgs.runCommand "moxy-man" {
@@ -123,7 +126,7 @@
         mkBunMoxin = name: deps: extraEntrypoints: { pathMode ? "set" }: let
           bunBinaries = bunLib.buildBunBinaries {
             pname = "${name}-moxin-scripts";
-            version = "0.1.0";
+            version = moxyVersion;
             src = pkgs.lib.fileset.toSource {
               root = ./.;
               fileset = with pkgs.lib.fileset; unions [
@@ -199,7 +202,7 @@
         just-us-agents-moxin = let
           listRecipes = bunLib.buildZxScript {
             pname = "just-list-recipes";
-            version = "0.1.0";
+            version = moxyVersion;
             src = ./moxins/just-us-agents/src;
             entrypoint = "list-recipes.ts";
             runtimeInputs = [];
@@ -256,7 +259,7 @@
 
         moxy = pkgs.buildGoApplication {
           pname = "moxy";
-          version = "0.1.0";
+          version = moxyVersion;
           src = moxySrc;
           subPackages = [ "cmd/moxy" ];
           modules = ./gomod2nix.toml;
@@ -264,8 +267,9 @@
           GOTOOLCHAIN = "local";
           nativeBuildInputs = [ pkgs.makeWrapper ];
           ldflags = [
-            "-X"
-            "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
+            "-X" "main.version=${moxyVersion}"
+            "-X" "main.commit=${moxyCommit}"
+            "-X" "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
           ];
           postInstall = ''
             $out/bin/moxy generate-plugin $out
@@ -301,16 +305,17 @@
         };
 
         # Static Go binary for non-nix distribution (no wrapProgram, no
-        # ldflags). Moxin discovery uses exe-relative path resolution.
+        # system moxin ldflags). Moxin discovery uses exe-relative path resolution.
         moxy-static = pkgs.buildGoApplication {
           pname = "moxy";
-          version = "0.1.0";
+          version = moxyVersion;
           src = moxySrc;
           subPackages = [ "cmd/moxy" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
           CGO_ENABLED = 0;
+          ldflags = [ "-X" "main.version=${moxyVersion}" "-X" "main.commit=${moxyCommit}" ];
         };
 
         # Unwrapped moxin helper: replaces @BIN@ with relative "bin"
@@ -336,7 +341,7 @@
           # extract the bundle path from the wrapper scripts.
           bunBins = bunLib.buildBunBinaries {
             pname = "${name}-brew-moxin-scripts";
-            version = "0.1.0";
+            version = moxyVersion;
             src = pkgs.lib.fileset.toSource {
               root = ./.;
               fileset = with pkgs.lib.fileset; unions [

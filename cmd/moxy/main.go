@@ -27,9 +27,15 @@ import (
 	"github.com/amarbel-llc/moxy/internal/status"
 )
 
+// version and commit are set at build time via -ldflags.
+var (
+	version = "dev"
+	commit  = "unknown"
+)
+
 func newApp() *command.App {
 	app := command.NewApp("moxy", "MCP proxy that aggregates child MCP servers")
-	app.Version = "0.1.0"
+	app.Version = version + "+" + commit
 	app.MCPArgs = []string{"serve", "mcp"}
 	app.Description.Long = "Moxy spawns child MCP servers as subprocesses, communicates with them " +
 		"via JSON-RPC over stdio, and presents their tools, resources, and prompts " +
@@ -431,7 +437,7 @@ func runServer(app *command.App) error {
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "moxy",
-		ServerVersion: "0.1.0",
+		ServerVersion: version,
 		Instructions:  instructions,
 		Tools:         p,
 		Resources:     p,

@@ -306,6 +306,31 @@ man-search-download-model:
     echo "Downloaded to: $model_path"
   fi
 
+# Bump moxyVersion in flake.nix to the given semver
+bump-version new_version:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  current=$(grep 'moxyVersion = ' flake.nix | sed 's/.*"\(.*\)".*/\1/')
+  if [[ "$current" == "{{new_version}}" ]]; then
+    echo "already at {{new_version}}" >&2
+    exit 0
+  fi
+  sed -i '' 's/moxyVersion = "'"$current"'"/moxyVersion = "{{new_version}}"/' flake.nix
+  echo "$current → {{new_version}}"
+
+# Create a signed git tag for the current moxyVersion
+tag:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  version=$(grep 'moxyVersion = ' flake.nix | sed 's/.*"\(.*\)".*/\1/')
+  tag="v${version}"
+  if git rev-parse "$tag" >/dev/null 2>&1; then
+    echo "tag $tag already exists" >&2
+    exit 1
+  fi
+  git tag -s "$tag" -m "Release $tag"
+  echo "created tag $tag"
+
 brew-build:
   nix build .#brew-tarball -o result-brew
   @echo "Tarball: $(ls result-brew/*.tar.gz)"
