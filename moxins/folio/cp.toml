@@ -1,0 +1,24 @@
+schema = 1
+description = """Copy a file or directory. Source and destination must be within CWD. \
+Use recursive to copy directories."""
+command = "@BIN@/cp"
+arg_order = ["source", "destination", "recursive"]
+
+[input]
+type = "object"
+required = ["source", "destination"]
+
+[input.properties.source]
+type = "string"
+description = "Source path (must be within CWD)"
+
+[input.properties.destination]
+type = "string"
+description = "Destination path (must be within CWD)"
+
+[input.properties.recursive]
+type = "boolean"
+description = "Copy directories recursively. Default false."
+
+[annotations]
+destructive-hint = true

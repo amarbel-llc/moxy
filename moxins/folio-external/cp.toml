@@ -1,0 +1,24 @@
+schema = 1
+description = """Copy a file or directory. Creates destination parent directories if needed. \
+Use recursive to copy directories."""
+command = "@BIN@/cp"
+arg_order = ["source", "destination", "recursive"]
+
+[input]
+type = "object"
+required = ["source", "destination"]
+
+[input.properties.source]
+type = "string"
+description = "Absolute path to the source file or directory"
+
+[input.properties.destination]
+type = "string"
+description = "Absolute path to the destination"
+
+[input.properties.recursive]
+type = "boolean"
+description = "Copy directories recursively. Default false."
+
+[annotations]
+destructive-hint = true
