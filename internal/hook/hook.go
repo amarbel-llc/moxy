@@ -265,6 +265,23 @@ func discoverPermissions() map[string]native.PermsRequest {
 	return perms
 }
 
+// PluginDir returns the plugin directory path derived from the running binary.
+// Layout: $prefix/bin/moxy → $prefix/share/purse-first/moxy
+func PluginDir() (string, error) {
+	self, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolving executable: %w", err)
+	}
+	self, err = filepath.EvalSymlinks(self)
+	if err != nil {
+		return "", fmt.Errorf("resolving executable symlinks: %w", err)
+	}
+	// self = /nix/store/...-moxy-0.1.0/bin/moxy
+	// want = /nix/store/...-moxy-0.1.0/share/purse-first/moxy
+	prefix := filepath.Dir(filepath.Dir(self))
+	return filepath.Join(prefix, "share", "purse-first", "moxy"), nil
+}
+
 // InstallSettingsHook ensures ~/.claude/settings.json contains a PreToolUse
 // hook that fires "moxy hook" for all moxy MCP tools. This is called by
 // install-mcp so that auto-allow works without a separate plugin installation.

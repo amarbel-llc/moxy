@@ -216,6 +216,38 @@ func newApp() *command.App {
 		},
 	})
 
+	app.AddCommand(&command.Command{
+		Name: "show-claude-plugin-path",
+		Description: command.Description{
+			Short: "Print the path to the Claude Code plugin directory",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			dir, err := hook.PluginDir()
+			if err != nil {
+				return err
+			}
+			fmt.Println(dir)
+			return nil
+		},
+	})
+
+	app.AddCommand(&command.Command{
+		Name: "install-claude-plugin",
+		Description: command.Description{
+			Short: "Install the moxy Claude Code plugin via claude CLI",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			dir, err := hook.PluginDir()
+			if err != nil {
+				return err
+			}
+			cmd := exec.Command("claude", "plugin", "install", dir)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			return cmd.Run()
+		},
+	})
+
 	return app
 }
 
