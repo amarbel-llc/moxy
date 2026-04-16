@@ -142,6 +142,43 @@ func TestTryAutoAllow(t *testing.T) {
 	})
 }
 
+func TestTryBuiltinAutoAllow(t *testing.T) {
+	t.Run("status is auto-allowed", func(t *testing.T) {
+		var buf bytes.Buffer
+		ok := tryBuiltinAutoAllow("mcp__plugin_moxy_moxy__status", "mcp__plugin_moxy_moxy__", &buf)
+		if !ok {
+			t.Fatal("expected tryBuiltinAutoAllow to return true for status")
+		}
+
+		var decoded map[string]map[string]string
+		if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded["hookSpecificOutput"]["permissionDecision"] != "allow" {
+			t.Errorf("expected allow, got %q", decoded["hookSpecificOutput"]["permissionDecision"])
+		}
+	})
+
+	t.Run("restart is not auto-allowed", func(t *testing.T) {
+		var buf bytes.Buffer
+		ok := tryBuiltinAutoAllow("mcp__plugin_moxy_moxy__restart", "mcp__plugin_moxy_moxy__", &buf)
+		if ok {
+			t.Fatal("expected tryBuiltinAutoAllow to return false for restart")
+		}
+		if buf.Len() != 0 {
+			t.Errorf("expected no output, got %q", buf.String())
+		}
+	})
+
+	t.Run("non-moxy tool is not auto-allowed", func(t *testing.T) {
+		var buf bytes.Buffer
+		ok := tryBuiltinAutoAllow("some_other_tool", "mcp__plugin_moxy_moxy__", &buf)
+		if ok {
+			t.Fatal("expected tryBuiltinAutoAllow to return false for non-moxy tool")
+		}
+	})
+}
+
 func TestInstallSettingsHook(t *testing.T) {
 	// Use a temp dir as HOME so we don't touch the real settings.
 	tmpHome := t.TempDir()

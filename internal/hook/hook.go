@@ -176,6 +176,10 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 		// PreToolUse (and any future event types): existing behavior.
 		parsed, ok := parseNativeToolName(hi.ToolName, prefix)
 		debugHook("  parsed=%q ok=%v", parsed, ok)
+		if tryBuiltinAutoAllow(hi.ToolName, prefix, w) {
+			debugHook("  decision: builtin auto-allowed")
+			return nil
+		}
 		if tryPermsDecision(hi.ToolName, prefix, w) {
 			debugHook("  decision: allowed")
 			return nil
@@ -184,6 +188,36 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 
 		return app.HandleHook(bytes.NewReader(raw), w)
 	}
+}
+
+// builtinAutoAllow lists builtin (non-moxin) tool names that are
+// always allowed without a permission prompt. These are the suffix
+// after stripping the moxy prefix (e.g. "status" from
+// "mcp__plugin_moxy_moxy__status").
+var builtinAutoAllow = map[string]bool{
+	"status": true,
+}
+
+// tryBuiltinAutoAllow checks whether the tool is a builtin that should be
+// auto-allowed. Returns true if it wrote a decision, false to fall through.
+func tryBuiltinAutoAllow(toolName, prefix string, w io.Writer) bool {
+	suffix := strings.TrimPrefix(toolName, prefix)
+	if suffix == toolName || !builtinAutoAllow[suffix] {
+		return false
+	}
+
+	out := hookOutput{
+		HookSpecificOutput: hookDecision{
+			HookEventName:            "PreToolUse",
+			PermissionDecision:       "allow",
+			PermissionDecisionReason: "auto-allowed builtin tool",
+		},
+	}
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		log.Printf("hook: ignoring encode error (fail-open): %v", err)
+		return false
+	}
+	return true
 }
 
 // tryPermsDecision checks the tool's perms-request in moxin configs and writes
