@@ -315,7 +315,7 @@ bump-version new_version:
     echo "already at {{new_version}}" >&2
     exit 0
   fi
-  sed -i '' 's/moxyVersion = "'"$current"'"/moxyVersion = "{{new_version}}"/' flake.nix
+  sed -i.bak 's/moxyVersion = "'"$current"'"/moxyVersion = "{{new_version}}"/' flake.nix && rm flake.nix.bak
   echo "$current → {{new_version}}"
 
 # Create a signed git tag for the current moxyVersion

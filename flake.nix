@@ -88,7 +88,7 @@
 
         bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
-        moxyVersion = "0.2.0";
+        moxyVersion = "0.2.1";
         moxyCommit = self.shortRev or self.dirtyShortRev or "unknown";
 
         # Man pages as a standalone derivation, referenced by both the moxy
