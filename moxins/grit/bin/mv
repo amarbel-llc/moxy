@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source="$1"
+destination="$2"
+repo="${3:-.}"
+cd "$repo"
+mkdir -p "$(dirname "$destination")"
+git mv -- "$source" "$destination"

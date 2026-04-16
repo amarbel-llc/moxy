@@ -1,0 +1,19 @@
+schema = 1
+description = """Move or rename a file or directory. Creates destination parent directories if needed."""
+command = "@BIN@/mv"
+arg_order = ["source", "destination"]
+
+[input]
+type = "object"
+required = ["source", "destination"]
+
+[input.properties.source]
+type = "string"
+description = "Absolute path to the source file or directory"
+
+[input.properties.destination]
+type = "string"
+description = "Absolute path to the destination"
+
+[annotations]
+destructive-hint = true

@@ -1,0 +1,19 @@
+schema = 1
+description = """Move or rename a file or directory. Source and destination must be within CWD."""
+command = "@BIN@/mv"
+arg_order = ["source", "destination"]
+
+[input]
+type = "object"
+required = ["source", "destination"]
+
+[input.properties.source]
+type = "string"
+description = "Source path (must be within CWD)"
+
+[input.properties.destination]
+type = "string"
+description = "Destination path (must be within CWD)"
+
+[annotations]
+destructive-hint = true

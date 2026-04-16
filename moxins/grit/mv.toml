@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = "Move or rename a file, directory, or symlink and stage the change (git mv)"
+command = "@BIN@/mv"
+arg_order = ["source", "destination", "repo_path"]
+
+[input]
+type = "object"
+required = ["source", "destination"]
+
+[input.properties.source]
+type = "string"
+description = "Source path (relative to repo root)"
+
+[input.properties.destination]
+type = "string"
+description = "Destination path (relative to repo root)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+destructive-hint = true
+idempotent-hint = true
