@@ -1,0 +1,22 @@
+schema = 1
+description = "Read values from a Google Sheets spreadsheet by ID and range. Returns cell values as a 2D array."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+range="${2:-Sheet1}"
+params=$(printf '{"spreadsheetId": "%s", "range": "%s"}' "$1" "$range")
+/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws sheets spreadsheets values get --params "$params" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["spreadsheet_id"]
+
+[input.properties.spreadsheet_id]
+type = "string"
+description = "The Google Sheets spreadsheet ID (from Drive search results or a shared link URL)"
+
+[input.properties.range]
+type = "string"
+description = "A1 notation range to read (default: 'Sheet1' for entire first sheet). Examples: 'Sheet1!A1:D10', 'Sheet1!A:A', 'My Sheet!B2:E'"

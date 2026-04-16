@@ -1,0 +1,32 @@
+schema = 1
+description = "Show upcoming calendar events across all calendars. Returns event titles, times, and attendees."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+days="${1:-3}"
+calendar="${2:-primary}"
+tz="${3:-}"
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+end=$(date -u -d "+${days} days" +%Y-%m-%dT%H:%M:%SZ)
+tz_param=""
+[ -n "$tz" ] && tz_param=$(printf ', "timeZone": "%s"' "$tz")
+params=$(printf '{"calendarId": "%s", "timeMin": "%s", "timeMax": "%s", "singleEvents": true, "orderBy": "startTime", "maxResults": 50%s}' "$calendar" "$now" "$end" "$tz_param")
+$GWS calendar events list --params "$params" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+
+[input.properties.days]
+type = "string"
+description = "Number of days ahead to show. Use '0' for today only."
+
+[input.properties.calendar]
+type = "string"
+description = "Filter to specific calendar name or ID"
+
+[input.properties.timezone]
+type = "string"
+description = "IANA timezone override (e.g. America/New_York). Defaults to Google account timezone."

@@ -1,0 +1,17 @@
+schema = 1
+description = "Get metadata for a Google Drive file by ID. Returns name, MIME type, size, owners, permissions, and web link."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+params=$(printf '{"fileId": "%s", "fields": "id,name,mimeType,size,modifiedTime,createdTime,webViewLink,owners,permissions,description"}' "$1")
+/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws drive files get --params "$params" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["file_id"]
+
+[input.properties.file_id]
+type = "string"
+description = "The Drive file ID (from search results or a shared link)"

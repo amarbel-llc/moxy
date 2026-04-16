@@ -1,0 +1,44 @@
+schema = 1
+description = "Update paragraph formatting (heading level, alignment, spacing, indentation) on a range in a Google Doc. Use docs-get first to find indices."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+params=$(printf '{"documentId": "%s"}' "$1")
+json=$(printf '{"requests": [{"updateParagraphStyle": {"range": {"startIndex": %s, "endIndex": %s}, "paragraphStyle": %s, "fields": "%s"}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3" "$4" "$5" "$6")
+$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["document_id", "start_index", "end_index", "paragraph_style", "fields", "revision_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.start_index]
+type = "string"
+description = "Zero-based start index (inclusive). The range must cover at least one paragraph."
+
+[input.properties.end_index]
+type = "string"
+description = "Zero-based end index (exclusive)"
+
+[input.properties.paragraph_style]
+type = "string"
+description = """JSON object with paragraph style properties. Examples:
+- Heading: {"namedStyleType": "HEADING_1"}
+- Normal text: {"namedStyleType": "NORMAL_TEXT"}
+- Centered: {"alignment": "CENTER"}
+- Spacing: {"spaceAbove": {"magnitude": 10, "unit": "PT"}, "spaceBelow": {"magnitude": 10, "unit": "PT"}}
+Named style types: TITLE, SUBTITLE, HEADING_1 through HEADING_6, NORMAL_TEXT"""
+
+[input.properties.fields]
+type = "string"
+description = "Comma-separated field mask of properties being set (e.g. 'namedStyleType', 'alignment', 'spaceAbove,spaceBelow'). Only listed fields are updated; others are preserved."
+
+[input.properties.revision_id]
+type = "string"
+description = "The revisionId from docs-get for optimistic locking"

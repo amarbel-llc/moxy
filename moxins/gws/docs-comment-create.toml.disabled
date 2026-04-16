@@ -1,0 +1,31 @@
+schema = 1
+description = "Post a comment on a Google Doc. Optionally anchor the comment to specific quoted text."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+params=$(printf '{"fileId": "%s", "fields": "id,content,author(displayName,emailAddress),quotedFileContent,createdTime"}' "$1")
+if [ -n "${3:-}" ]; then
+  json=$(printf '{"content": "%s", "quotedFileContent": {"mimeType": "text/html", "value": "%s"}}' "$2" "$3")
+else
+  json=$(printf '{"content": "%s"}' "$2")
+fi
+$GWS drive comments create --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["file_id", "content"]
+
+[input.properties.file_id]
+type = "string"
+description = "The Drive file ID of the Google Doc"
+
+[input.properties.content]
+type = "string"
+description = "Comment text (supports basic formatting)"
+
+[input.properties.quoted_text]
+type = "string"
+description = "Text from the document to anchor the comment to. The comment will appear next to this text in the doc."

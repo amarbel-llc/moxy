@@ -1,0 +1,36 @@
+schema = 1
+description = "Resolve or reopen a comment on a Google Doc. Optionally include a reply message."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+action="${3:-resolve}"
+params=$(printf '{"fileId": "%s", "commentId": "%s", "fields": "id,content,action,author(displayName,emailAddress),createdTime"}' "$1" "$2")
+if [ -n "${4:-}" ]; then
+  json=$(printf '{"action": "%s", "content": "%s"}' "$action" "$4")
+else
+  json=$(printf '{"action": "%s"}' "$action")
+fi
+$GWS drive replies create --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["file_id", "comment_id", "action"]
+
+[input.properties.file_id]
+type = "string"
+description = "The Drive file ID of the Google Doc"
+
+[input.properties.comment_id]
+type = "string"
+description = "The comment ID to resolve/reopen (from docs-comments-list)"
+
+[input.properties.action]
+type = "string"
+description = "Action to take: 'resolve' or 'reopen'"
+
+[input.properties.content]
+type = "string"
+description = "Optional reply message to include when resolving/reopening"

@@ -1,0 +1,23 @@
+schema = 1
+description = "List comments on a Google Doc. Returns comment text, author, quoted content, and resolved status."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+page_size="${2:-100}"
+params=$(printf '{"fileId": "%s", "pageSize": %s, "fields": "comments(id,content,author(displayName,emailAddress),quotedFileContent,resolved,createdTime,modifiedTime,replies(id,content,author(displayName,emailAddress),createdTime))"}' "$1" "$page_size")
+$GWS drive comments list --params "$params" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["file_id"]
+
+[input.properties.file_id]
+type = "string"
+description = "The Drive file ID of the Google Doc"
+
+[input.properties.page_size]
+type = "string"
+description = "Max comments to return (default: 100)"

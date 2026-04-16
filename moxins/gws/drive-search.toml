@@ -1,0 +1,28 @@
+schema = 1
+description = "Search Google Drive files by query. Returns file metadata: name, ID, MIME type, modified time, web link. Use Drive query syntax for the q parameter."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+page_size="${2:-20}"
+params=$(printf '{"q": "%s", "pageSize": %s, "fields": "files(id,name,mimeType,modifiedTime,webViewLink,owners)"}' "$1" "$page_size")
+/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws drive files list --params "$params" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["query"]
+
+[input.properties.query]
+type = "string"
+description = """Drive search query. Examples:
+- name contains 'report'
+- mimeType = 'application/vnd.google-apps.document'
+- mimeType = 'application/vnd.google-apps.spreadsheet'
+- modifiedTime > '2024-01-01'
+- 'me' in owners
+Combine with 'and': name contains 'Q1' and mimeType = 'application/vnd.google-apps.spreadsheet'"""
+
+[input.properties.page_size]
+type = "string"
+description = "Max results to return (default: 20, max: 1000)"

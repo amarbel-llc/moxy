@@ -1,0 +1,23 @@
+schema = 1
+description = "Show unread inbox summary: sender, subject, date. Read-only, never modifies mailbox."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+max="${1:-20}"
+query="${2:-is:unread}"
+params=$(printf '{"userId": "me", "q": "%s", "maxResults": %s}' "$query" "$max")
+$GWS gmail users messages list --params "$params" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+
+[input.properties.max]
+type = "string"
+description = "Maximum messages to show (default: 20)"
+
+[input.properties.query]
+type = "string"
+description = "Gmail search query (default: is:unread). Example: 'from:boss', 'subject:invoice'"

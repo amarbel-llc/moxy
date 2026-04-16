@@ -1,0 +1,25 @@
+schema = 1
+description = "Create a new Google Doc from markdown content. Returns the created file metadata including ID and web link."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+tmp=".gws-upload-$$"
+trap 'rm -f "$tmp"' EXIT
+printf '%s' "$2" > "$tmp"
+json=$(printf '{"name": "%s", "mimeType": "application/vnd.google-apps.document"}' "$1")
+$GWS drive files create --upload "$tmp" --upload-content-type text/markdown --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["title", "content"]
+
+[input.properties.title]
+type = "string"
+description = "Title for the new Google Doc"
+
+[input.properties.content]
+type = "string"
+description = "Markdown content for the document"

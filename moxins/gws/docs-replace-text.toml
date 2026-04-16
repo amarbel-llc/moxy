@@ -1,0 +1,36 @@
+schema = 1
+description = "Find and replace text in a Google Doc. Case-sensitive by default. Preserves anchored comments unless the entire anchor text is consumed by the match."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+match_case="${5:-true}"
+params=$(printf '{"documentId": "%s"}' "$1")
+json=$(printf '{"requests": [{"replaceAllText": {"containsText": {"text": "%s", "matchCase": %s}, "replaceText": "%s"}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$match_case" "$3" "$4")
+$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["document_id", "find", "replace", "revision_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.find]
+type = "string"
+description = "Text to find in the document"
+
+[input.properties.replace]
+type = "string"
+description = "Replacement text"
+
+[input.properties.match_case]
+type = "string"
+description = "Case-sensitive matching (default: true)"
+
+[input.properties.revision_id]
+type = "string"
+description = "The revisionId from docs-get for optimistic locking"

@@ -1,0 +1,31 @@
+schema = 1
+description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate. Preserves anchored comments on unchanged text. Use replaceAllText for find-and-replace, or insertText/deleteContentRange for index-based edits."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+params=$(printf '{"documentId": "%s"}' "$1")
+json=$(printf '{"requests": %s, "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3")
+$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["document_id", "requests", "revision_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.requests]
+type = "string"
+description = """JSON array of request objects. Common request types:
+- replaceAllText: [{"replaceAllText": {"containsText": {"text": "old", "matchCase": true}, "replaceText": "new"}}]
+- insertText: [{"insertText": {"location": {"index": 10}, "text": "hello"}}]
+- deleteContentRange: [{"deleteContentRange": {"range": {"startIndex": 10, "endIndex": 20}}}]
+Use docs-get first to find text content and indices."""
+
+[input.properties.revision_id]
+type = "string"
+description = """The revisionId from docs-get. Ensures the update fails (instead of silently clobbering) if the doc was modified since you last read it. Get this from the docs-get response's revisionId field."""

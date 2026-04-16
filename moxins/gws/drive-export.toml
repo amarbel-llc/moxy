@@ -1,0 +1,32 @@
+schema = 1
+description = "Export a Google Workspace file (Doc, Sheet, Slide) to a different format. Returns the exported content as text."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+mime="${2:-text/markdown}"
+tmp=".gws-export-$$"
+trap 'rm -f "$tmp"' EXIT
+params=$(printf '{"fileId": "%s", "mimeType": "%s"}' "$1" "$mime")
+/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws drive files export --params "$params" --output "$tmp" >/dev/null 2>&1
+cat "$tmp"
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["file_id"]
+
+[input.properties.file_id]
+type = "string"
+description = "The Drive file ID of the Google Workspace file to export"
+
+[input.properties.mime_type]
+type = "string"
+description = """Export MIME type (default: text/markdown). Common values:
+- text/markdown (Google Docs as markdown)
+- text/plain (Google Docs as plain text)
+- text/csv (Google Sheets as CSV)
+- application/pdf
+- text/html
+- application/vnd.openxmlformats-officedocument.wordprocessingml.document (docx)
+- application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (xlsx)"""

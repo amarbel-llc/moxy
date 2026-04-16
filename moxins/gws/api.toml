@@ -1,0 +1,23 @@
+schema = 1
+description = "Raw gws API call for debugging. Pass the full gws command arguments (e.g. 'calendar events list') and optional --params JSON."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+cmd="$GWS $1"
+[ -n "${2:-}" ] && cmd="$cmd --params $2"
+eval $cmd 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["command"]
+
+[input.properties.command]
+type = "string"
+description = "gws command arguments (e.g. 'calendar calendarList list', 'gmail users messages list', 'drive files list')"
+
+[input.properties.params]
+type = "string"
+description = "JSON params string (e.g. '{\"userId\": \"me\", \"maxResults\": 5}')"

@@ -1,0 +1,27 @@
+schema = 1
+description = "Reply to a comment on a Google Doc. Use to respond to anchored comments created in the Docs UI."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+params=$(printf '{"fileId": "%s", "commentId": "%s", "fields": "id,content,author(displayName,emailAddress),createdTime"}' "$1" "$2")
+json=$(printf '{"content": "%s"}' "$3")
+$GWS drive replies create --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["file_id", "comment_id", "content"]
+
+[input.properties.file_id]
+type = "string"
+description = "The Drive file ID of the Google Doc"
+
+[input.properties.comment_id]
+type = "string"
+description = "The comment ID to reply to (from docs-comments-list)"
+
+[input.properties.content]
+type = "string"
+description = "Reply text"

@@ -1,0 +1,43 @@
+schema = 1
+description = "Update character formatting (bold, italic, font, color, links) on a text range in a Google Doc. Use docs-get first to find indices."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+params=$(printf '{"documentId": "%s"}' "$1")
+json=$(printf '{"requests": [{"updateTextStyle": {"range": {"startIndex": %s, "endIndex": %s}, "textStyle": %s, "fields": "%s"}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3" "$4" "$5" "$6")
+$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["document_id", "start_index", "end_index", "text_style", "fields", "revision_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.start_index]
+type = "string"
+description = "Zero-based start index (inclusive)"
+
+[input.properties.end_index]
+type = "string"
+description = "Zero-based end index (exclusive)"
+
+[input.properties.text_style]
+type = "string"
+description = """JSON object with style properties. Examples:
+- Bold: {"bold": true}
+- Italic + color: {"italic": true, "foregroundColor": {"color": {"rgbColor": {"red": 1.0}}}}
+- Font size: {"fontSize": {"magnitude": 14, "unit": "PT"}}
+- Link: {"link": {"url": "https://example.com"}}"""
+
+[input.properties.fields]
+type = "string"
+description = "Comma-separated field mask of properties being set (e.g. 'bold', 'italic,foregroundColor', 'fontSize'). Only listed fields are updated; others are preserved."
+
+[input.properties.revision_id]
+type = "string"
+description = "The revisionId from docs-get for optimistic locking"

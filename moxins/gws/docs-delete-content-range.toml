@@ -1,0 +1,31 @@
+schema = 1
+description = "Delete a range of content from a Google Doc by start/end index. Use docs-get first to find indices. Cannot delete the last newline of the body or cross structural boundaries (tables, section breaks)."
+command = "sh"
+args = ["-c", """
+set -euo pipefail
+GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+params=$(printf '{"documentId": "%s"}' "$1")
+json=$(printf '{"requests": [{"deleteContentRange": {"range": {"startIndex": %s, "endIndex": %s}}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3" "$4")
+$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
+""", "_"]
+perms-request = "always-allow"
+
+[input]
+type = "object"
+required = ["document_id", "start_index", "end_index", "revision_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.start_index]
+type = "string"
+description = "Zero-based start index (inclusive)"
+
+[input.properties.end_index]
+type = "string"
+description = "Zero-based end index (exclusive)"
+
+[input.properties.revision_id]
+type = "string"
+description = "The revisionId from docs-get for optimistic locking"
