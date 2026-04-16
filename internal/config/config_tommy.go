@@ -4,22 +4,21 @@ package config
 
 import (
 	"fmt"
-
 	"github.com/amarbel-llc/moxy/internal/credentials"
 	"github.com/amarbel-llc/tommy/pkg/cst"
 	"github.com/amarbel-llc/tommy/pkg/document"
+	"strings"
 )
 
-// Ensure imports are used.
 var (
 	_ = fmt.Errorf
 	_ cst.NodeKind
+	_ = strings.Contains
 )
 
 type serverConfigHandle struct {
 	node *cst.Node
 }
-
 type ConfigDocument struct {
 	data     Config
 	cstDoc   *document.Document
@@ -33,178 +32,321 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		return nil, err
 	}
 
-	d := &ConfigDocument{cstDoc: doc, consumed: make(map[string]bool)}
+	d := &ConfigDocument{
+		consumed: make(map[string]bool),
+		cstDoc:   doc,
+	}
 
-	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "ephemeral"); err == nil {
-		d.data.Ephemeral = &v
-		d.consumed["ephemeral"] = true
-	}
-	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "progressive-disclosure"); err == nil {
-		d.data.ProgressiveDisclosure = &v
-		d.consumed["progressive-disclosure"] = true
-	}
-	if v, err := document.GetFromContainer[bool](d.cstDoc, d.cstDoc.Root(), "builtin-native"); err == nil {
-		d.data.BuiltinNative = &v
-		d.consumed["builtin-native"] = true
-	}
-	if tableNode := d.cstDoc.FindTableInContainer(d.cstDoc.Root(), "credentials"); tableNode != nil {
-		d.consumed["credentials"] = true
-		credentialsVal := &credentials.CommandConfig{}
-		if err := credentials.DecodeCommandConfigInto(credentialsVal, d.cstDoc, tableNode, d.consumed, "credentials."); err != nil {
-			return nil, fmt.Errorf("credentials: %w", err)
+	for _, _kv := range d.cstDoc.Root().Children {
+		if _kv.Kind != cst.NodeKeyValue {
+			continue
 		}
-		d.data.Credentials = credentialsVal
+		switch cst.KeyValueName(_kv) {
+		case "ephemeral":
+			if v, ok := cst.ExtractBool(_kv); ok {
+				d.data.Ephemeral = &v
+				d.consumed["ephemeral"] = true
+			}
+		case "progressive-disclosure":
+			if v, ok := cst.ExtractBool(_kv); ok {
+				d.data.ProgressiveDisclosure = &v
+				d.consumed["progressive-disclosure"] = true
+			}
+		case "builtin-native":
+			if v, ok := cst.ExtractBool(_kv); ok {
+				d.data.BuiltinNative = &v
+				d.consumed["builtin-native"] = true
+			}
+		case "disable-moxins":
+			if v, ok := cst.ExtractStringSlice(_kv); ok {
+				d.data.DisableMoxins = v
+				d.consumed["disable-moxins"] = true
+			}
+		}
 	}
-	serversNodes := d.cstDoc.FindArrayTableNodes("servers")
-	d.servers = make([]serverConfigHandle, len(serversNodes))
-	d.data.Servers = make([]ServerConfig, len(serversNodes))
+	{
+		var _tblCredentials *cst.Node
+		for _, _ch := range d.cstDoc.Root().Children {
+			if _ch.Kind == cst.NodeTable && cst.TableHeaderKey(_ch) == "credentials" {
+				_tblCredentials = _ch
+				break
+			}
+		}
+		if _tblCredentials != nil {
+			d.consumed["credentials"] = true
+			commandConfigVal := &credentials.CommandConfig{}
+			if err := credentials.DecodeCommandConfigInto(commandConfigVal, d.cstDoc, _tblCredentials, d.consumed, "credentials."); err != nil {
+				return nil, fmt.Errorf("credentials: %w", err)
+			}
+			d.data.Credentials = commandConfigVal
+		}
+	}
+	var _nodesServers []*cst.Node
+	for _, _ch := range d.cstDoc.Root().Children {
+		if _ch.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_ch) == "servers" {
+			_nodesServers = append(_nodesServers, _ch)
+		}
+	}
+	d.servers = make([]serverConfigHandle, len(_nodesServers))
+	d.data.Servers = make([]ServerConfig, len(_nodesServers))
 	d.consumed["servers"] = true
-	for i, node := range serversNodes {
-		d.servers[i] = serverConfigHandle{node: node}
-		if v, err := document.GetFromContainer[string](d.cstDoc, node, "name"); err == nil {
-			d.data.Servers[i].Name = v
-			d.consumed["servers.name"] = true
-		}
-		if raw, err := document.GetRawFromContainer(d.cstDoc, node, "command"); err == nil {
-			if err := d.data.Servers[i].Command.UnmarshalTOML(raw); err != nil {
-				return nil, fmt.Errorf("command: %w", err)
+	for i, _node := range _nodesServers {
+		d.servers[i] = serverConfigHandle{node: _node}
+		for _, _kv := range _node.Children {
+			if _kv.Kind != cst.NodeKeyValue {
+				continue
 			}
-			d.consumed["servers.command"] = true
-		}
-		if v, err := document.GetFromContainer[string](d.cstDoc, node, "url"); err == nil {
-			d.data.Servers[i].URL = v
-			d.consumed["servers.url"] = true
-		}
-		if tableNode := d.cstDoc.FindTableInContainer(node, "headers"); tableNode != nil {
-			d.data.Servers[i].Headers = document.GetStringMapFromTable(tableNode)
-			d.consumed["servers.headers"] = true
-			document.MarkAllConsumed(tableNode, "servers.headers", d.consumed)
-		}
-		if v, err := document.GetFromContainer[string](d.cstDoc, node, "headers-helper"); err == nil {
-			d.data.Servers[i].HeadersHelper = &v
-			d.consumed["servers.headers-helper"] = true
-		}
-		if tableNode := d.cstDoc.FindTableInContainer(node, "oauth"); tableNode != nil {
-			d.consumed["servers.oauth"] = true
-			oAuthVal := &OAuthConfig{}
-			if v, err := document.GetFromContainer[string](d.cstDoc, tableNode, "client-id"); err == nil {
-				oAuthVal.ClientID = v
-				d.consumed["servers.oauth.client-id"] = true
+			switch cst.KeyValueName(_kv) {
+			case "name":
+				if v, ok := cst.ExtractString(_kv); ok {
+					d.data.Servers[i].Name = v
+					d.consumed["servers.name"] = true
+				}
+			case "command":
+				if raw, ok := cst.ExtractRaw(_kv); ok {
+					if err := d.data.Servers[i].Command.UnmarshalTOML(raw); err != nil {
+						return nil, fmt.Errorf("command: %w", err)
+					}
+					d.consumed["servers.command"] = true
+				}
+			case "url":
+				if v, ok := cst.ExtractString(_kv); ok {
+					d.data.Servers[i].URL = v
+					d.consumed["servers.url"] = true
+				}
+			case "headers-helper":
+				if v, ok := cst.ExtractString(_kv); ok {
+					d.data.Servers[i].HeadersHelper = &v
+					d.consumed["servers.headers-helper"] = true
+				}
+			case "paginate":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					d.data.Servers[i].Paginate = v
+					d.consumed["servers.paginate"] = true
+				}
+			case "generate-resource-tools":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					d.data.Servers[i].GenerateResourceTools = &v
+					d.consumed["servers.generate-resource-tools"] = true
+				}
+			case "ephemeral":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					d.data.Servers[i].Ephemeral = &v
+					d.consumed["servers.ephemeral"] = true
+				}
+			case "progressive-disclosure":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					d.data.Servers[i].ProgressiveDisclosure = &v
+					d.consumed["servers.progressive-disclosure"] = true
+				}
+			case "nix-devshell":
+				if v, ok := cst.ExtractString(_kv); ok {
+					d.data.Servers[i].NixDevshell = &v
+					d.consumed["servers.nix-devshell"] = true
+				}
 			}
-			if v, err := document.GetFromContainer[int](d.cstDoc, tableNode, "callback-port"); err == nil {
-				oAuthVal.CallbackPort = v
-				d.consumed["servers.oauth.callback-port"] = true
+		}
+		{
+			_pi := 0
+			for _, _rc := range d.cstDoc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == "servers" {
+					if _pi > i {
+						break
+					}
+					_pi++
+					continue
+				}
+				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == "servers.headers" {
+					d.data.Servers[i].Headers = cst.ExtractStringMap(_rc)
+					d.consumed["servers.headers"] = true
+					for _ik := range d.data.Servers[i].Headers {
+						d.consumed["servers.headers"+"."+_ik] = true
+					}
+					break
+				}
 			}
-			d.data.Servers[i].OAuth = oAuthVal
-		} else {
-			oAuthVal := &OAuthConfig{}
-			found := false
-			if v, err := document.GetFromContainer[string](d.cstDoc, node, "client-id"); err == nil {
-				oAuthVal.ClientID = v
-				found = true
-				d.consumed["servers.client-id"] = true
+		}
+		{
+			var _ftServersOauth *cst.Node
+			_pi := 0
+			for _, _rc := range d.cstDoc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == "servers" {
+					if _pi > i {
+						break
+					}
+					_pi++
+					continue
+				}
+				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == "servers.oauth" {
+					_ftServersOauth = _rc
+					break
+				}
 			}
-			if v, err := document.GetFromContainer[int](d.cstDoc, node, "callback-port"); err == nil {
-				oAuthVal.CallbackPort = v
-				found = true
-				d.consumed["servers.callback-port"] = true
-			}
-			if found {
+			if _ftServersOauth != nil {
+				d.consumed["servers.oauth"] = true
+				oAuthVal := &OAuthConfig{}
+				for _, _kv := range _ftServersOauth.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "client-id":
+						if v, ok := cst.ExtractString(_kv); ok {
+							oAuthVal.ClientID = v
+							d.consumed["servers.oauth.client-id"] = true
+						}
+					case "callback-port":
+						if v, ok := cst.ExtractInt(_kv); ok {
+							oAuthVal.CallbackPort = v
+							d.consumed["servers.oauth.callback-port"] = true
+						}
+					}
+				}
 				d.data.Servers[i].OAuth = oAuthVal
+			} else {
+				oAuthVal := &OAuthConfig{}
+				_found := false
+				for _, _kv := range _node.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "client-id":
+						if v, ok := cst.ExtractString(_kv); ok {
+							oAuthVal.ClientID = v
+							_found = true
+							d.consumed["client-id"] = true
+						}
+					case "callback-port":
+						if v, ok := cst.ExtractInt(_kv); ok {
+							oAuthVal.CallbackPort = v
+							_found = true
+							d.consumed["callback-port"] = true
+						}
+					}
+				}
+				if _found {
+					d.data.Servers[i].OAuth = oAuthVal
+				}
 			}
 		}
-		if tableNode := d.cstDoc.FindTableInContainer(node, "annotations"); tableNode != nil {
-			d.consumed["servers.annotations"] = true
-			annotationsVal := &AnnotationFilter{}
-			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "readOnlyHint"); err == nil {
-				annotationsVal.ReadOnlyHint = &v
-				d.consumed["servers.annotations.readOnlyHint"] = true
+		{
+			var _ftServersAnnotations *cst.Node
+			_pi := 0
+			for _, _rc := range d.cstDoc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == "servers" {
+					if _pi > i {
+						break
+					}
+					_pi++
+					continue
+				}
+				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == "servers.annotations" {
+					_ftServersAnnotations = _rc
+					break
+				}
 			}
-			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "destructiveHint"); err == nil {
-				annotationsVal.DestructiveHint = &v
-				d.consumed["servers.annotations.destructiveHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "idempotentHint"); err == nil {
-				annotationsVal.IdempotentHint = &v
-				d.consumed["servers.annotations.idempotentHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](d.cstDoc, tableNode, "openWorldHint"); err == nil {
-				annotationsVal.OpenWorldHint = &v
-				d.consumed["servers.annotations.openWorldHint"] = true
-			}
-			d.data.Servers[i].Annotations = annotationsVal
-		} else {
-			annotationsVal := &AnnotationFilter{}
-			found := false
-			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "readOnlyHint"); err == nil {
-				annotationsVal.ReadOnlyHint = &v
-				found = true
-				d.consumed["servers.readOnlyHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "destructiveHint"); err == nil {
-				annotationsVal.DestructiveHint = &v
-				found = true
-				d.consumed["servers.destructiveHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "idempotentHint"); err == nil {
-				annotationsVal.IdempotentHint = &v
-				found = true
-				d.consumed["servers.idempotentHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](d.cstDoc, node, "openWorldHint"); err == nil {
-				annotationsVal.OpenWorldHint = &v
-				found = true
-				d.consumed["servers.openWorldHint"] = true
-			}
-			if found {
+			if _ftServersAnnotations != nil {
+				d.consumed["servers.annotations"] = true
+				annotationsVal := &AnnotationFilter{}
+				for _, _kv := range _ftServersAnnotations.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "readOnlyHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.ReadOnlyHint = &v
+							d.consumed["servers.annotations.readOnlyHint"] = true
+						}
+					case "destructiveHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.DestructiveHint = &v
+							d.consumed["servers.annotations.destructiveHint"] = true
+						}
+					case "idempotentHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.IdempotentHint = &v
+							d.consumed["servers.annotations.idempotentHint"] = true
+						}
+					case "openWorldHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.OpenWorldHint = &v
+							d.consumed["servers.annotations.openWorldHint"] = true
+						}
+					}
+				}
 				d.data.Servers[i].Annotations = annotationsVal
+			} else {
+				annotationsVal := &AnnotationFilter{}
+				_found := false
+				for _, _kv := range _node.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "readOnlyHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.ReadOnlyHint = &v
+							_found = true
+							d.consumed["readOnlyHint"] = true
+						}
+					case "destructiveHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.DestructiveHint = &v
+							_found = true
+							d.consumed["destructiveHint"] = true
+						}
+					case "idempotentHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.IdempotentHint = &v
+							_found = true
+							d.consumed["idempotentHint"] = true
+						}
+					case "openWorldHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.OpenWorldHint = &v
+							_found = true
+							d.consumed["openWorldHint"] = true
+						}
+					}
+				}
+				if _found {
+					d.data.Servers[i].Annotations = annotationsVal
+				}
 			}
-		}
-		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "paginate"); err == nil {
-			d.data.Servers[i].Paginate = v
-			d.consumed["servers.paginate"] = true
-		}
-		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "generate-resource-tools"); err == nil {
-			d.data.Servers[i].GenerateResourceTools = &v
-			d.consumed["servers.generate-resource-tools"] = true
-		}
-		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "ephemeral"); err == nil {
-			d.data.Servers[i].Ephemeral = &v
-			d.consumed["servers.ephemeral"] = true
-		}
-		if v, err := document.GetFromContainer[bool](d.cstDoc, node, "progressive-disclosure"); err == nil {
-			d.data.Servers[i].ProgressiveDisclosure = &v
-			d.consumed["servers.progressive-disclosure"] = true
-		}
-		if v, err := document.GetFromContainer[string](d.cstDoc, node, "nix-devshell"); err == nil {
-			d.data.Servers[i].NixDevshell = &v
-			d.consumed["servers.nix-devshell"] = true
 		}
 	}
-
 	return d, nil
 }
-
-func (d *ConfigDocument) Data() *Config { return &d.data }
-
+func (d *ConfigDocument) Data() *Config {
+	return &d.data
+}
 func (d *ConfigDocument) Encode() ([]byte, error) {
 	if d.data.Ephemeral != nil {
-		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "ephemeral", *d.data.Ephemeral); err != nil {
-			return nil, err
+		if err := cst.SetAny(d.cstDoc.Root(), "ephemeral", *d.data.Ephemeral); err != nil {
+			return nil, fmt.Errorf("%w", err)
 		}
 	}
 	if d.data.ProgressiveDisclosure != nil {
-		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "progressive-disclosure", *d.data.ProgressiveDisclosure); err != nil {
-			return nil, err
+		if err := cst.SetAny(d.cstDoc.Root(), "progressive-disclosure", *d.data.ProgressiveDisclosure); err != nil {
+			return nil, fmt.Errorf("%w", err)
 		}
 	}
 	if d.data.BuiltinNative != nil {
-		if err := d.cstDoc.SetInContainer(d.cstDoc.Root(), "builtin-native", *d.data.BuiltinNative); err != nil {
-			return nil, err
+		if err := cst.SetAny(d.cstDoc.Root(), "builtin-native", *d.data.BuiltinNative); err != nil {
+			return nil, fmt.Errorf("%w", err)
+		}
+	}
+	{
+		if len(d.data.DisableMoxins) > 0 || cst.HasValue(d.cstDoc.Root(), "disable-moxins") {
+			if err := cst.SetAny(d.cstDoc.Root(), "disable-moxins", d.data.DisableMoxins); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
 		}
 	}
 	if d.data.Credentials != nil {
-		tableNode := d.cstDoc.EnsureTableInContainer(d.cstDoc.Root(), "credentials")
+		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "credentials")
 		if err := credentials.EncodeCommandConfigFrom(d.data.Credentials, d.cstDoc, tableNode); err != nil {
 			return nil, fmt.Errorf("credentials: %w", err)
 		}
@@ -215,11 +357,11 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			if i < len(d.servers) {
 				container = d.servers[i].node
 			} else {
-				container = d.cstDoc.AppendArrayTableEntry("servers")
+				container = cst.AppendArrayTableEntryAfter(d.cstDoc.Root(), "servers")
 			}
-			if d.data.Servers[i].Name != "" || d.cstDoc.HasInContainer(container, "name") {
-				if err := d.cstDoc.SetInContainer(container, "name", d.data.Servers[i].Name); err != nil {
-					return nil, err
+			if d.data.Servers[i].Name != "" || cst.HasValue(container, "name") {
+				if err := cst.SetAny(container, "name", d.data.Servers[i].Name); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 			{
@@ -227,299 +369,427 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 				if err != nil {
 					return nil, fmt.Errorf("command: %w", err)
 				}
-				if err := d.cstDoc.SetInContainer(container, "command", v); err != nil {
-					return nil, err
+				if err := cst.SetAny(container, "command", v); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
-			if d.data.Servers[i].URL != "" || d.cstDoc.HasInContainer(container, "url") {
-				if err := d.cstDoc.SetInContainer(container, "url", d.data.Servers[i].URL); err != nil {
-					return nil, err
+			if d.data.Servers[i].URL != "" || cst.HasValue(container, "url") {
+				if err := cst.SetAny(container, "url", d.data.Servers[i].URL); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 			if len(d.data.Servers[i].Headers) > 0 {
-				tableNode := d.cstDoc.EnsureTableInContainer(container, "headers")
-				document.DeleteAllInContainer(tableNode)
+				tableNode := cst.EnsureChildTable(d.cstDoc.Root(), container, "headers")
+				cst.DeleteAllValues(tableNode)
 				for k, v := range d.data.Servers[i].Headers {
-					if err := d.cstDoc.SetInContainer(tableNode, k, v); err != nil {
-						return nil, err
+					if err := cst.SetAny(tableNode, k, v); err != nil {
+						return nil, fmt.Errorf("%w", err)
 					}
 				}
 			}
 			if d.data.Servers[i].HeadersHelper != nil {
-				if err := d.cstDoc.SetInContainer(container, "headers-helper", *d.data.Servers[i].HeadersHelper); err != nil {
-					return nil, err
+				if err := cst.SetAny(container, "headers-helper", *d.data.Servers[i].HeadersHelper); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 			if d.data.Servers[i].OAuth != nil {
-				tableNode := d.cstDoc.EnsureTableInContainer(container, "oauth")
-				if d.data.Servers[i].OAuth.ClientID != "" || d.cstDoc.HasInContainer(tableNode, "client-id") {
-					if err := d.cstDoc.SetInContainer(tableNode, "client-id", d.data.Servers[i].OAuth.ClientID); err != nil {
-						return nil, err
+				tableNode := cst.EnsureChildTable(d.cstDoc.Root(), container, "oauth")
+				if d.data.Servers[i].OAuth.ClientID != "" || cst.HasValue(tableNode, "client-id") {
+					if err := cst.SetAny(tableNode, "client-id", d.data.Servers[i].OAuth.ClientID); err != nil {
+						return nil, fmt.Errorf("%w", err)
 					}
 				}
-				if d.data.Servers[i].OAuth.CallbackPort != 0 || d.cstDoc.HasInContainer(tableNode, "callback-port") {
-					if err := d.cstDoc.SetInContainer(tableNode, "callback-port", d.data.Servers[i].OAuth.CallbackPort); err != nil {
-						return nil, err
+				if d.data.Servers[i].OAuth.CallbackPort != 0 || cst.HasValue(tableNode, "callback-port") {
+					if err := cst.SetAny(tableNode, "callback-port", d.data.Servers[i].OAuth.CallbackPort); err != nil {
+						return nil, fmt.Errorf("%w", err)
 					}
 				}
 			}
 			if d.data.Servers[i].Annotations != nil {
-				tableNode := d.cstDoc.EnsureTableInContainer(container, "annotations")
+				tableNode := cst.EnsureChildTable(d.cstDoc.Root(), container, "annotations")
 				if d.data.Servers[i].Annotations.ReadOnlyHint != nil {
-					if err := d.cstDoc.SetInContainer(tableNode, "readOnlyHint", *d.data.Servers[i].Annotations.ReadOnlyHint); err != nil {
-						return nil, err
+					if err := cst.SetAny(tableNode, "readOnlyHint", *d.data.Servers[i].Annotations.ReadOnlyHint); err != nil {
+						return nil, fmt.Errorf("%w", err)
 					}
 				}
 				if d.data.Servers[i].Annotations.DestructiveHint != nil {
-					if err := d.cstDoc.SetInContainer(tableNode, "destructiveHint", *d.data.Servers[i].Annotations.DestructiveHint); err != nil {
-						return nil, err
+					if err := cst.SetAny(tableNode, "destructiveHint", *d.data.Servers[i].Annotations.DestructiveHint); err != nil {
+						return nil, fmt.Errorf("%w", err)
 					}
 				}
 				if d.data.Servers[i].Annotations.IdempotentHint != nil {
-					if err := d.cstDoc.SetInContainer(tableNode, "idempotentHint", *d.data.Servers[i].Annotations.IdempotentHint); err != nil {
-						return nil, err
+					if err := cst.SetAny(tableNode, "idempotentHint", *d.data.Servers[i].Annotations.IdempotentHint); err != nil {
+						return nil, fmt.Errorf("%w", err)
 					}
 				}
 				if d.data.Servers[i].Annotations.OpenWorldHint != nil {
-					if err := d.cstDoc.SetInContainer(tableNode, "openWorldHint", *d.data.Servers[i].Annotations.OpenWorldHint); err != nil {
-						return nil, err
+					if err := cst.SetAny(tableNode, "openWorldHint", *d.data.Servers[i].Annotations.OpenWorldHint); err != nil {
+						return nil, fmt.Errorf("%w", err)
 					}
 				}
 			}
-			if d.data.Servers[i].Paginate != false || d.cstDoc.HasInContainer(container, "paginate") {
-				if err := d.cstDoc.SetInContainer(container, "paginate", d.data.Servers[i].Paginate); err != nil {
-					return nil, err
+			if d.data.Servers[i].Paginate != false || cst.HasValue(container, "paginate") {
+				if err := cst.SetAny(container, "paginate", d.data.Servers[i].Paginate); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 			if d.data.Servers[i].GenerateResourceTools != nil {
-				if err := d.cstDoc.SetInContainer(container, "generate-resource-tools", *d.data.Servers[i].GenerateResourceTools); err != nil {
-					return nil, err
+				if err := cst.SetAny(container, "generate-resource-tools", *d.data.Servers[i].GenerateResourceTools); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 			if d.data.Servers[i].Ephemeral != nil {
-				if err := d.cstDoc.SetInContainer(container, "ephemeral", *d.data.Servers[i].Ephemeral); err != nil {
-					return nil, err
+				if err := cst.SetAny(container, "ephemeral", *d.data.Servers[i].Ephemeral); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 			if d.data.Servers[i].ProgressiveDisclosure != nil {
-				if err := d.cstDoc.SetInContainer(container, "progressive-disclosure", *d.data.Servers[i].ProgressiveDisclosure); err != nil {
-					return nil, err
+				if err := cst.SetAny(container, "progressive-disclosure", *d.data.Servers[i].ProgressiveDisclosure); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 			if d.data.Servers[i].NixDevshell != nil {
-				if err := d.cstDoc.SetInContainer(container, "nix-devshell", *d.data.Servers[i].NixDevshell); err != nil {
-					return nil, err
+				if err := cst.SetAny(container, "nix-devshell", *d.data.Servers[i].NixDevshell); err != nil {
+					return nil, fmt.Errorf("%w", err)
 				}
 			}
 		}
 	}
-
 	return d.cstDoc.Bytes(), nil
 }
-
 func (d *ConfigDocument) Undecoded() []string {
 	return document.UndecodedKeys(d.cstDoc.Root(), d.consumed)
 }
-
 func (d *ConfigDocument) Comment(key string) string {
 	return d.cstDoc.GetComment(key)
 }
-
 func (d *ConfigDocument) SetComment(key, comment string) {
 	d.cstDoc.SetComment(key, comment)
 }
-
 func (d *ConfigDocument) InlineComment(key string) string {
 	return d.cstDoc.GetInlineComment(key)
 }
-
 func (d *ConfigDocument) SetInlineComment(key, comment string) {
 	d.cstDoc.SetInlineComment(key, comment)
 }
-
 func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node, consumed map[string]bool, keyPrefix string) error {
-	if v, err := document.GetFromContainer[bool](doc, container, "ephemeral"); err == nil {
-		data.Ephemeral = &v
-		consumed[keyPrefix+"ephemeral"] = true
-	}
-	if v, err := document.GetFromContainer[bool](doc, container, "progressive-disclosure"); err == nil {
-		data.ProgressiveDisclosure = &v
-		consumed[keyPrefix+"progressive-disclosure"] = true
-	}
-	if v, err := document.GetFromContainer[bool](doc, container, "builtin-native"); err == nil {
-		data.BuiltinNative = &v
-		consumed[keyPrefix+"builtin-native"] = true
-	}
-	if tableNode := doc.FindTableInContainer(container, "credentials"); tableNode != nil {
-		consumed[keyPrefix+"credentials"] = true
-		credentialsVal := &credentials.CommandConfig{}
-		if err := credentials.DecodeCommandConfigInto(credentialsVal, doc, tableNode, consumed, keyPrefix+"credentials."); err != nil {
-			return fmt.Errorf("credentials: %w", err)
+	for _, _kv := range container.Children {
+		if _kv.Kind != cst.NodeKeyValue {
+			continue
 		}
-		data.Credentials = credentialsVal
+		switch cst.KeyValueName(_kv) {
+		case "ephemeral":
+			if v, ok := cst.ExtractBool(_kv); ok {
+				data.Ephemeral = &v
+				consumed[keyPrefix+"ephemeral"] = true
+			}
+		case "progressive-disclosure":
+			if v, ok := cst.ExtractBool(_kv); ok {
+				data.ProgressiveDisclosure = &v
+				consumed[keyPrefix+"progressive-disclosure"] = true
+			}
+		case "builtin-native":
+			if v, ok := cst.ExtractBool(_kv); ok {
+				data.BuiltinNative = &v
+				consumed[keyPrefix+"builtin-native"] = true
+			}
+		case "disable-moxins":
+			if v, ok := cst.ExtractStringSlice(_kv); ok {
+				data.DisableMoxins = v
+				consumed[keyPrefix+"disable-moxins"] = true
+			}
+		}
 	}
-	serversNodes := doc.FindArrayTableNodes(keyPrefix + "servers")
-	data.Servers = make([]ServerConfig, len(serversNodes))
+	{
+		var _tblCredentials *cst.Node
+		for _, _ch := range doc.Root().Children {
+			if _ch.Kind == cst.NodeTable && cst.TableHeaderKey(_ch) == keyPrefix+"credentials" {
+				_tblCredentials = _ch
+				break
+			}
+		}
+		if _tblCredentials != nil {
+			consumed[keyPrefix+"credentials"] = true
+			commandConfigVal := &credentials.CommandConfig{}
+			if err := credentials.DecodeCommandConfigInto(commandConfigVal, doc, _tblCredentials, consumed, keyPrefix+"credentials."); err != nil {
+				return fmt.Errorf("credentials: %w", err)
+			}
+			data.Credentials = commandConfigVal
+		}
+	}
+	var _nodesServers []*cst.Node
+	_nodesServers = doc.FindArrayTableNodes(keyPrefix + "servers")
+	data.Servers = make([]ServerConfig, len(_nodesServers))
 	consumed[keyPrefix+"servers"] = true
-	for i, node := range serversNodes {
-		if v, err := document.GetFromContainer[string](doc, node, "name"); err == nil {
-			data.Servers[i].Name = v
-			consumed[keyPrefix+"servers.name"] = true
-		}
-		if raw, err := document.GetRawFromContainer(doc, node, "command"); err == nil {
-			if err := data.Servers[i].Command.UnmarshalTOML(raw); err != nil {
-				return fmt.Errorf("command: %w", err)
+	for i, _node := range _nodesServers {
+		for _, _kv := range _node.Children {
+			if _kv.Kind != cst.NodeKeyValue {
+				continue
 			}
-			consumed[keyPrefix+"servers.command"] = true
-		}
-		if v, err := document.GetFromContainer[string](doc, node, "url"); err == nil {
-			data.Servers[i].URL = v
-			consumed[keyPrefix+"servers.url"] = true
-		}
-		if tableNode := doc.FindTableInContainer(node, "headers"); tableNode != nil {
-			data.Servers[i].Headers = document.GetStringMapFromTable(tableNode)
-			consumed[keyPrefix+"servers.headers"] = true
-			document.MarkAllConsumed(tableNode, keyPrefix+"servers.headers", consumed)
-		}
-		if v, err := document.GetFromContainer[string](doc, node, "headers-helper"); err == nil {
-			data.Servers[i].HeadersHelper = &v
-			consumed[keyPrefix+"servers.headers-helper"] = true
-		}
-		if tableNode := doc.FindTableInContainer(node, "oauth"); tableNode != nil {
-			consumed[keyPrefix+"servers.oauth"] = true
-			oAuthVal := &OAuthConfig{}
-			if v, err := document.GetFromContainer[string](doc, tableNode, "client-id"); err == nil {
-				oAuthVal.ClientID = v
-				consumed[keyPrefix+"servers.oauth.client-id"] = true
+			switch cst.KeyValueName(_kv) {
+			case "name":
+				if v, ok := cst.ExtractString(_kv); ok {
+					data.Servers[i].Name = v
+					consumed[keyPrefix+"servers.name"] = true
+				}
+			case "command":
+				if raw, ok := cst.ExtractRaw(_kv); ok {
+					if err := data.Servers[i].Command.UnmarshalTOML(raw); err != nil {
+						return fmt.Errorf("command: %w", err)
+					}
+					consumed[keyPrefix+"servers.command"] = true
+				}
+			case "url":
+				if v, ok := cst.ExtractString(_kv); ok {
+					data.Servers[i].URL = v
+					consumed[keyPrefix+"servers.url"] = true
+				}
+			case "headers-helper":
+				if v, ok := cst.ExtractString(_kv); ok {
+					data.Servers[i].HeadersHelper = &v
+					consumed[keyPrefix+"servers.headers-helper"] = true
+				}
+			case "paginate":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					data.Servers[i].Paginate = v
+					consumed[keyPrefix+"servers.paginate"] = true
+				}
+			case "generate-resource-tools":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					data.Servers[i].GenerateResourceTools = &v
+					consumed[keyPrefix+"servers.generate-resource-tools"] = true
+				}
+			case "ephemeral":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					data.Servers[i].Ephemeral = &v
+					consumed[keyPrefix+"servers.ephemeral"] = true
+				}
+			case "progressive-disclosure":
+				if v, ok := cst.ExtractBool(_kv); ok {
+					data.Servers[i].ProgressiveDisclosure = &v
+					consumed[keyPrefix+"servers.progressive-disclosure"] = true
+				}
+			case "nix-devshell":
+				if v, ok := cst.ExtractString(_kv); ok {
+					data.Servers[i].NixDevshell = &v
+					consumed[keyPrefix+"servers.nix-devshell"] = true
+				}
 			}
-			if v, err := document.GetFromContainer[int](doc, tableNode, "callback-port"); err == nil {
-				oAuthVal.CallbackPort = v
-				consumed[keyPrefix+"servers.oauth.callback-port"] = true
+		}
+		{
+			_pi := 0
+			for _, _rc := range doc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers" {
+					if _pi > i {
+						break
+					}
+					_pi++
+					continue
+				}
+				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers.headers" {
+					data.Servers[i].Headers = cst.ExtractStringMap(_rc)
+					consumed[keyPrefix+"servers.headers"] = true
+					for _ik := range data.Servers[i].Headers {
+						consumed[keyPrefix+"servers.headers"+"."+_ik] = true
+					}
+					break
+				}
 			}
-			data.Servers[i].OAuth = oAuthVal
-		} else {
-			oAuthVal := &OAuthConfig{}
-			found := false
-			if v, err := document.GetFromContainer[string](doc, node, "client-id"); err == nil {
-				oAuthVal.ClientID = v
-				found = true
-				consumed[keyPrefix+"servers.client-id"] = true
+		}
+		{
+			var _ftServersOauth *cst.Node
+			_pi := 0
+			for _, _rc := range doc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers" {
+					if _pi > i {
+						break
+					}
+					_pi++
+					continue
+				}
+				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers.oauth" {
+					_ftServersOauth = _rc
+					break
+				}
 			}
-			if v, err := document.GetFromContainer[int](doc, node, "callback-port"); err == nil {
-				oAuthVal.CallbackPort = v
-				found = true
-				consumed[keyPrefix+"servers.callback-port"] = true
-			}
-			if found {
+			if _ftServersOauth != nil {
+				consumed[keyPrefix+"servers.oauth"] = true
+				oAuthVal := &OAuthConfig{}
+				for _, _kv := range _ftServersOauth.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "client-id":
+						if v, ok := cst.ExtractString(_kv); ok {
+							oAuthVal.ClientID = v
+							consumed[keyPrefix+"servers.oauth.client-id"] = true
+						}
+					case "callback-port":
+						if v, ok := cst.ExtractInt(_kv); ok {
+							oAuthVal.CallbackPort = v
+							consumed[keyPrefix+"servers.oauth.callback-port"] = true
+						}
+					}
+				}
 				data.Servers[i].OAuth = oAuthVal
+			} else {
+				oAuthVal := &OAuthConfig{}
+				_found := false
+				for _, _kv := range _node.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "client-id":
+						if v, ok := cst.ExtractString(_kv); ok {
+							oAuthVal.ClientID = v
+							_found = true
+							consumed["client-id"] = true
+						}
+					case "callback-port":
+						if v, ok := cst.ExtractInt(_kv); ok {
+							oAuthVal.CallbackPort = v
+							_found = true
+							consumed["callback-port"] = true
+						}
+					}
+				}
+				if _found {
+					data.Servers[i].OAuth = oAuthVal
+				}
 			}
 		}
-		if tableNode := doc.FindTableInContainer(node, "annotations"); tableNode != nil {
-			consumed[keyPrefix+"servers.annotations"] = true
-			annotationsVal := &AnnotationFilter{}
-			if v, err := document.GetFromContainer[bool](doc, tableNode, "readOnlyHint"); err == nil {
-				annotationsVal.ReadOnlyHint = &v
-				consumed[keyPrefix+"servers.annotations.readOnlyHint"] = true
+		{
+			var _ftServersAnnotations *cst.Node
+			_pi := 0
+			for _, _rc := range doc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers" {
+					if _pi > i {
+						break
+					}
+					_pi++
+					continue
+				}
+				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers.annotations" {
+					_ftServersAnnotations = _rc
+					break
+				}
 			}
-			if v, err := document.GetFromContainer[bool](doc, tableNode, "destructiveHint"); err == nil {
-				annotationsVal.DestructiveHint = &v
-				consumed[keyPrefix+"servers.annotations.destructiveHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](doc, tableNode, "idempotentHint"); err == nil {
-				annotationsVal.IdempotentHint = &v
-				consumed[keyPrefix+"servers.annotations.idempotentHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](doc, tableNode, "openWorldHint"); err == nil {
-				annotationsVal.OpenWorldHint = &v
-				consumed[keyPrefix+"servers.annotations.openWorldHint"] = true
-			}
-			data.Servers[i].Annotations = annotationsVal
-		} else {
-			annotationsVal := &AnnotationFilter{}
-			found := false
-			if v, err := document.GetFromContainer[bool](doc, node, "readOnlyHint"); err == nil {
-				annotationsVal.ReadOnlyHint = &v
-				found = true
-				consumed[keyPrefix+"servers.readOnlyHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](doc, node, "destructiveHint"); err == nil {
-				annotationsVal.DestructiveHint = &v
-				found = true
-				consumed[keyPrefix+"servers.destructiveHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](doc, node, "idempotentHint"); err == nil {
-				annotationsVal.IdempotentHint = &v
-				found = true
-				consumed[keyPrefix+"servers.idempotentHint"] = true
-			}
-			if v, err := document.GetFromContainer[bool](doc, node, "openWorldHint"); err == nil {
-				annotationsVal.OpenWorldHint = &v
-				found = true
-				consumed[keyPrefix+"servers.openWorldHint"] = true
-			}
-			if found {
+			if _ftServersAnnotations != nil {
+				consumed[keyPrefix+"servers.annotations"] = true
+				annotationsVal := &AnnotationFilter{}
+				for _, _kv := range _ftServersAnnotations.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "readOnlyHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.ReadOnlyHint = &v
+							consumed[keyPrefix+"servers.annotations.readOnlyHint"] = true
+						}
+					case "destructiveHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.DestructiveHint = &v
+							consumed[keyPrefix+"servers.annotations.destructiveHint"] = true
+						}
+					case "idempotentHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.IdempotentHint = &v
+							consumed[keyPrefix+"servers.annotations.idempotentHint"] = true
+						}
+					case "openWorldHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.OpenWorldHint = &v
+							consumed[keyPrefix+"servers.annotations.openWorldHint"] = true
+						}
+					}
+				}
 				data.Servers[i].Annotations = annotationsVal
+			} else {
+				annotationsVal := &AnnotationFilter{}
+				_found := false
+				for _, _kv := range _node.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "readOnlyHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.ReadOnlyHint = &v
+							_found = true
+							consumed["readOnlyHint"] = true
+						}
+					case "destructiveHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.DestructiveHint = &v
+							_found = true
+							consumed["destructiveHint"] = true
+						}
+					case "idempotentHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.IdempotentHint = &v
+							_found = true
+							consumed["idempotentHint"] = true
+						}
+					case "openWorldHint":
+						if v, ok := cst.ExtractBool(_kv); ok {
+							annotationsVal.OpenWorldHint = &v
+							_found = true
+							consumed["openWorldHint"] = true
+						}
+					}
+				}
+				if _found {
+					data.Servers[i].Annotations = annotationsVal
+				}
 			}
-		}
-		if v, err := document.GetFromContainer[bool](doc, node, "paginate"); err == nil {
-			data.Servers[i].Paginate = v
-			consumed[keyPrefix+"servers.paginate"] = true
-		}
-		if v, err := document.GetFromContainer[bool](doc, node, "generate-resource-tools"); err == nil {
-			data.Servers[i].GenerateResourceTools = &v
-			consumed[keyPrefix+"servers.generate-resource-tools"] = true
-		}
-		if v, err := document.GetFromContainer[bool](doc, node, "ephemeral"); err == nil {
-			data.Servers[i].Ephemeral = &v
-			consumed[keyPrefix+"servers.ephemeral"] = true
-		}
-		if v, err := document.GetFromContainer[bool](doc, node, "progressive-disclosure"); err == nil {
-			data.Servers[i].ProgressiveDisclosure = &v
-			consumed[keyPrefix+"servers.progressive-disclosure"] = true
-		}
-		if v, err := document.GetFromContainer[string](doc, node, "nix-devshell"); err == nil {
-			data.Servers[i].NixDevshell = &v
-			consumed[keyPrefix+"servers.nix-devshell"] = true
 		}
 	}
-
 	return nil
 }
-
 func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node) error {
 	if data.Ephemeral != nil {
-		if err := doc.SetInContainer(container, "ephemeral", *data.Ephemeral); err != nil {
-			return err
+		if err := cst.SetAny(container, "ephemeral", *data.Ephemeral); err != nil {
+			return fmt.Errorf("%w", err)
 		}
 	}
 	if data.ProgressiveDisclosure != nil {
-		if err := doc.SetInContainer(container, "progressive-disclosure", *data.ProgressiveDisclosure); err != nil {
-			return err
+		if err := cst.SetAny(container, "progressive-disclosure", *data.ProgressiveDisclosure); err != nil {
+			return fmt.Errorf("%w", err)
 		}
 	}
 	if data.BuiltinNative != nil {
-		if err := doc.SetInContainer(container, "builtin-native", *data.BuiltinNative); err != nil {
-			return err
+		if err := cst.SetAny(container, "builtin-native", *data.BuiltinNative); err != nil {
+			return fmt.Errorf("%w", err)
+		}
+	}
+	{
+		if len(data.DisableMoxins) > 0 || cst.HasValue(container, "disable-moxins") {
+			if err := cst.SetAny(container, "disable-moxins", data.DisableMoxins); err != nil {
+				return fmt.Errorf("%w", err)
+			}
 		}
 	}
 	if data.Credentials != nil {
-		tableNode := doc.EnsureTableInContainer(container, "credentials")
+		tableNode := cst.EnsureChildTable(doc.Root(), container, "credentials")
 		if err := credentials.EncodeCommandConfigFrom(data.Credentials, doc, tableNode); err != nil {
 			return fmt.Errorf("credentials: %w", err)
 		}
 	}
 	{
-		serversExisting := doc.FindArrayTableNodes("servers")
+		_existServers := cst.FindArrayTableNodes(doc.Root(), "servers")
 		for i := range data.Servers {
 			var container *cst.Node
-			if i < len(serversExisting) {
-				container = serversExisting[i]
+			if i < len(_existServers) {
+				container = _existServers[i]
 			} else {
-				container = doc.AppendArrayTableEntry("servers")
+				container = cst.AppendArrayTableEntryAfter(doc.Root(), "servers")
 			}
-			if data.Servers[i].Name != "" || doc.HasInContainer(container, "name") {
-				if err := doc.SetInContainer(container, "name", data.Servers[i].Name); err != nil {
-					return err
+			if data.Servers[i].Name != "" || cst.HasValue(container, "name") {
+				if err := cst.SetAny(container, "name", data.Servers[i].Name); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 			{
@@ -527,92 +797,91 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 				if err != nil {
 					return fmt.Errorf("command: %w", err)
 				}
-				if err := doc.SetInContainer(container, "command", v); err != nil {
-					return err
+				if err := cst.SetAny(container, "command", v); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
-			if data.Servers[i].URL != "" || doc.HasInContainer(container, "url") {
-				if err := doc.SetInContainer(container, "url", data.Servers[i].URL); err != nil {
-					return err
+			if data.Servers[i].URL != "" || cst.HasValue(container, "url") {
+				if err := cst.SetAny(container, "url", data.Servers[i].URL); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 			if len(data.Servers[i].Headers) > 0 {
-				tableNode := doc.EnsureTableInContainer(container, "headers")
-				document.DeleteAllInContainer(tableNode)
+				tableNode := cst.EnsureChildTable(doc.Root(), container, "headers")
+				cst.DeleteAllValues(tableNode)
 				for k, v := range data.Servers[i].Headers {
-					if err := doc.SetInContainer(tableNode, k, v); err != nil {
-						return err
+					if err := cst.SetAny(tableNode, k, v); err != nil {
+						return fmt.Errorf("%w", err)
 					}
 				}
 			}
 			if data.Servers[i].HeadersHelper != nil {
-				if err := doc.SetInContainer(container, "headers-helper", *data.Servers[i].HeadersHelper); err != nil {
-					return err
+				if err := cst.SetAny(container, "headers-helper", *data.Servers[i].HeadersHelper); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 			if data.Servers[i].OAuth != nil {
-				tableNode := doc.EnsureTableInContainer(container, "oauth")
-				if data.Servers[i].OAuth.ClientID != "" || doc.HasInContainer(tableNode, "client-id") {
-					if err := doc.SetInContainer(tableNode, "client-id", data.Servers[i].OAuth.ClientID); err != nil {
-						return err
+				tableNode := cst.EnsureChildTable(doc.Root(), container, "oauth")
+				if data.Servers[i].OAuth.ClientID != "" || cst.HasValue(tableNode, "client-id") {
+					if err := cst.SetAny(tableNode, "client-id", data.Servers[i].OAuth.ClientID); err != nil {
+						return fmt.Errorf("%w", err)
 					}
 				}
-				if data.Servers[i].OAuth.CallbackPort != 0 || doc.HasInContainer(tableNode, "callback-port") {
-					if err := doc.SetInContainer(tableNode, "callback-port", data.Servers[i].OAuth.CallbackPort); err != nil {
-						return err
+				if data.Servers[i].OAuth.CallbackPort != 0 || cst.HasValue(tableNode, "callback-port") {
+					if err := cst.SetAny(tableNode, "callback-port", data.Servers[i].OAuth.CallbackPort); err != nil {
+						return fmt.Errorf("%w", err)
 					}
 				}
 			}
 			if data.Servers[i].Annotations != nil {
-				tableNode := doc.EnsureTableInContainer(container, "annotations")
+				tableNode := cst.EnsureChildTable(doc.Root(), container, "annotations")
 				if data.Servers[i].Annotations.ReadOnlyHint != nil {
-					if err := doc.SetInContainer(tableNode, "readOnlyHint", *data.Servers[i].Annotations.ReadOnlyHint); err != nil {
-						return err
+					if err := cst.SetAny(tableNode, "readOnlyHint", *data.Servers[i].Annotations.ReadOnlyHint); err != nil {
+						return fmt.Errorf("%w", err)
 					}
 				}
 				if data.Servers[i].Annotations.DestructiveHint != nil {
-					if err := doc.SetInContainer(tableNode, "destructiveHint", *data.Servers[i].Annotations.DestructiveHint); err != nil {
-						return err
+					if err := cst.SetAny(tableNode, "destructiveHint", *data.Servers[i].Annotations.DestructiveHint); err != nil {
+						return fmt.Errorf("%w", err)
 					}
 				}
 				if data.Servers[i].Annotations.IdempotentHint != nil {
-					if err := doc.SetInContainer(tableNode, "idempotentHint", *data.Servers[i].Annotations.IdempotentHint); err != nil {
-						return err
+					if err := cst.SetAny(tableNode, "idempotentHint", *data.Servers[i].Annotations.IdempotentHint); err != nil {
+						return fmt.Errorf("%w", err)
 					}
 				}
 				if data.Servers[i].Annotations.OpenWorldHint != nil {
-					if err := doc.SetInContainer(tableNode, "openWorldHint", *data.Servers[i].Annotations.OpenWorldHint); err != nil {
-						return err
+					if err := cst.SetAny(tableNode, "openWorldHint", *data.Servers[i].Annotations.OpenWorldHint); err != nil {
+						return fmt.Errorf("%w", err)
 					}
 				}
 			}
-			if data.Servers[i].Paginate != false || doc.HasInContainer(container, "paginate") {
-				if err := doc.SetInContainer(container, "paginate", data.Servers[i].Paginate); err != nil {
-					return err
+			if data.Servers[i].Paginate != false || cst.HasValue(container, "paginate") {
+				if err := cst.SetAny(container, "paginate", data.Servers[i].Paginate); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 			if data.Servers[i].GenerateResourceTools != nil {
-				if err := doc.SetInContainer(container, "generate-resource-tools", *data.Servers[i].GenerateResourceTools); err != nil {
-					return err
+				if err := cst.SetAny(container, "generate-resource-tools", *data.Servers[i].GenerateResourceTools); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 			if data.Servers[i].Ephemeral != nil {
-				if err := doc.SetInContainer(container, "ephemeral", *data.Servers[i].Ephemeral); err != nil {
-					return err
+				if err := cst.SetAny(container, "ephemeral", *data.Servers[i].Ephemeral); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 			if data.Servers[i].ProgressiveDisclosure != nil {
-				if err := doc.SetInContainer(container, "progressive-disclosure", *data.Servers[i].ProgressiveDisclosure); err != nil {
-					return err
+				if err := cst.SetAny(container, "progressive-disclosure", *data.Servers[i].ProgressiveDisclosure); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 			if data.Servers[i].NixDevshell != nil {
-				if err := doc.SetInContainer(container, "nix-devshell", *data.Servers[i].NixDevshell); err != nil {
-					return err
+				if err := cst.SetAny(container, "nix-devshell", *data.Servers[i].NixDevshell); err != nil {
+					return fmt.Errorf("%w", err)
 				}
 			}
 		}
 	}
-
 	return nil
 }

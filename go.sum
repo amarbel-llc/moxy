@@ -6,6 +6,8 @@ github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.11 h1:OEr8mQbX9WJZ52LYi56ovT
 github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.11/go.mod h1:4QNwpEtQWg+aF++9BpxQq93cnj6puQfsARZ0Z4fHIHk=
 github.com/amarbel-llc/tommy v0.0.0-20260405143331-87255e87bf37 h1:OQA0sRnQMO5c4qcOXdxp0mKQMWIEcs9yvPfkoXafMtQ=
 github.com/amarbel-llc/tommy v0.0.0-20260405143331-87255e87bf37/go.mod h1:eAaOHBrPo/hzBU/CkWgXP67Qq6v5aMyVtiAZ3tYUuOc=
+github.com/amarbel-llc/tommy v0.0.0-20260416172442-0769146d4d1e h1:dqDWgzSuI+njKyyLSBg2bfCLGol6tP4Xl8kiTU3OEh0=
+github.com/amarbel-llc/tommy v0.0.0-20260416172442-0769146d4d1e/go.mod h1:eAaOHBrPo/hzBU/CkWgXP67Qq6v5aMyVtiAZ3tYUuOc=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
 github.com/atotto/clipboard v0.1.4/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=

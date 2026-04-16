@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.11
-	github.com/amarbel-llc/tommy v0.0.0-20260405143331-87255e87bf37
+	github.com/amarbel-llc/tommy v0.0.0-20260416172442-0769146d4d1e
 	github.com/charmbracelet/huh v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/zalando/go-keyring v0.2.8

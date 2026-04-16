@@ -385,11 +385,29 @@ func runServer(app *command.App) error {
 	}
 	fmt.Fprintf(os.Stderr, "moxy: bootstrap: existing server names (collision set): %v\n", existingNames)
 
+	disableSet := cfg.BuildDisableMoxinSet()
+
 	for _, nc := range nativeConfigs {
 		if existingNames[nc.Name] {
 			fmt.Fprintf(os.Stderr, "moxy: skipping moxin %q (name collision with moxyfile server)\n", nc.Name)
 			continue
 		}
+		if disableSet.ServerDisabled(nc.Name) {
+			fmt.Fprintf(os.Stderr, "moxy: skipping moxin %q (disabled by moxyfile)\n", nc.Name)
+			continue
+		}
+
+		// Filter individual disabled tools.
+		filtered := nc.Tools[:0]
+		for _, t := range nc.Tools {
+			if disableSet.ToolDisabled(nc.Name, t.Name) {
+				fmt.Fprintf(os.Stderr, "moxy: disabling tool %s.%s (disabled by moxyfile)\n", nc.Name, t.Name)
+				continue
+			}
+			filtered = append(filtered, t)
+		}
+		nc.Tools = filtered
+
 		srv := native.NewServer(nc)
 		initResult := srv.InitializeResult()
 		hasCaps := initResult.Capabilities.Tools != nil

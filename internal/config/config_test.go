@@ -1090,6 +1090,124 @@ command = "echo"
 	}
 }
 
+func TestParseDisableMoxins(t *testing.T) {
+	input := `
+disable-moxins = ["chix", "man.semantic-search"]
+
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DisableMoxins) != 2 {
+		t.Fatalf("expected 2 disable entries, got %d", len(cfg.DisableMoxins))
+	}
+	if cfg.DisableMoxins[0] != "chix" || cfg.DisableMoxins[1] != "man.semantic-search" {
+		t.Errorf("got %v", cfg.DisableMoxins)
+	}
+}
+
+func TestParseDisableMoxinsEmpty(t *testing.T) {
+	input := `
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DisableMoxins) != 0 {
+		t.Errorf("expected empty disable-moxins, got %v", cfg.DisableMoxins)
+	}
+}
+
+func TestParseDisableMoxinsRejectsEmptyEntry(t *testing.T) {
+	input := `disable-moxins = ["chix", ""]`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for empty disable-moxins entry")
+	}
+}
+
+func TestParseDisableMoxinsRejectsDoubleDot(t *testing.T) {
+	input := `disable-moxins = ["man.foo.bar"]`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for double-dot disable-moxins entry")
+	}
+}
+
+func TestParseDisableMoxinsRejectsTrailingDot(t *testing.T) {
+	input := `disable-moxins = ["man."]`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for trailing-dot disable-moxins entry")
+	}
+}
+
+func TestMergeDisableMoxinsAdditive(t *testing.T) {
+	base := Config{DisableMoxins: []string{"chix", "man.semantic-search"}}
+	overlay := Config{DisableMoxins: []string{"man.semantic-search", "folio"}}
+	merged := Merge(base, overlay)
+
+	if len(merged.DisableMoxins) != 3 {
+		t.Fatalf("expected 3 entries (union), got %d: %v", len(merged.DisableMoxins), merged.DisableMoxins)
+	}
+	want := map[string]bool{"chix": true, "man.semantic-search": true, "folio": true}
+	for _, entry := range merged.DisableMoxins {
+		if !want[entry] {
+			t.Errorf("unexpected entry %q", entry)
+		}
+	}
+}
+
+func TestMergeDisableMoxinsBaseOnly(t *testing.T) {
+	base := Config{DisableMoxins: []string{"chix"}}
+	merged := Merge(base, Config{})
+	if len(merged.DisableMoxins) != 1 || merged.DisableMoxins[0] != "chix" {
+		t.Errorf("expected base preserved, got %v", merged.DisableMoxins)
+	}
+}
+
+func TestMergeDisableMoxinsOverlayOnly(t *testing.T) {
+	overlay := Config{DisableMoxins: []string{"chix"}}
+	merged := Merge(Config{}, overlay)
+	if len(merged.DisableMoxins) != 1 || merged.DisableMoxins[0] != "chix" {
+		t.Errorf("expected overlay preserved, got %v", merged.DisableMoxins)
+	}
+}
+
+func TestDisableMoxinSet(t *testing.T) {
+	cfg := Config{DisableMoxins: []string{"chix", "man.semantic-search", "folio.write"}}
+	set := cfg.BuildDisableMoxinSet()
+
+	if !set.ServerDisabled("chix") {
+		t.Error("expected chix disabled")
+	}
+	if set.ServerDisabled("man") {
+		t.Error("man should not be fully disabled")
+	}
+	if set.ServerDisabled("folio") {
+		t.Error("folio should not be fully disabled")
+	}
+	if !set.ToolDisabled("man", "semantic-search") {
+		t.Error("expected man.semantic-search disabled")
+	}
+	if set.ToolDisabled("man", "list") {
+		t.Error("man.list should not be disabled")
+	}
+	if !set.ToolDisabled("folio", "write") {
+		t.Error("expected folio.write disabled")
+	}
+	if set.ToolDisabled("folio", "read") {
+		t.Error("folio.read should not be disabled")
+	}
+}
+
 func TestParseHeadersExpandEnvVars(t *testing.T) {
 	t.Setenv("TEST_TOKEN", "secret123")
 	input := `

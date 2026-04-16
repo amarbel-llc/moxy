@@ -86,7 +86,10 @@ func Run(w io.Writer, home, dir string) int {
 		errorsByDir[parentDir] = append(errorsByDir[parentDir], me)
 	}
 
+	disableSet := hierarchy.Merged.BuildDisableMoxinSet()
+
 	var totalTools int
+	var disabledServers, disabledTools int
 	for _, d := range discovered.Dirs {
 		fmt.Fprintln(w)
 		fmt.Fprintf(w, "  %s\n", d)
@@ -98,8 +101,29 @@ func Run(w io.Writer, home, dir string) int {
 			fmt.Fprintln(w, "    (none active)")
 		}
 		for _, nc := range configs {
-			totalTools += len(nc.Tools)
-			fmt.Fprintf(w, "    %-24s %d tools\n", nc.Name, len(nc.Tools))
+			if disableSet.ServerDisabled(nc.Name) {
+				fmt.Fprintf(w, "    %-24s %d tools [disabled]\n", nc.Name, len(nc.Tools))
+				disabledServers++
+				continue
+			}
+			activeTools := 0
+			var disabledToolNames []string
+			for _, t := range nc.Tools {
+				if disableSet.ToolDisabled(nc.Name, t.Name) {
+					disabledToolNames = append(disabledToolNames, t.Name)
+					disabledTools++
+				} else {
+					activeTools++
+				}
+			}
+			totalTools += activeTools
+			if len(disabledToolNames) > 0 {
+				fmt.Fprintf(w, "    %-24s %d tools (%d disabled: %s)\n",
+					nc.Name, activeTools, len(disabledToolNames),
+					strings.Join(disabledToolNames, ", "))
+			} else {
+				fmt.Fprintf(w, "    %-24s %d tools\n", nc.Name, len(nc.Tools))
+			}
 		}
 		for _, me := range errors {
 			fmt.Fprintf(w, "    %-24s FAILED: %v\n", filepath.Base(me.Dir), me.Err)
@@ -107,7 +131,13 @@ func Run(w io.Writer, home, dir string) int {
 	}
 
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "  Merged: %d moxin(s), %d tools\n", len(discovered.Configs), totalTools)
+	activeMoxins := len(discovered.Configs) - disabledServers
+	if disabledServers > 0 || disabledTools > 0 {
+		fmt.Fprintf(w, "  Merged: %d moxin(s), %d tools (%d server(s) disabled, %d tool(s) disabled)\n",
+			activeMoxins, totalTools, disabledServers, disabledTools)
+	} else {
+		fmt.Fprintf(w, "  Merged: %d moxin(s), %d tools\n", activeMoxins, totalTools)
+	}
 
 	// --- MOXIN_PATH ---
 	fmt.Fprintln(w)

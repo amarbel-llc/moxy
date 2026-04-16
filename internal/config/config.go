@@ -17,6 +17,7 @@ type Config struct {
 	Ephemeral             *bool                      `toml:"ephemeral"`
 	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
 	BuiltinNative         *bool                      `toml:"builtin-native"`
+	DisableMoxins         []string                   `toml:"disable-moxins"`
 	Credentials           *credentials.CommandConfig `toml:"credentials"`
 	Servers               []ServerConfig             `toml:"servers"`
 }
@@ -181,6 +182,23 @@ func Parse(data []byte) (Config, error) {
 	}
 
 	cfg := doc.Data()
+
+	for _, entry := range cfg.DisableMoxins {
+		if entry == "" {
+			return Config{}, fmt.Errorf("disable-moxins: entries must not be empty")
+		}
+		parts := strings.SplitN(entry, ".", 2)
+		if strings.Contains(parts[0], ".") {
+			return Config{}, fmt.Errorf("disable-moxins: invalid entry %q", entry)
+		}
+		if len(parts) == 2 && parts[1] == "" {
+			return Config{}, fmt.Errorf("disable-moxins: invalid entry %q (tool name is empty)", entry)
+		}
+		if len(parts) == 2 && strings.Contains(parts[1], ".") {
+			return Config{}, fmt.Errorf("disable-moxins: invalid entry %q (tool names must not contain dots)", entry)
+		}
+	}
+
 	for _, srv := range cfg.Servers {
 		if strings.Contains(srv.Name, ".") {
 			return Config{}, fmt.Errorf(
@@ -276,6 +294,19 @@ func Merge(base, overlay Config) Config {
 		merged.BuiltinNative = overlay.BuiltinNative
 	}
 
+	if len(overlay.DisableMoxins) > 0 {
+		seen := make(map[string]bool, len(merged.DisableMoxins))
+		for _, d := range merged.DisableMoxins {
+			seen[d] = true
+		}
+		for _, d := range overlay.DisableMoxins {
+			if !seen[d] {
+				merged.DisableMoxins = append(merged.DisableMoxins, d)
+				seen[d] = true
+			}
+		}
+	}
+
 	for _, srv := range overlay.Servers {
 		found := false
 		for i, existing := range merged.Servers {
@@ -364,4 +395,37 @@ func fileExists(path string) (os.FileInfo, bool) {
 		return nil, false
 	}
 	return info, true
+}
+
+// DisableMoxinSet provides O(1) lookups for disabled moxins and moxin tools.
+type DisableMoxinSet struct {
+	servers map[string]bool // bare names like "chix"
+	tools   map[string]bool // dotted names like "man.semantic-search"
+}
+
+// BuildDisableMoxinSet partitions DisableMoxins into whole-server and
+// per-tool sets for efficient lookup.
+func (c Config) BuildDisableMoxinSet() DisableMoxinSet {
+	s := DisableMoxinSet{
+		servers: make(map[string]bool),
+		tools:   make(map[string]bool),
+	}
+	for _, entry := range c.DisableMoxins {
+		if strings.Contains(entry, ".") {
+			s.tools[entry] = true
+		} else {
+			s.servers[entry] = true
+		}
+	}
+	return s
+}
+
+// ServerDisabled reports whether an entire moxin server is disabled.
+func (s DisableMoxinSet) ServerDisabled(name string) bool {
+	return s.servers[name]
+}
+
+// ToolDisabled reports whether a specific tool within a moxin is disabled.
+func (s DisableMoxinSet) ToolDisabled(serverName, toolName string) bool {
+	return s.tools[serverName+"."+toolName]
 }
