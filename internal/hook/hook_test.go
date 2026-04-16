@@ -10,50 +10,65 @@ import (
 
 func TestParseNativeToolName(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		want     string
-		wantOK   bool
+		name   string
+		input  string
+		prefix string
+		want   string
+		wantOK bool
 	}{
 		{
-			name:   "simple tool",
+			name:   "simple tool (direct)",
 			input:  "mcp__moxy__folio_read",
+			prefix: "mcp__moxy__",
+			want:   "folio.read",
+			wantOK: true,
+		},
+		{
+			name:   "simple tool (plugin)",
+			input:  "mcp__plugin_moxy_moxy__folio_read",
+			prefix: "mcp__plugin_moxy_moxy__",
 			want:   "folio.read",
 			wantOK: true,
 		},
 		{
 			name:   "hyphenated server",
 			input:  "mcp__moxy__folio-external_read",
+			prefix: "mcp__moxy__",
+			want:   "folio-external.read",
+			wantOK: true,
+		},
+		{
+			name:   "hyphenated server (plugin)",
+			input:  "mcp__plugin_moxy_moxy__folio-external_read",
+			prefix: "mcp__plugin_moxy_moxy__",
 			want:   "folio-external.read",
 			wantOK: true,
 		},
 		{
 			name:   "hyphenated tool",
 			input:  "mcp__moxy__just-us-agents_list-recipes",
+			prefix: "mcp__moxy__",
 			want:   "just-us-agents.list-recipes",
 			wantOK: true,
 		},
 		{
 			name:   "tool with hyphen",
 			input:  "mcp__moxy__hamster_mod-read",
+			prefix: "mcp__moxy__",
 			want:   "hamster.mod-read",
 			wantOK: true,
 		},
 		{
-			name:   "builtin tool",
-			input:  "Bash",
+			name:   "wrong prefix",
+			input:  "mcp__moxy__folio_read",
+			prefix: "mcp__plugin_moxy_moxy__",
 			want:   "",
 			wantOK: false,
 		},
 		{
 			name:   "no tool part",
 			input:  "mcp__moxy__restart",
-			want:   "",
-			wantOK: false,
-		},
-		{
-			name:   "different mcp server",
-			input:  "mcp__other__foo_bar",
+			prefix: "mcp__moxy__",
 			want:   "",
 			wantOK: false,
 		},
@@ -61,12 +76,34 @@ func TestParseNativeToolName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := parseNativeToolName(tt.input)
+			got, ok := parseNativeToolName(tt.input, tt.prefix)
 			if ok != tt.wantOK {
 				t.Errorf("ok: got %v, want %v", ok, tt.wantOK)
 			}
 			if got != tt.want {
 				t.Errorf("result: got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMatchMoxyPrefix(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"direct", "mcp__moxy__folio_read", "mcp__moxy__"},
+		{"plugin", "mcp__plugin_moxy_moxy__folio_read", "mcp__plugin_moxy_moxy__"},
+		{"builtin tool", "Bash", ""},
+		{"other mcp server", "mcp__other__foo_bar", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchMoxyPrefix(tt.input)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -140,7 +177,7 @@ func TestInstallSettingsHook(t *testing.T) {
 			t.Fatalf("expected 1 entry, got %d", len(preToolUse))
 		}
 		entry := preToolUse[0].(map[string]any)
-		if entry["matcher"] != moxyToolPrefix+".*" {
+		if entry["matcher"] != "mcp__moxy__.*" {
 			t.Errorf("matcher: got %q", entry["matcher"])
 		}
 	})

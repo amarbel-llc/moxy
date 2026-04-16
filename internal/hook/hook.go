@@ -106,7 +106,24 @@ type hookDecision struct {
 	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
 }
 
-const moxyToolPrefix = "mcp__moxy__"
+// moxyToolPrefixes lists all known Claude Code naming patterns for moxy
+// tools. The direct MCP config uses "mcp__moxy__", while plugin-loaded
+// moxy uses "mcp__plugin_moxy_moxy__" (or "mcp__plugin_<name>_moxy__").
+var moxyToolPrefixes = []string{
+	"mcp__moxy__",
+	"mcp__plugin_moxy_moxy__",
+}
+
+// matchMoxyPrefix returns the prefix that toolName starts with, or ""
+// if it doesn't match any known moxy tool pattern.
+func matchMoxyPrefix(toolName string) string {
+	for _, p := range moxyToolPrefixes {
+		if strings.HasPrefix(toolName, p) {
+			return p
+		}
+	}
+	return ""
+}
 
 // Handle processes hook invocations from Claude Code.
 //
@@ -120,6 +137,9 @@ const moxyToolPrefix = "mcp__moxy__"
 //   - PermissionRequest: returns empty output so Claude Code shows the normal
 //     permission dialog (the event is already logged above).
 //   - All other events: logged only (no response needed).
+//
+// The hook matcher in hooks.json is ".*" so this fires for all tools.
+// Non-moxy tools fall through immediately.
 //
 // Follows fail-open: any error silently falls through to app.HandleHook.
 func Handle(app *command.App, r io.Reader, w io.Writer) error {
@@ -138,7 +158,13 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 
 	debugHook("event=%q tool_name=%q", hi.HookEventName, hi.ToolName)
 
-	// Fire-hose: log every hook event to per-session JSONL.
+	// Only process moxy tools — non-moxy tools fall through immediately.
+	prefix := matchMoxyPrefix(hi.ToolName)
+	if prefix == "" {
+		return nil
+	}
+
+	// Fire-hose: log every moxy hook event to per-session JSONL.
 	logHookEvent(json.RawMessage(raw), hi)
 
 	switch hi.HookEventName {
@@ -148,15 +174,13 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 
 	default:
 		// PreToolUse (and any future event types): existing behavior.
-		if strings.HasPrefix(hi.ToolName, moxyToolPrefix) {
-			parsed, ok := parseNativeToolName(hi.ToolName)
-			debugHook("  parsed=%q ok=%v", parsed, ok)
-			if tryPermsDecision(hi.ToolName, w) {
-				debugHook("  decision: allowed")
-				return nil
-			}
-			debugHook("  decision: fall-through")
+		parsed, ok := parseNativeToolName(hi.ToolName, prefix)
+		debugHook("  parsed=%q ok=%v", parsed, ok)
+		if tryPermsDecision(hi.ToolName, prefix, w) {
+			debugHook("  decision: allowed")
+			return nil
 		}
+		debugHook("  decision: fall-through")
 
 		return app.HandleHook(bytes.NewReader(raw), w)
 	}
@@ -165,8 +189,8 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 // tryPermsDecision checks the tool's perms-request in moxin configs and writes
 // the corresponding hook decision. Returns true if it wrote a decision, false
 // to fall through to the client.
-func tryPermsDecision(toolName string, w io.Writer) bool {
-	serverTool, ok := parseNativeToolName(toolName)
+func tryPermsDecision(toolName, prefix string, w io.Writer) bool {
+	serverTool, ok := parseNativeToolName(toolName, prefix)
 	if !ok {
 		return false
 	}
@@ -214,11 +238,16 @@ func tryPermsDecision(toolName string, w io.Writer) bool {
 	return true
 }
 
-// parseNativeToolName converts "mcp__moxy__folio_read" to "folio.read".
+// parseNativeToolName strips the given prefix and converts the remainder
+// to "server.tool" form. For example:
+//
+//	"mcp__moxy__folio_read"                → "folio.read"
+//	"mcp__plugin_moxy_moxy__folio_read"    → "folio.read"
+//
 // Server names may contain hyphens but not underscores or dots, so the first
 // underscore after the prefix separates server name from tool name.
-func parseNativeToolName(toolName string) (string, bool) {
-	suffix := strings.TrimPrefix(toolName, moxyToolPrefix)
+func parseNativeToolName(toolName, prefix string) (string, bool) {
+	suffix := strings.TrimPrefix(toolName, prefix)
 	if suffix == toolName {
 		return "", false
 	}
@@ -282,9 +311,12 @@ func PluginDir() (string, error) {
 	return filepath.Join(prefix, "share", "purse-first", "moxy"), nil
 }
 
+// Deprecated: InstallSettingsHook writes hooks to ~/.claude/settings.json for
+// the legacy install-mcp path. New installations should use
+// install-claude-plugin, which relies on hooks.json auto-discovery instead.
+//
 // InstallSettingsHook ensures ~/.claude/settings.json contains a PreToolUse
-// hook that fires "moxy hook" for all moxy MCP tools. This is called by
-// install-mcp so that auto-allow works without a separate plugin installation.
+// hook that fires "moxy hook" for all moxy MCP tools.
 func InstallSettingsHook() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -318,7 +350,7 @@ func InstallSettingsHook() error {
 		}
 	}
 
-	moxyPattern := moxyToolPrefix + ".*"
+	moxyPattern := "mcp__moxy__.*"
 	hookCommand := fmt.Sprintf("%s hook", self)
 
 	wantEntry := map[string]any{

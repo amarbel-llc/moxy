@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__moxy__.*",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
@@ -14,7 +14,7 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "mcp__moxy__.*",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
