@@ -16,7 +16,7 @@ if [ -n "$inputs_json" ] && [ "$inputs_json" != "null" ] && [ "$inputs_json" != 
   done < <(printf '%s' "$inputs_json" | jq -r '.[]')
 fi
 
-nix_args+=("$flake_ref")
+nix_args+=(--flake "$flake_ref")
 
 stderr_file=$(mktemp)
 trap 'rm -f "$stderr_file"' EXIT

@@ -9,7 +9,7 @@ nix_args=(flake check)
 if [ "$keep_going" = "true" ]; then
   nix_args+=(--keep-going)
 fi
-nix_args+=("$flake_ref")
+nix_args+=(--flake "$flake_ref")
 
 stderr_file=$(mktemp)
 trap 'rm -f "$stderr_file"' EXIT
