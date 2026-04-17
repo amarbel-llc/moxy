@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "List files in a Google Drive folder. Returns file metadata for all items in the folder."
-command = "@BIN@/drive-list"
+command = "@BIN@/list"
 arg_order = ["folder_id", "page_size"]
 
 [annotations]

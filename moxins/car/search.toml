@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Search Google Drive files by query. Returns file metadata: name, ID, MIME type, modified time, web link. Use Drive query syntax for the q parameter."
-command = "@BIN@/drive-search"
+command = "@BIN@/search"
 arg_order = ["query", "page_size"]
 
 [annotations]

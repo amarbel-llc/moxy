@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Create a new Google Doc from markdown content. Returns the created file metadata including ID and web link."
-command = "@BIN@/docs-create"
+command = "@BIN@/create"
 arg_order = ["title", "content"]
 
 [annotations]

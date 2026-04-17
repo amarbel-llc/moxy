@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Resolve or reopen a comment on a Google Doc. Optionally include a reply message."
-command = "@BIN@/docs-comment-resolve"
+command = "@BIN@/comment-resolve"
 arg_order = ["file_id", "comment_id", "action", "content"]
 
 [annotations]
@@ -17,7 +17,7 @@ description = "The Drive file ID of the Google Doc"
 
 [input.properties.comment_id]
 type = "string"
-description = "The comment ID to resolve/reopen (from docs-comments-list)"
+description = "The comment ID to resolve/reopen (from comments-list)"
 
 [input.properties.action]
 type = "string"

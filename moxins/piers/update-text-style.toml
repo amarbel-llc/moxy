@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
-description = "Update character formatting (bold, italic, font, color, links) on a text range in a Google Doc. Use docs-get first to find indices."
-command = "@BIN@/docs-update-text-style"
+description = "Update character formatting (bold, italic, font, color, links) on a text range in a Google Doc. Use get first to find indices."
+command = "@BIN@/update-text-style"
 arg_order = ["document_id", "start_index", "end_index", "text_style", "fields", "revision_id"]
 
 [annotations]
@@ -37,4 +37,4 @@ description = "Comma-separated field mask of properties being set (e.g. 'bold', 
 
 [input.properties.revision_id]
 type = "string"
-description = "The revisionId from docs-get for optimistic locking"
+description = "The revisionId from get for optimistic locking"

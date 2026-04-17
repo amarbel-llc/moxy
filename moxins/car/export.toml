@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Export a Google Workspace file (Doc, Sheet, Slide) to a different format. Returns the exported content as text."
-command = "@BIN@/drive-export"
+command = "@BIN@/export"
 arg_order = ["file_id", "mime_type"]
 
 [annotations]

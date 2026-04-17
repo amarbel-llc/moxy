@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Get metadata for a Google Drive file by ID. Returns name, MIME type, size, owners, permissions, and web link."
-command = "@BIN@/drive-get"
+command = "@BIN@/get"
 arg_order = ["file_id"]
 
 [annotations]

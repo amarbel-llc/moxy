@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Show unread inbox summary: sender, subject, date. Read-only, never modifies mailbox."
-command = "@BIN@/gmail-triage"
+command = "@BIN@/triage"
 arg_order = ["max", "query"]
 
 [annotations]

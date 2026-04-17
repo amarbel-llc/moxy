@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Reply to a comment on a Google Doc. Use to respond to anchored comments created in the Docs UI."
-command = "@BIN@/docs-comment-reply"
+command = "@BIN@/comment-reply"
 arg_order = ["file_id", "comment_id", "content"]
 
 [annotations]
@@ -17,7 +17,7 @@ description = "The Drive file ID of the Google Doc"
 
 [input.properties.comment_id]
 type = "string"
-description = "The comment ID to reply to (from docs-comments-list)"
+description = "The comment ID to reply to (from comments-list)"
 
 [input.properties.content]
 type = "string"

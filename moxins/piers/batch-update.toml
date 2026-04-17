@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate. Preserves anchored comments on unchanged text. Use replaceAllText for find-and-replace, or insertText/deleteContentRange for index-based edits."
-command = "@BIN@/docs-batch-update"
+command = "@BIN@/batch-update"
 arg_order = ["document_id", "requests", "revision_id"]
 
 [annotations]
@@ -21,8 +21,8 @@ description = """JSON array of request objects. Common request types:
 - replaceAllText: [{"replaceAllText": {"containsText": {"text": "old", "matchCase": true}, "replaceText": "new"}}]
 - insertText: [{"insertText": {"location": {"index": 10}, "text": "hello"}}]
 - deleteContentRange: [{"deleteContentRange": {"range": {"startIndex": 10, "endIndex": 20}}}]
-Use docs-get first to find text content and indices."""
+Use get first to find text content and indices."""
 
 [input.properties.revision_id]
 type = "string"
-description = """The revisionId from docs-get. Ensures the update fails (instead of silently clobbering) if the doc was modified since you last read it. Get this from the docs-get response's revisionId field."""
+description = """The revisionId from get. Ensures the update fails (instead of silently clobbering) if the doc was modified since you last read it. Get this from the get response's revisionId field."""

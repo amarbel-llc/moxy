@@ -285,37 +285,37 @@
 
         gwsDeps = [ pkgs.bash pkgs.coreutils gws-bin ];
         piers-moxin = mkBunMoxin "piers" gwsDeps {
-          "docs-get" = "moxins/piers/src/docs-get.ts";
-          "docs-create" = "moxins/piers/src/docs-create.ts";
-          "docs-update" = "moxins/piers/src/docs-update.ts";
-          "docs-batch-update" = "moxins/piers/src/docs-batch-update.ts";
-          "docs-replace-text" = "moxins/piers/src/docs-replace-text.ts";
-          "docs-insert-text" = "moxins/piers/src/docs-insert-text.ts";
-          "docs-delete-content-range" = "moxins/piers/src/docs-delete-content-range.ts";
-          "docs-update-text-style" = "moxins/piers/src/docs-update-text-style.ts";
-          "docs-update-paragraph-style" = "moxins/piers/src/docs-update-paragraph-style.ts";
-          "docs-comments-list" = "moxins/piers/src/docs-comments-list.ts";
-          "docs-comment-reply" = "moxins/piers/src/docs-comment-reply.ts";
-          "docs-comment-resolve" = "moxins/piers/src/docs-comment-resolve.ts";
+          "get" = "moxins/piers/src/get.ts";
+          "create" = "moxins/piers/src/create.ts";
+          "update" = "moxins/piers/src/update.ts";
+          "batch-update" = "moxins/piers/src/batch-update.ts";
+          "replace-text" = "moxins/piers/src/replace-text.ts";
+          "insert-text" = "moxins/piers/src/insert-text.ts";
+          "delete-content-range" = "moxins/piers/src/delete-content-range.ts";
+          "update-text-style" = "moxins/piers/src/update-text-style.ts";
+          "update-paragraph-style" = "moxins/piers/src/update-paragraph-style.ts";
+          "comments-list" = "moxins/piers/src/comments-list.ts";
+          "comment-reply" = "moxins/piers/src/comment-reply.ts";
+          "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
         } {};
         car-moxin = mkBunMoxin "car" gwsDeps {
-          "drive-search" = "moxins/car/src/drive-search.ts";
-          "drive-get" = "moxins/car/src/drive-get.ts";
-          "drive-list" = "moxins/car/src/drive-list.ts";
-          "drive-export" = "moxins/car/src/drive-export.ts";
+          "search" = "moxins/car/src/search.ts";
+          "get" = "moxins/car/src/get.ts";
+          "list" = "moxins/car/src/list.ts";
+          "export" = "moxins/car/src/export.ts";
         } {};
         slip-moxin = pkgs.runCommand "slip-moxin" {} ''
           cp -r ${./moxins/slip} $out
         '';
         prison-moxin = mkBunMoxin "prison" gwsDeps {
-          "sheets-get" = "moxins/prison/src/sheets-get.ts";
+          "get" = "moxins/prison/src/get.ts";
         } {};
         gmail-moxin = mkBunMoxin "gmail" gwsDeps {
-          "gmail-triage" = "moxins/gmail/src/gmail-triage.ts";
-          "gmail-read" = "moxins/gmail/src/gmail-read.ts";
+          "triage" = "moxins/gmail/src/triage.ts";
+          "read" = "moxins/gmail/src/read.ts";
         } {};
         calendar-moxin = mkBunMoxin "calendar" gwsDeps {
-          "calendar-agenda" = "moxins/calendar/src/calendar-agenda.ts";
+          "agenda" = "moxins/calendar/src/agenda.ts";
         } {};
         gws-moxin = mkBunMoxin "gws" gwsDeps {
           "api" = "moxins/gws/src/api.ts";

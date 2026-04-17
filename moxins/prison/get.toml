@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Read values from a Google Sheets spreadsheet by ID and range. Returns cell values as a 2D array."
-command = "@BIN@/sheets-get"
+command = "@BIN@/get"
 arg_order = ["spreadsheet_id", "range"]
 
 [annotations]

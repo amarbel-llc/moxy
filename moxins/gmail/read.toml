@@ -1,7 +1,7 @@
 schema = 2
 perms-request = "always-allow"
 description = "Read a Gmail message by ID. Extracts body and optionally headers. Converts HTML to plain text automatically."
-command = "@BIN@/gmail-read"
+command = "@BIN@/read"
 arg_order = ["id"]
 
 [annotations]
@@ -14,4 +14,4 @@ required = ["id"]
 
 [input.properties.id]
 type = "string"
-description = "The Gmail message ID to read (from gmail-triage or search results)"
+description = "The Gmail message ID to read (from triage or search results)"
