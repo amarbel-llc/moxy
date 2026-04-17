@@ -1,14 +1,11 @@
-schema = 1
-description = "Update paragraph formatting (heading level, alignment, spacing, indentation) on a range in a Google Doc. Use docs-get first to find indices."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-params=$(printf '{"documentId": "%s"}' "$1")
-json=$(printf '{"requests": [{"updateParagraphStyle": {"range": {"startIndex": %s, "endIndex": %s}, "paragraphStyle": %s, "fields": "%s"}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3" "$4" "$5" "$6")
-$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Update paragraph formatting (heading level, alignment, spacing, indentation) on a range in a Google Doc. Use docs-get first to find indices."
+command = "@BIN@/docs-update-paragraph-style"
+arg_order = ["document_id", "start_index", "end_index", "paragraph_style", "fields", "revision_id"]
+
+[annotations]
+open-world-hint = true
 
 [input]
 type = "object"

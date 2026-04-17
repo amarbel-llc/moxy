@@ -1,14 +1,12 @@
-schema = 1
-description = "List comments on a Google Doc. Returns comment text, author, quoted content, and resolved status."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-page_size="${2:-100}"
-params=$(printf '{"fileId": "%s", "pageSize": %s, "fields": "comments(id,content,author(displayName,emailAddress),quotedFileContent,resolved,createdTime,modifiedTime,replies(id,content,author(displayName,emailAddress),createdTime))"}' "$1" "$page_size")
-$GWS drive comments list --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "List comments on a Google Doc. Returns comment text, author, quoted content, and resolved status."
+command = "@BIN@/docs-comments-list"
+arg_order = ["file_id", "page_size"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

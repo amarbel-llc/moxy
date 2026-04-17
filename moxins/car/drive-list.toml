@@ -1,14 +1,12 @@
-schema = 1
-description = "List files in a Google Drive folder. Returns file metadata for all items in the folder."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-page_size="${2:-50}"
-sq="'"
-params=$(printf '{"q": "%s%s%s in parents and trashed = false", "pageSize": %s, "fields": "files(id,name,mimeType,modifiedTime,size,webViewLink)", "orderBy": "name"}' "$sq" "$1" "$sq" "$page_size")
-@GWS@ drive files list --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "List files in a Google Drive folder. Returns file metadata for all items in the folder."
+command = "@BIN@/drive-list"
+arg_order = ["folder_id", "page_size"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

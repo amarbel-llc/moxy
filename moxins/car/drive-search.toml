@@ -1,13 +1,12 @@
-schema = 1
-description = "Search Google Drive files by query. Returns file metadata: name, ID, MIME type, modified time, web link. Use Drive query syntax for the q parameter."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-page_size="${2:-20}"
-params=$(printf '{"q": "%s", "pageSize": %s, "fields": "files(id,name,mimeType,modifiedTime,webViewLink,owners)"}' "$1" "$page_size")
-@GWS@ drive files list --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Search Google Drive files by query. Returns file metadata: name, ID, MIME type, modified time, web link. Use Drive query syntax for the q parameter."
+command = "@BIN@/drive-search"
+arg_order = ["query", "page_size"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

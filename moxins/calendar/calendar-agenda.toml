@@ -1,20 +1,12 @@
-schema = 1
-description = "Show upcoming calendar events across all calendars. Returns event titles, times, and attendees."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-days="${1:-3}"
-calendar="${2:-primary}"
-tz="${3:-}"
-now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-end=$(date -u -d "+${days} days" +%Y-%m-%dT%H:%M:%SZ)
-tz_param=""
-[ -n "$tz" ] && tz_param=$(printf ', "timeZone": "%s"' "$tz")
-params=$(printf '{"calendarId": "%s", "timeMin": "%s", "timeMax": "%s", "singleEvents": true, "orderBy": "startTime", "maxResults": 50%s}' "$calendar" "$now" "$end" "$tz_param")
-$GWS calendar events list --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Show upcoming calendar events across all calendars. Returns event titles, times, and attendees."
+command = "@BIN@/calendar-agenda"
+arg_order = ["days", "calendar", "timezone"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

@@ -1,0 +1,19 @@
+import { $ } from "zx";
+
+$.verbose = false;
+
+const [documentId, requests, revisionId] = process.argv.slice(2);
+
+const params = JSON.stringify({ documentId });
+const json = JSON.stringify({
+  requests: JSON.parse(requests),
+  writeControl: { requiredRevisionId: revisionId },
+});
+
+const result = await $`gws docs documents batchUpdate --params ${params} --json ${json}`;
+
+process.stdout.write(
+  JSON.stringify({
+    content: [{ type: "text", text: result.stdout, mimeType: "application/json" }],
+  }),
+);

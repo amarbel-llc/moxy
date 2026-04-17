@@ -1,14 +1,11 @@
-schema = 1
-description = "Raw gws API call for debugging. Pass the full gws command arguments (e.g. 'calendar events list') and optional --params JSON."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-cmd="$GWS $1"
-[ -n "${2:-}" ] && cmd="$cmd --params $2"
-eval $cmd 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Raw gws API call for debugging. Pass the full gws command arguments (e.g. 'calendar events list') and optional --params JSON."
+command = "@BIN@/api"
+arg_order = ["command", "params"]
+
+[annotations]
+open-world-hint = true
 
 [input]
 type = "object"

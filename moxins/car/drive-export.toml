@@ -1,16 +1,12 @@
-schema = 1
-description = "Export a Google Workspace file (Doc, Sheet, Slide) to a different format. Returns the exported content as text."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-mime="${2:-text/markdown}"
-tmp=".gws-export-$$"
-trap 'rm -f "$tmp"' EXIT
-params=$(printf '{"fileId": "%s", "mimeType": "%s"}' "$1" "$mime")
-@GWS@ drive files export --params "$params" --output "$tmp" >/dev/null 2>&1
-cat "$tmp"
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Export a Google Workspace file (Doc, Sheet, Slide) to a different format. Returns the exported content as text."
+command = "@BIN@/drive-export"
+arg_order = ["file_id", "mime_type"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

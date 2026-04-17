@@ -1,14 +1,11 @@
-schema = 1
-description = "Delete a range of content from a Google Doc by start/end index. Use docs-get first to find indices. Cannot delete the last newline of the body or cross structural boundaries (tables, section breaks)."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-params=$(printf '{"documentId": "%s"}' "$1")
-json=$(printf '{"requests": [{"deleteContentRange": {"range": {"startIndex": %s, "endIndex": %s}}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3" "$4")
-$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Delete a range of content from a Google Doc by start/end index. Use docs-get first to find indices. Cannot delete the last newline of the body or cross structural boundaries (tables, section breaks)."
+command = "@BIN@/docs-delete-content-range"
+arg_order = ["document_id", "start_index", "end_index", "revision_id"]
+
+[annotations]
+open-world-hint = true
 
 [input]
 type = "object"

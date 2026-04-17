@@ -1,19 +1,11 @@
-schema = 1
-description = "Resolve or reopen a comment on a Google Doc. Optionally include a reply message."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-action="${3:-resolve}"
-params=$(printf '{"fileId": "%s", "commentId": "%s", "fields": "id,content,action,author(displayName,emailAddress),createdTime"}' "$1" "$2")
-if [ -n "${4:-}" ]; then
-  json=$(printf '{"action": "%s", "content": "%s"}' "$action" "$4")
-else
-  json=$(printf '{"action": "%s"}' "$action")
-fi
-$GWS drive replies create --params "$params" --json "$json" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Resolve or reopen a comment on a Google Doc. Optionally include a reply message."
+command = "@BIN@/docs-comment-resolve"
+arg_order = ["file_id", "comment_id", "action", "content"]
+
+[annotations]
+open-world-hint = true
 
 [input]
 type = "object"

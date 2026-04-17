@@ -1,13 +1,12 @@
-schema = 1
-description = "Read values from a Google Sheets spreadsheet by ID and range. Returns cell values as a 2D array."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-range="${2:-Sheet1}"
-params=$(printf '{"spreadsheetId": "%s", "range": "%s"}' "$1" "$range")
-@GWS@ sheets spreadsheets values get --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Read values from a Google Sheets spreadsheet by ID and range. Returns cell values as a 2D array."
+command = "@BIN@/sheets-get"
+arg_order = ["spreadsheet_id", "range"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

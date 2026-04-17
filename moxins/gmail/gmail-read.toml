@@ -1,13 +1,12 @@
-schema = 1
-description = "Read a Gmail message by ID. Extracts body and optionally headers. Converts HTML to plain text automatically."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-params=$(printf '{"userId": "me", "id": "%s", "format": "full"}' "$1")
-$GWS gmail users messages get --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Read a Gmail message by ID. Extracts body and optionally headers. Converts HTML to plain text automatically."
+command = "@BIN@/gmail-read"
+arg_order = ["id"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

@@ -1,16 +1,11 @@
-schema = 1
-description = "Create a new Google Doc from markdown content. Returns the created file metadata including ID and web link."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-tmp=".gws-upload-$$"
-trap 'rm -f "$tmp"' EXIT
-printf '%s' "$2" > "$tmp"
-json=$(printf '{"name": "%s", "mimeType": "application/vnd.google-apps.document"}' "$1")
-$GWS drive files create --upload "$tmp" --upload-content-type text/markdown --json "$json" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Create a new Google Doc from markdown content. Returns the created file metadata including ID and web link."
+command = "@BIN@/docs-create"
+arg_order = ["title", "content"]
+
+[annotations]
+open-world-hint = true
 
 [input]
 type = "object"

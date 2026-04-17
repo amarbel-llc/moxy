@@ -1,15 +1,12 @@
-schema = 1
-description = "Show unread inbox summary: sender, subject, date. Read-only, never modifies mailbox."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-max="${1:-20}"
-query="${2:-is:unread}"
-params=$(printf '{"userId": "me", "q": "%s", "maxResults": %s}' "$query" "$max")
-$GWS gmail users messages list --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Show unread inbox summary: sender, subject, date. Read-only, never modifies mailbox."
+command = "@BIN@/gmail-triage"
+arg_order = ["max", "query"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

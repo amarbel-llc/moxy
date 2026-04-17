@@ -260,23 +260,43 @@
         };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {};
 
-        # Helper: build a moxin that uses the gws CLI (schema 1 inline shell).
-        mkGwsMoxin = name: pkgs.runCommand "${name}-moxin" {} ''
-          cp -r ${./moxins/${name}} $out
-          chmod -R u+w $out
-          for f in $(grep -rl '@GWS@' $out); do
-            substitute "$f" "$f" --replace-fail "@GWS@" "${gws-bin}/bin/gws"
-          done
-        '';
-        piers-moxin = mkGwsMoxin "piers";
-        car-moxin = mkGwsMoxin "car";
+        gwsDeps = [ pkgs.bash pkgs.coreutils gws-bin ];
+        piers-moxin = mkBunMoxin "piers" gwsDeps {
+          "docs-get" = "moxins/piers/src/docs-get.ts";
+          "docs-create" = "moxins/piers/src/docs-create.ts";
+          "docs-update" = "moxins/piers/src/docs-update.ts";
+          "docs-batch-update" = "moxins/piers/src/docs-batch-update.ts";
+          "docs-replace-text" = "moxins/piers/src/docs-replace-text.ts";
+          "docs-insert-text" = "moxins/piers/src/docs-insert-text.ts";
+          "docs-delete-content-range" = "moxins/piers/src/docs-delete-content-range.ts";
+          "docs-update-text-style" = "moxins/piers/src/docs-update-text-style.ts";
+          "docs-update-paragraph-style" = "moxins/piers/src/docs-update-paragraph-style.ts";
+          "docs-comments-list" = "moxins/piers/src/docs-comments-list.ts";
+          "docs-comment-reply" = "moxins/piers/src/docs-comment-reply.ts";
+          "docs-comment-resolve" = "moxins/piers/src/docs-comment-resolve.ts";
+        } {};
+        car-moxin = mkBunMoxin "car" gwsDeps {
+          "drive-search" = "moxins/car/src/drive-search.ts";
+          "drive-get" = "moxins/car/src/drive-get.ts";
+          "drive-list" = "moxins/car/src/drive-list.ts";
+          "drive-export" = "moxins/car/src/drive-export.ts";
+        } {};
         slip-moxin = pkgs.runCommand "slip-moxin" {} ''
           cp -r ${./moxins/slip} $out
         '';
-        prison-moxin = mkGwsMoxin "prison";
-        gmail-moxin = mkGwsMoxin "gmail";
-        calendar-moxin = mkGwsMoxin "calendar";
-        gws-moxin = mkGwsMoxin "gws";
+        prison-moxin = mkBunMoxin "prison" gwsDeps {
+          "sheets-get" = "moxins/prison/src/sheets-get.ts";
+        } {};
+        gmail-moxin = mkBunMoxin "gmail" gwsDeps {
+          "gmail-triage" = "moxins/gmail/src/gmail-triage.ts";
+          "gmail-read" = "moxins/gmail/src/gmail-read.ts";
+        } {};
+        calendar-moxin = mkBunMoxin "calendar" gwsDeps {
+          "calendar-agenda" = "moxins/calendar/src/calendar-agenda.ts";
+        } {};
+        gws-moxin = mkBunMoxin "gws" gwsDeps {
+          "api" = "moxins/gws/src/api.ts";
+        } {};
 
         # Symlink-only aggregation of all per-moxin derivations.
         moxy-moxins = pkgs.runCommand "moxy-moxins" {} ''

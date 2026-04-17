@@ -1,15 +1,11 @@
-schema = 1
-description = "Find and replace text in a Google Doc. Case-sensitive by default. Preserves anchored comments unless the entire anchor text is consumed by the match."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-GWS=@GWS@
-match_case="${5:-true}"
-params=$(printf '{"documentId": "%s"}' "$1")
-json=$(printf '{"requests": [{"replaceAllText": {"containsText": {"text": "%s", "matchCase": %s}, "replaceText": "%s"}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$match_case" "$3" "$4")
-$GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Find and replace text in a Google Doc. Case-sensitive by default. Preserves anchored comments unless the entire anchor text is consumed by the match."
+command = "@BIN@/docs-replace-text"
+arg_order = ["document_id", "find", "replace", "revision_id", "match_case"]
+
+[annotations]
+open-world-hint = true
 
 [input]
 type = "object"

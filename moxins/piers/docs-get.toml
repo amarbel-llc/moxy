@@ -1,12 +1,12 @@
-schema = 1
-description = "Get the content of a Google Doc by document ID. Returns the document structure including title, body text, headers, and formatting."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-params=$(printf '{"documentId": "%s"}' "$1")
-@GWS@ docs documents get --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Get the content of a Google Doc by document ID. Returns the document structure including title, body text, headers, and formatting."
+command = "@BIN@/docs-get"
+arg_order = ["document_id"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"

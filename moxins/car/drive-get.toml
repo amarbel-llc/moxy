@@ -1,12 +1,12 @@
-schema = 1
-description = "Get metadata for a Google Drive file by ID. Returns name, MIME type, size, owners, permissions, and web link."
-command = "sh"
-args = ["-c", """
-set -euo pipefail
-params=$(printf '{"fileId": "%s", "fields": "id,name,mimeType,size,modifiedTime,createdTime,webViewLink,owners,permissions,description"}' "$1")
-@GWS@ drive files get --params "$params" 2>/dev/null
-""", "_"]
+schema = 2
 perms-request = "always-allow"
+description = "Get metadata for a Google Drive file by ID. Returns name, MIME type, size, owners, permissions, and web link."
+command = "@BIN@/drive-get"
+arg_order = ["file_id"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
 
 [input]
 type = "object"
