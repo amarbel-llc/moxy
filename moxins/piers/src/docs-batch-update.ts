@@ -1,6 +1,7 @@
 import { $ } from "zx";
 
 $.verbose = false;
+$.stdio = ["pipe", "pipe", "ignore"];
 
 const [documentId, requests, revisionId] = process.argv.slice(2);
 

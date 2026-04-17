@@ -1,6 +1,7 @@
 import { $ } from "zx";
 
 $.verbose = false;
+$.stdio = ["pipe", "pipe", "ignore"];
 
 const [max, query] = process.argv.slice(2);
 

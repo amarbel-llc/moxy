@@ -4,6 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 
 $.verbose = false;
+$.stdio = ["pipe", "pipe", "ignore"];
 
 const [fileId, content] = process.argv.slice(2);
 
