@@ -3,6 +3,8 @@
 import json
 import os
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 RESULT_TRUNCATE = 200
@@ -23,6 +25,70 @@ def find_session(session_id: str) -> Path | None:
     return None
 
 
+def resolve_cwd(proj_dir: Path) -> str | None:
+    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not jsonls:
+        return None
+
+    with open(jsonls[0]) as f:
+        for i, line in enumerate(f):
+            if i >= 200:
+                break
+            try:
+                obj = json.loads(line)
+                cwd = obj.get("cwd")
+                if cwd:
+                    return cwd
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    name = proj_dir.name.lstrip("-")
+    return "/" + name.replace("-", "/") + " (heuristic)"
+
+
+def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
+    lower = filter_str.lower()
+    return lower in resolved_cwd.lower() or lower in dir_name.lower()
+
+
+def collect_multi_session_paths(project_filter: str, days: int) -> list[Path]:
+    projects_dir = Path(os.environ.get(
+        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
+    ))
+    if not projects_dir.is_dir():
+        return []
+
+    cutoff = time.time() - (days * 86400)
+
+    cwd_map: dict[str, str] = {}
+    for proj_dir in sorted(projects_dir.iterdir()):
+        if not proj_dir.is_dir():
+            continue
+        cwd = resolve_cwd(proj_dir)
+        if cwd:
+            cwd_map[proj_dir.name] = cwd
+
+    session_paths: list[Path] = []
+    for proj_dir in projects_dir.iterdir():
+        if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
+            continue
+        project = cwd_map[proj_dir.name]
+        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            continue
+        for f in proj_dir.glob("*.jsonl"):
+            if f.stat().st_mtime >= cutoff:
+                session_paths.append(f)
+
+    return session_paths
+
+
+def subagent_paths(session_path: Path) -> list[Path]:
+    sub_dir = session_path.parent / session_path.stem / "subagents"
+    if sub_dir.is_dir():
+        return list(sub_dir.glob("*.jsonl"))
+    return []
+
+
 def oneline(s: str) -> str:
     return s.replace("\n", " ").strip()
 
@@ -34,25 +100,9 @@ def truncate(s: str, n: int = RESULT_TRUNCATE) -> str:
     return s[:n] + "..."
 
 
-def main():
-    session_id = sys.argv[1] if len(sys.argv) > 1 else ""
-    tool_name_filter = (sys.argv[2] if len(sys.argv) > 2 else "").lower()
-    limit = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 0
-    include_results = (sys.argv[4] if len(sys.argv) > 4 else "").lower() in ("true", "1", "yes")
-
-    if not session_id:
-        print("Usage: freud-tool-usage <session_id> [tool_name] [limit] [include_results]",
-              file=sys.stderr)
-        sys.exit(1)
-
-    path = find_session(session_id)
-    if path is None:
-        print(f"Session {session_id} not found. Use the sessions tool to list available sessions.")
-        sys.exit(1)
-
-    # Single pass: collect tool calls and their results
+def extract_calls(path: Path, tool_name_filter: str, include_results: bool) -> list[dict]:
     calls = []
-    results_map: dict[str, dict] = {}  # tool_use_id -> {text, is_error}
+    results_map: dict[str, dict] = {}
     msg_index = 0
 
     with open(path) as f:
@@ -90,7 +140,7 @@ def main():
                         "msg_index": msg_index,
                     })
 
-            elif msg_type == "user":
+            elif msg_type == "user" and include_results:
                 for block in content:
                     if not isinstance(block, dict) or block.get("type") != "tool_result":
                         continue
@@ -117,16 +167,22 @@ def main():
 
             msg_index += 1
 
-    if limit > 0:
-        calls = calls[:limit]
+    if include_results:
+        for call in calls:
+            call["result"] = results_map.get(call["id"])
 
+    return calls
+
+
+def format_calls(calls: list[dict], include_results: bool, session_label: str = "") -> list[str]:
     lines = []
     for i, call in enumerate(calls, start=1):
         input_str = json.dumps(call["input"], separators=(",", ":"))
-        lines.append(f"[{i}] msg:{call['msg_index']} {call['name']} \u2192 {oneline(input_str)}")
+        prefix = f"[{session_label}#{i}]" if session_label else f"[{i}]"
+        lines.append(f"{prefix} msg:{call['msg_index']} {call['name']} \u2192 {oneline(input_str)}")
 
         if include_results:
-            result = results_map.get(call["id"])
+            result = call.get("result")
             if result:
                 text = truncate(result["text"])
                 if result["is_error"]:
@@ -136,9 +192,81 @@ def main():
             else:
                 lines.append(f"     \u21b3 (no result)")
 
-    lines.append(f"\n{len(calls)} tool call(s)")
+    return lines
 
-    emit_mcp_result("\n".join(lines))
+
+def main():
+    session_id = sys.argv[1] if len(sys.argv) > 1 else ""
+    tool_name_filter = (sys.argv[2] if len(sys.argv) > 2 else "").lower()
+    limit = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 0
+    include_results = (sys.argv[4] if len(sys.argv) > 4 else "").lower() in ("true", "1", "yes")
+    project_filter = sys.argv[5] if len(sys.argv) > 5 else ""
+    days = int(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6] else 7
+
+    if session_id:
+        path = find_session(session_id)
+        if path is None:
+            print(f"Session {session_id} not found. Use the sessions tool to list available sessions.")
+            sys.exit(1)
+
+        calls = extract_calls(path, tool_name_filter, include_results)
+        for sub in subagent_paths(path):
+            calls.extend(extract_calls(sub, tool_name_filter, include_results))
+
+        if limit > 0:
+            calls = calls[:limit]
+
+        lines = format_calls(calls, include_results)
+        lines.append(f"\n{len(calls)} tool call(s)")
+        emit_mcp_result("\n".join(lines))
+
+    else:
+        session_paths = collect_multi_session_paths(project_filter, days)
+        if not session_paths:
+            return emit_mcp_result(
+                f"No sessions found (days={days}, project={project_filter or 'all'})"
+            )
+
+        all_calls = []
+        for path in sorted(session_paths, key=lambda p: p.stat().st_mtime):
+            sid = path.stem[:8]
+            calls = extract_calls(path, tool_name_filter, include_results)
+            for call in calls:
+                call["_session_label"] = sid
+            all_calls.extend(calls)
+            for sub in subagent_paths(path):
+                sub_calls = extract_calls(sub, tool_name_filter, include_results)
+                for call in sub_calls:
+                    call["_session_label"] = sid
+                all_calls.extend(sub_calls)
+
+        if limit > 0:
+            all_calls = all_calls[:limit]
+
+        lines = []
+        for i, call in enumerate(all_calls, start=1):
+            input_str = json.dumps(call["input"], separators=(",", ":"))
+            label = call.get("_session_label", "?")
+            lines.append(f"[{i}] {label} msg:{call['msg_index']} {call['name']} \u2192 {oneline(input_str)}")
+
+            if include_results:
+                result = call.get("result")
+                if result:
+                    text = truncate(result["text"])
+                    if result["is_error"]:
+                        lines.append(f"     \u21b3 ERROR: {text}")
+                    else:
+                        lines.append(f"     \u21b3 {text}")
+                else:
+                    lines.append(f"     \u21b3 (no result)")
+
+        proj_desc = f", project: {project_filter}" if project_filter else ""
+        mtimes = [p.stat().st_mtime for p in session_paths]
+        earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+        latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+        lines.append(f"\n{len(all_calls)} tool call(s) across {len(session_paths)} sessions ({earliest} \u2192 {latest}{proj_desc})")
+
+        emit_mcp_result("\n".join(lines))
 
 
 def emit_mcp_result(text: str, mime: str = "text/plain"):

@@ -4,15 +4,14 @@ description = """Extract tool calls from a session, already structured. Returns 
 call with sequence number, tool name, and truncated input JSON. Much faster than parsing raw \
 JSONL transcripts with jq."""
 command = "@BIN@/tool-usage"
-arg_order = ["session_id", "tool_name", "limit", "include_results"]
+arg_order = ["session_id", "tool_name", "limit", "include_results", "project", "days"]
 
 [input]
 type = "object"
-required = ["session_id"]
 
 [input.properties.session_id]
 type = "string"
-description = "Session UUID to retrieve (36-char UUID from the sessions listing)"
+description = "Session UUID to retrieve (36-char UUID from the sessions listing). Omit to scan across all recent sessions (use project/days to filter)."
 
 [input.properties.tool_name]
 type = "string"
@@ -25,6 +24,14 @@ description = "Maximum number of tool calls to return. Defaults to 0 (unlimited)
 [input.properties.include_results]
 type = "boolean"
 description = "Include truncated result/error text alongside each tool call. Defaults to false."
+
+[input.properties.project]
+type = "string"
+description = "Filter sessions by project path substring (case-insensitive). Only used when session_id is omitted."
+
+[input.properties.days]
+type = "integer"
+description = "Analyze sessions from the last N days. Defaults to 7. Only used when session_id is omitted."
 
 [annotations]
 read-only-hint = true
