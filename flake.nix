@@ -298,11 +298,12 @@
           "comment-reply" = "moxins/piers/src/comment-reply.ts";
           "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
         } {};
-        car-moxin = mkBunMoxin "car" gwsDeps {
+        car-moxin = mkBunMoxin "car" (gwsDeps ++ [ pkgs.graphviz ]) {
           "search" = "moxins/car/src/search.ts";
           "get" = "moxins/car/src/get.ts";
           "list" = "moxins/car/src/list.ts";
           "export" = "moxins/car/src/export.ts";
+          "doc-graph" = "moxins/car/src/doc-graph.ts";
         } {};
         slip-moxin = pkgs.runCommand "slip-moxin" {} ''
           cp -r ${./moxins/slip} $out

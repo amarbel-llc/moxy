@@ -1,0 +1,25 @@
+schema = 2
+perms-request = "always-allow"
+description = "Crawl a Google Workspace resource, extract links to other GWS resources recursively, and output a Graphviz DOT graph. External links (Jira, PagerDuty, GitHub, etc.) appear as styled leaf nodes."
+command = "@BIN@/doc-graph"
+arg_order = ["file_id", "max_depth", "output"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
+
+[input]
+type = "object"
+required = ["file_id"]
+
+[input.properties.file_id]
+type = "string"
+description = "Root resource ID or full Google Docs/Sheets/Slides URL"
+
+[input.properties.max_depth]
+type = "string"
+description = "Maximum link-follow depth (default 1, max 5)"
+
+[input.properties.output]
+type = "string"
+description = "Output format: 'json' (default), 'dot', or 'svg'"
