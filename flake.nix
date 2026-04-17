@@ -299,7 +299,7 @@
           "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
           "outline" = "moxins/piers/src/outline.ts";
         } {};
-        car-moxin = mkBunMoxin "car" (gwsDeps ++ [ pkgs.graphviz ]) {
+        car-moxin = mkBunMoxin "car" gwsDeps {
           "search" = "moxins/car/src/search.ts";
           "get" = "moxins/car/src/get.ts";
           "list" = "moxins/car/src/list.ts";

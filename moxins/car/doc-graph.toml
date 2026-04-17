@@ -22,4 +22,4 @@ description = "Maximum link-follow depth (default 1, max 5)"
 
 [input.properties.output]
 type = "string"
-description = "Output format: 'json' (default), 'dot', or 'svg'"
+description = "Output format: 'json' (default) or 'dot'"

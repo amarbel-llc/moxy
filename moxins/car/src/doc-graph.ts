@@ -1,5 +1,5 @@
 import { $ } from "zx";
-import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { mkdtemp, readFile, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
@@ -50,7 +50,7 @@ const [rawFileId, rawMaxDepth, rawOutput] = process.argv.slice(2);
 
 const rootId = extractFileId(rawFileId);
 const maxDepth = Math.min(Math.max(Number(rawMaxDepth) || 1, 1), 5);
-const output = rawOutput === "dot" ? "dot" : rawOutput === "svg" ? "svg" : "json";
+const output = rawOutput === "dot" ? "dot" : "json";
 
 const gwsNodes = new Map<string, GwsNode>();
 const externalNodes = new Map<string, ExternalNode>();
@@ -310,16 +310,8 @@ try {
     dotLines.push("}");
     const dot = dotLines.join("\n");
 
-    if (output === "svg") {
-      const dotFile = join(dir, "graph.dot");
-      await writeFile(dotFile, dot);
-      const result = await $`dot -Tsvg ${dotFile}`;
-      text = result.stdout;
-      mimeType = "image/svg+xml";
-    } else {
-      text = dot;
-      mimeType = "text/plain";
-    }
+    text = dot;
+    mimeType = "text/plain";
   }
 
   process.stdout.write(
