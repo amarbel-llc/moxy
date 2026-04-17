@@ -27,13 +27,12 @@ function unwrapGoogleRedirect(url: string): string {
 
 export function extractLinksFromHtml(html: string): string[] {
   const hrefs: string[] = [];
-  const rewriter = new HTMLRewriter().on("a[href]", {
+  new HTMLRewriter().on("a[href]", {
     element(el) {
       const href = el.getAttribute("href");
       if (href) hrefs.push(href);
     },
-  });
-  rewriter.transform(new Response(html));
+  }).transform(html);
   const seen = new Set<string>();
   const result: string[] = [];
   for (const raw of hrefs) {
