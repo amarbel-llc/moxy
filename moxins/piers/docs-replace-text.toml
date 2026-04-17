@@ -3,7 +3,7 @@ description = "Find and replace text in a Google Doc. Case-sensitive by default.
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 match_case="${5:-true}"
 params=$(printf '{"documentId": "%s"}' "$1")
 json=$(printf '{"requests": [{"replaceAllText": {"containsText": {"text": "%s", "matchCase": %s}, "replaceText": "%s"}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$match_case" "$3" "$4")

@@ -3,7 +3,7 @@ description = "Resolve or reopen a comment on a Google Doc. Optionally include a
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 action="${3:-resolve}"
 params=$(printf '{"fileId": "%s", "commentId": "%s", "fields": "id,content,action,author(displayName,emailAddress),createdTime"}' "$1" "$2")
 if [ -n "${4:-}" ]; then

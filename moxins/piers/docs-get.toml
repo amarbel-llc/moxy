@@ -4,7 +4,7 @@ command = "sh"
 args = ["-c", """
 set -euo pipefail
 params=$(printf '{"documentId": "%s"}' "$1")
-/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws docs documents get --params "$params" 2>/dev/null
+@GWS@ docs documents get --params "$params" 2>/dev/null
 """, "_"]
 perms-request = "always-allow"
 

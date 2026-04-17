@@ -3,7 +3,7 @@ description = "Read a Gmail message by ID. Extracts body and optionally headers.
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 params=$(printf '{"userId": "me", "id": "%s", "format": "full"}' "$1")
 $GWS gmail users messages get --params "$params" 2>/dev/null
 """, "_"]

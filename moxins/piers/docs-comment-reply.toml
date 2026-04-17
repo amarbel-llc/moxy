@@ -3,7 +3,7 @@ description = "Reply to a comment on a Google Doc. Use to respond to anchored co
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 params=$(printf '{"fileId": "%s", "commentId": "%s", "fields": "id,content,author(displayName,emailAddress),createdTime"}' "$1" "$2")
 json=$(printf '{"content": "%s"}' "$3")
 $GWS drive replies create --params "$params" --json "$json" 2>/dev/null

@@ -3,7 +3,7 @@ description = "Create a new Google Doc from markdown content. Returns the create
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 tmp=".gws-upload-$$"
 trap 'rm -f "$tmp"' EXIT
 printf '%s' "$2" > "$tmp"

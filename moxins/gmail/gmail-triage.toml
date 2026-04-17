@@ -3,7 +3,7 @@ description = "Show unread inbox summary: sender, subject, date. Read-only, neve
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 max="${1:-20}"
 query="${2:-is:unread}"
 params=$(printf '{"userId": "me", "q": "%s", "maxResults": %s}' "$query" "$max")

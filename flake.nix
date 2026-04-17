@@ -88,6 +88,29 @@
 
         bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
+        gwsVersion = "0.22.5";
+        gwsPlatform = {
+          "aarch64-darwin" = { name = "aarch64-apple-darwin"; hash = "sha256-HSqf/VvJssLEtIYw2vCC+tE9nlfXQZiKLCSO7VYvfaw="; };
+          "x86_64-darwin"  = { name = "x86_64-apple-darwin";  hash = "sha256-Ufm9cxQE1LuibDbi4w3WjFbczR+DTAElLLCxTWplRLI="; };
+          "x86_64-linux"   = { name = "x86_64-unknown-linux-gnu";   hash = "sha256-3njs29LxqEzKAGOn7LxEAkD8FLbrzLsX9GRreSqMXB8="; };
+          "aarch64-linux"  = { name = "aarch64-unknown-linux-gnu";  hash = "sha256-lEkCldlYDh6IV05xWgoWKZF0fRLWL4x7jcyCaLbBzqA="; };
+        }.${system} or (throw "gws: unsupported system ${system}");
+
+        gws-bin = pkgs.stdenv.mkDerivation {
+          pname = "gws";
+          version = gwsVersion;
+          src = pkgs.fetchurl {
+            url = "https://github.com/googleworkspace/cli/releases/download/v${gwsVersion}/google-workspace-cli-${gwsPlatform.name}.tar.gz";
+            hash = gwsPlatform.hash;
+          };
+          sourceRoot = ".";
+          installPhase = ''
+            mkdir -p $out/bin
+            cp gws $out/bin/gws
+            chmod +x $out/bin/gws
+          '';
+        };
+
         moxyVersion = "0.2.1";
         moxyCommit = self.shortRev or self.dirtyShortRev or "unknown";
 
@@ -237,6 +260,24 @@
         };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {};
 
+        # Helper: build a moxin that uses the gws CLI (schema 1 inline shell).
+        mkGwsMoxin = name: pkgs.runCommand "${name}-moxin" {} ''
+          cp -r ${./moxins/${name}} $out
+          chmod -R u+w $out
+          for f in $(grep -rl '@GWS@' $out); do
+            substitute "$f" "$f" --replace-fail "@GWS@" "${gws-bin}/bin/gws"
+          done
+        '';
+        piers-moxin = mkGwsMoxin "piers";
+        car-moxin = mkGwsMoxin "car";
+        slip-moxin = pkgs.runCommand "slip-moxin" {} ''
+          cp -r ${./moxins/slip} $out
+        '';
+        prison-moxin = mkGwsMoxin "prison";
+        gmail-moxin = mkGwsMoxin "gmail";
+        calendar-moxin = mkGwsMoxin "calendar";
+        gws-moxin = mkGwsMoxin "gws";
+
         # Symlink-only aggregation of all per-moxin derivations.
         moxy-moxins = pkgs.runCommand "moxy-moxins" {} ''
           mkdir -p $out/share/moxy/moxins
@@ -255,6 +296,13 @@
           ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents
           ln -s ${man-moxin} $out/share/moxy/moxins/man
           ln -s ${rg-moxin} $out/share/moxy/moxins/rg
+          ln -s ${piers-moxin} $out/share/moxy/moxins/piers
+          ln -s ${car-moxin} $out/share/moxy/moxins/car
+          ln -s ${slip-moxin} $out/share/moxy/moxins/slip
+          ln -s ${prison-moxin} $out/share/moxy/moxins/prison
+          ln -s ${gmail-moxin} $out/share/moxy/moxins/gmail
+          ln -s ${calendar-moxin} $out/share/moxy/moxins/calendar
+          ln -s ${gws-moxin} $out/share/moxy/moxins/gws
         '';
 
         moxy = pkgs.buildGoApplication {

@@ -3,7 +3,7 @@ description = "Insert text at a specific index in a Google Doc. Use docs-get fir
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 params=$(printf '{"documentId": "%s"}' "$1")
 json=$(printf '{"requests": [{"insertText": {"location": {"index": %s}, "text": "%s"}}], "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3" "$4")
 $GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null

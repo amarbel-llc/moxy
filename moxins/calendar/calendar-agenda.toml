@@ -3,7 +3,7 @@ description = "Show upcoming calendar events across all calendars. Returns event
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 days="${1:-3}"
 calendar="${2:-primary}"
 tz="${3:-}"

@@ -5,7 +5,7 @@ args = ["-c", """
 set -euo pipefail
 page_size="${2:-20}"
 params=$(printf '{"q": "%s", "pageSize": %s, "fields": "files(id,name,mimeType,modifiedTime,webViewLink,owners)"}' "$1" "$page_size")
-/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws drive files list --params "$params" 2>/dev/null
+@GWS@ drive files list --params "$params" 2>/dev/null
 """, "_"]
 perms-request = "always-allow"
 

@@ -3,7 +3,7 @@ description = "Post a comment on a Google Doc. Optionally anchor the comment to 
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 params=$(printf '{"fileId": "%s", "fields": "id,content,author(displayName,emailAddress),quotedFileContent,createdTime"}' "$1")
 if [ -n "${3:-}" ]; then
   json=$(printf '{"content": "%s", "quotedFileContent": {"mimeType": "text/html", "value": "%s"}}' "$2" "$3")

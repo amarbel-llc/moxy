@@ -1,3 +1,3 @@
 schema = 1
 name = "gws"
-description = "Google Workspace: Drive, Docs, Sheets, Calendar, Gmail (read-only)"
+description = "Google Workspace: generic API passthrough"

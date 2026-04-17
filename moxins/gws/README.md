@@ -1,26 +1,28 @@
 # gws moxin
 
-MCP tools for Google Workspace via [gws](https://github.com/bes/google-workspace-cli).
+Generic API passthrough for [gws](https://github.com/googleworkspace/cli)
+(Google Workspace CLI). Product-specific tools have been split into dedicated
+moxins:
+
+| Moxin      | Product         | Tools |
+|------------|-----------------|-------|
+| `piers`    | Google Docs     | 12    |
+| `car`      | Google Drive    | 4     |
+| `slip`     | Google Slides   | —     |
+| `prison`   | Google Sheets   | 1     |
+| `gmail`    | Gmail           | 2     |
+| `calendar` | Google Calendar | 1     |
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
-| `calendar-agenda` | Upcoming calendar events |
-| `gmail-triage` | Unread inbox summary |
-| `gmail-read` | Read a message by ID |
-| `drive-search` | Search Drive files |
-| `drive-get` | File metadata by ID |
-| `drive-list` | List folder contents |
-| `drive-export` | Export Google file to text/csv/etc |
-| `docs-get` | Google Doc content |
-| `sheets-get` | Spreadsheet cell values |
-| `gws-api` | Raw gws API call (debugging) |
+| `api` | Raw gws API call (debugging) |
 
 ## Authentication
 
-All tools rely on gws falling through to Application Default Credentials (ADC)
-at `~/.config/gcloud/application_default_credentials.json`. No env var overrides
+All gws-based moxins rely on Application Default Credentials (ADC) at
+`~/.config/gcloud/application_default_credentials.json`. No env var overrides
 are needed — gws discovers ADC automatically when no keyring credentials exist.
 
 ### Setup

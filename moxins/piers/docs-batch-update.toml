@@ -3,7 +3,7 @@ description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 params=$(printf '{"documentId": "%s"}' "$1")
 json=$(printf '{"requests": %s, "writeControl": {"requiredRevisionId": "%s"}}' "$2" "$3")
 $GWS docs documents batchUpdate --params "$params" --json "$json" 2>/dev/null

@@ -3,7 +3,7 @@ description = "Raw gws API call for debugging. Pass the full gws command argumen
 command = "sh"
 args = ["-c", """
 set -euo pipefail
-GWS=/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws
+GWS=@GWS@
 cmd="$GWS $1"
 [ -n "${2:-}" ] && cmd="$cmd --params $2"
 eval $cmd 2>/dev/null

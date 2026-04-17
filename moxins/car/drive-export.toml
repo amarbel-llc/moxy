@@ -7,7 +7,7 @@ mime="${2:-text/markdown}"
 tmp=".gws-export-$$"
 trap 'rm -f "$tmp"' EXIT
 params=$(printf '{"fileId": "%s", "mimeType": "%s"}' "$1" "$mime")
-/nix/store/dqm6k8bb9aksarw4g6fyy3p76k7z96hd-gws-0.22.5/bin/gws drive files export --params "$params" --output "$tmp" >/dev/null 2>&1
+@GWS@ drive files export --params "$params" --output "$tmp" >/dev/null 2>&1
 cat "$tmp"
 """, "_"]
 perms-request = "always-allow"
