@@ -1,0 +1,21 @@
+schema = 2
+perms-request = "always-allow"
+description = "Get the structural outline of a Google Doc: tabs, headings, and optionally links. Returns a compact JSON summary instead of the full document."
+command = "@BIN@/outline"
+arg_order = ["document_id", "include_links"]
+
+[annotations]
+read-only-hint = true
+open-world-hint = true
+
+[input]
+type = "object"
+required = ["document_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.include_links]
+type = "string"
+description = "Include links from all paragraphs (default: false)"

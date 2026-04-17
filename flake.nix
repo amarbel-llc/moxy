@@ -297,6 +297,7 @@
           "comments-list" = "moxins/piers/src/comments-list.ts";
           "comment-reply" = "moxins/piers/src/comment-reply.ts";
           "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
+          "outline" = "moxins/piers/src/outline.ts";
         } {};
         car-moxin = mkBunMoxin "car" (gwsDeps ++ [ pkgs.graphviz ]) {
           "search" = "moxins/car/src/search.ts";
