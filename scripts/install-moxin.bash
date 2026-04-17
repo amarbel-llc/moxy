@@ -26,6 +26,13 @@ declare -A MOXIN_DEPS=(
   ["sisyphus"]="python3"
   ["just-us-agents"]="just jq"
   ["man"]="pandoc mandoc"
+  ["car"]=""
+  ["piers"]=""
+  ["prison"]=""
+  ["gmail"]=""
+  ["calendar"]=""
+  ["gws"]=""
+  ["slip"]=""
 )
 
 # Bun-based moxins need bun at runtime.
@@ -34,6 +41,22 @@ declare -A MOXIN_NEEDS_BUN=(
   ["get-hubbed-external"]=1
   ["hamster"]=1
   ["just-us-agents"]=1
+  ["car"]=1
+  ["piers"]=1
+  ["prison"]=1
+  ["gmail"]=1
+  ["calendar"]=1
+  ["gws"]=1
+)
+
+# Moxins that need the Google Workspace CLI (gws) binary.
+declare -A MOXIN_NEEDS_GWS=(
+  ["car"]=1
+  ["piers"]=1
+  ["prison"]=1
+  ["gmail"]=1
+  ["calendar"]=1
+  ["gws"]=1
 )
 
 # Pip packages needed by moxins.
@@ -46,6 +69,13 @@ declare -A MOXIN_ENV_NOTES=(
   ["sisyphus"]="Requires: JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN"
   ["get-hubbed"]="Requires: GH_TOKEN or gh auth login"
   ["get-hubbed-external"]="Requires: GH_TOKEN or gh auth login"
+  ["car"]="Requires: gws auth login (Google OAuth)"
+  ["piers"]="Requires: gws auth login (Google OAuth)"
+  ["prison"]="Requires: gws auth login (Google OAuth)"
+  ["gmail"]="Requires: gws auth login (Google OAuth)"
+  ["calendar"]="Requires: gws auth login (Google OAuth)"
+  ["gws"]="Requires: gws auth login (Google OAuth)"
+  ["slip"]="Requires: gws auth login (Google OAuth)"
 )
 
 ELIGIBLE_MOXINS=($(echo "${!MOXIN_DEPS[@]}" | tr ' ' '\n' | sort))
@@ -85,6 +115,29 @@ ensure_gum() {
     install -m 755 "$tmp/gum" "$INSTALL_BIN/gum"
     rm -rf "$tmp"
   fi
+}
+
+GWS_VERSION="0.22.5"
+
+ensure_gws() {
+  if command -v gws &>/dev/null; then return; fi
+  echo "Installing gws (Google Workspace CLI) v${GWS_VERSION}..."
+  local os arch platform
+  os=$(uname -s)
+  arch=$(uname -m)
+  case "${os}-${arch}" in
+  Darwin-arm64)   platform="aarch64-apple-darwin" ;;
+  Darwin-x86_64)  platform="x86_64-apple-darwin" ;;
+  Linux-aarch64)  platform="aarch64-unknown-linux-gnu" ;;
+  Linux-x86_64)   platform="x86_64-unknown-linux-gnu" ;;
+  *) die "unsupported platform for gws: ${os}-${arch}" ;;
+  esac
+  local tmp
+  tmp=$(mktemp -d)
+  curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}/google-workspace-cli-${platform}.tar.gz" |
+    tar -xz -C "$tmp"
+  install -m 755 "$tmp/gws" "$INSTALL_BIN/gws"
+  rm -rf "$tmp"
 }
 
 get_latest_tag() {
@@ -191,6 +244,11 @@ main() {
 
   # Install dependencies.
   install_deps "$name"
+
+  # Install gws if needed.
+  if [[ -n ${MOXIN_NEEDS_GWS[$name]:-} ]]; then
+    ensure_gws
+  fi
 
   # Register with Claude Code.
   register_moxin "$name"

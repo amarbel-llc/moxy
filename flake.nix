@@ -453,29 +453,33 @@
           rm -rf $out/src
           mkdir -p $out/bin $out/lib
 
-          # Extract the bundle dir from one of the wrapper scripts.
-          # Wrappers look like: exec /nix/store/.../bin/bun /nix/store/.../<name>.js "$@"
+          # Extract the bundle store path from one of the wrapper scripts.
+          # bun >=9 may nest JS output in subdirectories, so we extract
+          # the store path and use find instead of assuming flat layout.
           bundle_dir=""
           for f in ${bunBins}/bin/*; do
-            js_path=$(grep -oE '/nix/store/[^ ]+\.js' "$f" | head -1)
-            if [[ -n "$js_path" ]]; then
-              bundle_dir=$(dirname "$js_path")
-              break
-            fi
+            bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
+            [[ -n "$bundle_dir" ]] && break
           done
           if [[ -z "$bundle_dir" ]]; then
             echo "ERROR: could not extract bundle dir from wrapper scripts" >&2
             exit 1
           fi
 
-          # Copy all bundled JS files into lib/.
-          cp "$bundle_dir"/*.js $out/lib/
-
-          # For each bun entrypoint, create a portable wrapper.
+          # For each bun entrypoint, find the JS bundle and copy to lib/.
           for f in ${bunBins}/bin/*; do
             binname=$(basename "$f")
-            js_path=$(grep -oE '/nix/store/[^ ]+\.js' "$f" | head -1)
-            jsfile=$(basename "$js_path")
+            jsfile="$binname.js"
+            if [[ -f "$bundle_dir/$jsfile" ]]; then
+              js_path="$bundle_dir/$jsfile"
+            else
+              js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
+            fi
+            if [[ -z "$js_path" ]]; then
+              echo "ERROR: could not find $jsfile in $bundle_dir" >&2
+              exit 1
+            fi
+            cp "$js_path" "$out/lib/$jsfile"
             cat > "$out/bin/$binname" <<WRAPPER
           #!/usr/bin/env bash
           exec bun "\$(dirname "\$0")/../lib/$jsfile" "\$@"
@@ -521,6 +525,42 @@
           };
           man = mkBrewMoxin "man";
           sisyphus = mkBrewMoxin "sisyphus";
+          car = mkBrewBunMoxin "car" {
+            "search" = "moxins/car/src/search.ts";
+            "get" = "moxins/car/src/get.ts";
+            "list" = "moxins/car/src/list.ts";
+            "export" = "moxins/car/src/export.ts";
+            "doc-graph" = "moxins/car/src/doc-graph.ts";
+          };
+          piers = mkBrewBunMoxin "piers" {
+            "get" = "moxins/piers/src/get.ts";
+            "create" = "moxins/piers/src/create.ts";
+            "update" = "moxins/piers/src/update.ts";
+            "batch-update" = "moxins/piers/src/batch-update.ts";
+            "replace-text" = "moxins/piers/src/replace-text.ts";
+            "insert-text" = "moxins/piers/src/insert-text.ts";
+            "delete-content-range" = "moxins/piers/src/delete-content-range.ts";
+            "update-text-style" = "moxins/piers/src/update-text-style.ts";
+            "update-paragraph-style" = "moxins/piers/src/update-paragraph-style.ts";
+            "comments-list" = "moxins/piers/src/comments-list.ts";
+            "comment-reply" = "moxins/piers/src/comment-reply.ts";
+            "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
+            "outline" = "moxins/piers/src/outline.ts";
+          };
+          prison = mkBrewBunMoxin "prison" {
+            "get" = "moxins/prison/src/get.ts";
+          };
+          gmail = mkBrewBunMoxin "gmail" {
+            "triage" = "moxins/gmail/src/triage.ts";
+            "read" = "moxins/gmail/src/read.ts";
+          };
+          calendar = mkBrewBunMoxin "calendar" {
+            "agenda" = "moxins/calendar/src/agenda.ts";
+          };
+          gws = mkBrewBunMoxin "gws" {
+            "api" = "moxins/gws/src/api.ts";
+          };
+          slip = mkBrewMoxin "slip";
         };
 
         # Tarball for Homebrew distribution. Layout:
