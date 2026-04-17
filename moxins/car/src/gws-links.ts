@@ -106,6 +106,73 @@ export function mimeLabel(mimeType: string): string {
   return MIME_LABELS[mimeType] || mimeType;
 }
 
+export interface DocHeading {
+  level: number;
+  text: string;
+  headingId: string;
+}
+
+export interface DocTab {
+  id: string;
+  title: string;
+  headings: DocHeading[];
+  children: DocTab[];
+}
+
+const HEADING_LEVELS: Record<string, number> = {
+  TITLE: 0,
+  SUBTITLE: 0,
+  HEADING_1: 1,
+  HEADING_2: 2,
+  HEADING_3: 3,
+  HEADING_4: 4,
+  HEADING_5: 5,
+  HEADING_6: 6,
+};
+
+function extractParagraphText(paragraph: any): string {
+  return (paragraph.elements || [])
+    .map((el: any) => el.textRun?.content || "")
+    .join("")
+    .trim();
+}
+
+function extractHeadingsFromBody(content: any[]): DocHeading[] {
+  const headings: DocHeading[] = [];
+  for (const element of content) {
+    if (!element.paragraph) continue;
+    const para = element.paragraph;
+    const styleType = para.paragraphStyle?.namedStyleType;
+    if (styleType && styleType in HEADING_LEVELS) {
+      headings.push({
+        level: HEADING_LEVELS[styleType],
+        text: extractParagraphText(para),
+        headingId: para.paragraphStyle?.headingId || "",
+      });
+    }
+  }
+  return headings;
+}
+
+function processTab(tab: any): DocTab {
+  const props = tab.tabProperties || {};
+  const body = tab.documentTab?.body?.content || [];
+  return {
+    id: props.tabId || "t.0",
+    title: props.title || "",
+    headings: extractHeadingsFromBody(body),
+    children: (tab.childTabs || []).map(processTab),
+  };
+}
+
+export function extractOutline(doc: any): DocTab[] {
+  if (doc.tabs?.length > 0) {
+    return doc.tabs.map(processTab);
+  }
+  const body = doc.body?.content || [];
+  return [{ id: "t.0", title: "", headings: extractHeadingsFromBody(body), children: [] }];
+}
+
 export function classifyExternalUrl(url: string): string {
   if (url.startsWith("mailto:")) return "email";
   for (const [pattern] of EXTERNAL_SHORTENERS) {

@@ -10,6 +10,8 @@ import {
   classifyExternalUrl,
   mimeColor,
   mimeLabel,
+  extractOutline,
+  type DocTab,
 } from "./gws-links.ts";
 
 $.verbose = false;
@@ -31,6 +33,14 @@ interface ExternalNode {
   label: string;
 }
 
+interface StructureNode {
+  id: string;
+  label: string;
+  type: "tab" | "heading";
+  level?: number;
+  docId: string;
+}
+
 interface Edge {
   from: string;
   to: string;
@@ -44,6 +54,7 @@ const output = rawOutput === "dot" ? "dot" : rawOutput === "svg" ? "svg" : "json
 
 const gwsNodes = new Map<string, GwsNode>();
 const externalNodes = new Map<string, ExternalNode>();
+const structureNodes = new Map<string, StructureNode>();
 const edges: Edge[] = [];
 const edgeSet = new Set<string>();
 const visited = new Set<string>();
@@ -63,6 +74,54 @@ async function exportHtml(fileId: string, dir: string): Promise<string> {
   const params = JSON.stringify({ fileId, mimeType: "text/html" });
   await $`gws drive files export --params ${params} --output ${tmp}`;
   return readFile(tmp, "utf-8");
+}
+
+const DOCS_MIME = "application/vnd.google-apps.document";
+
+async function fetchOutline(fileId: string): Promise<DocTab[]> {
+  const params = JSON.stringify({ documentId: fileId, includeTabsContent: true });
+  const result = await $`gws docs documents get --params ${params}`;
+  return extractOutline(JSON.parse(result.stdout));
+}
+
+function addStructureNodes(fileId: string, tabs: DocTab[]) {
+  function walkTab(tab: DocTab, parentId: string) {
+    const tabId = `${fileId}#tab:${tab.id}`;
+    structureNodes.set(tabId, {
+      id: tabId,
+      label: tab.title || "(untitled tab)",
+      type: "tab",
+      docId: fileId,
+    });
+    addEdge(parentId, tabId);
+
+    const stack: { level: number; id: string }[] = [];
+    for (const h of tab.headings) {
+      const hId = `${fileId}#tab:${tab.id}#h:${h.headingId}`;
+      structureNodes.set(hId, {
+        id: hId,
+        label: h.text,
+        type: "heading",
+        level: h.level,
+        docId: fileId,
+      });
+
+      while (stack.length > 0 && stack[stack.length - 1].level >= h.level) {
+        stack.pop();
+      }
+      const parent = stack.length > 0 ? stack[stack.length - 1].id : tabId;
+      addEdge(parent, hId);
+      stack.push({ level: h.level, id: hId });
+    }
+
+    for (const child of tab.children) {
+      walkTab(child, tabId);
+    }
+  }
+
+  for (const tab of tabs) {
+    walkTab(tab, fileId);
+  }
 }
 
 function addEdge(from: string, to: string) {
@@ -103,6 +162,13 @@ try {
       isRoot: fileId === rootId,
       inaccessible: false,
     });
+
+    if (meta.mimeType === DOCS_MIME) {
+      try {
+        const tabs = await fetchOutline(fileId);
+        addStructureNodes(fileId, tabs);
+      } catch {}
+    }
 
     if (depth >= maxDepth) continue;
 
@@ -153,6 +219,14 @@ try {
       service: classifyExternalUrl(e.url),
     }));
 
+    const structure = [...structureNodes.values()].map((s) => ({
+      id: s.id,
+      label: s.label,
+      type: s.type,
+      level: s.level,
+      doc_id: s.docId,
+    }));
+
     const typeCounts: Record<string, number> = {};
     for (const n of nodes) {
       typeCounts[n.type] = (typeCounts[n.type] || 0) + 1;
@@ -168,11 +242,13 @@ try {
       summary: {
         gws_nodes: gwsNodes.size,
         external_links: externalNodes.size,
+        structure_nodes: structureNodes.size,
         edges: edges.length,
         types: typeCounts,
         services: serviceCounts,
       },
       nodes,
+      structure_nodes: structure,
       external_links: externals,
       edges: edges.map((e) => ({ from: e.from, to: e.to })),
     };
@@ -200,6 +276,30 @@ try {
     for (const [url, ext] of externalNodes) {
       const escaped = ext.label.replace(/"/g, '\\"');
       dotLines.push(`  "${url}" [label="${escaped}", fillcolor="#F5F5F5", fontcolor="#999999", style="dashed,filled", fontsize=9];`);
+    }
+
+    const docStructure = new Map<string, StructureNode[]>();
+    for (const s of structureNodes.values()) {
+      const list = docStructure.get(s.docId) || [];
+      list.push(s);
+      docStructure.set(s.docId, list);
+    }
+
+    for (const [docId, nodes] of docStructure) {
+      const docLabel = gwsNodes.get(docId)?.label.replace(/"/g, '\\"') || docId.slice(0, 12);
+      dotLines.push("");
+      dotLines.push(`  subgraph "cluster_${docId}" {`);
+      dotLines.push(`    label="${docLabel}";`);
+      dotLines.push('    style="dashed"; color="#BBBBBB"; fontsize=9; fontcolor="#999999";');
+      for (const s of nodes) {
+        const escaped = s.label.replace(/"/g, '\\"');
+        if (s.type === "tab") {
+          dotLines.push(`    "${s.id}" [label="${escaped}", fillcolor="#E8EAF6", fontcolor="#3949AB", style="filled,rounded", shape=box];`);
+        } else {
+          dotLines.push(`    "${s.id}" [label="${escaped}", fillcolor="#FAFAFA", fontcolor="#666666", style="filled", fontsize=9];`);
+        }
+      }
+      dotLines.push("  }");
     }
 
     dotLines.push("");
