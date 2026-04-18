@@ -11,7 +11,7 @@ type = "object"
 
 [input.properties.session_id]
 type = "string"
-description = "Session UUID to retrieve (36-char UUID from the sessions listing). Omit to scan across all recent sessions (use project/days to filter)."
+description = "Session UUID to retrieve (36-char UUID from the sessions listing), or a subagent id of the form 'agent-XXX' (from the subagents listing) to drill into a specific subagent's tool calls. Omit to scan across all recent sessions (use project/days to filter)."
 
 [input.properties.tool_name]
 type = "string"

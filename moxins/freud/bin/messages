@@ -7,6 +7,9 @@ from pathlib import Path
 
 
 def find_session(session_id: str) -> Path | None:
+    """Locate a session transcript. Accepts both top-level session UUIDs
+    and subagent IDs (agent-XXX). For subagent IDs, searches every
+    project's <session>/subagents/ directory."""
     projects_dir = Path(os.environ.get(
         "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
     ))
@@ -18,6 +21,16 @@ def find_session(session_id: str) -> Path | None:
         f = proj_dir / f"{session_id}.jsonl"
         if f.exists():
             return f
+    if session_id.startswith("agent-"):
+        for proj_dir in projects_dir.iterdir():
+            if not proj_dir.is_dir():
+                continue
+            for session_dir in proj_dir.iterdir():
+                if not session_dir.is_dir():
+                    continue
+                candidate = session_dir / "subagents" / f"{session_id}.jsonl"
+                if candidate.exists():
+                    return candidate
     return None
 
 

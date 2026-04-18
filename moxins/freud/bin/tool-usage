@@ -11,6 +11,9 @@ RESULT_TRUNCATE = 200
 
 
 def find_session(session_id: str) -> Path | None:
+    """Locate a session transcript. Accepts both top-level session UUIDs
+    and subagent IDs (agent-XXX). For subagent IDs, searches every
+    project's <session>/subagents/ directory."""
     projects_dir = Path(os.environ.get(
         "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
     ))
@@ -22,6 +25,17 @@ def find_session(session_id: str) -> Path | None:
         f = proj_dir / f"{session_id}.jsonl"
         if f.exists():
             return f
+    if session_id.startswith("agent-"):
+        # Subagent transcripts live at <project>/<session>/subagents/<agent-id>.jsonl
+        for proj_dir in projects_dir.iterdir():
+            if not proj_dir.is_dir():
+                continue
+            for session_dir in proj_dir.iterdir():
+                if not session_dir.is_dir():
+                    continue
+                candidate = session_dir / "subagents" / f"{session_id}.jsonl"
+                if candidate.exists():
+                    return candidate
     return None
 
 
@@ -206,10 +220,15 @@ def main():
     if session_id:
         path = find_session(session_id)
         if path is None:
-            print(f"Session {session_id} not found. Use the sessions tool to list available sessions.")
+            print(
+                f"Session {session_id} not found. Use the sessions tool to list "
+                "available sessions, or the subagents tool to list agent-XXX ids."
+            )
             sys.exit(1)
 
         calls = extract_calls(path, tool_name_filter, include_results)
+        # When session_id is a subagent, subagent_paths() returns [] — a subagent
+        # doesn't have its own subagents — so this loop is a no-op in that case.
         for sub in subagent_paths(path):
             calls.extend(extract_calls(sub, tool_name_filter, include_results))
 

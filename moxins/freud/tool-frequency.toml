@@ -4,7 +4,7 @@ description = """Aggregate tool usage frequency across multiple sessions. Return
 with counts and percentages. When filtering to a specific tool like Bash, breaks down by \
 command/subcommand. Much faster than calling tool_usage per session and tallying manually."""
 command = "@BIN@/tool-frequency"
-arg_order = ["project", "days", "tool_name", "limit"]
+arg_order = ["project", "days", "tool_name", "limit", "scope"]
 
 [input]
 type = "object"
@@ -24,6 +24,11 @@ description = "Filter to a specific tool name (case-insensitive substring). For 
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of entries in the frequency table. Defaults to 20, 0 for unlimited."
+
+[input.properties.scope]
+type = "string"
+enum = ["both", "main", "subagents"]
+description = "Which transcripts to aggregate: 'main' counts only top-level session calls, 'subagents' counts only Task-spawned subagent calls, 'both' (default) counts everything."
 
 [annotations]
 read-only-hint = true

@@ -121,6 +121,9 @@ def main():
     days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 7
     tool_name_filter = sys.argv[3] if len(sys.argv) > 3 else ""
     limit = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 30
+    scope = (sys.argv[5] if len(sys.argv) > 5 else "both").lower()
+    if scope not in ("both", "main", "subagents"):
+        scope = "both"
 
     projects_dir = Path(os.environ.get(
         "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
@@ -154,12 +157,17 @@ def main():
     if not session_paths:
         return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
 
-    # Phase 3: collect all results across sessions (including subagents)
+    # Phase 3: collect results, honoring scope.
+    # scope=main        → only main session JSONLs
+    # scope=subagents   → only subagent JSONLs (files under <session>/subagents/)
+    # scope=both        → both (default — previous behavior)
     all_results: list[dict] = []
     for path in session_paths:
-        all_results.extend(collect_results(path, tool_name_filter))
-        for sub in subagent_paths(path):
-            all_results.extend(collect_results(sub, tool_name_filter))
+        if scope in ("both", "main"):
+            all_results.extend(collect_results(path, tool_name_filter))
+        if scope in ("both", "subagents"):
+            for sub in subagent_paths(path):
+                all_results.extend(collect_results(sub, tool_name_filter))
 
     if not all_results:
         filter_desc = f", tool={tool_name_filter}" if tool_name_filter else ""
@@ -199,7 +207,11 @@ def main():
     lines = []
     proj_desc = f", project: {project_filter}" if project_filter else ""
     tool_desc = f", tool: {tool_name_filter}" if tool_name_filter else ""
-    lines.append(f"Tool results across {len(session_paths)} sessions ({days} days{proj_desc}{tool_desc})")
+    scope_desc = f", scope: {scope}" if scope != "both" else ""
+    lines.append(
+        f"Tool results across {len(session_paths)} sessions "
+        f"({days} days{proj_desc}{tool_desc}{scope_desc})"
+    )
 
     grand_total = sum(total_counter.values())
     total_success = sum(success_counter.values())

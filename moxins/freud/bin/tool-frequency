@@ -118,6 +118,9 @@ def main():
     days = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 7
     tool_name_filter = sys.argv[3] if len(sys.argv) > 3 else ""
     limit = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 20
+    scope = (sys.argv[5] if len(sys.argv) > 5 else "both").lower()
+    if scope not in ("both", "main", "subagents"):
+        scope = "both"
 
     projects_dir = Path(os.environ.get(
         "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
@@ -152,12 +155,14 @@ def main():
     if not session_paths:
         return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
 
-    # Phase 3: tally across all sessions (including subagents)
+    # Phase 3: tally across all sessions, honoring scope.
     total_counter: Counter = Counter()
     for path in session_paths:
-        total_counter += tally_session(path, tool_name_filter)
-        for sub in subagent_paths(path):
-            total_counter += tally_session(sub, tool_name_filter)
+        if scope in ("both", "main"):
+            total_counter += tally_session(path, tool_name_filter)
+        if scope in ("both", "subagents"):
+            for sub in subagent_paths(path):
+                total_counter += tally_session(sub, tool_name_filter)
 
     total_calls = sum(total_counter.values())
     if total_calls == 0:
@@ -167,12 +172,19 @@ def main():
     # Phase 4: format output
     lines = []
     proj_desc = f", project: {project_filter}" if project_filter else ""
+    scope_desc = f", scope: {scope}" if scope != "both" else ""
     if tool_name_filter:
-        lines.append(f"{tool_name_filter} subcommand frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
+        lines.append(
+            f"{tool_name_filter} subcommand frequency across {len(session_paths)} "
+            f"sessions ({days} days{proj_desc}{scope_desc})"
+        )
         lines.append(f"Total: {total_calls} {tool_name_filter} calls")
         col_header = "Subcommand"
     else:
-        lines.append(f"Tool frequency across {len(session_paths)} sessions ({days} days{proj_desc})")
+        lines.append(
+            f"Tool frequency across {len(session_paths)} sessions "
+            f"({days} days{proj_desc}{scope_desc})"
+        )
         lines.append(f"Total: {total_calls} tool calls")
         col_header = "Tool"
 

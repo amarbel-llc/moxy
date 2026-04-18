@@ -4,7 +4,7 @@ description = """Summarize tool results across sessions: total calls, successes,
 and rejections per tool. Shows error rates and example error previews. Useful for understanding tool \
 reliability and identifying flaky tools or misconfigured servers."""
 command = "@BIN@/tool-results-summary"
-arg_order = ["project", "days", "tool_name", "limit"]
+arg_order = ["project", "days", "tool_name", "limit", "scope"]
 
 [input]
 type = "object"
@@ -24,6 +24,11 @@ description = "Filter to a specific tool name (case-insensitive substring). Omit
 [input.properties.limit]
 type = "integer"
 description = "Maximum number of entries to return. Defaults to 30, 0 for unlimited."
+
+[input.properties.scope]
+type = "string"
+enum = ["both", "main", "subagents"]
+description = "Which transcripts to aggregate: 'main' counts only top-level session calls, 'subagents' counts only Task-spawned subagent calls, 'both' (default) counts everything."
 
 [annotations]
 read-only-hint = true

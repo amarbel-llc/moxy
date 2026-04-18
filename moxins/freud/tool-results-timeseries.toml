@@ -4,7 +4,7 @@ description = """Tool result outcomes (success, error, empty, rejected) bucketed
 Returns a table with per-bucket totals and error rates, plus ASCII sparklines for errors and volume. \
 Use to spot regressions and trends that tool-results-summary's aggregate view hides."""
 command = "@BIN@/tool-results-timeseries"
-arg_order = ["project", "days", "tool_name", "group_by"]
+arg_order = ["project", "days", "tool_name", "group_by", "scope"]
 
 [input]
 type = "object"
@@ -24,6 +24,11 @@ description = "Filter to a specific tool name (case-insensitive substring). Omit
 [input.properties.group_by]
 type = "string"
 description = "Bucket size: 'day' (default) or 'week'."
+
+[input.properties.scope]
+type = "string"
+enum = ["both", "main", "subagents"]
+description = "Which transcripts to aggregate: 'main' counts only top-level session calls, 'subagents' counts only Task-spawned subagent calls, 'both' (default) counts everything."
 
 [annotations]
 read-only-hint = true

@@ -3,7 +3,7 @@ perms-request = "always-allow"
 description = """List unique tool names seen across all sessions or a filtered set. Returns each tool \
 name with the number of sessions it appeared in, sorted by frequency."""
 command = "@BIN@/unique-tools"
-arg_order = ["project", "days", "session_ids"]
+arg_order = ["project", "days", "session_ids", "scope"]
 
 [input]
 type = "object"
@@ -19,6 +19,11 @@ description = "Analyze sessions from the last N days. Defaults to 7."
 [input.properties.session_ids]
 type = "string"
 description = "Comma-separated list of session UUIDs. When provided, only these sessions are analyzed (project/days filters are ignored)."
+
+[input.properties.scope]
+type = "string"
+enum = ["both", "main", "subagents"]
+description = "Which transcripts to aggregate: 'main' counts only top-level session calls, 'subagents' counts only Task-spawned subagent calls, 'both' (default) counts everything."
 
 [annotations]
 read-only-hint = true
