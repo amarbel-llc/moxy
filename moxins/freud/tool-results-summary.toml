@@ -4,7 +4,7 @@ description = """Summarize tool results across sessions: total calls, successes,
 and rejections per tool. Shows error rates and example error previews. Useful for understanding tool \
 reliability and identifying flaky tools or misconfigured servers."""
 command = "@BIN@/tool-results-summary"
-arg_order = ["project", "days", "tool_name", "limit", "scope"]
+arg_order = ["project", "days", "tool_name", "limit", "scope", "error_pattern"]
 
 [input]
 type = "object"
@@ -29,6 +29,10 @@ description = "Maximum number of entries to return. Defaults to 30, 0 for unlimi
 type = "string"
 enum = ["both", "main", "subagents"]
 description = "Which transcripts to aggregate: 'main' counts only top-level session calls, 'subagents' counts only Task-spawned subagent calls, 'both' (default) counts everything."
+
+[input.properties.error_pattern]
+type = "string"
+description = "Case-insensitive regex that narrows aggregation to results whose error/empty/rejected preview text matches. Use to isolate a specific error signature (e.g. 'invalid_union' for a single schema bug). Successes have empty previews and are dropped by any non-trivial pattern."
 
 [annotations]
 read-only-hint = true

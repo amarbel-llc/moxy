@@ -4,7 +4,7 @@ description = """Tool result outcomes (success, error, empty, rejected) bucketed
 Returns a table with per-bucket totals and error rates, plus ASCII sparklines for errors and volume. \
 Use to spot regressions and trends that tool-results-summary's aggregate view hides."""
 command = "@BIN@/tool-results-timeseries"
-arg_order = ["project", "days", "tool_name", "group_by", "scope"]
+arg_order = ["project", "days", "tool_name", "group_by", "scope", "error_pattern"]
 
 [input]
 type = "object"
@@ -29,6 +29,10 @@ description = "Bucket size: 'day' (default) or 'week'."
 type = "string"
 enum = ["both", "main", "subagents"]
 description = "Which transcripts to aggregate: 'main' counts only top-level session calls, 'subagents' counts only Task-spawned subagent calls, 'both' (default) counts everything."
+
+[input.properties.error_pattern]
+type = "string"
+description = "Case-insensitive regex that narrows aggregation to results whose error/empty/rejected preview text matches. Use to isolate a specific error signature (e.g. 'invalid_union' for a single schema bug). Successes have empty previews and are dropped by any non-trivial pattern."
 
 [annotations]
 read-only-hint = true

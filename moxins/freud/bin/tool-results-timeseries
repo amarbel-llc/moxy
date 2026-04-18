@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import sys
 import time
 from collections import defaultdict
@@ -44,8 +45,14 @@ def session_bucket(path: Path, group_by: str) -> str:
     return dt.strftime("%m-%d")
 
 
-def collect_results(path: Path, tool_name_filter: str) -> dict:
-    """Count tool results by outcome for a single JSONL file."""
+def collect_results(path: Path, tool_name_filter: str, error_re: "re.Pattern | None" = None) -> dict:
+    """Count tool results by outcome for a single JSONL file.
+
+    When error_re is provided, only results whose error/empty/rejected
+    text matches the regex are counted (successes are always dropped by
+    a non-trivial pattern because their preview is empty). Use to
+    isolate a specific error signature in the timeseries.
+    """
     tool_names: dict[str, str] = {}
     counts = {"ok": 0, "err": 0, "empty": 0, "rej": 0}
 
@@ -97,6 +104,13 @@ def collect_results(path: Path, tool_name_filter: str) -> dict:
                         or "User rejected tool use" in text
                     )
 
+                    # For error_pattern, preview is the error/empty/rejected
+                    # body. Successes have no preview so a non-trivial regex
+                    # skips them.
+                    preview = text if (is_error or is_empty) else ""
+                    if error_re is not None and not error_re.search(preview):
+                        continue
+
                     if is_rejected:
                         counts["rej"] += 1
                     elif is_error:
@@ -146,11 +160,18 @@ def main():
     tool_name_filter = sys.argv[3] if len(sys.argv) > 3 else ""
     group_by = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else "day"
     scope = (sys.argv[5] if len(sys.argv) > 5 else "both").lower()
+    error_pattern = sys.argv[6] if len(sys.argv) > 6 else ""
 
     if group_by not in ("day", "week"):
         group_by = "day"
     if scope not in ("both", "main", "subagents"):
         scope = "both"
+    error_re = None
+    if error_pattern:
+        try:
+            error_re = re.compile(error_pattern, re.IGNORECASE | re.DOTALL)
+        except re.error as e:
+            return emit_mcp_result(f"invalid error_pattern regex: {e}")
 
     projects_dir = Path(os.environ.get(
         "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
@@ -190,12 +211,12 @@ def main():
 
     for path, bucket in session_files:
         if scope in ("both", "main"):
-            counts = collect_results(path, tool_name_filter)
+            counts = collect_results(path, tool_name_filter, error_re)
             for key in ("ok", "err", "empty", "rej"):
                 buckets[bucket][key] += counts[key]
         if scope in ("both", "subagents"):
             for sub in subagent_paths(path):
-                sub_counts = collect_results(sub, tool_name_filter)
+                sub_counts = collect_results(sub, tool_name_filter, error_re)
                 for key in ("ok", "err", "empty", "rej"):
                     buckets[bucket][key] += sub_counts[key]
 
@@ -214,9 +235,11 @@ def main():
     proj_desc = f", project: {project_filter}" if project_filter else ""
     tool_desc = f", tool: {tool_name_filter}" if tool_name_filter else ""
     bucket_desc = f", by {group_by}"
+    scope_desc = f", scope: {scope}" if scope != "both" else ""
+    pattern_desc = f", error_pattern: {error_pattern!r}" if error_pattern else ""
     lines.append(
         f"Tool results timeseries across {len(session_files)} sessions"
-        f" ({days} days{proj_desc}{tool_desc}{bucket_desc})"
+        f" ({days} days{proj_desc}{tool_desc}{bucket_desc}{scope_desc}{pattern_desc})"
     )
     lines.append("")
 

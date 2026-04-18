@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import sys
 import time
 from collections import Counter
@@ -124,6 +125,13 @@ def main():
     scope = (sys.argv[5] if len(sys.argv) > 5 else "both").lower()
     if scope not in ("both", "main", "subagents"):
         scope = "both"
+    error_pattern = sys.argv[6] if len(sys.argv) > 6 else ""
+    error_re = None
+    if error_pattern:
+        try:
+            error_re = re.compile(error_pattern, re.IGNORECASE | re.DOTALL)
+        except re.error as e:
+            return emit_mcp_result(f"invalid error_pattern regex: {e}")
 
     projects_dir = Path(os.environ.get(
         "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
@@ -169,6 +177,14 @@ def main():
             for sub in subagent_paths(path):
                 all_results.extend(collect_results(sub, tool_name_filter))
 
+    # Phase 3b: optional error_pattern filter narrows the aggregation to
+    # results whose preview (error/empty/rejected text) matches the regex.
+    # Successes have empty previews, so a non-trivial pattern drops them —
+    # this is intentional: the filter exists to isolate specific error
+    # signatures (e.g. "invalid_union" for #114).
+    if error_re is not None:
+        all_results = [r for r in all_results if error_re.search(r["preview"])]
+
     if not all_results:
         filter_desc = f", tool={tool_name_filter}" if tool_name_filter else ""
         return emit_mcp_result(
@@ -208,9 +224,10 @@ def main():
     proj_desc = f", project: {project_filter}" if project_filter else ""
     tool_desc = f", tool: {tool_name_filter}" if tool_name_filter else ""
     scope_desc = f", scope: {scope}" if scope != "both" else ""
+    pattern_desc = f", error_pattern: {error_pattern!r}" if error_pattern else ""
     lines.append(
         f"Tool results across {len(session_paths)} sessions "
-        f"({days} days{proj_desc}{tool_desc}{scope_desc})"
+        f"({days} days{proj_desc}{tool_desc}{scope_desc}{pattern_desc})"
     )
 
     grand_total = sum(total_counter.values())
