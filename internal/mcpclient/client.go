@@ -5,42 +5,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"syscall"
+	"time"
 
+	"github.com/amarbel-llc/moxy/internal/lifecyclelog"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 )
 
-var clientLog *log.Logger
-
-func init() {
-	logHome := os.Getenv("XDG_LOG_HOME")
-	if logHome == "" {
-		home, _ := os.UserHomeDir()
-		logHome = filepath.Join(home, ".local", "log")
-	}
-	logDir := filepath.Join(logHome, "moxy")
-	os.MkdirAll(logDir, 0o755)
-	f, err := os.OpenFile(
-		filepath.Join(logDir, "lifecycle.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o644,
-	)
-	if err == nil {
-		clientLog = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-	}
-}
-
+// logLifecycle forwards to the shared lifecyclelog package. Kept as a local
+// alias so existing call sites don't churn and the message format stays
+// grep-compatible with pre-c0f7e4f lifecycle.log lines.
 func logLifecycle(format string, args ...any) {
-	if clientLog != nil {
-		clientLog.Printf(format, args...)
-	}
+	lifecyclelog.Log(format, args...)
 }
 
 type Client struct {
@@ -52,6 +34,11 @@ type Client struct {
 	nextID         atomic.Int64
 	done           chan struct{}
 	onNotification func(*jsonrpc.Message)
+
+	startedAt time.Time
+	pid       int
+	waitOnce  sync.Once
+	waitErr   error
 }
 
 func (c *Client) SetOnNotification(fn func(*jsonrpc.Message)) {
@@ -84,6 +71,8 @@ func SpawnAndInitialize(ctx context.Context, name, command string, args []string
 		transport: transport.NewStdioWithCloser(stdout, stdin, stdin),
 		pending:   make(map[string]chan *jsonrpc.Message),
 		done:      make(chan struct{}),
+		startedAt: time.Now(),
+		pid:       cmd.Process.Pid,
 	}
 
 	go c.readLoop()
@@ -157,6 +146,13 @@ func (c *Client) readLoop() {
 			} else {
 				logLifecycle("readLoop ERROR %s: %v", c.name, err)
 			}
+			// Reap the child so we can log exit code/signal. Run in a
+			// goroutine: Wait() can block on zombie reaping edge cases
+			// and readLoop's defer close(c.done) should fire promptly to
+			// unblock any pending Call().
+			if c.cmd != nil {
+				go c.reapChild()
+			}
 			return
 		}
 
@@ -183,41 +179,82 @@ func (c *Client) readLoop() {
 	}
 }
 
+// reapChild waits for the child process once and logs its exit status
+// (pid, code, signal, wall-time-since-spawn). Safe to call multiple times
+// and from multiple goroutines; only the first call performs cmd.Wait().
+func (c *Client) reapChild() error {
+	c.waitOnce.Do(func() {
+		if c.cmd == nil {
+			return
+		}
+		c.waitErr = c.cmd.Wait()
+		dur := time.Since(c.startedAt)
+		ps := c.cmd.ProcessState
+		code := -1
+		signalStr := "none"
+		if ps != nil {
+			code = ps.ExitCode()
+			if ws, ok := ps.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+				signalStr = ws.Signal().String()
+			}
+		}
+		logLifecycle(
+			"exit %s pid=%d code=%d signal=%s dur=%s err=%v",
+			c.name, c.pid, code, signalStr, dur, c.waitErr,
+		)
+	})
+	return c.waitErr
+}
+
 func (c *Client) Call(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	start := time.Now()
 	id := jsonrpc.NewNumberID(c.nextID.Add(1))
+	idStr := id.String()
+	logLifecycle("call START %s method=%s id=%s", c.name, method, idStr)
 
 	msg, err := jsonrpc.NewRequest(id, method, params)
 	if err != nil {
+		logLifecycle("call BUILD_ERR %s method=%s id=%s err=%v", c.name, method, idStr, err)
 		return nil, err
 	}
 
 	ch := make(chan *jsonrpc.Message, 1)
 	c.mu.Lock()
-	c.pending[id.String()] = ch
+	c.pending[idStr] = ch
 	c.mu.Unlock()
 
 	if err := c.transport.Write(msg); err != nil {
 		c.mu.Lock()
-		delete(c.pending, id.String())
+		delete(c.pending, idStr)
 		c.mu.Unlock()
+		logLifecycle("call WRITE_ERR %s method=%s id=%s dur=%s err=%v",
+			c.name, method, idStr, time.Since(start), err)
 		return nil, err
 	}
 
 	select {
 	case <-ctx.Done():
 		c.mu.Lock()
-		delete(c.pending, id.String())
+		delete(c.pending, idStr)
 		c.mu.Unlock()
+		logLifecycle("call CANCEL %s method=%s id=%s dur=%s err=%v",
+			c.name, method, idStr, time.Since(start), ctx.Err())
 		return nil, ctx.Err()
 	case <-c.done:
 		c.mu.Lock()
-		delete(c.pending, id.String())
+		delete(c.pending, idStr)
 		c.mu.Unlock()
+		logLifecycle("call CHILDGONE %s method=%s id=%s dur=%s",
+			c.name, method, idStr, time.Since(start))
 		return nil, fmt.Errorf("child process %s exited unexpectedly", c.name)
 	case resp := <-ch:
 		if resp.Error != nil {
+			logLifecycle("call ERR %s method=%s id=%s dur=%s err=%v",
+				c.name, method, idStr, time.Since(start), resp.Error)
 			return nil, resp.Error
 		}
+		logLifecycle("call DONE %s method=%s id=%s dur=%s",
+			c.name, method, idStr, time.Since(start))
 		return resp.Result, nil
 	}
 }
@@ -227,18 +264,18 @@ func (c *Client) Notify(method string, params any) error {
 	if err != nil {
 		return err
 	}
-	return c.transport.Write(msg)
+	if err := c.transport.Write(msg); err != nil {
+		logLifecycle("notify WRITE_ERR %s method=%s err=%v", c.name, method, err)
+		return err
+	}
+	return nil
 }
 
 func (c *Client) Close() error {
 	logLifecycle("close %s", c.name)
 	c.transport.Close()
 	if c.cmd != nil {
-		err := c.cmd.Wait()
-		if err != nil {
-			logLifecycle("close %s exit: %v", c.name, err)
-		}
-		return err
+		return c.reapChild()
 	}
 	return nil
 }

@@ -10,10 +10,36 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/amarbel-llc/moxy/internal/lifecyclelog"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
+
+// moxinArgvPreview truncates an argv slice to a single log-friendly string
+// of at most maxLen characters. Used so lifecycle.log lines don't blow up
+// on long nix develop / bash -c invocations.
+func moxinArgvPreview(argv []string, maxLen int) string {
+	s := strings.Join(argv, " ")
+	if len(s) > maxLen {
+		return s[:maxLen] + "…"
+	}
+	return s
+}
+
+// moxinSignalName returns the signal name if the process was killed by a
+// signal, or "none" otherwise. Safe to call with a nil ProcessState.
+func moxinSignalName(ps *os.ProcessState) string {
+	if ps == nil {
+		return "unknown"
+	}
+	if ws, ok := ps.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		return ws.Signal().String()
+	}
+	return "none"
+}
 
 // resolveBinPlaceholder replaces the @BIN@ placeholder in a tool command
 // with the moxin's bin directory. This is a runtime fallback for standalone
@@ -250,12 +276,20 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	moxinStart := time.Now()
 	if startErr := cmd.Start(); startErr != nil {
 		debugMoxin("toolCall %s.%s: start error: %v (command=%s args=%v)", s.config.Name, spec.Name, startErr, spec.Command, allArgs)
+		lifecyclelog.Log("moxin START_FAIL %s.%s err=%v", s.config.Name, spec.Name, startErr)
 		return marshalResult(protocol.ErrorResultV1(
 			fmt.Sprintf("starting command: %v", startErr),
 		))
 	}
+	moxinPid := cmd.Process.Pid
+	lifecyclelog.Log(
+		"moxin START %s.%s pid=%d argv=%q",
+		s.config.Name, spec.Name, moxinPid,
+		moxinArgvPreview(append([]string{command}, allArgs...), 120),
+	)
 	sub.StartWriters()
 	// Close the parent's read-end copies now that the child has them, so
 	// the child sees EOF when the writer goroutines finish.
@@ -265,6 +299,16 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	sub.pipeReads = nil
 
 	err = cmd.Wait()
+	moxinDur := time.Since(moxinStart)
+	moxinExit := -1
+	if cmd.ProcessState != nil {
+		moxinExit = cmd.ProcessState.ExitCode()
+	}
+	lifecyclelog.Log(
+		"moxin DONE %s.%s pid=%d dur=%s exit=%d signal=%s stdout=%d stderr=%d",
+		s.config.Name, spec.Name, moxinPid, moxinDur, moxinExit,
+		moxinSignalName(cmd.ProcessState), stdout.Len(), stderr.Len(),
+	)
 
 	output := stdout.String()
 	if stderr.Len() > 0 {
