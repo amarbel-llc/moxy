@@ -209,12 +209,18 @@
         '';
 
         # Per-moxin derivations — each moxin is self-contained with its deps.
+        # chix uses pathMode = "suffix" so the user's nix binary wins (and
+        # picks up the user's NIX_PATH / config), while manix + git + the
+        # shell helpers are guaranteed to resolve from the wrapper's
+        # PATH suffix when the ambient environment doesn't provide them.
+        # Needed for chix.doc* (manix) and chix.flake-update / flake-lock
+        # (nix shells out to git to stage the updated lock file).
         chix-moxin = mkBunMoxin "chix" [
-          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq pkgs.manix
+          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.git pkgs.gnugrep pkgs.jq pkgs.manix
         ] {
           "flake-show" = "moxins/chix/src/flake-show.ts";
           "store-ls" = "moxins/chix/src/store-ls.ts";
-        } { pathMode = "inherit"; };
+        } { pathMode = "suffix"; };
         conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
