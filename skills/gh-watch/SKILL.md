@@ -56,3 +56,13 @@ Completed runs are auto-dropped from the watch list.
 v1 only watches Actions workflow runs. PR, issue, and issue-comment watchers
 are planned follow-ups; the monitor's target schema already reserves a
 `kind` field for them.
+
+## Requirements
+
+Plugin monitors (the mechanism that delivers state-transition lines as
+notifications) require **Claude Code v2.1.105 or newer**. On older
+versions the MCP tools still work — `watch-run`, `watch-list`,
+`watch-remove`, `ci-run-get`, `ci-run-logs` all function — but invoking
+this skill will not start the monitor, so you won't see live
+notifications. Use `get-hubbed.watch-list` to poll state manually if you
+need to.

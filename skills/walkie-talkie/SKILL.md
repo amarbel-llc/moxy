@@ -40,3 +40,11 @@ Sender id is set automatically from `$SPINCLASS_SESSION_ID`.
   one line.
 - `SPINCLASS_SESSION_ID` is required. Sessions not launched via spinclass will
   see an error instead of silent misbehavior.
+
+## Requirements
+
+Plugin monitors (the mechanism that delivers inbound messages as
+notifications) require **Claude Code v2.1.105 or newer**. On older
+versions the MCP tools still work, but invoking this skill will not
+start the monitor, and messages addressed to you will only appear via
+`walkie-talkie.backscroll`.
