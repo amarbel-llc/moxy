@@ -102,7 +102,10 @@ const input = initRequest + '\n' + toolsListRequest + '\n'
 let stdout = ''
 let stderr = ''
 
-const moxyChild = spawn(MOXY_BIN, [], {
+// Use the serve-mcp subcommand explicitly: invoking moxy with no args prints
+// the CLI help and exits before runServer, so the MCP handshake would never
+// happen and this test would silently report 0 tools.
+const moxyChild = spawn(MOXY_BIN, ['serve-mcp'], {
   cwd: WORK_DIR,
   env: {
     ...process.env,
@@ -175,3 +178,8 @@ if (await fs.pathExists(MOXIN_LOG)) {
 }
 
 await cleanup()
+
+if (toolNames.length === 0) {
+  console.error('FAIL: no tools discovered — handshake or moxin probe failed')
+  process.exit(1)
+}

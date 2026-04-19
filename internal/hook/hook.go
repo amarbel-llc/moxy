@@ -14,10 +14,11 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 
 	"github.com/amarbel-llc/moxy/internal/native"
+	"github.com/amarbel-llc/moxy/internal/stderrlog"
 )
 
 var (
-	hookLog    *log.Logger
+	hookLog     *log.Logger
 	hooksLogDir string
 )
 
@@ -157,6 +158,15 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 	}
 
 	debugHook("event=%q tool_name=%q", hi.HookEventName, hi.ToolName)
+
+	// SessionEnd has no tool name, so it must be handled before the moxy
+	// tool-prefix filter. Rotate the active stderr log for this session to
+	// completed/ so that any file left behind in active/ indicates a moxy
+	// that was killed before its session ended cleanly.
+	if hi.HookEventName == "SessionEnd" {
+		stderrlog.RotateBySessionID(os.Getenv("SPINCLASS_SESSION_ID"))
+		return nil
+	}
 
 	// Only process moxy tools — non-moxy tools fall through immediately.
 	prefix := matchMoxyPrefix(hi.ToolName)
@@ -425,6 +435,43 @@ func InstallSettingsHook() error {
 		}
 	}
 
+	// SessionEnd fires once at session close and has no tool-name matcher.
+	// moxy's hook uses it to rotate the per-session stderr log.
+	sessionEndEntry := map[string]any{
+		"hooks": []any{
+			map[string]any{
+				"type":    "command",
+				"command": hookCommand,
+			},
+		},
+	}
+	sessionEndEntries, _ := hooks["SessionEnd"].([]any)
+	sessionEndInstalled := false
+	for _, entry := range sessionEndEntries {
+		e, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		inner, _ := e["hooks"].([]any)
+		for _, h := range inner {
+			hm, ok := h.(map[string]any)
+			if !ok {
+				continue
+			}
+			if cmd, _ := hm["command"].(string); cmd == hookCommand {
+				sessionEndInstalled = true
+				break
+			}
+		}
+		if sessionEndInstalled {
+			break
+		}
+	}
+	if !sessionEndInstalled {
+		sessionEndEntries = append(sessionEndEntries, sessionEndEntry)
+		hooks["SessionEnd"] = sessionEndEntries
+	}
+
 	settings["hooks"] = hooks
 
 	out, err := json.MarshalIndent(settings, "", "  ")
@@ -434,4 +481,3 @@ func InstallSettingsHook() error {
 
 	return os.WriteFile(settingsPath, append(out, '\n'), 0o644)
 }
-

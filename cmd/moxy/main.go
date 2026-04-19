@@ -25,6 +25,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/oauth"
 	"github.com/amarbel-llc/moxy/internal/proxy"
 	"github.com/amarbel-llc/moxy/internal/status"
+	"github.com/amarbel-llc/moxy/internal/stderrlog"
 )
 
 // version and commit are set at build time via -ldflags.
@@ -289,6 +290,15 @@ func main() {
 }
 
 func runServer(app *command.App) error {
+	// Redirect os.Stderr (including Go panic traces) to a per-session log
+	// file so crashes that bypass the normal logging path can be recovered
+	// after the fact. Rotate on clean return so a leftover entry in
+	// active/ indicates the process was killed before it could shut down.
+	if err := stderrlog.Init(app.Version); err != nil {
+		log.Printf("stderrlog init: %v", err)
+	}
+	defer stderrlog.Rotate()
+
 	hierarchy, err := config.LoadDefaultHierarchy()
 	if err != nil {
 		return err

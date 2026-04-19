@@ -349,3 +349,30 @@ clean: clean-build
 
 clean-build:
   rm -rf result result-brew build/
+
+# Integration test for moxin discovery via a fresh temp workspace
+test-moxin-loading:
+  zx bin/test-moxin-loading.mjs
+
+# Integration test for internal/stderrlog per-session logging + rotation flow.
+test-stderrlog:
+  zx bin/test-stderrlog.mjs
+
+# Debug: look for OOM kills in kernel ring buffer (needs pkexec; user sasha not in adm/systemd-journal groups)
+# SHELL is sanitized to /bin/bash since pkexec rejects SHELL values not in /etc/shells.
+[group('debug')]
+debug-pkexec-oom days='8':
+  #!/usr/bin/env bash
+  set +e
+  export SHELL=/bin/bash
+  echo "=== pkexec dmesg -T | grep OOM/killed ==="
+  pkexec dmesg -T 2>&1 | tee /tmp/_dmesg.out | grep -iE 'killed process|out of memory|oom-kill|invoked oom-killer' | tail -50
+  echo "(dmesg total lines: $(wc -l < /tmp/_dmesg.out), sample last line: $(tail -1 /tmp/_dmesg.out))"
+  echo ""
+  echo "=== pkexec journalctl -k --since -{{days}}d (OOM-related) ==="
+  pkexec journalctl -k --since "{{days}} days ago" --no-pager 2>&1 | tee /tmp/_jk.out | grep -iE 'killed process|out of memory|oom-kill|invoked oom-killer' | tail -50
+  echo "(kernel journal lines: $(wc -l < /tmp/_jk.out))"
+  echo ""
+  echo "=== pkexec journalctl --since -{{days}}d systemd-oomd ==="
+  pkexec journalctl --since "{{days}} days ago" --no-pager -u systemd-oomd.service 2>&1 | tail -50
+  rm -f /tmp/_dmesg.out /tmp/_jk.out
