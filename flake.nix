@@ -226,14 +226,17 @@
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
         folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] {};
+        # pathMode = "suffix" so user PATH wins (and can shadow gh with a
+        # stub in tests); watch-run / watch-remove use `awk` so gawk is
+        # explicit in the wrapper deps.
         get-hubbed-moxin = mkBunMoxin "get-hubbed" [
-          pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
+          pkgs.bash pkgs.coreutils pkgs.gawk pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
         ] {
           "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
           "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
           "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
           "content-search" = "moxins/get-hubbed/src/content-search.ts";
-        } {};
+        } { pathMode = "suffix"; };
         get-hubbed-external-moxin = mkBunMoxin "get-hubbed-external" [
           pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
         ] {

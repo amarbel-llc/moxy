@@ -1,8 +1,9 @@
 #! /usr/bin/env bats
 #
-# Tests the gh-watch state-management scripts directly from the moxin source
-# tree (bypassing moxy), because exercising them through moxy would require
-# real `gh` auth. A shadow `gh` stub on PATH returns canned JSON.
+# Tests the gh-watch state-management scripts against the nix-built moxin
+# bin/ (not through moxy), because exercising them through moxy would require
+# real `gh` auth. A shadow `gh` stub on PATH returns canned JSON; the nix
+# wrapper appends to PATH so the stub takes precedence.
 
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
@@ -10,7 +11,7 @@ setup() {
   export output
 
   export MOXY_GH_WATCH_DIR="$HOME/gh-watch"
-  export BIN="$BATS_TEST_DIRNAME/../moxins/get-hubbed/bin"
+  export BIN="$BATS_TEST_DIRNAME/../result/share/moxy/moxins/get-hubbed/bin"
 
   # Shadow `gh` with a stub that returns canned JSON. Recognises:
   #   api repos/{o}/{r}/actions/runs/{id}

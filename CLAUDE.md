@@ -214,6 +214,13 @@ embedding generation.
   then a method call to moxy, returning the result as JSON in `$output`
 - `run_moxy_mcp_two` sends two method calls in one session (for testing restart,
   etc.)
+- **Bats tests for moxin scripts must invoke the nix-built binary**, not the raw
+  source. Point `BIN` at `$BATS_TEST_DIRNAME/../result/share/moxy/moxins/<name>/bin/`,
+  not `$BATS_TEST_DIRNAME/../moxins/<name>/bin/`. Source scripts are committed
+  mode `100644` and assume deps come from ambient PATH — only the nix wrapper
+  has `+x` and the correct dep PATH. The wrapper appends (does not replace)
+  PATH, so tests can still prepend shadow binaries like a `gh` stub. Built via
+  the `test-bats` recipe's `build-go` → `build-moxins` dependency chain.
 - The justfile sets `output-format = "tap"` for TAP output from just itself
 - Embedding tests in `internal/embedding/` require `MANPAGE_MODEL_PATH` env var
   pointing to the nomic GGUF model; they are skipped otherwise
