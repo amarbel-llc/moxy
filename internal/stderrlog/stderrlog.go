@@ -20,6 +20,7 @@ package stderrlog
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -77,13 +78,44 @@ func Init(version string) error {
 	if err != nil {
 		return fmt.Errorf("open stderr log: %w", err)
 	}
-	// Redirect fd 2 to the log file. The Go *File for f is no longer needed
-	// once the fd is duplicated over stderr.
-	if err := syscall.Dup2(int(f.Fd()), 2); err != nil {
+
+	// Tee fd 2 so stderr writes land in the log file AND continue to the
+	// original stderr: preserves terminal visibility (bats tests, interactive
+	// runs, Claude Code's captured stderr) while still capturing everything —
+	// including Go runtime panic traces, which write directly to fd 2 — to
+	// the file.
+	//
+	// Implementation: save the original fd 2 to a separate fd, create a pipe,
+	// point fd 2 at the pipe's write end, and fan out the pipe's read end to
+	// the log file and the saved original stderr in a goroutine.
+	origStderrFd, err := syscall.Dup(2)
+	if err != nil {
 		f.Close()
-		return fmt.Errorf("dup2 stderr: %w", err)
+		return fmt.Errorf("dup original stderr: %w", err)
 	}
-	f.Close()
+	origStderr := os.NewFile(uintptr(origStderrFd), "stderr-orig")
+
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		origStderr.Close()
+		f.Close()
+		return fmt.Errorf("pipe: %w", err)
+	}
+	if err := syscall.Dup2(int(pw.Fd()), 2); err != nil {
+		pr.Close()
+		pw.Close()
+		origStderr.Close()
+		f.Close()
+		return fmt.Errorf("dup2 pipe onto stderr: %w", err)
+	}
+	pw.Close() // fd 2 now holds the write end; the Go *File is unneeded.
+
+	go func() {
+		defer pr.Close()
+		defer f.Close()
+		defer origStderr.Close()
+		_, _ = io.Copy(io.MultiWriter(f, origStderr), pr)
+	}()
 
 	if err := os.WriteFile(pidSidecar, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		return fmt.Errorf("write pid sidecar: %w", err)
