@@ -337,7 +337,8 @@ brew-build:
   nix build .#brew-tarball -o result-brew
   @echo "Tarball: $(ls result-brew/*.tar.gz)"
 
-brew-release version:
+# Build brew tarball and publish a GitHub release for the given version
+release-brew version:
   #!/usr/bin/env bash
   set -euo pipefail
   just brew-build
@@ -346,6 +347,13 @@ brew-release version:
     --repo amarbel-llc/moxy \
     --title "v{{version}}" \
     --notes "Release v{{version}}"
+
+# Full release: signed tag, push, brew tarball, GitHub release (expects `just bump-version <new>` already committed on the current branch)
+release: tag
+  #!/usr/bin/env bash
+  set -euo pipefail
+  version=$(grep 'moxyVersion = ' flake.nix | sed 's/.*"\(.*\)".*/\1/')
+  just release-brew "$version"
 
 clean: clean-build
 
