@@ -11,8 +11,8 @@ if [ "$keep_going" = "true" ]; then
 fi
 nix_args+=(--flake "$flake_ref")
 
-stderr_file=$(mktemp)
-trap 'rm -f "$stderr_file"' EXIT
-output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
+# nix flake check writes evaluation status (and warnings) to stderr; merge
+# into stdout so the MCP result includes them.
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
 
 echo "$output"

@@ -25,9 +25,9 @@ fi
 
 nix_args+=(--flake "$flake_ref")
 
-stderr_file=$(mktemp)
-trap 'rm -f "$stderr_file"' EXIT
-output=$(nix "${nix_args[@]}" 2>"$stderr_file") || { cat "$stderr_file"; echo "$output"; exit 1; }
+# nix flake lock writes progress to stderr; merge into stdout so MCP
+# surfaces the message "warning: updating lock file ...".
+output=$(nix "${nix_args[@]}" 2>&1) || { echo "$output"; exit 1; }
 
 if [ -n "$tail_n" ]; then
   echo "$output" | tail -n "$tail_n"
