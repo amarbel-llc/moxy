@@ -329,6 +329,10 @@
           "api" = "moxins/gws/src/api.ts";
         } {};
 
+        walkie-talkie-moxin = mkMoxin "walkie-talkie" [
+          pkgs.bash pkgs.coreutils pkgs.gnugrep
+        ] {};
+
         # Symlink-only aggregation of all per-moxin derivations.
         moxy-moxins = pkgs.runCommand "moxy-moxins" {} ''
           mkdir -p $out/share/moxy/moxins
@@ -354,6 +358,7 @@
           ln -s ${gmail-moxin} $out/share/moxy/moxins/gmail
           ln -s ${calendar-moxin} $out/share/moxy/moxins/calendar
           ln -s ${gws-moxin} $out/share/moxy/moxins/gws
+          ln -s ${walkie-talkie-moxin} $out/share/moxy/moxins/walkie-talkie
         '';
 
         moxy = pkgs.buildGoApplication {
@@ -380,6 +385,15 @@
             substitute ${./hooks/pre-tool-use} $out/share/purse-first/moxy/hooks/pre-tool-use \
               --replace-fail "@MOXY@" "$out/bin/moxy"
             chmod +x $out/share/purse-first/moxy/hooks/pre-tool-use
+
+            # walkie-talkie plugin monitor + skill (see moxins/walkie-talkie).
+            # Skill trips on-skill-invoke:walkie-talkie which starts the
+            # monitor; monitor is the nix-wrapped script in the moxin itself.
+            mkdir -p $out/share/purse-first/moxy/monitors
+            substitute ${./monitors/monitors.json} $out/share/purse-first/moxy/monitors/monitors.json \
+              --replace-fail "@WALKIE_TALKIE_MONITOR@" "${walkie-talkie-moxin}/bin/walkie-talkie-monitor"
+            mkdir -p $out/share/purse-first/moxy/skills/walkie-talkie
+            cp ${./skills/walkie-talkie/SKILL.md} $out/share/purse-first/moxy/skills/walkie-talkie/SKILL.md
 
             cp -rn ${moxy-man}/share/man/* $out/share/man/
 

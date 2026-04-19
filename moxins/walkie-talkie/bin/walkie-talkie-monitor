@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Plugin monitor entrypoint. Prints a connection greeting line, then streams
+# new bus messages addressed to this session (or "all") one per line until
+# killed. Stdout lines become Claude Code notifications.
+set -euo pipefail
+
+: "${SPINCLASS_SESSION_ID:?walkie-talkie: SPINCLASS_SESSION_ID not set}"
+
+log="${WALKIE_TALKIE_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/walkie-talkie/bus.log}"
+mkdir -p "$(dirname "$log")"
+[ -f "$log" ] || : >"$log"
+
+printf 'walkie-talkie connected: session=%s log=%s\n' "$SPINCLASS_SESSION_ID" "$log"
+
+# -n 0 = skip backlog; use walkie-talkie.backscroll for history.
+# --line-buffered is essential — without it, pipe buffering delays events.
+exec tail -F -n 0 "$log" \
+  | grep --line-buffered -E "to=($SPINCLASS_SESSION_ID|all)(\b|$)"

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${SPINCLASS_SESSION_ID:?walkie-talkie: SPINCLASS_SESSION_ID not set}"
+
+target="${1:-}"
+body="${2:-}"
+if [ -z "$target" ] || [ -z "$body" ]; then
+  echo "usage: send <target> <body>" >&2
+  exit 2
+fi
+
+case "$body" in
+  *$'\n'*|*$'\t'*)
+    echo "walkie-talkie: body MUST NOT contain newline or tab" >&2
+    exit 3
+    ;;
+esac
+
+log="${WALKIE_TALKIE_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/walkie-talkie/bus.log}"
+mkdir -p "$(dirname "$log")"
+[ -f "$log" ] || : >"$log"
+
+ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+# Single printf = single atomic write() on Linux for payloads < PIPE_BUF (4096).
+printf '%s\tfrom=%s\tto=%s\tmsg=%s\n' \
+  "$ts" "$SPINCLASS_SESSION_ID" "$target" "$body" >>"$log"
+
+printf 'sent to %s at %s\n' "$target" "$ts"

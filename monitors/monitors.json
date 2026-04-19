@@ -1,0 +1,8 @@
+[
+  {
+    "name": "walkie-talkie",
+    "description": "Inbox for the walkie-talkie cross-session bus. Streams messages addressed to this session (or 'all') as Claude Code notifications.",
+    "command": "@WALKIE_TALKIE_MONITOR@",
+    "when": "on-skill-invoke:walkie-talkie"
+  }
+]

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+n="${1:-20}"
+log="${WALKIE_TALKIE_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/walkie-talkie/bus.log}"
+
+if [ ! -f "$log" ]; then
+  echo "(no walkie-talkie log yet at $log)"
+  exit 0
+fi
+
+tail -n "$n" "$log"

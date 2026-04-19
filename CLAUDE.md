@@ -159,6 +159,22 @@ via inline shell commands. No separate binary.
 - `write` -- create or overwrite a file (atomic write via tempfile+rename,
   creates parent directories, preserves permissions of existing files).
 
+### Plugin Assets (Monitors, Skills, Hooks)
+
+Moxy is shipped as a Claude Code plugin. Plugin-level features that aren't MCP
+tools --- hooks, monitors, skills --- live in top-level `hooks/`, `monitors/`,
+and `skills/<name>/` directories at the repo root. They're installed into
+`$out/share/purse-first/moxy/<category>/` by hand-written `cp`/`substitute`
+lines in the `moxy` derivation's `postInstall` in `flake.nix`. Paths that need
+to resolve to `/nix/store/…` absolutes use `@TOKEN@` placeholders that
+postInstall replaces --- same technique as `@MOXY@` in `hooks/pre-tool-use`
+and `@WALKIE_TALKIE_MONITOR@` in `monitors/monitors.json`.
+
+When a plugin monitor script needs a real PATH (`tail`, `grep`, `date`, etc.),
+put it in the matching moxin's `bin/` so it gets the standard `mkMoxin`
+wrapping, and point the plugin manifest at the moxin's absolute binary path
+via an `@…@` substitution rather than re-wrapping in the plugin dir.
+
 ### Key Packages
 
 - `internal/config` -- moxyfile parsing, hierarchy loading, merge semantics
