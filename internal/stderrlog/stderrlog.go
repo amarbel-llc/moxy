@@ -32,12 +32,12 @@ import (
 )
 
 var (
-	mu          sync.Mutex
-	initialized bool
-	sessionID   string
-	activePath  string
+	mu            sync.Mutex
+	initialized   bool
+	sessionID     string
+	activePath    string
 	completedPath string
-	pidSidecar  string
+	pidSidecar    string
 )
 
 // Init opens the per-session stderr log and dup2's fd 2 onto it so os.Stderr,
