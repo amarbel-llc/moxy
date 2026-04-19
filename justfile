@@ -318,7 +318,7 @@ bump-version new_version:
   sed -i.bak 's/moxyVersion = "'"$current"'"/moxyVersion = "{{new_version}}"/' flake.nix && rm flake.nix.bak
   echo "$current → {{new_version}}"
 
-# Create a signed git tag for the current moxyVersion
+# Create a signed git tag for the current moxyVersion and push it to origin
 tag:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -330,6 +330,8 @@ tag:
   fi
   git tag -s "$tag" -m "Release $tag"
   echo "created tag $tag"
+  git push origin "$tag"
+  echo "pushed tag $tag"
 
 brew-build:
   nix build .#brew-tarball -o result-brew
