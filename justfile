@@ -348,12 +348,18 @@ release-brew version:
     --title "v{{version}}" \
     --notes "Release v{{version}}"
 
-# Full release: signed tag, push, brew tarball, GitHub release (expects `just bump-version <new>` already committed on the current branch)
-release: tag
+# Full release: bump moxyVersion, commit, push branch, signed tag + push, brew tarball, GitHub release
+release new_version:
   #!/usr/bin/env bash
   set -euo pipefail
-  version=$(grep 'moxyVersion = ' flake.nix | sed 's/.*"\(.*\)".*/\1/')
-  just release-brew "$version"
+  just bump-version {{new_version}}
+  if ! git diff --quiet flake.nix; then
+    git add flake.nix
+    git commit -m "chore: release v{{new_version}}"
+  fi
+  git push
+  just tag
+  just release-brew {{new_version}}
 
 clean: clean-build
 
