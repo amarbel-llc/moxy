@@ -391,9 +391,12 @@
             # monitor; monitor is the nix-wrapped script in the moxin itself.
             mkdir -p $out/share/purse-first/moxy/monitors
             substitute ${./monitors/monitors.json} $out/share/purse-first/moxy/monitors/monitors.json \
-              --replace-fail "@WALKIE_TALKIE_MONITOR@" "${walkie-talkie-moxin}/bin/walkie-talkie-monitor"
+              --replace-fail "@WALKIE_TALKIE_MONITOR@" "${walkie-talkie-moxin}/bin/walkie-talkie-monitor" \
+              --replace-fail "@GH_WATCH_MONITOR@" "${get-hubbed-moxin}/bin/gh-watch-monitor"
             mkdir -p $out/share/purse-first/moxy/skills/walkie-talkie
             cp ${./skills/walkie-talkie/SKILL.md} $out/share/purse-first/moxy/skills/walkie-talkie/SKILL.md
+            mkdir -p $out/share/purse-first/moxy/skills/gh-watch
+            cp ${./skills/gh-watch/SKILL.md} $out/share/purse-first/moxy/skills/gh-watch/SKILL.md
 
             cp -rn ${moxy-man}/share/man/* $out/share/man/
 

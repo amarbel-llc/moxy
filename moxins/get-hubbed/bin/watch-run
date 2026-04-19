@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="${1:-}"
+run_id="${2:-}"
+if [ -z "$repo" ] || [ -z "$run_id" ]; then
+  echo "usage: watch-run <repo> <run_id>" >&2
+  exit 2
+fi
+
+dir="${MOXY_GH_WATCH_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/moxy/gh-watch}"
+mkdir -p "$dir"
+targets="$dir/targets"
+[ -f "$targets" ] || : >"$targets"
+
+handle="run:${repo}#${run_id}"
+
+# Idempotent: skip if already present.
+if awk -F'\t' -v h="$handle" '$4 == h {found=1} END {exit !found}' "$targets"; then
+  printf 'already watching: %s\n' "$handle"
+  exit 0
+fi
+
+ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+# Single printf = single atomic write() on Linux for payloads < PIPE_BUF.
+printf 'run\t%s\t%s\t%s\t%s\n' "$repo" "$run_id" "$handle" "$ts" >>"$targets"
+
+printf 'watching: %s\n' "$handle"

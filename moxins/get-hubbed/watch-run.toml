@@ -1,0 +1,23 @@
+schema = 2
+result-type = "text"
+content-type = "text/plain"
+perms-request = "always-allow"
+description = "Register a GitHub Actions workflow run to be watched by the gh-watch plugin monitor. Emits state-transition notifications (queued → in_progress → completed) until the run reaches a terminal state. Requires a session that has invoked /moxy:gh-watch to connect the monitor. Idempotent — re-adding the same (repo, run_id) is a no-op."
+command = "@BIN@/watch-run"
+arg_order = ["repo", "run_id"]
+
+[input]
+type = "object"
+required = ["repo", "run_id"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format (e.g. 'amarbel-llc/moxy')."
+
+[input.properties.run_id]
+type = "string"
+description = "Numeric GitHub Actions workflow run ID."
+
+[annotations]
+read-only-hint = false
+idempotent-hint = true

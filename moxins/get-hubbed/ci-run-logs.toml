@@ -1,0 +1,32 @@
+schema = 2
+result-type = "text"
+content-type = "text/plain"
+perms-request = "always-allow"
+description = "Fetch GitHub Actions logs for a workflow run. By default returns the full run log archive as plain text. With job_id, returns only that job. With failed_only=true, returns logs for every job whose conclusion is not 'success' or 'skipped'."
+command = "@BIN@/ci-run-logs"
+arg_order = ["repo", "run_id", "job_id", "failed_only"]
+
+[input]
+type = "object"
+required = ["repo", "run_id"]
+
+[input.properties.repo]
+type = "string"
+description = "Repository in OWNER/REPO format."
+
+[input.properties.run_id]
+type = "string"
+description = "Numeric workflow run ID."
+
+[input.properties.job_id]
+type = "string"
+description = "Optional specific job ID; mutually exclusive with failed_only."
+
+[input.properties.failed_only]
+type = "boolean"
+description = "If true, return logs for all jobs with non-success conclusion."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

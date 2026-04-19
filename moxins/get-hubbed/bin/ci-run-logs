@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="${1:-}"
+run_id="${2:-}"
+job_id="${3:-}"
+failed_only="${4:-}"
+
+if [ -z "$repo" ] || [ -z "$run_id" ]; then
+  echo "usage: ci-run-logs <repo> <run_id> [job_id] [failed_only]" >&2
+  exit 2
+fi
+
+if [ -n "$job_id" ] && [ "$failed_only" = "true" ]; then
+  echo "ci-run-logs: job_id and failed_only=true are mutually exclusive" >&2
+  exit 3
+fi
+
+if [ -n "$job_id" ]; then
+  gh api "repos/$repo/actions/jobs/$job_id/logs"
+  exit 0
+fi
+
+if [ "$failed_only" = "true" ]; then
+  # Fetch every non-success job's logs, prefixed with a header.
+  jobs=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
+    --jq '.jobs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "skipped") | [.id, .name, .conclusion] | @tsv')
+  if [ -z "$jobs" ]; then
+    echo "(no failed jobs for run $run_id)"
+    exit 0
+  fi
+  while IFS=$'\t' read -r id name conclusion; do
+    printf '===== job %s (%s) conclusion=%s =====\n' "$id" "$name" "$conclusion"
+    gh api "repos/$repo/actions/jobs/$id/logs" || printf '(logs unavailable for job %s)\n' "$id"
+    printf '\n'
+  done <<<"$jobs"
+  exit 0
+fi
+
+# Default: whole-run log archive (returned as plain text by gh).
+gh api "repos/$repo/actions/runs/$run_id/logs"

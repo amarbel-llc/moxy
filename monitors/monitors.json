@@ -4,5 +4,11 @@
     "description": "Inbox for the walkie-talkie cross-session bus. Streams messages addressed to this session (or 'all') as Claude Code notifications.",
     "command": "@WALKIE_TALKIE_MONITOR@",
     "when": "on-skill-invoke:walkie-talkie"
+  },
+  {
+    "name": "gh-watch",
+    "description": "GitHub event watcher. Polls targets registered via get-hubbed.watch-run and emits one notification per state transition (queued → in_progress → completed, etc.). v1 watches Actions workflow runs.",
+    "command": "@GH_WATCH_MONITOR@",
+    "when": "on-skill-invoke:gh-watch"
   }
 ]

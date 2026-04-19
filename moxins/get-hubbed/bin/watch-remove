@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+handle="${1:-}"
+if [ -z "$handle" ]; then
+  echo "usage: watch-remove <handle>" >&2
+  exit 2
+fi
+
+dir="${MOXY_GH_WATCH_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/moxy/gh-watch}"
+targets="$dir/targets"
+
+if [ ! -f "$targets" ]; then
+  printf 'not watching: %s\n' "$handle"
+  exit 0
+fi
+
+# Atomic rewrite: write filtered content to temp, then mv into place.
+tmp=$(mktemp "${targets}.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+before=$(wc -l <"$targets")
+awk -F'\t' -v h="$handle" '$4 != h' "$targets" >"$tmp"
+after=$(wc -l <"$tmp")
+
+mv "$tmp" "$targets"
+trap - EXIT
+
+if [ "$before" = "$after" ]; then
+  printf 'not watching: %s\n' "$handle"
+else
+  printf 'removed: %s\n' "$handle"
+fi

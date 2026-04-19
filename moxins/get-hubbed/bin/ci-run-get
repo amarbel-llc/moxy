@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="${1:-}"
+run_id="${2:-}"
+if [ -z "$repo" ] || [ -z "$run_id" ]; then
+  echo "usage: ci-run-get <repo> <run_id>" >&2
+  exit 2
+fi
+
+run_json=$(gh api "repos/$repo/actions/runs/$run_id")
+jobs_json=$(gh api "repos/$repo/actions/runs/$run_id/jobs" --jq '.jobs')
+
+jq -n --argjson run "$run_json" --argjson jobs "$jobs_json" \
+  '{run: $run, jobs: $jobs}'
