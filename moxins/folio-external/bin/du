@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+flags="${2:-}"
+
+if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+  echo "no such file or directory: $path" >&2
+  exit 1
+fi
+
+if [ -n "$flags" ]; then
+  text=$(du $flags -- "$path")
+  mime="text/plain"
+else
+  bytes=$(du -sx --bytes -- "$path" | awk 'END {print $1}')
+  human=$(du -shx -- "$path" | awk 'END {print $1}')
+  text=$(jq -cn --arg path "$path" --argjson bytes "$bytes" --arg human "$human" \
+    '{path: $path, bytes: $bytes, human: $human}')
+  mime="application/json"
+fi
+
+jq -cn --arg text "$text" --arg mime "$mime" \
+  '{content:[{type:"text",text:$text,mimeType:$mime}]}'

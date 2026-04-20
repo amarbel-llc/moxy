@@ -1,0 +1,22 @@
+schema = 2
+perms-request = "always-allow"
+description = """Disk usage of a file or directory. Defaults to summary mode (one row per argument) and \
+does not cross filesystem boundaries. Returns JSON {path, bytes, human}; pass flags for raw du output."""
+command = "@BIN@/du"
+arg_order = ["path", "flags"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Absolute path to a file or directory."
+
+[input.properties.flags]
+type = "string"
+description = "Optional flags passed to du (e.g. \"-ah\", \"-c\"). When provided, runs du directly instead of JSON output."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

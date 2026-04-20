@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+assert_within_cwd() {
+  case "$1" in /dev/fd/*) return ;; esac
+  local resolved cwd
+  resolved=$(realpath -m "$1")
+  cwd=$(realpath -m "$PWD")
+  case "$resolved" in
+    "$cwd"|"$cwd"/*) ;;
+    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
+  esac
+}
+path="$1"
+flags="${2:-}"
+assert_within_cwd "$path"
+
+if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+  echo "no such file or directory: $path" >&2
+  exit 1
+fi
+
+if [ -n "$flags" ]; then
+  text=$(du $flags -- "$path")
+  mime="text/plain"
+else
+  bytes=$(du -sx --bytes -- "$path" | awk 'END {print $1}')
+  human=$(du -shx -- "$path" | awk 'END {print $1}')
+  text=$(jq -cn --arg path "$path" --argjson bytes "$bytes" --arg human "$human" \
+    '{path: $path, bytes: $bytes, human: $human}')
+  mime="application/json"
+fi
+
+jq -cn --arg text "$text" --arg mime "$mime" \
+  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
