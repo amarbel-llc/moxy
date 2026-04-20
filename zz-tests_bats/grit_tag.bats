@@ -15,7 +15,7 @@ setup() {
   git config tag.gpgSign false
   git config commit.gpgSign false
 
-  echo "a" > file.txt
+  echo "a" >file.txt
   git add file.txt
   git commit -q -m "initial"
 }
@@ -57,7 +57,7 @@ function grit_tag_create_force_replaces { # @test
   local first_sha
   first_sha=$(git rev-parse v1.0)
 
-  echo "b" > file.txt
+  echo "b" >file.txt
   git add file.txt
   git commit -q -m "second"
 
