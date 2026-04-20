@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = "Attach an existing issue as a native sub-issue of a parent issue. Both arguments are issue numbers within the current repository. Sets the GitHub-native parent/child relationship (not a markdown task-list)."
+command = "@BIN@/issue-sub-issue-add"
+arg_order = ["parent", "sub", "replace_parent"]
+
+[input]
+type = "object"
+required = ["parent", "sub"]
+
+[input.properties.parent]
+type = "integer"
+description = "Issue number of the parent issue"
+
+[input.properties.sub]
+type = "integer"
+description = "Issue number of the issue to attach as a sub-issue"
+
+[input.properties.replace_parent]
+type = "boolean"
+description = "If the sub-issue already has a parent, replace it. Defaults to false (the call fails if the sub-issue is already attached elsewhere)."
+
+[annotations]
+idempotent-hint = false
+open-world-hint = true

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+title="${2:-}"
+body="${3:-}"
+add_labels_json="${4:-}"
+remove_labels_json="${5:-}"
+add_assignees_json="${6:-}"
+remove_assignees_json="${7:-}"
+
+gh_args=(issue edit "$number")
+
+[ -n "$title" ] && gh_args+=(--title "$title")
+
+[ -n "$body" ] && gh_args+=(--body "$body")
+
+append_from_json() {
+  local flag="$1" json="$2"
+  [ -z "$json" ] || [ "$json" = "null" ] && return 0
+  while IFS= read -r item; do
+    [ -n "$item" ] && gh_args+=("$flag" "$item")
+  done < <(printf '%s' "$json" | jq -r '.[]')
+}
+
+append_from_json --add-label "$add_labels_json"
+append_from_json --remove-label "$remove_labels_json"
+append_from_json --add-assignee "$add_assignees_json"
+append_from_json --remove-assignee "$remove_assignees_json"
+
+if [ "${#gh_args[@]}" -eq 3 ]; then
+  echo "issue-edit: no fields to change" >&2
+  exit 2
+fi
+
+gh "${gh_args[@]}"

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+parent="$1"
+sub="$2"
+replace_parent="${3:-}"
+
+repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+
+# sub_issue_id on the REST endpoint is the internal database id, not the
+# issue number. Resolve via the REST API rather than trusting the two to
+# coincide.
+sub_id=$(gh api "repos/$repo/issues/$sub" --jq '.id')
+if [ -z "$sub_id" ] || [ "$sub_id" = "null" ]; then
+  echo "issue-sub-issue-add: could not resolve database id for issue #$sub" >&2
+  exit 1
+fi
+
+payload=$(jq -cn --argjson id "$sub_id" --arg replace "$replace_parent" \
+  'if $replace == "true" then {sub_issue_id: $id, replace_parent: true} else {sub_issue_id: $id} end')
+
+printf '%s' "$payload" | gh api "repos/$repo/issues/$parent/sub_issues" --method POST --input -

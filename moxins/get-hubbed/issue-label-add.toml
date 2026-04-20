@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = "Add one or more labels to an issue without touching existing labels."
+command = "@BIN@/issue-label-add"
+arg_order = ["number", "labels"]
+
+[input]
+type = "object"
+required = ["number", "labels"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.labels]
+type = "array"
+description = "Label names to add"
+minItems = 1
+
+[input.properties.labels.items]
+type = "string"
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = "Remove one or more labels from an issue without touching other labels."
+command = "@BIN@/issue-label-remove"
+arg_order = ["number", "labels"]
+
+[input]
+type = "object"
+required = ["number", "labels"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.labels]
+type = "array"
+description = "Label names to remove"
+minItems = 1
+
+[input.properties.labels.items]
+type = "string"
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

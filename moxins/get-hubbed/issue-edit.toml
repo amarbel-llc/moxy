@@ -1,0 +1,53 @@
+schema = 1
+perms-request = "always-allow"
+description = "Edit an existing issue's title, body, labels, or assignees. Only fields you pass are changed."
+command = "@BIN@/issue-edit"
+arg_order = ["number", "title", "body", "add_labels", "remove_labels", "add_assignees", "remove_assignees"]
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.title]
+type = "string"
+description = "New issue title. Omit to leave unchanged."
+
+[input.properties.body]
+type = "string"
+description = "New issue body. Omit to leave unchanged."
+
+[input.properties.add_labels]
+type = "array"
+description = "Labels to add (does not affect existing labels)"
+
+[input.properties.add_labels.items]
+type = "string"
+
+[input.properties.remove_labels]
+type = "array"
+description = "Labels to remove"
+
+[input.properties.remove_labels.items]
+type = "string"
+
+[input.properties.add_assignees]
+type = "array"
+description = "Assignees to add (supports @me and @copilot)"
+
+[input.properties.add_assignees.items]
+type = "string"
+
+[input.properties.remove_assignees]
+type = "array"
+description = "Assignees to remove"
+
+[input.properties.remove_assignees.items]
+type = "string"
+
+[annotations]
+idempotent-hint = true
+open-world-hint = true

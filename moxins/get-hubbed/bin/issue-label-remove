@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+labels_json="$2"
+
+gh_args=(issue edit "$number")
+while IFS= read -r label; do
+  [ -n "$label" ] && gh_args+=(--remove-label "$label")
+done < <(printf '%s' "$labels_json" | jq -r '.[]')
+
+if [ "${#gh_args[@]}" -eq 3 ]; then
+  echo "issue-label-remove: no labels provided" >&2
+  exit 2
+fi
+
+gh "${gh_args[@]}"
