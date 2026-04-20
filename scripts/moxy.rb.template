@@ -18,14 +18,14 @@ class Moxy < Formula
     end
   end
 
-  depends_on "coreutils"
-  depends_on "gh"
-  depends_on "git"
-  depends_on "go"
-  depends_on "jq"
-  depends_on "oven-sh/bun/bun"
-  depends_on "python@3"
-  depends_on "ripgrep"
+  depends_on "coreutils"       # GNU stat (folio, folio-external)
+  depends_on "gh"              # get-hubbed, get-hubbed-external
+  depends_on "git"             # grit
+  depends_on "go"              # hamster
+  depends_on "jq"              # folio, grit, jq, get-hubbed
+  depends_on "oven-sh/bun/bun" # get-hubbed, get-hubbed-external, hamster
+  depends_on "python@3"        # freud
+  depends_on "ripgrep"         # rg
 
   def install
     bin.install "bin/moxy"
