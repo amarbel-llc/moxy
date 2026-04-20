@@ -353,6 +353,90 @@ release new_version:
   git push
   just tag
 
+# Open a PR against amarbel-llc/homebrew-moxy setting Formula/moxy.rb to v$version (run after `just release` — v$version assets must exist on the GitHub release; HOMEBREW_TAP_DIR overrides the default .tmp/homebrew-moxy checkout)
+bump-formula version:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  version="{{version}}"
+  template="scripts/moxy.rb.template"
+  tap_dir="${HOMEBREW_TAP_DIR:-.tmp/homebrew-moxy}"
+  branch="bump-moxy-v${version}"
+
+  [ -f "$template" ] || { echo "template not found: $template" >&2; exit 1; }
+
+  # Verify both release assets are published (not just the release tag).
+  for platform in darwin-arm64 linux-amd64; do
+    if ! gh release view "v${version}" --repo amarbel-llc/moxy \
+        --json assets --jq ".assets[].name" \
+        | grep -qx "moxy-${platform}.tar.gz"; then
+      echo "asset moxy-${platform}.tar.gz not published on v${version} — wait for CI?" >&2
+      exit 1
+    fi
+  done
+
+  # Fresh tap checkout on origin/master.
+  if [ -d "$tap_dir/.git" ]; then
+    git -C "$tap_dir" fetch origin
+    git -C "$tap_dir" checkout master
+    git -C "$tap_dir" reset --hard origin/master
+  else
+    mkdir -p "$(dirname "$tap_dir")"
+    gh repo clone amarbel-llc/homebrew-moxy "$tap_dir"
+  fi
+
+  if git -C "$tap_dir" show-ref --quiet "refs/heads/${branch}"; then
+    echo "branch ${branch} already exists in ${tap_dir} — delete it or pick a different version" >&2
+    exit 1
+  fi
+
+  # Download tarballs and compute sha256s.
+  workdir=$(mktemp -d)
+  trap 'rm -rf "$workdir"' EXIT
+  declare -A sha
+  for platform in darwin-arm64 linux-amd64; do
+    asset="moxy-${platform}.tar.gz"
+    echo "downloading ${asset}..."
+    gh release download "v${version}" \
+      --repo amarbel-llc/moxy \
+      --pattern "${asset}" \
+      --dir "$workdir"
+    sha["$platform"]=$(sha256sum "${workdir}/${asset}" | awk '{print $1}')
+    echo "  sha256[${platform}]: ${sha[$platform]}"
+  done
+
+  formula="$tap_dir/Formula/moxy.rb"
+  git -C "$tap_dir" checkout -b "$branch"
+
+  # Render the template over the formula. Every run regenerates the full
+  # file — no in-place edits, no structural drift.
+  sed -e "s|@VERSION@|${version}|g" \
+      -e "s|@SHA_DARWIN@|${sha[darwin-arm64]}|g" \
+      -e "s|@SHA_LINUX@|${sha[linux-amd64]}|g" \
+      "$template" > "$formula"
+
+  if git -C "$tap_dir" diff --quiet Formula/moxy.rb; then
+    echo "formula already matches v${version}; nothing to do." >&2
+    exit 0
+  fi
+
+  echo
+  echo "=== diff ==="
+  git -C "$tap_dir" --no-pager diff Formula/moxy.rb
+  echo "==========="
+
+  git -C "$tap_dir" add Formula/moxy.rb
+  git -C "$tap_dir" commit -m "moxy ${version}"
+  git -C "$tap_dir" push -u origin "$branch"
+  body=$(printf '%s\n\n%s\n' \
+    "Bumps to [amarbel-llc/moxy@v${version}](https://github.com/amarbel-llc/moxy/releases/tag/v${version})." \
+    "Regenerated from scripts/moxy.rb.template. Sha256s computed from the GitHub release assets. Opened by \`just bump-formula\`.")
+  gh pr create \
+    --repo amarbel-llc/homebrew-moxy \
+    --title "moxy ${version}" \
+    --body "$body" \
+    --head "$branch" \
+    --base master
+
 clean: clean-build
 
 clean-build:

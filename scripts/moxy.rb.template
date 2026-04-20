@@ -1,0 +1,41 @@
+class Moxy < Formula
+  desc "MCP proxy that aggregates multiple child MCP servers"
+  homepage "https://github.com/amarbel-llc/moxy"
+  version "@VERSION@"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/amarbel-llc/moxy/releases/download/v#{version}/moxy-darwin-arm64.tar.gz"
+      sha256 "@SHA_DARWIN@"
+    end
+  end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/amarbel-llc/moxy/releases/download/v#{version}/moxy-linux-amd64.tar.gz"
+      sha256 "@SHA_LINUX@"
+    end
+  end
+
+  depends_on "coreutils"
+  depends_on "gh"
+  depends_on "git"
+  depends_on "go"
+  depends_on "jq"
+  depends_on "oven-sh/bun/bun"
+  depends_on "python@3"
+  depends_on "ripgrep"
+
+  def install
+    bin.install "bin/moxy"
+    (share/"moxy/moxins").install Dir["share/moxy/moxins/*"]
+    man1.install Dir["share/man/man1/*"]
+    man5.install Dir["share/man/man5/*"]
+    man7.install Dir["share/man/man7/*"]
+  end
+
+  test do
+    assert_match "moxy", shell_output("#{bin}/moxy --help 2>&1", 0)
+  end
+end
