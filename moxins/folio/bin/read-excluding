@@ -12,4 +12,4 @@ assert_within_cwd() {
 }
 file="$1"; ds="$2"; de="$3"
 assert_within_cwd "$file"
-awk -v ds="$ds" -v de="$de" '!(NR>=ds && NR<=de){printf "%6d\\t%s\\n", NR, $0}' "$file"
+awk -v ds="$ds" -v de="$de" '!(NR>=ds && NR<=de){printf "%6d\t%s\n", NR, $0}' "$file"
