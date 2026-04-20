@@ -589,43 +589,6 @@
           slip = mkBrewMoxin "slip";
         };
 
-        # Tarball for Homebrew distribution. Layout:
-        #   bin/moxy
-        #   share/moxy/moxins/{env,folio,...}/
-        #   share/man/man{1,5,7}/
-        brew-tarball = let
-          arch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64"
-                 else "amd64";
-          os = if pkgs.stdenv.isDarwin then "darwin" else "linux";
-        in pkgs.runCommand "moxy-brew-tarball" {} ''
-          staging=$TMPDIR/moxy
-          mkdir -p $staging/bin
-          mkdir -p $staging/share/moxy/moxins
-          mkdir -p $staging/share/man/man1
-          mkdir -p $staging/share/man/man5
-          mkdir -p $staging/share/man/man7
-
-          # Static Go binary
-          cp ${moxy-static}/bin/moxy $staging/bin/moxy
-
-          # Unwrapped moxins — @BIN@ left as placeholder, resolved by the
-          # Homebrew formula at install time via inreplace.
-          ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: drv: ''
-            cp -rL ${drv} $staging/share/moxy/moxins/${name}
-            chmod -R u+w $staging/share/moxy/moxins/${name}
-          '') brew-moxins)}
-
-          # Man pages
-          cp ${./cmd/moxy/moxy.1} $staging/share/man/man1/moxy.1
-          cp ${./cmd/moxy/moxyfile.5} $staging/share/man/man5/moxyfile.5
-          cp ${./cmd/moxy/moxy-hooks.5} $staging/share/man/man5/moxy-hooks.5
-          cp ${./cmd/moxy/moxin.7} $staging/share/man/man7/moxin.7
-
-          # Create tarball
-          mkdir -p $out
-          tar -czf $out/moxy-0.1.0-${os}-${arch}.tar.gz -C $TMPDIR moxy
-        '';
-
         # Per-moxin tarballs for standalone install script. Each contains a
         # single moxin directory suitable for extraction to
         # ~/.local/share/moxy/moxins/<name>/
@@ -645,7 +608,7 @@
       in
       {
         packages = {
-          inherit moxy moxy-moxins moxy-static brew-tarball standalone-moxin-tarballs;
+          inherit moxy moxy-moxins moxy-static standalone-moxin-tarballs;
           default = combined;
         };
 

@@ -337,22 +337,7 @@ tag:
   git push origin "$tag"
   echo "pushed tag $tag"
 
-brew-build:
-  nix build .#brew-tarball -o result-brew
-  @echo "Tarball: $(ls result-brew/*.tar.gz)"
-
-# Build brew tarball and publish a GitHub release for the given version
-release-brew version:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  just brew-build
-  gh release create "v{{version}}" \
-    result-brew/*.tar.gz \
-    --repo amarbel-llc/moxy \
-    --title "v{{version}}" \
-    --notes "Release v{{version}}"
-
-# Full release: bump moxyVersion, commit, push branch, signed tag + push, brew tarball, GitHub release
+# Bump moxyVersion, commit, push branch, signed tag + push (CI handles release artifacts on tag push)
 release new_version:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -363,12 +348,11 @@ release new_version:
   fi
   git push
   just tag
-  just release-brew {{new_version}}
 
 clean: clean-build
 
 clean-build:
-  rm -rf result result-brew build/
+  rm -rf result build/
 
 # Integration test for moxin discovery via a fresh temp workspace
 test-moxin-loading:
