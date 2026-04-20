@@ -27,13 +27,16 @@ jobs:
           determinate: true
       - uses: DeterminateSystems/flakehub-cache-action@main
 
-      - name: Build static binary
+      - name: Build release tarball
+        # Layout is pinned by zz-tests_bats/release_tarball.bats — keep
+        # the derivation and that test in sync with anything consuming
+        # this artifact (homebrew-moxy/Formula/moxy.rb).
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          nix build .#moxy-static
+          nix build .#release-tarball -o result-release
           mkdir -p artifacts
-          cp result/bin/moxy artifacts/
-          tar -czf artifacts/moxy-${{ matrix.platform }}.tar.gz -C artifacts moxy
-          rm artifacts/moxy
+          cp "result-release/moxy-${PLATFORM}.tar.gz" artifacts/
 
       - name: Build per-moxin tarballs
         run: |

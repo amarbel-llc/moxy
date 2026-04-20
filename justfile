@@ -1,4 +1,5 @@
 export MOXIN_PATH := justfile_directory() / "result" / "share" / "moxy" / "moxins"
+export RELEASE_TARBALL_DIR := justfile_directory() / "result-release"
 
 default: build test test-status-clean-env
 
@@ -13,6 +14,9 @@ build-go: generate build-moxins
 build-moxins:
   nix build .#moxy-moxins
 
+build-release-tarball:
+  nix build .#release-tarball -o result-release
+
 generate:
   go generate ./internal/config/
 
@@ -26,10 +30,10 @@ dir_build := "build"
 
 test: test-go test-bats test-validate-mcp test-status
 
-test-bats: build-go
+test-bats: build-go build-release-tarball
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
 
-test-bats-file file: build-go
+test-bats-file file: build-go build-release-tarball
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
 
 # Smoke-test migrated bun+zx tool scripts against real APIs
@@ -352,7 +356,7 @@ release new_version:
 clean: clean-build
 
 clean-build:
-  rm -rf result build/
+  rm -rf result result-release build/
 
 # Integration test for moxin discovery via a fresh temp workspace
 test-moxin-loading:

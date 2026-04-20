@@ -605,10 +605,49 @@
         '';
 
         standalone-moxin-tarballs = builtins.mapAttrs mkStandaloneMoxinTarball brew-moxins;
+
+        # Full-release tarball consumed by package managers that expect one
+        # archive with the binary, all moxins, and man pages (e.g. the
+        # Homebrew formula). Layout:
+        #   bin/moxy
+        #   share/moxy/moxins/<name>/{_moxin.toml,<tool>.toml,bin/<tool>}
+        #   share/man/man{1,5,7}/*
+        #
+        # Moxins ship with @BIN@ placeholders unresolved — the consuming
+        # installer (Homebrew's install block, install-moxin.bash, etc.) is
+        # responsible for substituting @BIN@ with the absolute path to each
+        # moxin's bin/ directory at install time.
+        release-tarball = let
+          arch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64"
+                 else "amd64";
+          os = if pkgs.stdenv.isDarwin then "darwin" else "linux";
+        in pkgs.runCommand "moxy-release-tarball" {} ''
+          staging=$TMPDIR/moxy
+          mkdir -p $staging/bin
+          mkdir -p $staging/share/moxy/moxins
+          mkdir -p $staging/share/man/man1
+          mkdir -p $staging/share/man/man5
+          mkdir -p $staging/share/man/man7
+
+          cp ${moxy-static}/bin/moxy $staging/bin/moxy
+
+          ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: drv: ''
+            cp -rL ${drv} $staging/share/moxy/moxins/${name}
+            chmod -R u+w $staging/share/moxy/moxins/${name}
+          '') brew-moxins)}
+
+          cp ${./cmd/moxy/moxy.1} $staging/share/man/man1/moxy.1
+          cp ${./cmd/moxy/moxyfile.5} $staging/share/man/man5/moxyfile.5
+          cp ${./cmd/moxy/moxy-hooks.5} $staging/share/man/man5/moxy-hooks.5
+          cp ${./cmd/moxy/moxin.7} $staging/share/man/man7/moxin.7
+
+          mkdir -p $out
+          tar -czf $out/moxy-${os}-${arch}.tar.gz -C $TMPDIR moxy
+        '';
       in
       {
         packages = {
-          inherit moxy moxy-moxins moxy-static standalone-moxin-tarballs;
+          inherit moxy moxy-moxins moxy-static release-tarball standalone-moxin-tarballs;
           default = combined;
         };
 
