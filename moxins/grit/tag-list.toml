@@ -1,0 +1,32 @@
+schema = 1
+perms-request = "always-allow"
+description = "List local tags. Defaults to creator-date order, newest first."
+command = "@BIN@/tag-list"
+arg_order = ["pattern", "sort", "max_count", "contains", "repo_path"]
+
+[input]
+type = "object"
+
+[input.properties.pattern]
+type = "string"
+description = "Glob to filter tag names (e.g. \"v*\", \"go/v0.*\"). Omit for all tags."
+
+[input.properties.sort]
+type = "string"
+description = "Sort key passed to `git tag --sort`. Defaults to `-creatordate` (newest first). Use `-v:refname` for descending semver, `refname` for alphabetical."
+
+[input.properties.max_count]
+type = "integer"
+description = "Limit the number of tags returned. Omit for all matches."
+
+[input.properties.contains]
+type = "string"
+description = "Only show tags reachable from this commit/ref."
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -2,7 +2,7 @@ schema = 1
 perms-request = "always-allow"
 description = "Fetch from a remote repository"
 command = "@BIN@/fetch"
-arg_order = ["remote", "prune", "all", "repo_path"]
+arg_order = ["remote", "prune", "all", "tags", "repo_path"]
 
 [input]
 type = "object"
@@ -18,6 +18,10 @@ description = "Prune remote-tracking branches no longer on remote"
 [input.properties.remote]
 type = "string"
 description = "Remote name (default origin)"
+
+[input.properties.tags]
+type = "boolean"
+description = "Fetch all tags from the remote into local refs/tags/ (--tags). Does not imply --prune-tags."
 
 [input.properties.repo_path]
 type = "string"

@@ -1,0 +1,32 @@
+schema = 1
+description = """Push a single tag to a remote (or delete it on the remote). \
+Helper for the common `git push <remote> <tag>` and `git push <remote> :refs/tags/<tag>` flows."""
+command = "@BIN@/tag-push"
+arg_order = ["name", "remote", "delete", "force", "repo_path"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Tag name"
+
+[input.properties.remote]
+type = "string"
+description = "Remote name (default origin)"
+
+[input.properties.delete]
+type = "boolean"
+description = "Delete the tag on the remote instead of pushing it"
+
+[input.properties.force]
+type = "boolean"
+description = "Force-push (overwrite an existing remote tag)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+destructive-hint = false

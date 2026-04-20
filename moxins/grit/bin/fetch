@@ -3,13 +3,16 @@ set -euo pipefail
 remote="${1:-}"
 prune="${2:-}"
 all="${3:-}"
-repo="${4:-.}"
+tags="${4:-}"
+repo="${5:-.}"
 cd "$repo"
 git_args=(fetch)
 
 [ "$prune" = "true" ] && git_args+=(--prune)
 
 [ "$all" = "true" ] && git_args+=(--all)
+
+[ "$tags" = "true" ] && git_args+=(--tags)
 
 [ -z "$all" ] && [ -n "$remote" ] && git_args+=("$remote")
 git "${git_args[@]}"

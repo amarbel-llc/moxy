@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+pattern="${1:-}"
+sort="${2:-}"
+max_count="${3:-}"
+contains="${4:-}"
+repo="${5:-.}"
+cd "$repo"
+
+git_args=(tag --list)
+[ -n "$sort" ] && git_args+=(--sort "$sort") || git_args+=(--sort "-creatordate")
+[ -n "$contains" ] && git_args+=(--contains "$contains")
+[ -n "$pattern" ] && git_args+=("$pattern")
+
+if [ -n "$max_count" ] && [ "$max_count" != "0" ]; then
+  git "${git_args[@]}" | head -n "$max_count"
+else
+  git "${git_args[@]}"
+fi

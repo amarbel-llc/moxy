@@ -1,0 +1,19 @@
+schema = 1
+description = "Delete a local tag. Does not delete the tag on a remote — push :refs/tags/<name> via grit_push for that."
+command = "@BIN@/tag-delete"
+arg_order = ["name", "repo_path"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Tag name to delete"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+destructive-hint = true
