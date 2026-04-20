@@ -3,16 +3,19 @@ import { $ } from "zx";
 $.verbose = false;
 
 const [
-  state = "open",
+  stateArg,
   labelsJson,
   assignee,
   milestone,
   search,
-  limitStr = "30",
-  outputFormat = "json",
+  limitStr,
+  outputFormatArg,
 ] = process.argv.slice(2);
 
-const limit = parseInt(limitStr) || 30;
+const state = stateArg || "open";
+const outputFormat = outputFormatArg || "json";
+
+const limit = parseInt(limitStr || "") || 30;
 const fields =
   "number,title,state,labels,assignees,milestone,createdAt,updatedAt";
 
