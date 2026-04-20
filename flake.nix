@@ -111,7 +111,7 @@
           '';
         };
 
-        moxyVersion = "0.4.3";
+        moxyVersion = "0.4.4";
         moxyCommit = self.shortRev or self.dirtyShortRev or "unknown";
 
         # Man pages as a standalone derivation, referenced by both the moxy
