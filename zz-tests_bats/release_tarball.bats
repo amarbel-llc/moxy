@@ -12,12 +12,27 @@ setup_file() {
   # Justfile builds .#release-tarball before invoking bats and exports
   # RELEASE_TARBALL_DIR. Extract once per file; both tests share the
   # extracted tree.
-  [ -n "${RELEASE_TARBALL_DIR:-}" ] \
-    || { echo "RELEASE_TARBALL_DIR not set (was build-release-tarball run?)" >&2; exit 1; }
+  [ -n "${RELEASE_TARBALL_DIR:-}" ] ||
+    {
+      echo "RELEASE_TARBALL_DIR not set (was build-release-tarball run?)" >&2
+      exit 1
+    }
+  [ -d "$RELEASE_TARBALL_DIR" ] ||
+    {
+      echo "RELEASE_TARBALL_DIR=$RELEASE_TARBALL_DIR is not a directory" >&2
+      exit 1
+    }
 
   export RELEASE_TARBALL
-  RELEASE_TARBALL=$(find "$RELEASE_TARBALL_DIR" -maxdepth 1 -name 'moxy-*.tar.gz' | head -1)
-  [ -f "$RELEASE_TARBALL" ]
+  for candidate in "$RELEASE_TARBALL_DIR"/moxy-*.tar.gz; do
+    [ -f "$candidate" ] && RELEASE_TARBALL="$candidate" && break
+  done
+  [ -f "${RELEASE_TARBALL:-}" ] ||
+    {
+      echo "no moxy-*.tar.gz in $RELEASE_TARBALL_DIR" >&2
+      ls -la "$RELEASE_TARBALL_DIR" >&2
+      exit 1
+    }
 
   export RELEASE_EXTRACT
   RELEASE_EXTRACT=$(mktemp -d)
@@ -54,10 +69,16 @@ function release_tarball_has_moxins_tree { # @test
     grit hamster jq just-us-agents man rg sisyphus
   )
   for name in "${expected[@]}"; do
-    [ -d "$RELEASE_EXTRACT/moxy/share/moxy/moxins/$name" ] \
-      || { echo "missing moxin: $name" >&2; return 1; }
-    [ -f "$RELEASE_EXTRACT/moxy/share/moxy/moxins/$name/_moxin.toml" ] \
-      || { echo "missing _moxin.toml for $name" >&2; return 1; }
+    [ -d "$RELEASE_EXTRACT/moxy/share/moxy/moxins/$name" ] ||
+      {
+        echo "missing moxin: $name" >&2
+        return 1
+      }
+    [ -f "$RELEASE_EXTRACT/moxy/share/moxy/moxins/$name/_moxin.toml" ] ||
+      {
+        echo "missing _moxin.toml for $name" >&2
+        return 1
+      }
   done
 }
 

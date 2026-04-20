@@ -613,10 +613,16 @@
         #   share/moxy/moxins/<name>/{_moxin.toml,<tool>.toml,bin/<tool>}
         #   share/man/man{1,5,7}/*
         #
-        # Moxins ship with @BIN@ placeholders unresolved — the consuming
-        # installer (Homebrew's install block, install-moxin.bash, etc.) is
-        # responsible for substituting @BIN@ with the absolute path to each
-        # moxin's bin/ directory at install time.
+        # Moxins come from brew-moxins (mkBrewMoxin / mkBrewBunMoxin). Their
+        # TOMLs already have @BIN@ rewritten to the relative path "bin" at
+        # build time; moxy joins that with the moxin's SourceDir at runtime,
+        # so the installer doesn't need to inreplace anything. Moxin bin/
+        # scripts rely on ambient PATH (bash, jq, git, gh, …), which the
+        # formula provides via depends_on.
+        #
+        # The contract this derivation produces is pinned by the bats test
+        # at zz-tests_bats/release_tarball.bats — modify with care, both
+        # sides must change together.
         release-tarball = let
           arch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64"
                  else "amd64";
