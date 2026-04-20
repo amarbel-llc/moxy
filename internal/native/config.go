@@ -227,6 +227,9 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		}
 
 		if raw.Input != nil {
+			if raw.Input.Type == "" && (len(raw.Input.Properties) > 0 || len(raw.Input.Required) > 0) {
+				raw.Input.Type = "object"
+			}
 			jsonBytes, err := json.Marshal(raw.Input)
 			if err != nil {
 				return nil, fmt.Errorf("tool file %s: marshaling input schema: %w", filename, err)

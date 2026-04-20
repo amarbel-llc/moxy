@@ -96,9 +96,17 @@ description = "Shell command to execute"
 		t.Errorf("input.required = %v, want [\"command\"]", required)
 	}
 
+	// type should have been defaulted to "object" since [input] has properties.
+	if schema["type"] != "object" {
+		t.Errorf("input.type = %v, want \"object\"", schema["type"])
+	}
+
 	// Verify the typed InputParsed field.
 	if tool.InputParsed == nil {
 		t.Fatal("tool.InputParsed is nil")
+	}
+	if tool.InputParsed.Type != "object" {
+		t.Errorf("InputParsed.Type = %q, want %q", tool.InputParsed.Type, "object")
 	}
 	if len(tool.InputParsed.Required) != 1 || tool.InputParsed.Required[0] != "command" {
 		t.Errorf("InputParsed.Required = %v, want [command]", tool.InputParsed.Required)
@@ -653,6 +661,72 @@ type = "string"
 	}
 	if vars.AdditionalProperties.Type != "string" {
 		t.Errorf("variables.AdditionalProperties.Type = %q, want %q", vars.AdditionalProperties.Type, "string")
+	}
+}
+
+func TestParseMoxinDirInputTypeDefaultsToObject(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantType string
+	}{
+		{
+			name: "properties without type",
+			input: `[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+`,
+			wantType: "object",
+		},
+		{
+			name: "required without type or properties",
+			input: `[input]
+required = ["path"]
+`,
+			wantType: "object",
+		},
+		{
+			name:     "explicit type preserved",
+			input:    "[input]\ntype = \"object\"\n",
+			wantType: "object",
+		},
+		{
+			name:     "empty input no default",
+			input:    "[input]\n",
+			wantType: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+				"tool": "schema = 1\ncommand = \"echo\"\n" + tt.input,
+			})
+
+			cfg, err := ParseMoxinDir(dir)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			tool := cfg.Tools[0]
+			if tool.InputParsed.Type != tt.wantType {
+				t.Errorf("InputParsed.Type = %q, want %q", tool.InputParsed.Type, tt.wantType)
+			}
+
+			var schema map[string]any
+			if err := json.Unmarshal(tool.Input, &schema); err != nil {
+				t.Fatalf("Input JSON invalid: %v", err)
+			}
+			gotType, _ := schema["type"].(string)
+			if gotType != tt.wantType {
+				t.Errorf("JSON type = %q, want %q", gotType, tt.wantType)
+			}
+		})
 	}
 }
 
