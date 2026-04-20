@@ -34,9 +34,9 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
-          nix build .#release-tarball -o result-release
+          store_path=$(nix build .#release-tarball --no-link --print-out-paths)
           mkdir -p artifacts
-          cp "result-release/moxy-${PLATFORM}.tar.gz" artifacts/
+          cp "${store_path}/moxy-${PLATFORM}.tar.gz" artifacts/
 
       - name: Build per-moxin tarballs
         run: |

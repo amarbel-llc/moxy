@@ -1,5 +1,4 @@
 export MOXIN_PATH := justfile_directory() / "result" / "share" / "moxy" / "moxins"
-export RELEASE_TARBALL_DIR := justfile_directory() / "result-release"
 
 default: build test test-status-clean-env
 
@@ -15,7 +14,7 @@ build-moxins:
   nix build .#moxy-moxins
 
 build-release-tarball:
-  nix build .#release-tarball -o result-release
+  nix build .#release-tarball --no-link --print-out-paths
 
 generate:
   go generate ./internal/config/
@@ -30,10 +29,12 @@ dir_build := "build"
 
 test: test-go test-bats test-validate-mcp test-status
 
-test-bats: build-go build-release-tarball
+test-bats: build-go
+  export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
 
-test-bats-file file: build-go build-release-tarball
+test-bats-file file: build-go
+  export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
 
 # End-to-end: verify claude -p can see and call moxy MCP tools.
@@ -482,7 +483,7 @@ bump-formula version:
 clean: clean-build
 
 clean-build:
-  rm -rf result result-release build/
+  rm -rf result build/
 
 # Integration test for moxin discovery via a fresh temp workspace
 test-moxin-loading:
