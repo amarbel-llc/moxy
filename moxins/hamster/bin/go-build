@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+packages="${1:-./...}"
+output="${2:-}"
+tags="${3:-}"
+ldflags="${4:-}"
+race="${5:-false}"
+
+args=(build)
+if [ "$race" = "true" ]; then
+  args+=(-race)
+fi
+if [ -n "$output" ]; then
+  args+=(-o "$output")
+fi
+if [ -n "$tags" ]; then
+  args+=(-tags "$tags")
+fi
+if [ -n "$ldflags" ]; then
+  args+=(-ldflags "$ldflags")
+fi
+args+=("$packages")
+
+go "${args[@]}"

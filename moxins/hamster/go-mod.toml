@@ -1,0 +1,25 @@
+schema = 1
+perms-request = "always-allow"
+description = """Run 'go mod <subcommand>' for module maintenance. Supports \
+tidy, sync, download, verify, why, and edit. Use args for any extra arguments \
+the subcommand needs (e.g. ['github.com/x/y'] for 'go mod why')."""
+command = "@BIN@/go-mod"
+arg_order = ["subcommand", "args"]
+
+[input]
+type = "object"
+required = ["subcommand"]
+
+[input.properties.subcommand]
+type = "string"
+description = "go mod subcommand: tidy, sync, download, verify, why, edit."
+
+[input.properties.args]
+type = "array"
+description = "Additional positional arguments forwarded to 'go mod <subcommand>'. Example: ['-x'] for verbose download, or ['github.com/x/y'] for 'go mod why'."
+
+[input.properties.args.items]
+type = "string"
+
+[annotations]
+idempotent-hint = true

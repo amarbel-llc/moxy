@@ -1,0 +1,161 @@
+#!/usr/bin/env zx
+
+// Smoke-test hamster moxin tools by invoking the nix-built binaries directly
+// and validating their output. Keeps each test fast and side-effect-free
+// (go-get is skipped because it would mutate go.mod; go-mod tidy is skipped
+// for the same reason — go mod verify exercises the same code path safely).
+//
+// Usage:
+//   just test-hamster
+//   zx bin/test-hamster.mjs
+//
+// Requires: nix-built moxins (just build-moxins) and the moxy devshell (so
+// `go` resolves to the same toolchain hamster's wrappers expect).
+
+$.verbose = false
+
+const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
+const REPO_ROOT = path.resolve(SCRIPT_DIR, '..')
+const HAMSTER_BIN = path.join(REPO_ROOT, 'result', 'share', 'moxy', 'moxins', 'hamster', 'bin')
+
+function bin(tool) {
+  return path.join(HAMSTER_BIN, tool)
+}
+
+let passed = 0
+let failed = 0
+
+async function test(name, fn) {
+  try {
+    await fn()
+    passed++
+    console.log(`  PASS  ${name}`)
+  } catch (e) {
+    failed++
+    console.error(`  FAIL  ${name}`)
+    console.error(`        ${e.message.split('\n')[0]}`)
+  }
+}
+
+function assertContains(haystack, needle, label) {
+  if (!haystack.includes(needle)) {
+    throw new Error(`${label}: expected to contain ${JSON.stringify(needle)}; got ${haystack.slice(0, 200)}`)
+  }
+}
+
+function assertNotContains(haystack, needle, label) {
+  if (haystack.includes(needle)) {
+    throw new Error(`${label}: expected to NOT contain ${JSON.stringify(needle)}`)
+  }
+}
+
+// --- build ---
+
+console.log('Building moxins...')
+await $`just -f ${path.join(REPO_ROOT, 'justfile')} build-moxins`.pipe(process.stderr)
+console.log('')
+
+// --- doc ---
+
+console.log('doc:')
+
+await test('stdlib package (fmt)', async () => {
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} fmt`).stdout
+  assertContains(out, 'package fmt', 'fmt header')
+  assertContains(out, 'func Println', 'fmt has Println')
+  assertNotContains(out, 'Sub-packages', 'fmt should have no sub-packages')
+})
+
+await test('stdlib parent with sub-packages (encoding)', async () => {
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} encoding`).stdout
+  assertContains(out, 'package encoding', 'encoding header')
+  assertContains(out, 'Sub-packages', 'encoding should list sub-packages')
+  assertContains(out, 'encoding/json', 'sub-packages should include encoding/json')
+})
+
+await test('symbol query suppresses sub-packages (encoding.BinaryMarshaler)', async () => {
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} encoding BinaryMarshaler`).stdout
+  assertContains(out, 'BinaryMarshaler', 'symbol body present')
+  assertNotContains(out, 'Sub-packages', 'symbol query must skip sub-package listing')
+})
+
+console.log('')
+
+// --- src ---
+
+console.log('src:')
+
+await test('stdlib symbol (fmt.Println)', async () => {
+  const out = (await $({ cwd: REPO_ROOT })`${bin('src')} fmt Println`).stdout
+  assertContains(out, 'func Println', 'src should print the function definition')
+})
+
+console.log('')
+
+// --- mod-read ---
+
+console.log('mod-read:')
+
+await test('purse-first go.mod', async () => {
+  const out = (await $({ cwd: REPO_ROOT })`${bin('mod-read')} github.com/amarbel-llc/purse-first go.mod`).stdout
+  assertContains(out, 'module github.com/amarbel-llc/purse-first', 'mod-read should fetch go.mod from cached module')
+})
+
+console.log('')
+
+// --- go-vet ---
+
+console.log('go-vet:')
+
+await test('./internal/native/...', async () => {
+  await $({ cwd: REPO_ROOT })`${bin('go-vet')} ./internal/native/...`
+})
+
+console.log('')
+
+// --- go-build ---
+
+console.log('go-build:')
+
+await test('./cmd/moxy → /tmp/moxy-test-build', async () => {
+  const outPath = path.join('/tmp', `moxy-hamster-test-${process.pid}`)
+  try {
+    await $({ cwd: REPO_ROOT })`${bin('go-build')} ./cmd/moxy ${outPath} "" "" false`
+    if (!fs.existsSync(outPath)) throw new Error(`expected ${outPath} to exist`)
+    const stat = fs.statSync(outPath)
+    if (stat.size < 1_000_000) throw new Error(`binary too small: ${stat.size} bytes`)
+  } finally {
+    try { fs.unlinkSync(outPath) } catch {}
+  }
+})
+
+console.log('')
+
+// --- go-mod ---
+
+console.log('go-mod:')
+
+await test('verify (read-only)', async () => {
+  // go mod verify exits 0 and prints "all modules verified" when caches match.
+  const out = (await $({ cwd: REPO_ROOT })`${bin('go-mod')} verify`).stdout
+  assertContains(out, 'all modules verified', 'verify should pass')
+})
+
+await test('why (with args)', async () => {
+  const argsJson = JSON.stringify(['github.com/amarbel-llc/purse-first/libs/go-mcp'])
+  const out = (await $({ cwd: REPO_ROOT })`${bin('go-mod')} why ${argsJson}`).stdout
+  assertContains(out, 'github.com/amarbel-llc/purse-first/libs/go-mcp', 'why should mention the queried module')
+})
+
+console.log('')
+
+// --- go-get is skipped intentionally ---
+// Mutating go.mod from a smoke test would create false-positive churn in
+// VCS state. Exercising it requires an isolated temp module; left to the
+// integration suite.
+
+// --- summary ---
+
+const total = passed + failed
+console.log(`${passed}/${total} passed${failed > 0 ? `, ${failed} FAILED` : ''}`)
+process.exit(failed > 0 ? 1 : 0)

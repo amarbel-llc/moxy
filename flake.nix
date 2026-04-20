@@ -245,7 +245,7 @@
         } {};
         grit-moxin = mkMoxin "grit" [ ] { pathMode = "inherit"; };
         hamster-moxin = mkBunMoxin "hamster" [
-          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs-master.go_1_26
+          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs.jq pkgs-master.go_1_26
         ] {
           "doc" = "moxins/hamster/src/doc.ts";
           "src" = "moxins/hamster/src/src.ts";

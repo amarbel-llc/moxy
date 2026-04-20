@@ -36,6 +36,10 @@ test-bats-file file: build-go
 test-migrated-tools: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
 
+# Smoke-test the locally-built hamster moxin (doc, src, mod-read, go-vet, go-build, go-mod)
+test-hamster: build-moxins
+  nix run nixpkgs#bun -- x zx bin/test-hamster.mjs
+
 test-go:
   MOXIN_PATH="" go vet ./...
   MOXIN_PATH="" go test ./... -v

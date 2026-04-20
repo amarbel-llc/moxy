@@ -1,0 +1,22 @@
+schema = 1
+perms-request = "always-allow"
+description = """Run 'go get' to add or update a module dependency. Only \
+mutates go.mod and go.sum; does not build code. Pass 'module@version' to pin \
+a specific version, or set update=true to bump to the latest."""
+command = "@BIN@/go-get"
+arg_order = ["module", "update"]
+
+[input]
+type = "object"
+required = ["module"]
+
+[input.properties.module]
+type = "string"
+description = "Module path, optionally with @version (e.g. 'github.com/x/y', 'github.com/x/y@v1.2.3', 'github.com/x/y@latest')."
+
+[input.properties.update]
+type = "boolean"
+description = "Pass -u to update the module to its latest minor/patch version. Defaults to false."
+
+[annotations]
+idempotent-hint = true

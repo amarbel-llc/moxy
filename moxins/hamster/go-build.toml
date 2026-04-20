@@ -1,0 +1,31 @@
+schema = 1
+perms-request = "always-allow"
+description = """Run a Go build. Equivalent to 'go build' with optional output \
+path, build tags, ldflags, and race detector."""
+command = "@BIN@/go-build"
+arg_order = ["packages", "output", "tags", "ldflags", "race"]
+
+[input]
+
+[input.properties.packages]
+type = "string"
+description = "Package pattern to build (default './...'). Examples: './cmd/moxy', 'github.com/x/y/cmd/foo'."
+
+[input.properties.output]
+type = "string"
+description = "Write resulting binary to this path (-o). Defaults to Go's normal placement."
+
+[input.properties.tags]
+type = "string"
+description = "Build tags (-tags), comma- or space-separated. Example: 'integration debug'."
+
+[input.properties.ldflags]
+type = "string"
+description = "Linker flags (-ldflags). Example: '-X main.version=1.2.3 -s -w'."
+
+[input.properties.race]
+type = "boolean"
+description = "Enable the race detector (-race). Defaults to false."
+
+[annotations]
+idempotent-hint = true
