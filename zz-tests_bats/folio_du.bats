@@ -12,7 +12,7 @@ teardown() {
 
 function folio_du_returns_json_summary { # @test
   mkdir -p "$HOME/project/dir"
-  printf 'a%.0s' {1..100} > "$HOME/project/dir/file.txt"
+  printf 'a%.0s' {1..100} >"$HOME/project/dir/file.txt"
 
   cd "$HOME/project"
 
@@ -31,8 +31,8 @@ function folio_du_returns_json_summary { # @test
 
 function folio_du_with_flags_returns_raw_text { # @test
   mkdir -p "$HOME/project/dir"
-  echo "hi" > "$HOME/project/dir/a"
-  echo "hi" > "$HOME/project/dir/b"
+  echo "hi" >"$HOME/project/dir/a"
+  echo "hi" >"$HOME/project/dir/b"
 
   cd "$HOME/project"
 
@@ -66,7 +66,7 @@ function folio_du_rejects_path_outside_cwd { # @test
 function folio_external_du_works_outside_cwd { # @test
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
-  echo "data" > "$HOME/other/file.txt"
+  echo "data" >"$HOME/other/file.txt"
 
   cd "$HOME/project"
 

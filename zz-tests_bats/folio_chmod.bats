@@ -12,7 +12,7 @@ teardown() {
 
 function folio_chmod_sets_executable_bit { # @test
   mkdir -p "$HOME/project"
-  echo "echo hi" > "$HOME/project/script.sh"
+  echo "echo hi" >"$HOME/project/script.sh"
   chmod 644 "$HOME/project/script.sh"
 
   cd "$HOME/project"
@@ -28,7 +28,7 @@ function folio_chmod_sets_executable_bit { # @test
 
 function folio_chmod_sets_octal_mode { # @test
   mkdir -p "$HOME/project"
-  echo "data" > "$HOME/project/file.txt"
+  echo "data" >"$HOME/project/file.txt"
   chmod 777 "$HOME/project/file.txt"
 
   cd "$HOME/project"
@@ -47,7 +47,7 @@ function folio_chmod_sets_octal_mode { # @test
 function folio_chmod_rejects_path_outside_cwd { # @test
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
-  echo "data" > "$HOME/other/file.txt"
+  echo "data" >"$HOME/other/file.txt"
   chmod 600 "$HOME/other/file.txt"
 
   cd "$HOME/project"
@@ -80,7 +80,7 @@ function folio_chmod_rejects_missing_path { # @test
 function folio_external_chmod_works_outside_cwd { # @test
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
-  echo "data" > "$HOME/other/file.txt"
+  echo "data" >"$HOME/other/file.txt"
   chmod 644 "$HOME/other/file.txt"
 
   cd "$HOME/project"
