@@ -36,6 +36,48 @@ test-bats: build-go build-release-tarball
 test-bats-file file: build-go build-release-tarball
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
 
+# End-to-end: verify claude -p can see and call moxy MCP tools.
+# Requires: claude CLI on PATH and authenticated.
+test-smoke-claude-p: build-nix
+  #!/usr/bin/env bash
+  set -euo pipefail
+  moxy="{{justfile_directory()}}/result/bin/moxy"
+  moxin_path="{{justfile_directory()}}/result/share/moxy/moxins"
+  workdir=$(mktemp -d)
+  trap 'rm -rf "$workdir"' EXIT
+  echo "SMOKE_TEST_CANARY_7f3a" > "$workdir/canary.txt"
+  cat >"$workdir/mcp.json" <<MCPEOF
+  {
+    "mcpServers": {
+      "moxy": {
+        "command": "$moxy",
+        "args": ["serve", "mcp"],
+        "env": { "MOXIN_PATH": "$moxin_path" }
+      }
+    }
+  }
+  MCPEOF
+  disallowed="Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,Bash,Agent"
+  disallowed+=",NotebookEdit,EnterPlanMode,ExitPlanMode,AskUserQuestion"
+  disallowed+=",TodoWrite,EnterWorktree,ExitWorktree"
+  disallowed+=",CronCreate,CronDelete,CronList,Skill"
+  disallowed+=",TaskCreate,TaskUpdate,TaskGet,TaskList,TaskOutput,TaskStop"
+  cd "$workdir"
+  result=$(echo "Read the file canary.txt using the folio.read MCP tool. Print its exact contents. You have NO builtin tools — only MCP tools from moxy." | \
+    timeout 60s claude -p \
+      --dangerously-skip-permissions \
+      --mcp-config "$workdir/mcp.json" \
+      --disallowedTools "$disallowed" \
+      2>/dev/null) || true
+  if echo "$result" | grep -q "SMOKE_TEST_CANARY_7f3a"; then
+    echo "ok: claude -p read canary file via moxy MCP tool"
+  else
+    echo "FAIL: canary content not found in claude -p output" >&2
+    echo "--- output ---" >&2
+    echo "$result" >&2
+    exit 1
+  fi
+
 # Smoke-test migrated bun+zx tool scripts against real APIs
 test-migrated-tools: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
@@ -468,3 +510,37 @@ debug-pkexec-oom days='8':
   echo "=== pkexec journalctl --since -{{days}}d systemd-oomd ==="
   pkexec journalctl --since "{{days}} days ago" --no-pager -u systemd-oomd.service 2>&1 | tail -50
   rm -f /tmp/_dmesg.out /tmp/_jk.out
+
+[group('explore')]
+explore-nix-tools-list: build-nix
+  #!/usr/bin/env bash
+  set -euo pipefail
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  export HOME="$tmpdir/home"
+  mkdir -p "$HOME/repo"
+  export MOXIN_PATH="{{justfile_directory()}}/result/share/moxy/moxins"
+  cd "$HOME/repo"
+  moxy="{{justfile_directory()}}/result/bin/moxy"
+
+  init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"explore","version":"0.1"}}}'
+  notif='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  list='{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+
+  echo "--- initialize response ---"
+  init_result=$(timeout --preserve-status 10s bash -c \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | "$0" serve mcp 2>/tmp/moxy-stderr.log | jq -c "select(.id)" | head -2' \
+    "$moxy" "$init" "$notif" "$list")
+  echo "$init_result" | jq .
+  echo ""
+  echo "--- stderr ---"
+  cat /tmp/moxy-stderr.log || true
+  echo ""
+
+  count=$(echo "$init_result" | tail -1 | jq '.result.tools | length' 2>/dev/null || echo "PARSE_ERROR")
+  echo "Tool count: $count"
+
+# Reproduce tools-not-appearing via claude -p with the nix-built moxy.
+[group('explore')]
+explore-claude-p: build-nix
+  bin/explore-claude-p.bash "{{justfile_directory()}}"
