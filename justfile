@@ -593,9 +593,48 @@ debug-install-moxin name:
   MOXIN_PATH="$INSTALL_SHARE" "$INSTALL_BIN/moxy" list-moxins 2>/dev/null \
     | grep -q "{{name}}" \
     && echo "PASS: {{name}} discovered via list-moxins" \
-    || echo "FAIL: {{name}} not found in list-moxins"
+    || { echo "FAIL: {{name}} not found in list-moxins"; exit 1; }
+
+  echo ""
+  echo "=== Validating MCP protocol (purse-first validate-mcp) ==="
+  start_ts=$(date +%s)
+  MOXIN_PATH="$INSTALL_SHARE" purse-first validate-mcp \
+    -- "$INSTALL_BIN/moxy" serve-moxin --name "{{name}}" \
+    >/tmp/validate-mcp-stdout.log 2>/tmp/validate-mcp-stderr.log \
+    && echo "PASS: MCP protocol validation" \
+    || { end_ts=$(date +%s); elapsed=$((end_ts - start_ts)); \
+         echo "FAIL: MCP protocol validation (${elapsed}s elapsed)"; \
+         echo "--- stdout ---"; cat /tmp/validate-mcp-stdout.log; \
+         echo "--- stderr ---"; cat /tmp/validate-mcp-stderr.log; \
+         exit 1; }
 
   rm -rf "$dest"
+
+# Test validate-mcp against serve-moxin with devshell-built binary.
+# Usage: just debug-validate-serve-moxin piers
+[group('debug')]
+debug-validate-serve-moxin name: build-go
+  #!/usr/bin/env bash
+  set -euo pipefail
+  moxy="{{justfile_directory()}}/{{dir_build}}/moxy"
+
+  echo "=== Manual MCP handshake ==="
+  init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+  notif='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  list='{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+  result=$(timeout --preserve-status 10s bash -c \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | "$0" serve-moxin --name "$4" 2>/tmp/serve-moxin-stderr.log' \
+    "$moxy" "$init" "$notif" "$list" "{{name}}" || true)
+  echo "stdout:"
+  echo "$result" | head -20
+  echo ""
+  echo "stderr:"
+  cat /tmp/serve-moxin-stderr.log | head -20
+  echo ""
+
+  echo "=== purse-first validate-mcp (verbose) ==="
+  purse-first validate-mcp "$moxy" serve-moxin --name "{{name}}" 2>&1 \
+    && echo "PASS" || echo "FAIL (exit $?)"
 
 # Reproduce tools-not-appearing via claude -p with the nix-built moxy.
 [group('explore')]

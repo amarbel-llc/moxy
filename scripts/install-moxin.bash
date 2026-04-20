@@ -126,10 +126,10 @@ ensure_gws() {
   os=$(uname -s)
   arch=$(uname -m)
   case "${os}-${arch}" in
-  Darwin-arm64)   platform="aarch64-apple-darwin" ;;
-  Darwin-x86_64)  platform="x86_64-apple-darwin" ;;
-  Linux-aarch64)  platform="aarch64-unknown-linux-gnu" ;;
-  Linux-x86_64)   platform="x86_64-unknown-linux-gnu" ;;
+  Darwin-arm64) platform="aarch64-apple-darwin" ;;
+  Darwin-x86_64) platform="x86_64-apple-darwin" ;;
+  Linux-aarch64) platform="aarch64-unknown-linux-gnu" ;;
+  Linux-x86_64) platform="x86_64-unknown-linux-gnu" ;;
   *) die "unsupported platform for gws: ${os}-${arch}" ;;
   esac
   local tmp
