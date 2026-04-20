@@ -234,10 +234,14 @@ main() {
   local base_url="https://github.com/$REPO/releases/download/$tag"
 
   # Download and install moxy binary.
+  # The release tarball has structure moxy/bin/moxy — extract the binary directly.
   echo "Installing moxy $tag..."
   mkdir -p "$INSTALL_BIN"
-  download_and_extract "$base_url/moxy-$PLATFORM.tar.gz" "$INSTALL_BIN" "moxy binary"
-  chmod +x "$INSTALL_BIN/moxy"
+  local tmp
+  tmp=$(mktemp -d)
+  curl -fsSL "$base_url/moxy-$PLATFORM.tar.gz" | tar -xz -C "$tmp"
+  install -m 755 "$tmp/moxy/bin/moxy" "$INSTALL_BIN/moxy"
+  rm -rf "$tmp"
 
   # Download and install moxin.
   download_and_extract "$base_url/$name-moxin-$PLATFORM.tar.gz" "$INSTALL_SHARE" "$name moxin"

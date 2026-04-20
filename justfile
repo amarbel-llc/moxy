@@ -541,6 +541,62 @@ explore-nix-tools-list: build-nix
   count=$(echo "$init_result" | tail -1 | jq '.result.tools | length' 2>/dev/null || echo "PARSE_ERROR")
   echo "Tool count: $count"
 
+# Test install-moxin.bash extraction logic against local nix build artifacts.
+# Replicates the script's extract steps without hitting GitHub or brew.
+# Usage: just debug-install-moxin piers
+[group('debug')]
+debug-install-moxin name:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  release_path=$(nix build .#release-tarball --no-link --print-out-paths)
+  moxin_path=$(nix build ".#standalone-moxin-tarballs.{{name}}" --no-link --print-out-paths)
+
+  os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  arch=$(uname -m)
+  case "$arch" in arm64|aarch64) arch="arm64" ;; x86_64) arch="amd64" ;; esac
+  platform="${os}-${arch}"
+
+  dest=$(mktemp -d)
+  INSTALL_BIN="$dest/bin"
+  INSTALL_SHARE="$dest/share/moxy/moxins"
+
+  echo "=== Extracting moxy binary (same logic as install-moxin.bash) ==="
+  mkdir -p "$INSTALL_BIN"
+  tmp=$(mktemp -d)
+  tar -xz -C "$tmp" < "$release_path/moxy-$platform.tar.gz"
+  install -m 755 "$tmp/moxy/bin/moxy" "$INSTALL_BIN/moxy"
+  rm -rf "$tmp"
+
+  echo "=== Extracting {{name}} moxin ==="
+  tmp=$(mktemp -d)
+  tar -xz -C "$tmp" < "$moxin_path/{{name}}-moxin-$platform.tar.gz"
+  mkdir -p "$INSTALL_SHARE"
+  cp -r "$tmp"/* "$INSTALL_SHARE"/
+  rm -rf "$tmp"
+
+  echo ""
+  echo "=== Installed tree ==="
+  find "$dest" -type f | head -40
+  echo ""
+
+  if [[ -f "$INSTALL_BIN/moxy" && -x "$INSTALL_BIN/moxy" ]]; then
+    echo "PASS: $INSTALL_BIN/moxy is an executable file"
+    file "$INSTALL_BIN/moxy"
+  else
+    echo "FAIL: $INSTALL_BIN/moxy missing or not executable"
+    ls -laR "$INSTALL_BIN/" 2>/dev/null || echo "(bin/ does not exist)"
+    exit 1
+  fi
+
+  echo ""
+  echo "=== Testing serve-moxin discovery ==="
+  MOXIN_PATH="$INSTALL_SHARE" "$INSTALL_BIN/moxy" list-moxins 2>/dev/null \
+    | grep -q "{{name}}" \
+    && echo "PASS: {{name}} discovered via list-moxins" \
+    || echo "FAIL: {{name}} not found in list-moxins"
+
+  rm -rf "$dest"
+
 # Reproduce tools-not-appearing via claude -p with the nix-built moxy.
 [group('explore')]
 explore-claude-p: build-nix
