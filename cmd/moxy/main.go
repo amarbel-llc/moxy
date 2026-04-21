@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -26,6 +27,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/proxy"
 	"github.com/amarbel-llc/moxy/internal/status"
 	"github.com/amarbel-llc/moxy/internal/stderrlog"
+	"github.com/amarbel-llc/moxy/internal/streamhttp"
 )
 
 // version and commit are set at build time via -ldflags.
@@ -450,9 +452,6 @@ func runServer(app *command.App) error {
 	app.RegisterMCPToolsV1(builtinRegistry)
 	p.SetBuiltinTools(builtinRegistry)
 
-	t := transport.NewStdio(os.Stdin, os.Stdout)
-	p.SetNotifier(t.Write)
-
 	// Wire notification forwarding for startup children
 	for _, c := range children {
 		c.Client.SetOnNotification(p.ForwardNotification)
@@ -462,6 +461,13 @@ func runServer(app *command.App) error {
 
 	summaries := p.CollectServerSummaries(ctx)
 	instructions := proxy.FormatInstructions(summaries)
+
+	if httpAddr := os.Getenv("MOXY_HTTP_ADDR"); httpAddr != "" {
+		return runHTTPServer(ctx, httpAddr, p, children, instructions)
+	}
+
+	t := transport.NewStdio(os.Stdin, os.Stdout)
+	p.SetNotifier(t.Write)
 
 	srv, err := server.New(t, server.Options{
 		ServerName:    "moxy",
@@ -484,6 +490,41 @@ func runServer(app *command.App) error {
 		c.Client.Close()
 	}
 
+	return err
+}
+
+func runHTTPServer(ctx context.Context, addr string, p *proxy.Proxy, children []proxy.ChildEntry, instructions string) error {
+	httpSrv := streamhttp.New(streamhttp.Options{
+		Tools:         p,
+		Resources:     p,
+		Prompts:       p,
+		ServerName:    "moxy",
+		ServerVersion: version,
+		Instructions:  instructions,
+	})
+	p.SetNotifier(httpSrv.Notify)
+
+	fmt.Fprintf(os.Stderr, "moxy: listening on %s (streamable HTTP)\n", addr)
+
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: httpSrv,
+	}
+
+	go func() {
+		<-ctx.Done()
+		httpServer.Close()
+	}()
+
+	err := httpServer.ListenAndServe()
+
+	for _, c := range children {
+		c.Client.Close()
+	}
+
+	if err == http.ErrServerClosed {
+		return nil
+	}
 	return err
 }
 

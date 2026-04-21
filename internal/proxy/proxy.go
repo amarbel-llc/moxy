@@ -272,6 +272,10 @@ func (p *Proxy) reprobeEphemeral(ctx context.Context, meta *EphemeralMeta) error
 		}
 	}
 
+	if msg, err := jsonrpc.NewNotification(protocol.MethodNotificationsToolsListChanged, nil); err == nil {
+		p.ForwardNotification(msg)
+	}
+
 	return nil
 }
 
@@ -1249,6 +1253,10 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 		Instructions: result.Instructions,
 	})
 	p.mu.Unlock()
+
+	if msg, err := jsonrpc.NewNotification(protocol.MethodNotificationsToolsListChanged, nil); err == nil {
+		p.ForwardNotification(msg)
+	}
 
 	return nil
 }
