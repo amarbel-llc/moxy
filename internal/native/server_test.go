@@ -444,6 +444,60 @@ func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
 	}
 }
 
+func TestServerToolsCallStdinURISubstitutionOptOut(t *testing.T) {
+	cacheDir := t.TempDir()
+	falseVal := false
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:                 "cat-raw",
+				Command:              "cat",
+				StdinParam:           "data",
+				SubstituteResultURIs: &falseVal,
+				ResultType:           ResultTypeText,
+				Input:                json.RawMessage(`{"type":"object","properties":{"data":{"type":"string"}},"required":["data"]}`),
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.cache = newResultCache(cacheDir)
+	srv.SetSession("test-session")
+
+	if err := srv.cache.store(cachedResult{
+		ID:      "test-abc",
+		Session: "test-session",
+		Output:  "cached-content\n",
+	}); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+
+	// With opt-out, the URI should be passed as literal stdin text to cat,
+	// not resolved to the cached content.
+	uri := "moxy.native://results/test-session/test-abc"
+	params := protocol.ToolCallParams{
+		Name:      "cat-raw",
+		Arguments: json.RawMessage(fmt.Sprintf(`{"data":"%s"}`, uri)),
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+	text := strings.TrimSpace(result.Content[0].Text)
+	if text != uri {
+		t.Errorf("output = %q, want literal URI %q (stdin substitution should be skipped)", text, uri)
+	}
+}
+
 func TestValidateEnumConstraints(t *testing.T) {
 	schema := &InputSchema{
 		Type: "object",

@@ -203,8 +203,7 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 				}
 			}
 		}
-		// Resolve result-cache URIs to their cached content (unless opted out).
-		if stdinContent != "" && (spec.SubstituteResultURIs == nil || *spec.SubstituteResultURIs) {
+		if stdinContent != "" && spec.ShouldSubstituteURIs() {
 			if session, id, ok := parseResultURI(stdinContent); ok {
 				cached, loadErr := s.cache.load(session, id)
 				if loadErr != nil {
@@ -236,14 +235,8 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	allArgs = append(allArgs, spec.Args...)
 	allArgs = append(allArgs, extraArgs...)
 
-	// Apply URI substitution to each extra arg individually so that
-	// moxy.native://results/{session}/{id} references are rewritten to
-	// /dev/fd/N with pipes backed by cached output.
-	// Substitution is skipped when the tool explicitly opts out via
-	// substitute-result-uris = false (for tools whose args are payloads).
 	var sub *resultSubstitution
-	doSubstitute := spec.SubstituteResultURIs == nil || *spec.SubstituteResultURIs
-	if doSubstitute {
+	if spec.ShouldSubstituteURIs() {
 		specArgCount := len(spec.Args)
 		for i, arg := range allArgs[specArgCount:] {
 			argSub, subErr := substituteResultURIs(arg, s.cache)

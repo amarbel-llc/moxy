@@ -93,6 +93,12 @@ type ToolSpec struct {
 	InputParsed           *InputSchema
 }
 
+// ShouldSubstituteURIs reports whether moxy.native:// result URIs in this
+// tool's arguments should be rewritten to /dev/fd/N pipes.
+func (s *ToolSpec) ShouldSubstituteURIs() bool {
+	return s.SubstituteResultURIs == nil || *s.SubstituteResultURIs
+}
+
 // MoxinMeta is the parsed content of _moxin.toml.
 type MoxinMeta struct {
 	Schema      int    `toml:"schema"`
