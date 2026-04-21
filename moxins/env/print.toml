@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Print the value of a single environment variable by name."
 command = "@BIN@/print"

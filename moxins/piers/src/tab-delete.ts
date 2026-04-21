@@ -10,10 +10,13 @@ const json = JSON.stringify({
   requests: [{ deleteTab: { tabId } }],
 });
 
-const result = await $`gws docs documents batchUpdate --params ${params} --json ${json}`;
+const result =
+  await $`gws docs documents batchUpdate --params ${params} --json ${json}`;
 
 process.stdout.write(
   JSON.stringify({
-    content: [{ type: "text", text: result.stdout, mimeType: "application/json" }],
+    content: [
+      { type: "text", text: result.stdout, mimeType: "application/json" },
+    ],
   }),
 );

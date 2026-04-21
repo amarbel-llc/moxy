@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = """Run commands inside a flake's devShell. Each command runs as a separate \
 nix develop invocation. Execution stops on the first failure."""
 command = "@BIN@/develop-run"

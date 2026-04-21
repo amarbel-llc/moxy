@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Execute a justfile recipe with optional arguments. Use list-recipes first to discover available recipes."
 command = "@BIN@/run-recipe"

@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Stage files for commit"
 command = "@BIN@/add"

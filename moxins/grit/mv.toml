@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Move or rename a file, directory, or symlink and stage the change (git mv)"
 command = "@BIN@/mv"

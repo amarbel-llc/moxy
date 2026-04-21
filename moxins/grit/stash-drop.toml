@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = "Delete a stash entry"
 command = "@BIN@/stash-drop"
 arg-order = ["stash_ref", "repo_path"]

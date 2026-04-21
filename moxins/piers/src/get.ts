@@ -13,6 +13,8 @@ const result = await $`gws docs documents get --params ${params}`;
 
 process.stdout.write(
   JSON.stringify({
-    content: [{ type: "text", text: result.stdout, mimeType: "application/json" }],
+    content: [
+      { type: "text", text: result.stdout, mimeType: "application/json" },
+    ],
   }),
 );

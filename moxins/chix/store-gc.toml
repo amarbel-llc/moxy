@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = "Run garbage collection on the Nix store."
 command = "@BIN@/store-gc"
 arg-order = ["dry_run", "max_freed"]

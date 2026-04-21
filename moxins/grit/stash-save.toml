@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Save uncommitted changes to a stash"
 command = "@BIN@/stash-save"

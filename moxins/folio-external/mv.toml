@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = """Move or rename a file or directory. Creates destination parent directories if needed."""
 command = "@BIN@/mv"
 arg-order = ["source", "destination"]

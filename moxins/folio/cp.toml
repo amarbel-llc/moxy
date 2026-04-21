@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = """Copy a file or directory. Source and destination must be within CWD. \
 Use recursive to copy directories."""
 command = "@BIN@/cp"

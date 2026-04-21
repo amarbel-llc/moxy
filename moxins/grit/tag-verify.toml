@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Verify the GPG signature of a tag"
 command = "@BIN@/tag-verify"

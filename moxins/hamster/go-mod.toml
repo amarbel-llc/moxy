@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """Run 'go mod <subcommand>' for module maintenance. Supports \
 tidy, sync, download, verify, why, and edit. Use args for any extra arguments \

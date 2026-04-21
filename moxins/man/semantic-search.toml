@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Semantic man page search using vector embeddings. More accurate than keyword search for natural language queries like 'list files' or 'configure network'. Requires a pre-built index (maneater index)."
 command = "@BIN@/semantic-search"

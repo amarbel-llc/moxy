@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """Run Go vet static analysis. Reports suspicious constructs \
 that the compiler does not catch."""

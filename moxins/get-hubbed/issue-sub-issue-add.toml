@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Attach an existing issue as a native sub-issue of a parent issue. Both arguments are issue numbers within the current repository. Sets the GitHub-native parent/child relationship (not a markdown task-list)."
 command = "@BIN@/issue-sub-issue-add"

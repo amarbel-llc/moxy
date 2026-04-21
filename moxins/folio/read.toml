@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """Read an entire file with line numbers. Output format: `     N\\tcontent` per line. \
 Accepts moxy.native:// result URIs as file paths, replacing `head` and `tail` piping on command output."""

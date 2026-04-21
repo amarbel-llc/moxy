@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Check shell script syntax without executing. Runs bash -n to parse and report errors."
 command = "@BIN@/syntax-check"

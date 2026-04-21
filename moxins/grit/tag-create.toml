@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = """Create a tag. Defaults to a signed annotated tag (matches `git tag -s`). \
 Set `lightweight = true` for a non-annotated tag (mutually exclusive with `sign` and `message`). \
 Does not push — use grit_tag-push or grit_push afterward."""

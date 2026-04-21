@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = """Push a single tag to a remote (or delete it on the remote). \
 Helper for the common `git push <remote> <tag>` and `git push <remote> :refs/tags/<tag>` flows."""
 command = "@BIN@/tag-push"

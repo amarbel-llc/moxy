@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Apply a stash to the working tree without removing it from the stash list"
 command = "@BIN@/stash-apply"

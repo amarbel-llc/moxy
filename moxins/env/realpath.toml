@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Resolve a path to its absolute canonical form, resolving all symlinks and relative components."
 command = "@BIN@/realpath"

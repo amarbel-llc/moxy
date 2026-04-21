@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = "Discard all changes and reset HEAD, index, and working tree to a ref"
 command = "@BIN@/hard-reset"
 arg-order = ["ref", "repo_path"]

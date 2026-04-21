@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """Run Go tests. Equivalent to 'go test' with optional package \
 filter, test name pattern, verbose output, and run count."""

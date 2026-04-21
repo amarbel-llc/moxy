@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = "Delete a local branch"
 command = "@BIN@/branch-delete"
 arg-order = ["name", "force", "repo_path"]

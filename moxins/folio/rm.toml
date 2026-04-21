@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = """Remove files or directories. Removes the specified paths within the current \
 working directory. Use force to ignore nonexistent paths, recursive to remove directories."""
 command = "@BIN@/rm"

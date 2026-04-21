@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Run flake checks and tests. Args are passed literally to 'nix flake check' — consult your system nix's 'nix flake check --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-check"

@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Switch branches or restore individual files from a ref. Use paths to restore specific files; omit paths to switch branches."
 command = "@BIN@/checkout"

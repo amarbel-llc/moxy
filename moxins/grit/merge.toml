@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Merge a branch into the current branch"
 command = "@BIN@/merge"

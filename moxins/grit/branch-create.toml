@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Create a new branch"
 command = "@BIN@/branch-create"

@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """Run 'go get' to add or update a module dependency. Only \
 mutates go.mod and go.sum; does not build code. Pass 'module@version' to pin \

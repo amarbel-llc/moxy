@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = "Remove a git worktree by path"
 command = "@BIN@/worktree-remove"
 arg-order = ["path", "force", "repo_path"]

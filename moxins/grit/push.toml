@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 description = "Push commits to a remote repository"
 command = "@BIN@/push"
 arg-order = ["remote", "branch", "set_upstream", "force", "repo_path"]

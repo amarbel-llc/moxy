@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Show the full source of a recipe including its body, parameters, dependencies, and any doc comments."
 command = "just"

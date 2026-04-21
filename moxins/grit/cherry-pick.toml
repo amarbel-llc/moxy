@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Apply commits from other branches onto the current branch"
 command = "@BIN@/cherry-pick"

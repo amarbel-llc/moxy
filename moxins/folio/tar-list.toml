@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """List contents of a tarball (.tar.gz, .tar.bz2, .tar, etc). \
 Optionally filter entries by a grep pattern."""

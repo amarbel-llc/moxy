@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """Build a derivation and return the output store path(s). \
 Equivalent to nix-store -r. Accepts .drv paths or installables."""

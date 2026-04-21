@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = "Revert one or more commits by creating new commits that undo their changes"
 command = "@BIN@/revert"

@@ -1,4 +1,5 @@
 schema = 3
+result-type = "text"
 perms-request = "always-allow"
 description = """Create a directory and any missing parent directories. No error if the \
 directory already exists."""
