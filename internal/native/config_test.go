@@ -903,6 +903,81 @@ arg_order = ["pattern"]
 	}
 }
 
+func TestParseMoxinDirSubstituteResultURIs(t *testing.T) {
+	t.Run("explicit false", func(t *testing.T) {
+		dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+			"tool": `
+schema = 3
+command = "echo"
+substitute-result-uris = false
+`,
+		})
+
+		result, err := ParseMoxinDirFull(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		tool := result.Config.Tools[0]
+		if tool.SubstituteResultURIs == nil {
+			t.Fatal("SubstituteResultURIs should not be nil")
+		}
+		if *tool.SubstituteResultURIs {
+			t.Error("SubstituteResultURIs = true, want false")
+		}
+		if len(result.Undecoded) > 0 {
+			t.Errorf("unexpected undecoded keys: %v", result.Undecoded)
+		}
+	})
+
+	t.Run("explicit true", func(t *testing.T) {
+		dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+			"tool": `
+schema = 3
+command = "echo"
+substitute-result-uris = true
+`,
+		})
+
+		result, err := ParseMoxinDirFull(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		tool := result.Config.Tools[0]
+		if tool.SubstituteResultURIs == nil {
+			t.Fatal("SubstituteResultURIs should not be nil")
+		}
+		if !*tool.SubstituteResultURIs {
+			t.Error("SubstituteResultURIs = false, want true")
+		}
+	})
+
+	t.Run("omitted defaults to nil", func(t *testing.T) {
+		dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+			"tool": `
+schema = 3
+command = "echo"
+`,
+		})
+
+		cfg, err := ParseMoxinDir(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Tools[0].SubstituteResultURIs != nil {
+			t.Errorf("SubstituteResultURIs should be nil when omitted, got %v", *cfg.Tools[0].SubstituteResultURIs)
+		}
+	})
+}
+
 func TestParseMoxinDirSchema2KebabNoWarning(t *testing.T) {
 	dir := writeMoxinDir(t, t.TempDir(), "test", `
 schema = 1

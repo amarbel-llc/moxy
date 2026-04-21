@@ -203,8 +203,8 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 				}
 			}
 		}
-		// Resolve result-cache URIs to their cached content.
-		if stdinContent != "" {
+		// Resolve result-cache URIs to their cached content (unless opted out).
+		if stdinContent != "" && (spec.SubstituteResultURIs == nil || *spec.SubstituteResultURIs) {
 			if session, id, ok := parseResultURI(stdinContent); ok {
 				cached, loadErr := s.cache.load(session, id)
 				if loadErr != nil {
@@ -239,27 +239,32 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	// Apply URI substitution to each extra arg individually so that
 	// moxy.native://results/{session}/{id} references are rewritten to
 	// /dev/fd/N with pipes backed by cached output.
+	// Substitution is skipped when the tool explicitly opts out via
+	// substitute-result-uris = false (for tools whose args are payloads).
 	var sub *resultSubstitution
-	specArgCount := len(spec.Args)
-	for i, arg := range allArgs[specArgCount:] {
-		argSub, subErr := substituteResultURIs(arg, s.cache)
-		if subErr != nil {
-			if sub != nil {
-				sub.Cleanup()
+	doSubstitute := spec.SubstituteResultURIs == nil || *spec.SubstituteResultURIs
+	if doSubstitute {
+		specArgCount := len(spec.Args)
+		for i, arg := range allArgs[specArgCount:] {
+			argSub, subErr := substituteResultURIs(arg, s.cache)
+			if subErr != nil {
+				if sub != nil {
+					sub.Cleanup()
+				}
+				return marshalResult(protocol.ErrorResultV1(
+					fmt.Sprintf("resolving result references: %v", subErr),
+				))
 			}
-			return marshalResult(protocol.ErrorResultV1(
-				fmt.Sprintf("resolving result references: %v", subErr),
-			))
-		}
-		allArgs[specArgCount+i] = argSub.Command
-		if sub == nil {
-			sub = argSub
-		} else {
-			// Merge extra files and pipe bookkeeping from this arg into
-			// the aggregate substitution.
-			sub.ExtraFiles = append(sub.ExtraFiles, argSub.ExtraFiles...)
-			sub.pipeReads = append(sub.pipeReads, argSub.pipeReads...)
-			sub.pipeWrites = append(sub.pipeWrites, argSub.pipeWrites...)
+			allArgs[specArgCount+i] = argSub.Command
+			if sub == nil {
+				sub = argSub
+			} else {
+				// Merge extra files and pipe bookkeeping from this arg into
+				// the aggregate substitution.
+				sub.ExtraFiles = append(sub.ExtraFiles, argSub.ExtraFiles...)
+				sub.pipeReads = append(sub.pipeReads, argSub.pipeReads...)
+				sub.pipeWrites = append(sub.pipeWrites, argSub.pipeWrites...)
+			}
 		}
 	}
 	if sub == nil {

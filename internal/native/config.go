@@ -78,18 +78,19 @@ type SchemaRef struct {
 
 // ToolSpec describes a single tool within a moxin.
 type ToolSpec struct {
-	Name         string
-	Description  string
-	Command      string
-	Args         []string
-	ArgOrder     []string
-	StdinParam   string
-	PermsRequest PermsRequest
-	ContentType  string
-	ResultType   ResultType
-	Annotations  *ToolAnnotations
-	Input        json.RawMessage
-	InputParsed  *InputSchema
+	Name                  string
+	Description           string
+	Command               string
+	Args                  []string
+	ArgOrder              []string
+	StdinParam            string
+	PermsRequest          PermsRequest
+	ContentType           string
+	ResultType            ResultType
+	SubstituteResultURIs  *bool
+	Annotations           *ToolAnnotations
+	Input                 json.RawMessage
+	InputParsed           *InputSchema
 }
 
 // MoxinMeta is the parsed content of _moxin.toml.
@@ -103,18 +104,19 @@ type MoxinMeta struct {
 // Struct tags use kebab-case (schema 3). For schema 1/2 backward
 // compatibility, legacyToolKeys handles the old snake_case spellings.
 type rawToolFile struct {
-	Schema       int              `toml:"schema"`
-	Name         string           `toml:"name"`
-	Description  string           `toml:"description"`
-	Command      string           `toml:"command"`
-	Args         []string         `toml:"args"`
-	ArgOrder     []string         `toml:"arg-order"`
-	StdinParam   string           `toml:"stdin-param"`
-	PermsRequest PermsRequest     `toml:"perms-request"`
-	ContentType  string           `toml:"content-type"`
-	ResultType   string           `toml:"result-type"`
-	Annotations  *ToolAnnotations `toml:"annotations"`
-	Input        *InputSchema     `toml:"input"`
+	Schema               int              `toml:"schema"`
+	Name                 string           `toml:"name"`
+	Description          string           `toml:"description"`
+	Command              string           `toml:"command"`
+	Args                 []string         `toml:"args"`
+	ArgOrder             []string         `toml:"arg-order"`
+	StdinParam           string           `toml:"stdin-param"`
+	PermsRequest         PermsRequest     `toml:"perms-request"`
+	ContentType          string           `toml:"content-type"`
+	ResultType           string           `toml:"result-type"`
+	SubstituteResultURIs *bool            `toml:"substitute-result-uris"`
+	Annotations          *ToolAnnotations `toml:"annotations"`
+	Input                *InputSchema     `toml:"input"`
 }
 
 // legacyToolKeys captures the old snake_case key spellings from schema 1/2.
@@ -240,16 +242,17 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		}
 
 		ts := ToolSpec{
-			Name:         toolName,
-			Description:  raw.Description,
-			Command:      raw.Command,
-			Args:         raw.Args,
-			ArgOrder:     raw.ArgOrder,
-			StdinParam:   raw.StdinParam,
-			PermsRequest: raw.PermsRequest,
-			ContentType:  raw.ContentType,
-			ResultType:   resultType,
-			Annotations:  raw.Annotations,
+			Name:                  toolName,
+			Description:           raw.Description,
+			Command:               raw.Command,
+			Args:                  raw.Args,
+			ArgOrder:              raw.ArgOrder,
+			StdinParam:            raw.StdinParam,
+			PermsRequest:          raw.PermsRequest,
+			ContentType:           raw.ContentType,
+			ResultType:            resultType,
+			SubstituteResultURIs:  raw.SubstituteResultURIs,
+			Annotations:           raw.Annotations,
 		}
 
 		if raw.Input != nil {
@@ -334,7 +337,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 	keys := []string{
 		"schema", "name", "description", "command", "args",
 		"arg-order", "stdin-param", "perms-request",
-		"content-type", "result-type",
+		"content-type", "result-type", "substitute-result-uris",
 	}
 	if schema <= 2 {
 		keys = append(keys, "arg_order", "stdin_param")

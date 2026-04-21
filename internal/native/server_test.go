@@ -3,6 +3,7 @@ package native
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -386,6 +387,60 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 	}
 	if strings.TrimSpace(result.Content[0].Text) != "3" {
 		t.Errorf("output = %q, want %q", result.Content[0].Text, "3\n")
+	}
+}
+
+func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
+	cacheDir := t.TempDir()
+	falseVal := false
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:                 "echo-raw",
+				Command:              "echo",
+				SubstituteResultURIs: &falseVal,
+				Input:                json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`),
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.cache = newResultCache(cacheDir)
+	srv.SetSession("test-session")
+
+	// Pre-populate the cache.
+	if err := srv.cache.store(cachedResult{
+		ID:      "test-abc",
+		Session: "test-session",
+		Output:  "cached-content\n",
+	}); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+
+	// Pass a result URI as an argument — with opt-out, it should pass through
+	// as a literal string, not be rewritten to /dev/fd/N.
+	uri := "moxy.native://results/test-session/test-abc"
+	params := protocol.ToolCallParams{
+		Name:      "echo-raw",
+		Arguments: json.RawMessage(fmt.Sprintf(`{"text":"%s"}`, uri)),
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+	// echo should print the URI literally, not resolved content.
+	text := strings.TrimSpace(result.Content[0].Text)
+	if text != uri {
+		t.Errorf("output = %q, want literal URI %q (substitution should be skipped)", text, uri)
 	}
 }
 
