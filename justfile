@@ -5,6 +5,11 @@ default: build test test-status-clean-env
 dev: build-go
   zx bin/dev.mjs
 
+# Start moxy over Streamable HTTP, wait for /healthz, then launch interactive claude.
+# Moxy is killed when claude exits.
+serve-http port="8080": build-go
+  zx bin/serve-http.mjs --port {{port}}
+
 build: build-go build-nix
 
 build-go: generate build-moxins

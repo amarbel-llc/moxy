@@ -78,19 +78,19 @@ type SchemaRef struct {
 
 // ToolSpec describes a single tool within a moxin.
 type ToolSpec struct {
-	Name                  string
-	Description           string
-	Command               string
-	Args                  []string
-	ArgOrder              []string
-	StdinParam            string
-	PermsRequest          PermsRequest
-	ContentType           string
-	ResultType            ResultType
-	SubstituteResultURIs  *bool
-	Annotations           *ToolAnnotations
-	Input                 json.RawMessage
-	InputParsed           *InputSchema
+	Name                 string
+	Description          string
+	Command              string
+	Args                 []string
+	ArgOrder             []string
+	StdinParam           string
+	PermsRequest         PermsRequest
+	ContentType          string
+	ResultType           ResultType
+	SubstituteResultURIs *bool
+	Annotations          *ToolAnnotations
+	Input                json.RawMessage
+	InputParsed          *InputSchema
 }
 
 // ShouldSubstituteURIs reports whether moxy.native:// result URIs in this
@@ -248,17 +248,17 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		}
 
 		ts := ToolSpec{
-			Name:                  toolName,
-			Description:           raw.Description,
-			Command:               raw.Command,
-			Args:                  raw.Args,
-			ArgOrder:              raw.ArgOrder,
-			StdinParam:            raw.StdinParam,
-			PermsRequest:          raw.PermsRequest,
-			ContentType:           raw.ContentType,
-			ResultType:            resultType,
-			SubstituteResultURIs:  raw.SubstituteResultURIs,
-			Annotations:           raw.Annotations,
+			Name:                 toolName,
+			Description:          raw.Description,
+			Command:              raw.Command,
+			Args:                 raw.Args,
+			ArgOrder:             raw.ArgOrder,
+			StdinParam:           raw.StdinParam,
+			PermsRequest:         raw.PermsRequest,
+			ContentType:          raw.ContentType,
+			ResultType:           resultType,
+			SubstituteResultURIs: raw.SubstituteResultURIs,
+			Annotations:          raw.Annotations,
 		}
 
 		if raw.Input != nil {

@@ -15,4 +15,3 @@ description = "Store path to read (e.g., '/nix/store/...-hello-2.12.1/bin/hello'
 [annotations]
 read-only-hint = true
 idempotent-hint = true
-

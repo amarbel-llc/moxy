@@ -55,4 +55,3 @@ description = "Enable multiline mode where . matches newlines and patterns can s
 [annotations]
 read-only-hint = true
 idempotent-hint = true
-
