@@ -134,12 +134,17 @@
           cp -r ${./moxins/${name}} $out
           chmod -R u+w $out
           chmod +x $out/bin/*
+          ${if pathMode == "inherit" && extraWrapArgs == [] then ''
+          # pathMode=inherit with no extra args: skip wrapProgram entirely so
+          # scripts run with the host's unmodified environment.
+          '' else ''
           for f in $out/bin/*; do
             wrapProgram "$f" \
               ${if pathMode != "inherit" then "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}" else ""} \
               --unset LD_LIBRARY_PATH \
               ${pkgs.lib.concatStringsSep " " extraWrapArgs}
           done
+          ''}
           for f in $(grep -rl '@BIN@' $out); do
             substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
           done
