@@ -4,16 +4,44 @@ packages="${1:-./...}"
 run="${2:-}"
 verbose="${3:-false}"
 count="${4:-}"
+race="${5:-false}"
+cover="${6:-false}"
+coverprofile="${7:-}"
+timeout="${8:-}"
+short="${9:-false}"
+failfast="${10:-false}"
+shuffle="${11:-}"
 
 args=(test)
 if [ "$verbose" = "true" ]; then
   args+=(-v)
+fi
+if [ "$race" = "true" ]; then
+  args+=(-race)
+fi
+if [ "$cover" = "true" ]; then
+  args+=(-cover)
+fi
+if [ -n "$coverprofile" ]; then
+  args+=(-coverprofile "$coverprofile")
 fi
 if [ -n "$run" ]; then
   args+=(-run "$run")
 fi
 if [ -n "$count" ]; then
   args+=(-count "$count")
+fi
+if [ -n "$timeout" ]; then
+  args+=(-timeout "$timeout")
+fi
+if [ "$short" = "true" ]; then
+  args+=(-short)
+fi
+if [ "$failfast" = "true" ]; then
+  args+=(-failfast)
+fi
+if [ -n "$shuffle" ]; then
+  args+=(-shuffle "$shuffle")
 fi
 args+=("$packages")
 

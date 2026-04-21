@@ -3,7 +3,7 @@ perms-request = "always-allow"
 description = """Run Go tests. Equivalent to 'go test' with optional package \
 filter, test name pattern, verbose output, and run count."""
 command = "@BIN@/go-test"
-arg-order = ["packages", "run", "verbose", "count"]
+arg-order = ["packages", "run", "verbose", "count", "race", "cover", "coverprofile", "timeout", "short", "failfast", "shuffle"]
 
 [input]
 
@@ -22,6 +22,34 @@ description = "Enable verbose output (-v). Defaults to false."
 [input.properties.count]
 type = "integer"
 description = "Run tests this many times (passed to -count). Useful for detecting flaky tests."
+
+[input.properties.race]
+type = "boolean"
+description = "Enable the race detector (-race). Defaults to false."
+
+[input.properties.cover]
+type = "boolean"
+description = "Enable coverage analysis (-cover). Defaults to false."
+
+[input.properties.coverprofile]
+type = "string"
+description = "Write a coverage profile to the named file (-coverprofile=<path>)."
+
+[input.properties.timeout]
+type = "string"
+description = "Per-test timeout duration (-timeout=<duration>). Examples: '30s', '5m', '1h'."
+
+[input.properties.short]
+type = "boolean"
+description = "Tell long-running tests to shorten their run time (-short). Defaults to false."
+
+[input.properties.failfast]
+type = "boolean"
+description = "Stop on first test failure instead of running the full suite (-failfast). Defaults to false."
+
+[input.properties.shuffle]
+type = "string"
+description = "Randomize test execution order (-shuffle=<seed|on>). Use 'on' for random seed or a number for reproducible order."
 
 [annotations]
 idempotent-hint = true
