@@ -45,6 +45,17 @@ func New(opts Options) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/healthz":
+		w.WriteHeader(http.StatusOK)
+	case "/mcp", "/":
+		s.handleMCP(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		s.handlePost(w, r)

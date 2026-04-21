@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -71,7 +72,20 @@ func newApp() *command.App {
 				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT.",
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return runServer(app)
+			return runServer(app, transportStdio)
+		},
+	})
+
+	app.AddCommand(&command.Command{
+		Name: "serve-http",
+		Description: command.Description{
+			Short: "Run as MCP proxy server over streamable HTTP",
+			Long: "Loads the moxyfile hierarchy, spawns child MCP servers, binds an " +
+				"ephemeral port on 127.0.0.1, prints a clown-plugin-protocol handshake " +
+				"line to stdout, serves /healthz and /mcp, and shuts down on SIGINT/SIGTERM.",
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			return runServer(app, transportHTTP)
 		},
 	})
 
@@ -291,7 +305,14 @@ func main() {
 	}
 }
 
-func runServer(app *command.App) error {
+type transportMode int
+
+const (
+	transportStdio transportMode = iota
+	transportHTTP
+)
+
+func runServer(app *command.App, mode transportMode) error {
 	// Redirect os.Stderr (including Go panic traces) to a per-session log
 	// file so crashes that bypass the normal logging path can be recovered
 	// after the fact. Rotate on clean return so a leftover entry in
@@ -462,38 +483,61 @@ func runServer(app *command.App) error {
 	summaries := p.CollectServerSummaries(ctx)
 	instructions := proxy.FormatInstructions(summaries)
 
-	if httpAddr := os.Getenv("MOXY_HTTP_ADDR"); httpAddr != "" {
-		return runHTTPServer(ctx, httpAddr, p, children, instructions)
-	}
+	switch mode {
+	case transportHTTP:
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			for _, c := range children {
+				c.Client.Close()
+			}
+			return fmt.Errorf("binding ephemeral port: %w", err)
+		}
+		fmt.Fprintf(os.Stdout, "1|1|tcp|%s|streamable-http\n", ln.Addr())
+		return runHTTPServerOnListener(ctx, ln, p, children, instructions)
 
-	t := transport.NewStdio(os.Stdin, os.Stdout)
-	p.SetNotifier(t.Write)
+	default:
+		if httpAddr := os.Getenv("MOXY_HTTP_ADDR"); httpAddr != "" {
+			return runHTTPServer(ctx, httpAddr, p, children, instructions)
+		}
 
-	srv, err := server.New(t, server.Options{
-		ServerName:    "moxy",
-		ServerVersion: version,
-		Instructions:  instructions,
-		Tools:         p,
-		Resources:     p,
-		Prompts:       p,
-	})
-	if err != nil {
+		t := transport.NewStdio(os.Stdin, os.Stdout)
+		p.SetNotifier(t.Write)
+
+		srv, err := server.New(t, server.Options{
+			ServerName:    "moxy",
+			ServerVersion: version,
+			Instructions:  instructions,
+			Tools:         p,
+			Resources:     p,
+			Prompts:       p,
+		})
+		if err != nil {
+			for _, c := range children {
+				c.Client.Close()
+			}
+			return err
+		}
+
+		err = srv.Run(ctx)
+
 		for _, c := range children {
 			c.Client.Close()
 		}
+
 		return err
 	}
-
-	err = srv.Run(ctx)
-
-	for _, c := range children {
-		c.Client.Close()
-	}
-
-	return err
 }
 
 func runHTTPServer(ctx context.Context, addr string, p *proxy.Proxy, children []proxy.ChildEntry, instructions string) error {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listening on %s: %w", addr, err)
+	}
+	fmt.Fprintf(os.Stderr, "moxy: listening on %s (streamable HTTP)\n", ln.Addr())
+	return runHTTPServerOnListener(ctx, ln, p, children, instructions)
+}
+
+func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Proxy, children []proxy.ChildEntry, instructions string) error {
 	httpSrv := streamhttp.New(streamhttp.Options{
 		Tools:         p,
 		Resources:     p,
@@ -504,10 +548,7 @@ func runHTTPServer(ctx context.Context, addr string, p *proxy.Proxy, children []
 	})
 	p.SetNotifier(httpSrv.Notify)
 
-	fmt.Fprintf(os.Stderr, "moxy: listening on %s (streamable HTTP)\n", addr)
-
 	httpServer := &http.Server{
-		Addr:    addr,
 		Handler: httpSrv,
 	}
 
@@ -516,7 +557,7 @@ func runHTTPServer(ctx context.Context, addr string, p *proxy.Proxy, children []
 		httpServer.Close()
 	}()
 
-	err := httpServer.ListenAndServe()
+	err := httpServer.Serve(ln)
 
 	for _, c := range children {
 		c.Client.Close()

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "httpServers": {
+    "moxy": {
+      "command": "bin/moxy",
+      "args": [
+        "serve",
+        "http"
+      ],
+      "transport": "streamable-http",
+      "healthcheck": {
+        "path": "/healthz",
+        "interval": "1s",
+        "timeout": "30s"
+      }
+    }
+  }
+}

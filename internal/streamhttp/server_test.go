@@ -18,9 +18,11 @@ type stubToolProvider struct{}
 func (s *stubToolProvider) ListTools(_ context.Context) ([]protocol.Tool, error) {
 	return nil, nil
 }
+
 func (s *stubToolProvider) CallTool(_ context.Context, _ string, _ json.RawMessage) (*protocol.ToolCallResult, error) {
 	return nil, nil
 }
+
 func (s *stubToolProvider) ListToolsV1(_ context.Context, _ string) (*protocol.ToolsListResultV1, error) {
 	return &protocol.ToolsListResultV1{
 		Tools: []protocol.ToolV1{
@@ -28,6 +30,7 @@ func (s *stubToolProvider) ListToolsV1(_ context.Context, _ string) (*protocol.T
 		},
 	}, nil
 }
+
 func (s *stubToolProvider) CallToolV1(_ context.Context, name string, _ json.RawMessage) (*protocol.ToolCallResultV1, error) {
 	return &protocol.ToolCallResultV1{
 		Content: []protocol.ContentBlockV1{protocol.TextContentV1("called " + name)},
@@ -39,15 +42,19 @@ type stubResourceProvider struct{}
 func (s *stubResourceProvider) ListResources(_ context.Context) ([]protocol.Resource, error) {
 	return nil, nil
 }
+
 func (s *stubResourceProvider) ReadResource(_ context.Context, _ string) (*protocol.ResourceReadResult, error) {
 	return &protocol.ResourceReadResult{}, nil
 }
+
 func (s *stubResourceProvider) ListResourceTemplates(_ context.Context) ([]protocol.ResourceTemplate, error) {
 	return nil, nil
 }
+
 func (s *stubResourceProvider) ListResourcesV1(_ context.Context, _ string) (*protocol.ResourcesListResultV1, error) {
 	return &protocol.ResourcesListResultV1{}, nil
 }
+
 func (s *stubResourceProvider) ListResourceTemplatesV1(_ context.Context, _ string) (*protocol.ResourceTemplatesListResultV1, error) {
 	return &protocol.ResourceTemplatesListResultV1{}, nil
 }
@@ -57,12 +64,15 @@ type stubPromptProvider struct{}
 func (s *stubPromptProvider) ListPrompts(_ context.Context) ([]protocol.Prompt, error) {
 	return nil, nil
 }
+
 func (s *stubPromptProvider) GetPrompt(_ context.Context, _ string, _ map[string]string) (*protocol.PromptGetResult, error) {
 	return nil, nil
 }
+
 func (s *stubPromptProvider) ListPromptsV1(_ context.Context, _ string) (*protocol.PromptsListResultV1, error) {
 	return &protocol.PromptsListResultV1{}, nil
 }
+
 func (s *stubPromptProvider) GetPromptV1(_ context.Context, _ string, _ map[string]string) (*protocol.PromptGetResultV1, error) {
 	return &protocol.PromptGetResultV1{}, nil
 }
@@ -282,6 +292,30 @@ func TestSSEStreamReceivesNotification(t *testing.T) {
 	body := string(buf[:n])
 	if !bytes.Contains(buf[:n], []byte("notifications/tools/list_changed")) {
 		t.Errorf("SSE event did not contain expected notification, got: %s", body)
+	}
+}
+
+func TestHealthzReturnsOKWithoutSession(t *testing.T) {
+	srv := newTestServer()
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /healthz: want 200, got %d", w.Code)
+	}
+}
+
+func TestUnknownPathReturns404(t *testing.T) {
+	srv := newTestServer()
+
+	req := httptest.NewRequest(http.MethodGet, "/unknown", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("GET /unknown: want 404, got %d", w.Code)
 	}
 }
 

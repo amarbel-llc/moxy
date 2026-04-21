@@ -392,6 +392,9 @@
           postInstall = ''
             $out/bin/moxy generate-plugin $out
 
+            # clown-plugin-protocol manifest for HTTP MCP transport.
+            cp ${./clown.json} $out/share/purse-first/moxy/clown.json
+
             # Static hooks — go-mcp's GenerateHooks no-ops (no MapsTools),
             # so we install them at the correct plugin path.
             mkdir -p $out/share/purse-first/moxy/hooks
