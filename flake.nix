@@ -656,8 +656,17 @@
       in
       {
         packages = {
-          inherit moxy moxy-moxins moxy-static release-tarball standalone-moxin-tarballs;
+          inherit moxy moxy-moxins moxy-static release-tarball;
           default = combined;
+        };
+
+        # `standalone-moxin-tarballs` is an attrset of derivations (one per
+        # moxin), not a single derivation. That's valid for `nix build
+        # .#standalone-moxin-tarballs.<name>` — which resolves through
+        # `legacyPackages` — but `flake check` rejects nested attrsets under
+        # `packages`. See issue #161.
+        legacyPackages = {
+          inherit standalone-moxin-tarballs;
         };
 
         devShells.default = pkgs-master.mkShell {

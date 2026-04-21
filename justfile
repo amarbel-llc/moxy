@@ -27,11 +27,18 @@ build-nix: build-gomod2nix
 
 dir_build := "build"
 
-test: test-go test-bats test-validate-mcp test-status
+test: test-go test-bats test-validate-mcp test-status test-flake-check
 
 test-bats: build-go
   export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
+
+# Validates the flake's structural outputs (packages.* are derivations,
+# devShells eval, etc). Runs last so the nix store cache is already warm
+# from prior build steps; incremental cost is eval + moxy-static +
+# release-tarball, both small rebuilds that hit the store cache on reruns.
+test-flake-check:
+  nix flake check
 
 test-bats-file file: build-go
   export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
