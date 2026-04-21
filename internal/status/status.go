@@ -228,6 +228,10 @@ func Run(w io.Writer, home, dir string) int {
 				failed = true
 			}
 
+			for _, warn := range moxinResult.Warnings {
+				printWarn(w, "%s: %s", dirPath, warn)
+			}
+
 			moxinCount++
 		}
 	}
@@ -266,6 +270,10 @@ func printOk(w io.Writer, format string, args ...any) {
 
 func printFail(w io.Writer, format string, args ...any) {
 	fmt.Fprintf(w, "  FAIL %s\n", fmt.Sprintf(format, args...))
+}
+
+func printWarn(w io.Writer, format string, args ...any) {
+	fmt.Fprintf(w, "  WARN %s\n", fmt.Sprintf(format, args...))
 }
 
 func checkServers(servers []config.ServerConfig, checkPath bool) []string {

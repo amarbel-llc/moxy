@@ -774,3 +774,156 @@ result-type = "text"
 		}
 	}
 }
+
+func TestParseMoxinDirSchema3KebabCase(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"tool": `
+schema = 3
+command = "echo"
+arg-order = ["pattern", "path"]
+stdin-param = "input"
+
+[input]
+type = "object"
+
+[input.properties.pattern]
+type = "string"
+
+[input.properties.path]
+type = "string"
+
+[input.properties.input]
+type = "string"
+`,
+	})
+
+	result, err := ParseMoxinDirFull(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := result.Config.Tools[0]
+	if len(tool.ArgOrder) != 2 || tool.ArgOrder[0] != "pattern" || tool.ArgOrder[1] != "path" {
+		t.Errorf("arg-order = %v, want [pattern path]", tool.ArgOrder)
+	}
+	if tool.StdinParam != "input" {
+		t.Errorf("stdin-param = %q, want %q", tool.StdinParam, "input")
+	}
+	if tool.ResultType != ResultTypeMCPResult {
+		t.Errorf("result-type = %q, want %q", tool.ResultType, ResultTypeMCPResult)
+	}
+	if len(result.Undecoded) > 0 {
+		t.Errorf("unexpected undecoded keys: %v", result.Undecoded)
+	}
+	if len(result.Warnings) > 0 {
+		t.Errorf("unexpected warnings: %v", result.Warnings)
+	}
+}
+
+func TestParseMoxinDirSchema3RejectsSnakeCase(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"tool": `
+schema = 3
+command = "echo"
+arg_order = ["pattern"]
+`,
+	})
+
+	result, err := ParseMoxinDirFull(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := result.Config.Tools[0]
+	if len(tool.ArgOrder) != 0 {
+		t.Errorf("schema 3 should not decode arg_order, got %v", tool.ArgOrder)
+	}
+	foundUndecoded := false
+	for _, key := range result.Undecoded {
+		if key == "tool.toml: arg_order" {
+			foundUndecoded = true
+		}
+	}
+	if !foundUndecoded {
+		t.Errorf("expected arg_order to be reported as undecoded in schema 3, got: %v", result.Undecoded)
+	}
+}
+
+func TestParseMoxinDirSchema1DeprecationWarning(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"tool": `
+schema = 1
+command = "echo"
+arg_order = ["pattern"]
+`,
+	})
+
+	result, err := ParseMoxinDirFull(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := result.Config.Tools[0]
+	if len(tool.ArgOrder) != 1 || tool.ArgOrder[0] != "pattern" {
+		t.Errorf("arg_order should still parse in schema 1, got %v", tool.ArgOrder)
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatal("expected deprecation warning for arg_order in schema 1")
+	}
+}
+
+func TestParseMoxinDirSchema2DeprecationWarning(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"tool": `
+schema = 2
+command = "echo"
+arg_order = ["pattern"]
+`,
+	})
+
+	result, err := ParseMoxinDirFull(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := result.Config.Tools[0]
+	if len(tool.ArgOrder) != 1 || tool.ArgOrder[0] != "pattern" {
+		t.Errorf("arg_order should still parse in schema 2, got %v", tool.ArgOrder)
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatal("expected deprecation warning for arg_order in schema 2")
+	}
+}
+
+func TestParseMoxinDirSchema2KebabNoWarning(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"tool": `
+schema = 2
+command = "echo"
+arg-order = ["pattern"]
+`,
+	})
+
+	result, err := ParseMoxinDirFull(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := result.Config.Tools[0]
+	if len(tool.ArgOrder) != 1 || tool.ArgOrder[0] != "pattern" {
+		t.Errorf("arg-order should parse in schema 2, got %v", tool.ArgOrder)
+	}
+	if len(result.Warnings) > 0 {
+		t.Errorf("no warning expected for kebab-case in schema 2, got: %v", result.Warnings)
+	}
+}

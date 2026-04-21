@@ -100,14 +100,16 @@ type MoxinMeta struct {
 }
 
 // rawToolFile mirrors the per-tool TOML file for initial decode.
+// Struct tags use kebab-case (schema 3). For schema 1/2 backward
+// compatibility, legacyToolKeys handles the old snake_case spellings.
 type rawToolFile struct {
 	Schema       int              `toml:"schema"`
 	Name         string           `toml:"name"`
 	Description  string           `toml:"description"`
 	Command      string           `toml:"command"`
 	Args         []string         `toml:"args"`
-	ArgOrder     []string         `toml:"arg_order"`
-	StdinParam   string           `toml:"stdin_param"`
+	ArgOrder     []string         `toml:"arg-order"`
+	StdinParam   string           `toml:"stdin-param"`
 	PermsRequest PermsRequest     `toml:"perms-request"`
 	ContentType  string           `toml:"content-type"`
 	ResultType   string           `toml:"result-type"`
@@ -115,10 +117,17 @@ type rawToolFile struct {
 	Input        *InputSchema     `toml:"input"`
 }
 
+// legacyToolKeys captures the old snake_case key spellings from schema 1/2.
+type legacyToolKeys struct {
+	ArgOrder   []string `toml:"arg_order"`
+	StdinParam string   `toml:"stdin_param"`
+}
+
 // ParseResult holds the parsed config and any undecoded keys found in the TOML files.
 type ParseResult struct {
 	Config    *NativeConfig
 	Undecoded []string
+	Warnings  []string
 }
 
 // ParseMoxinDir parses a moxin directory containing _moxin.toml + per-tool files.
@@ -155,6 +164,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 	}
 
 	var allUndecoded []string
+	var allWarnings []string
 	allUndecoded = append(allUndecoded, detectUndecodedMeta(metaData)...)
 
 	// Scan for tool files (*.toml excluding _moxin.toml).
@@ -191,11 +201,27 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			return nil, fmt.Errorf("parsing tool file %s: %w", filename, err)
 		}
 
-		if raw.Schema < 1 || raw.Schema > 2 {
-			return nil, fmt.Errorf("tool file %s: unsupported schema %d (want 1 or 2)", filename, raw.Schema)
+		if raw.Schema < 1 || raw.Schema > 3 {
+			return nil, fmt.Errorf("tool file %s: unsupported schema %d (want 1, 2, or 3)", filename, raw.Schema)
 		}
 		if raw.Command == "" {
 			return nil, fmt.Errorf("tool file %s: command is required", filename)
+		}
+
+		// Schema 1/2 backward compatibility: try the old snake_case keys.
+		if raw.Schema <= 2 {
+			var legacy legacyToolKeys
+			_ = toml.Unmarshal(data, &legacy)
+			if len(raw.ArgOrder) == 0 && len(legacy.ArgOrder) > 0 {
+				raw.ArgOrder = legacy.ArgOrder
+				allWarnings = append(allWarnings, fmt.Sprintf(
+					"%s: arg_order is deprecated, use arg-order (schema 3)", filename))
+			}
+			if raw.StdinParam == "" && legacy.StdinParam != "" {
+				raw.StdinParam = legacy.StdinParam
+				allWarnings = append(allWarnings, fmt.Sprintf(
+					"%s: stdin_param is deprecated, use stdin-param (schema 3)", filename))
+			}
 		}
 
 		// Tool name: file stem, overridden by explicit name field.
@@ -240,11 +266,11 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 
 		cfg.Tools = append(cfg.Tools, ts)
 		debugMoxin("ParseMoxinDirFull: %s: parsed tool %q (cmd=%q, args=%v)", meta.Name, toolName, raw.Command, raw.Args)
-		allUndecoded = append(allUndecoded, detectUndecodedTool(data, filename)...)
+		allUndecoded = append(allUndecoded, detectUndecodedTool(data, filename, raw.Schema)...)
 	}
 
 	debugMoxin("ParseMoxinDirFull: %s: completed with %d tools", meta.Name, len(cfg.Tools))
-	return &ParseResult{Config: cfg, Undecoded: allUndecoded}, nil
+	return &ParseResult{Config: cfg, Undecoded: allUndecoded, Warnings: allWarnings}, nil
 }
 
 func resolveResultType(schema int, raw string) (ResultType, error) {
@@ -252,7 +278,7 @@ func resolveResultType(schema int, raw string) (ResultType, error) {
 	case 1:
 		// Schema 1 tools are always text mode; result-type field is ignored.
 		return ResultTypeText, nil
-	case 2:
+	case 2, 3:
 		if raw == "" {
 			return ResultTypeMCPResult, nil
 		}
@@ -295,19 +321,25 @@ func detectUndecodedMeta(data []byte) []string {
 }
 
 // detectUndecodedTool returns undecoded keys in a per-tool TOML file,
-// prefixed with the filename for context.
-func detectUndecodedTool(data []byte, filename string) []string {
+// prefixed with the filename for context. The schema parameter controls
+// which key spellings are recognized: schema 3 only accepts kebab-case,
+// while schema 1/2 accept both spellings.
+func detectUndecodedTool(data []byte, filename string, schema int) []string {
 	doc, err := document.Parse(data)
 	if err != nil {
 		return nil
 	}
 
 	consumed := make(map[string]bool)
-	for _, key := range []string{
+	keys := []string{
 		"schema", "name", "description", "command", "args",
-		"arg_order", "stdin_param", "perms-request",
+		"arg-order", "stdin-param", "perms-request",
 		"content-type", "result-type",
-	} {
+	}
+	if schema <= 2 {
+		keys = append(keys, "arg_order", "stdin_param")
+	}
+	for _, key := range keys {
 		if doc.HasInContainer(doc.Root(), key) {
 			consumed[key] = true
 		}
