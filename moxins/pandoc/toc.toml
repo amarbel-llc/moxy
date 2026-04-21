@@ -1,0 +1,18 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "List headings from a markdown document with level indicators. Use to discover structure before reading specific sections."
+command = "@BIN@/toc"
+stdin-param = "markdown"
+
+[input]
+type = "object"
+required = ["markdown"]
+
+[input.properties.markdown]
+type = "string"
+description = "Markdown content to parse. Pass literal text or a moxy.native://results/{session}/{id} URI."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

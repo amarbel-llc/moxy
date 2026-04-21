@@ -299,6 +299,10 @@
           pathMode = "suffix";
         };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {};
+        pandoc-moxin = mkBunMoxin "pandoc" [ pkgs.bash pkgs.pandoc ] {
+          "toc" = "moxins/pandoc/src/toc.ts";
+          "section" = "moxins/pandoc/src/section.ts";
+        } {};
 
         gwsDeps = [ pkgs.bash pkgs.coreutils gws-bin ];
         piers-moxin = mkBunMoxin "piers" gwsDeps {
@@ -365,6 +369,7 @@
           ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents
           ln -s ${man-moxin} $out/share/moxy/moxins/man
           ln -s ${rg-moxin} $out/share/moxy/moxins/rg
+          ln -s ${pandoc-moxin} $out/share/moxy/moxins/pandoc
           ln -s ${piers-moxin} $out/share/moxy/moxins/piers
           ln -s ${car-moxin} $out/share/moxy/moxins/car
           ln -s ${slip-moxin} $out/share/moxy/moxins/slip
@@ -564,6 +569,10 @@
             "list-recipes" = "moxins/just-us-agents/src/list-recipes.ts";
           };
           man = mkBrewMoxin "man";
+          pandoc = mkBrewBunMoxin "pandoc" {
+            "toc" = "moxins/pandoc/src/toc.ts";
+            "section" = "moxins/pandoc/src/section.ts";
+          };
           sisyphus = mkBrewMoxin "sisyphus";
           car = mkBrewBunMoxin "car" {
             "search" = "moxins/car/src/search.ts";

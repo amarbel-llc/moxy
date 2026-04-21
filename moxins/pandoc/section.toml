@@ -1,0 +1,23 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Extract a section from a markdown document by heading name. Returns content from the heading through the next heading at same or higher level."
+command = "@BIN@/section"
+arg-order = ["section_name"]
+stdin-param = "markdown"
+
+[input]
+type = "object"
+required = ["markdown", "section_name"]
+
+[input.properties.markdown]
+type = "string"
+description = "Markdown content to parse. Pass literal text or a moxy.native://results/{session}/{id} URI."
+
+[input.properties.section_name]
+type = "string"
+description = "Heading text to extract (case-insensitive). Example: 'Installation', 'API Reference'."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
