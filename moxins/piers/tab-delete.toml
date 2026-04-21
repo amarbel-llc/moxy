@@ -1,0 +1,21 @@
+schema = 3
+perms-request = "always-allow"
+description = "Delete a tab from a Google Doc by tab ID."
+command = "@BIN@/tab-delete"
+arg-order = ["document_id", "tab_id"]
+
+[annotations]
+destructive-hint = true
+open-world-hint = true
+
+[input]
+type = "object"
+required = ["document_id", "tab_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.tab_id]
+type = "string"
+description = "The ID of the tab to delete (from get or outline results)"

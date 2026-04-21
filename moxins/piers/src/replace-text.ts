@@ -3,16 +3,19 @@ import { $ } from "zx";
 $.verbose = false;
 $.stdio = ["pipe", "pipe", "ignore"];
 
-const [documentId, text, replaceText, revisionId, matchCase] = process.argv.slice(2);
+const [documentId, text, replaceText, revisionId, matchCase, tabIds] = process.argv.slice(2);
+
+const req: Record<string, unknown> = {
+  containsText: { text, matchCase: matchCase !== "false" },
+  replaceText,
+};
+if (tabIds) req.tabsCriteria = { tabIds: tabIds.split(",") };
 
 const params = JSON.stringify({ documentId });
 const json = JSON.stringify({
   requests: [
     {
-      replaceAllText: {
-        containsText: { text, matchCase: matchCase !== "false" },
-        replaceText,
-      },
+      replaceAllText: req,
     },
   ],
   writeControl: { requiredRevisionId: revisionId },

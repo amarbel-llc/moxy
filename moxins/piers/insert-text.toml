@@ -3,7 +3,7 @@ substitute-result-uris = false
 perms-request = "always-allow"
 description = "Insert text at a specific index in a Google Doc. Use get first to find the correct index. Does not affect anchored comments."
 command = "@BIN@/insert-text"
-arg-order = ["document_id", "index", "text", "revision_id"]
+arg-order = ["document_id", "index", "text", "revision_id", "tab_id"]
 
 [annotations]
 open-world-hint = true
@@ -27,3 +27,7 @@ description = "Text to insert"
 [input.properties.revision_id]
 type = "string"
 description = "The revisionId from get for optimistic locking"
+
+[input.properties.tab_id]
+type = "string"
+description = "Tab ID to insert into. When omitted, targets the first tab."

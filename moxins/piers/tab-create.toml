@@ -1,0 +1,28 @@
+schema = 3
+perms-request = "always-allow"
+description = "Create a new tab in a Google Doc. Returns the created tab properties."
+command = "@BIN@/tab-create"
+arg-order = ["document_id", "title", "parent_tab_id", "index"]
+
+[annotations]
+open-world-hint = true
+
+[input]
+type = "object"
+required = ["document_id"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.title]
+type = "string"
+description = "Title for the new tab (optional, defaults to untitled)"
+
+[input.properties.parent_tab_id]
+type = "string"
+description = "Parent tab ID to nest under (optional, creates root-level tab if omitted)"
+
+[input.properties.index]
+type = "string"
+description = "Zero-based position among siblings (optional, appends at end if omitted)"

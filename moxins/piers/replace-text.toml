@@ -3,7 +3,7 @@ substitute-result-uris = false
 perms-request = "always-allow"
 description = "Find and replace text in a Google Doc. Case-sensitive by default. Preserves anchored comments unless the entire anchor text is consumed by the match."
 command = "@BIN@/replace-text"
-arg-order = ["document_id", "find", "replace", "revision_id", "match_case"]
+arg-order = ["document_id", "find", "replace", "revision_id", "match_case", "tab_ids"]
 
 [annotations]
 open-world-hint = true
@@ -31,3 +31,7 @@ description = "Case-sensitive matching (default: true)"
 [input.properties.revision_id]
 type = "string"
 description = "The revisionId from get for optimistic locking"
+
+[input.properties.tab_ids]
+type = "string"
+description = "Comma-separated tab IDs to restrict replacement to. When omitted, applies to all tabs."

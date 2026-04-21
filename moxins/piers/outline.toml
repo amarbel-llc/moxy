@@ -1,6 +1,6 @@
 schema = 3
 perms-request = "always-allow"
-description = "Get the structural outline of a Google Doc: tabs, headings, and optionally links. Returns a compact JSON summary instead of the full document."
+description = "Get the structural outline of a Google Doc: tabs, headings, and optionally links. Returns a compact JSON summary instead of the full document. Always includes full tab structure with tab IDs, titles, and nesting."
 command = "@BIN@/outline"
 arg-order = ["document_id", "include_links"]
 

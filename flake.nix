@@ -315,6 +315,9 @@
           "comment-reply" = "moxins/piers/src/comment-reply.ts";
           "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
           "outline" = "moxins/piers/src/outline.ts";
+          "tab-create" = "moxins/piers/src/tab-create.ts";
+          "tab-delete" = "moxins/piers/src/tab-delete.ts";
+          "tab-update" = "moxins/piers/src/tab-update.ts";
         } {};
         car-moxin = mkBunMoxin "car" gwsDeps {
           "search" = "moxins/car/src/search.ts";

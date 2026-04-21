@@ -1,8 +1,8 @@
 schema = 3
 perms-request = "always-allow"
-description = "Get the content of a Google Doc by document ID. Returns the document structure including title, body text, headers, and formatting."
+description = "Get the content of a Google Doc by document ID. Returns the document structure including title, body text, headers, and formatting. Pass include_tabs_content to get all tabs instead of just the first."
 command = "@BIN@/get"
-arg-order = ["document_id"]
+arg-order = ["document_id", "include_tabs_content"]
 
 [annotations]
 read-only-hint = true
@@ -15,3 +15,7 @@ required = ["document_id"]
 [input.properties.document_id]
 type = "string"
 description = "The Google Docs document ID (from Drive search results or a shared link URL)"
+
+[input.properties.include_tabs_content]
+type = "string"
+description = "Set to 'true' to return all tabs in document.tabs instead of just the first tab in document.body (default: false)"

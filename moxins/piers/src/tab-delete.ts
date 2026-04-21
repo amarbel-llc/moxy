@@ -3,22 +3,11 @@ import { $ } from "zx";
 $.verbose = false;
 $.stdio = ["pipe", "pipe", "ignore"];
 
-const [documentId, index, text, revisionId, tabId] = process.argv.slice(2);
-
-const location: Record<string, unknown> = { index: Number(index) };
-if (tabId) location.tabId = tabId;
+const [documentId, tabId] = process.argv.slice(2);
 
 const params = JSON.stringify({ documentId });
 const json = JSON.stringify({
-  requests: [
-    {
-      insertText: {
-        location,
-        text,
-      },
-    },
-  ],
-  writeControl: { requiredRevisionId: revisionId },
+  requests: [{ deleteTab: { tabId } }],
 });
 
 const result = await $`gws docs documents batchUpdate --params ${params} --json ${json}`;
