@@ -56,15 +56,18 @@ func (r *streamRegistry) broadcast(msg *jsonrpc.Message) {
 	event := fmt.Sprintf("data: %s\n\n", data)
 
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	snapshot := make([]*sseStream, 0, len(r.streams))
 	for _, s := range r.streams {
+		snapshot = append(snapshot, s)
+	}
+	r.mu.RUnlock()
+
+	for _, s := range snapshot {
 		select {
 		case <-s.done:
 			continue
 		default:
 		}
-		// Best-effort write; if the client is gone the next flush will fail
-		// and the stream will be cleaned up by the GET handler.
 		fmt.Fprint(s.w, event)
 		s.flush.Flush()
 	}
