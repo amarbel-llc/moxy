@@ -169,9 +169,9 @@ func TestParseMoxinDirAlphabeticalOrder(t *testing.T) {
 schema = 1
 name = "test"
 `, map[string]string{
-		"zebra":   "schema = 1\ncommand = \"echo\"",
-		"alpha":   "schema = 1\ncommand = \"echo\"",
-		"middle":  "schema = 1\ncommand = \"echo\"",
+		"zebra":  "schema = 1\ncommand = \"echo\"",
+		"alpha":  "schema = 1\ncommand = \"echo\"",
+		"middle": "schema = 1\ncommand = \"echo\"",
 	})
 
 	cfg, err := ParseMoxinDir(dir)
