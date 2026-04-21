@@ -9,7 +9,7 @@ const req: Record<string, unknown> = {
   containsText: { text, matchCase: matchCase !== "false" },
   replaceText,
 };
-if (tabIds) req.tabsCriteria = { tabIds: tabIds.split(",") };
+if (tabIds) req.tabsCriteria = { tabIds: tabIds.split(",").filter(Boolean) };
 
 const params = JSON.stringify({ documentId });
 const json = JSON.stringify({
