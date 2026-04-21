@@ -1,10 +1,10 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Run 'go get' to add or update a module dependency. Only \
 mutates go.mod and go.sum; does not build code. Pass 'module@version' to pin \
 a specific version, or set update=true to bump to the latest."""
 command = "@BIN@/go-get"
-arg_order = ["module", "update"]
+arg-order = ["module", "update"]
 
 [input]
 type = "object"

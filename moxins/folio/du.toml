@@ -1,9 +1,9 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """Disk usage of a file or directory. Defaults to summary mode (one row per argument) and \
 does not cross filesystem boundaries. Returns JSON {path, bytes, human}; pass flags for raw du output."""
 command = "@BIN@/du"
-arg_order = ["path", "flags"]
+arg-order = ["path", "flags"]
 
 [input]
 type = "object"

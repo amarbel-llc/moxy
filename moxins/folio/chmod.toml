@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "each-use"
 description = """Change file mode bits on a single path. Mode is octal (\"755\") or symbolic (\"+x\", \"u+x,go-w\"). \
 No recursion — pair with folio.glob if you need to act on many paths."""
 command = "@BIN@/chmod"
-arg_order = ["path", "mode"]
+arg-order = ["path", "mode"]
 
 [input]
 type = "object"

@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Create or update flake.lock without building. Args are passed literally to 'nix flake lock' — consult your system nix's 'nix flake lock --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-lock"
-arg_order = ["args", "flake_dir"]
+arg-order = ["args", "flake_dir"]
 
 [input.properties.args]
 type = "array"

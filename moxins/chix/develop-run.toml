@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 description = """Run commands inside a flake's devShell. Each command runs as a separate \
 nix develop invocation. Execution stops on the first failure."""
 command = "@BIN@/develop-run"
-arg_order = ["commands", "flake_ref", "flake_dir"]
+arg-order = ["commands", "flake_ref", "flake_dir"]
 
 [input]
 required = ["commands"]

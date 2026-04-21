@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Insert text at a specific index in a Google Doc. Use get first to find the correct index. Does not affect anchored comments."
 command = "@BIN@/insert-text"
-arg_order = ["document_id", "index", "text", "revision_id"]
+arg-order = ["document_id", "index", "text", "revision_id"]
 
 [annotations]
 open-world-hint = true

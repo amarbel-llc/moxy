@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate. Preserves anchored comments on unchanged text. Use replaceAllText for find-and-replace, or insertText/deleteContentRange for index-based edits."
 command = "@BIN@/batch-update"
-arg_order = ["document_id", "requests", "revision_id"]
+arg-order = ["document_id", "requests", "revision_id"]
 
 [annotations]
 open-world-hint = true

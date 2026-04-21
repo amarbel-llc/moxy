@@ -1,10 +1,10 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Run 'go mod <subcommand>' for module maintenance. Supports \
 tidy, sync, download, verify, why, and edit. Use args for any extra arguments \
 the subcommand needs (e.g. ['github.com/x/y'] for 'go mod why')."""
 command = "@BIN@/go-mod"
-arg_order = ["subcommand", "args"]
+arg-order = ["subcommand", "args"]
 
 [input]
 type = "object"

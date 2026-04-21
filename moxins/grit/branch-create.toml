@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Create a new branch"
 command = "@BIN@/branch-create"
-arg_order = ["name", "start_point", "repo_path"]
+arg-order = ["name", "start_point", "repo_path"]
 
 [input]
 type = "object"

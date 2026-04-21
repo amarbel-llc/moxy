@@ -1,9 +1,9 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """List subagents spawned during a session. Returns agent ID, prompt snippet, tool count, \
 and message count. Use the agent ID with messages or tool-usage tools to drill into subagent details."""
 command = "@BIN@/subagents"
-arg_order = ["session_id"]
+arg-order = ["session_id"]
 
 [input]
 type = "object"

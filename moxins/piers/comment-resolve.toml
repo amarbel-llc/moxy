@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Resolve or reopen a comment on a Google Doc. Optionally include a reply message."
 command = "@BIN@/comment-resolve"
-arg_order = ["file_id", "comment_id", "action", "content"]
+arg-order = ["file_id", "comment_id", "action", "content"]
 
 [annotations]
 open-world-hint = true

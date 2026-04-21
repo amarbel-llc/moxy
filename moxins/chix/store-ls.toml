@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "List contents of a nix store path directory. Returns JSON with name, type, and optional size."
 command = "@BIN@/store-ls"
-arg_order = ["path", "long"]
+arg-order = ["path", "long"]
 
 [input]
 required = ["path"]

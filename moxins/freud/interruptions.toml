@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """Aggregate agent-pause events (permission prompts, rejections, interruptions) across sessions. \
 Returns a ranked table showing which tools cause the most pauses, with approval rates. \
 Useful for identifying tools that should be auto-allowed (high approval rate = low friction)."""
 command = "@BIN@/interruptions"
-arg_order = ["project", "days", "limit"]
+arg-order = ["project", "days", "limit"]
 
 [input]
 type = "object"

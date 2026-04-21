@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Show commit log history"
 command = "@BIN@/log"
-arg_order = ["ref", "max_count", "oneline", "paths", "repo_path"]
+arg-order = ["ref", "max_count", "oneline", "paths", "repo_path"]
 
 [input]
 type = "object"

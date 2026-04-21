@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Run a Go build. Equivalent to 'go build' with optional output \
 path, build tags, ldflags, and race detector."""
 command = "@BIN@/go-build"
-arg_order = ["packages", "output", "tags", "ldflags", "race"]
+arg-order = ["packages", "output", "tags", "ldflags", "race"]
 
 [input]
 

@@ -1,7 +1,7 @@
-schema = 2
+schema = 3
 description = "Link an issue to an epic by setting its parent"
 command = "@BIN@/link-to-epic"
-arg_order = ["issue_key", "epic_key"]
+arg-order = ["issue_key", "epic_key"]
 
 [input]
 type = "object"

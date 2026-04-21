@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Build a derivation and return the output store path(s). \
 Equivalent to nix-store -r. Accepts .drv paths or installables."""
 command = "@BIN@/store-realize"
-arg_order = ["path"]
+arg-order = ["path"]
 
 [input]
 required = ["path"]

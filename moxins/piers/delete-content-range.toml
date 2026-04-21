@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Delete a range of content from a Google Doc by start/end index. Use get first to find indices. Cannot delete the last newline of the body or cross structural boundaries (tables, section breaks)."
 command = "@BIN@/delete-content-range"
-arg_order = ["document_id", "start_index", "end_index", "revision_id"]
+arg-order = ["document_id", "start_index", "end_index", "revision_id"]
 
 [annotations]
 open-world-hint = true

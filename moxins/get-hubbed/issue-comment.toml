@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Post a comment on an issue or pull request"
 command = "@BIN@/issue-comment"
-arg_order = ["number", "body"]
+arg-order = ["number", "body"]
 
 [input]
 type = "object"

@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Run Go tests. Equivalent to 'go test' with optional package \
 filter, test name pattern, verbose output, and run count."""
 command = "@BIN@/go-test"
-arg_order = ["packages", "run", "verbose", "count"]
+arg-order = ["packages", "run", "verbose", "count"]
 
 [input]
 

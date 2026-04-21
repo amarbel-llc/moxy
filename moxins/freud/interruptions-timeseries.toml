@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """Interruption events (permission prompts, rejections, user interruptions) bucketed by day \
 or week. Returns a table with per-bucket counts and approval rates, plus ASCII sparklines. Use to spot \
 changes in agent autonomy and permission friction over time."""
 command = "@BIN@/interruptions-timeseries"
-arg_order = ["project", "days", "group_by"]
+arg-order = ["project", "days", "group_by"]
 
 [input]
 type = "object"

@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """List directory contents with type and size metadata. Returns JSON array of entries \
 sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only). \
 Pass flags to customize output (e.g. \"-la\" for long format with hidden files)."""
 command = "@BIN@/ls"
-arg_order = ["path", "flags"]
+arg-order = ["path", "flags"]
 
 [input]
 type = "object"

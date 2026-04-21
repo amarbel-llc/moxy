@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Get the content of a Google Doc by document ID. Returns the document structure including title, body text, headers, and formatting."
 command = "@BIN@/get"
-arg_order = ["document_id"]
+arg-order = ["document_id"]
 
 [annotations]
 read-only-hint = true

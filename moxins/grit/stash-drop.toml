@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Delete a stash entry"
 command = "@BIN@/stash-drop"
-arg_order = ["stash_ref", "repo_path"]
+arg-order = ["stash_ref", "repo_path"]
 
 [input]
 type = "object"

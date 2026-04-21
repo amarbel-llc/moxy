@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Delete a gist permanently."
 command = "@BIN@/gist-delete"
-arg_order = ["id"]
+arg-order = ["id"]
 
 [input]
 type = "object"

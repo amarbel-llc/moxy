@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Reopen a closed issue with optional comment"
 command = "@BIN@/issue-reopen"
-arg_order = ["repo", "number", "comment"]
+arg-order = ["repo", "number", "comment"]
 
 [input]
 type = "object"

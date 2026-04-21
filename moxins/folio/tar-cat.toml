@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Extract and print a single file from a tarball to stdout. \
 Use tar-list first to discover available members."""
 command = "@BIN@/tar-cat"
-arg_order = ["path", "member"]
+arg-order = ["path", "member"]
 
 [input]
 required = ["path", "member"]

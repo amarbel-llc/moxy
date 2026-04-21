@@ -1,10 +1,10 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Search file contents using ripgrep. Returns file paths by default \
 (output_mode=files_with_matches). Use output_mode=content for matching lines with \
 context, or output_mode=count for match counts per file."""
 command = "@BIN@/search"
-arg_order = [
+arg-order = [
   "pattern",
   "path",
   "glob",

@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Semantic man page search using vector embeddings. More accurate than keyword search for natural language queries like 'list files' or 'configure network'. Requires a pre-built index (maneater index)."
 command = "@BIN@/semantic-search"
-arg_order = ["query", "top_k"]
+arg-order = ["query", "top_k"]
 
 [input]
 type = "object"

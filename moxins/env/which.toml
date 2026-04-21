@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Locate a program on PATH. Returns the absolute path if found, exits nonzero if not."
 command = "@BIN@/which"
-arg_order = ["name"]
+arg-order = ["name"]
 
 [input]
 type = "object"

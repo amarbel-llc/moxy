@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """Tool result outcomes (success, error, empty, rejected) bucketed by day or week. \
 Returns a table with per-bucket totals and error rates, plus ASCII sparklines for errors and volume. \
 Use to spot regressions and trends that tool-results-summary's aggregate view hides."""
 command = "@BIN@/tool-results-timeseries"
-arg_order = ["project", "days", "tool_name", "group_by", "scope", "error_pattern"]
+arg-order = ["project", "days", "tool_name", "group_by", "scope", "error_pattern"]
 
 [input]
 type = "object"

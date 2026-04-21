@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Remove one or more labels from an issue without touching other labels."
 command = "@BIN@/issue-label-remove"
-arg_order = ["number", "labels"]
+arg-order = ["number", "labels"]
 
 [input]
 type = "object"

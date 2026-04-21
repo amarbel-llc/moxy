@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """Extract tool calls from a session, already structured. Returns one line per tool \
 call with sequence number, tool name, and truncated input JSON. Much faster than parsing raw \
 JSONL transcripts with jq."""
 command = "@BIN@/tool-usage"
-arg_order = ["session_id", "tool_name", "limit", "include_results", "project", "days"]
+arg-order = ["session_id", "tool_name", "limit", "include_results", "project", "days"]
 
 [input]
 type = "object"

@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "List sprints for a board"
 command = "@BIN@/get-sprints-from-board"
-arg_order = ["board_id", "state", "max_results", "output_format"]
+arg-order = ["board_id", "state", "max_results", "output_format"]
 
 [input]
 type = "object"

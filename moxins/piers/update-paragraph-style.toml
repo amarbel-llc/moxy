@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Update paragraph formatting (heading level, alignment, spacing, indentation) on a range in a Google Doc. Use get first to find indices."
 command = "@BIN@/update-paragraph-style"
-arg_order = ["document_id", "start_index", "end_index", "paragraph_style", "fields", "revision_id"]
+arg-order = ["document_id", "start_index", "end_index", "paragraph_style", "fields", "revision_id"]
 
 [annotations]
 open-world-hint = true

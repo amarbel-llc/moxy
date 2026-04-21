@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Show unread inbox summary: sender, subject, date. Read-only, never modifies mailbox."
 command = "@BIN@/triage"
-arg_order = ["max", "query"]
+arg-order = ["max", "query"]
 
 [annotations]
 read-only-hint = true

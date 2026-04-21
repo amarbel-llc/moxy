@@ -1,9 +1,9 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Execute a jq filter. Only jq is invoked — no shell evaluation. Cached result URIs (moxy.native://results/{session}/{id}) in args are rewritten to /dev/fd/N for streaming."
 command = "@BIN@/jq"
-arg_order = ["filter", "flags", "files", "cwd"]
-stdin_param = "stdin"
+arg-order = ["filter", "flags", "files", "cwd"]
+stdin-param = "stdin"
 
 [input]
 type = "object"

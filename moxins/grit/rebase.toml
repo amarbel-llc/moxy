@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Rebase current branch onto another ref"
 command = "@BIN@/rebase"
-arg_order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "repo_path"]
+arg-order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "repo_path"]
 
 [input]
 type = "object"

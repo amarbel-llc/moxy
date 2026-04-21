@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "List issues in a repository with optional filters"
 command = "@BIN@/issue-list"
-arg_order = ["repo", "state", "labels", "assignee", "milestone", "search", "limit", "output_format"]
+arg-order = ["repo", "state", "labels", "assignee", "milestone", "search", "limit", "output_format"]
 
 [input]
 type = "object"

@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 result-type = "text"
 perms-request = "always-allow"
 description = """Get file content or directory listing from a repository. For files, returns decoded content. \
 For directories, returns a JSON listing with name, type, size, and path for each entry."""
 command = "@BIN@/content-get"
-arg_order = ["repo", "path", "ref"]
+arg-order = ["repo", "path", "ref"]
 
 [input]
 type = "object"

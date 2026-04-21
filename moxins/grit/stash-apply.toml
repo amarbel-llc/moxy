@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Apply a stash to the working tree without removing it from the stash list"
 command = "@BIN@/stash-apply"
-arg_order = ["stash_ref", "repo_path"]
+arg-order = ["stash_ref", "repo_path"]
 
 [input]
 type = "object"

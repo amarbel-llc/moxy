@@ -1,7 +1,7 @@
-schema = 2
+schema = 3
 description = "Create a new Jira issue"
 command = "@BIN@/create-issue"
-arg_order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent", "output_format"]
+arg-order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent", "output_format"]
 
 [input]
 type = "object"

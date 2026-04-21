@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Create a new issue"
 command = "@BIN@/issue-create"
-arg_order = ["title", "body", "labels"]
+arg-order = ["title", "body", "labels"]
 
 [input]
 type = "object"

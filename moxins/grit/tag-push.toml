@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 description = """Push a single tag to a remote (or delete it on the remote). \
 Helper for the common `git push <remote> <tag>` and `git push <remote> :refs/tags/<tag>` flows."""
 command = "@BIN@/tag-push"
-arg_order = ["name", "remote", "delete", "force", "repo_path"]
+arg-order = ["name", "remote", "delete", "force", "repo_path"]
 
 [input]
 type = "object"

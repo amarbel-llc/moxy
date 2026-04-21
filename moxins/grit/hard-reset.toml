@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Discard all changes and reset HEAD, index, and working tree to a ref"
 command = "@BIN@/hard-reset"
-arg_order = ["ref", "repo_path"]
+arg-order = ["ref", "repo_path"]
 
 [input]
 type = "object"

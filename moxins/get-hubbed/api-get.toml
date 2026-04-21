@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Make an authenticated GET request to the GitHub REST API"
 command = "@BIN@/api-get"
-arg_order = ["endpoint", "params", "headers", "paginate"]
+arg-order = ["endpoint", "params", "headers", "paginate"]
 
 [input]
 type = "object"

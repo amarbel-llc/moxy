@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "List local tags. Defaults to creator-date order, newest first."
 command = "@BIN@/tag-list"
-arg_order = ["pattern", "sort", "max_count", "contains", "repo_path"]
+arg-order = ["pattern", "sort", "max_count", "contains", "repo_path"]
 
 [input]
 type = "object"

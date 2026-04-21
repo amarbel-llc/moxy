@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
 partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
 command = "@BIN@/write"
-arg_order = ["file_path", "content"]
+arg-order = ["file_path", "content"]
 
 [input]
 type = "object"

@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Revert one or more commits by creating new commits that undo their changes"
 command = "@BIN@/revert"
-arg_order = ["commits", "no_commit", "repo_path"]
+arg-order = ["commits", "no_commit", "repo_path"]
 
 [input]
 type = "object"

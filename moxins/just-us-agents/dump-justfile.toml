@@ -1,4 +1,4 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Output the entire justfile contents."
 command = "just"

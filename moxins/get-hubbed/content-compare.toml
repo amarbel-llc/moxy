@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Compare two refs (branches, tags, or commits) showing commits and file changes"
 command = "@BIN@/content-compare"
-arg_order = ["base", "head", "per_page", "page"]
+arg-order = ["base", "head", "per_page", "page"]
 
 [input]
 type = "object"

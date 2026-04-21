@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "text/plain"
 perms-request = "always-allow"
 description = "Send a short message to another session (or 'all') on the walkie-talkie bus. The body MUST NOT contain newlines or tab characters — for long content, reference a file path, gist URL, or issue number. Sender id comes from SPINCLASS_SESSION_ID."
 command = "@BIN@/send"
-arg_order = ["target", "body"]
+arg-order = ["target", "body"]
 
 [input]
 type = "object"

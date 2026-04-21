@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Show upcoming calendar events across all calendars. Returns event titles, times, and attendees."
 command = "@BIN@/agenda"
-arg_order = ["days", "calendar", "timezone"]
+arg-order = ["days", "calendar", "timezone"]
 
 [annotations]
 read-only-hint = true

@@ -1,11 +1,11 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = """Show the JSON representation of a derivation. Optionally \
 apply a jq filter to extract specific fields."""
 command = "@BIN@/derivation-show"
-arg_order = ["path", "jq_filter"]
+arg-order = ["path", "jq_filter"]
 
 [input]
 required = ["path"]

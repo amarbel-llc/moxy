@@ -1,4 +1,4 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Execute the default justfile recipe (no arguments). Equivalent to running `just` with no arguments."
 command = "bash"

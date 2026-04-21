@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Update character formatting (bold, italic, font, color, links) on a text range in a Google Doc. Use get first to find indices."
 command = "@BIN@/update-text-style"
-arg_order = ["document_id", "start_index", "end_index", "text_style", "fields", "revision_id"]
+arg-order = ["document_id", "start_index", "end_index", "text_style", "fields", "revision_id"]
 
 [annotations]
 open-world-hint = true

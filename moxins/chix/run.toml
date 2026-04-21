@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Run a flake app."
 command = "@BIN@/run"
-arg_order = ["installable", "args", "flake_dir"]
+arg-order = ["installable", "args", "flake_dir"]
 
 [input.properties.installable]
 type = "string"

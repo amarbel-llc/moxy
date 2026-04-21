@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Read a Gmail message by ID. Extracts body and optionally headers. Converts HTML to plain text automatically."
 command = "@BIN@/read"
-arg_order = ["id"]
+arg-order = ["id"]
 
 [annotations]
 read-only-hint = true

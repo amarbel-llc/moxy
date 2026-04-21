@@ -1,4 +1,4 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "List all environment variables and their values."
 command = "@BIN@/list"

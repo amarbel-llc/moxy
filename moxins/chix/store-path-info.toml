@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Query store path metadata (size, references, signatures). Accepts store paths or installables."
 command = "@BIN@/store-path-info"
-arg_order = ["path", "closure", "derivation"]
+arg-order = ["path", "closure", "derivation"]
 
 [input]
 required = ["path"]

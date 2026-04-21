@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Compute the hash of a file or path. Returns the hash string \
 in the requested encoding."""
 command = "@BIN@/nix-hash"
-arg_order = ["path", "hash_type", "encoding"]
+arg-order = ["path", "hash_type", "encoding"]
 
 [input]
 required = ["path"]

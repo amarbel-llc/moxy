@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Update flake.lock file. Args are passed literally to 'nix flake update' — consult your system nix's 'nix flake update --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-update"
-arg_order = ["args", "flake_dir"]
+arg-order = ["args", "flake_dir"]
 
 [input.properties.args]
 type = "array"

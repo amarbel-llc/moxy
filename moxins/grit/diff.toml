@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Show changes in the working tree or between commits"
 command = "@BIN@/diff"
-arg_order = ["ref", "paths", "staged", "stat_only", "context_lines", "repo_path"]
+arg-order = ["ref", "paths", "staged", "stat_only", "context_lines", "repo_path"]
 
 [input]
 type = "object"

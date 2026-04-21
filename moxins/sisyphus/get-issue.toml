@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Get a Jira issue by key"
 command = "@BIN@/get-issue"
-arg_order = ["issue_key", "fields", "output_format"]
+arg-order = ["issue_key", "fields", "output_format"]
 
 [input]
 type = "object"

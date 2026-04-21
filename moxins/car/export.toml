@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Export a Google Workspace file (Doc, Sheet, Slide) to a different format. Returns the exported content as text."
 command = "@BIN@/export"
-arg_order = ["file_id", "mime_type"]
+arg-order = ["file_id", "mime_type"]
 
 [annotations]
 read-only-hint = true

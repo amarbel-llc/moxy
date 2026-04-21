@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Find and replace text in a Google Doc. Case-sensitive by default. Preserves anchored comments unless the entire anchor text is consumed by the match."
 command = "@BIN@/replace-text"
-arg_order = ["document_id", "find", "replace", "revision_id", "match_case"]
+arg-order = ["document_id", "find", "replace", "revision_id", "match_case"]
 
 [annotations]
 open-world-hint = true

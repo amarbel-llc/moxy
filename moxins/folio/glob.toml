@@ -1,10 +1,10 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Fast file pattern matching tool that works with any codebase size. \
 Supports glob patterns like "**/*.js" or "src/**/*.ts". \
 Returns matching file paths sorted by modification time (newest first)."""
 command = "@BIN@/glob"
-arg_order = ["pattern", "path"]
+arg-order = ["pattern", "path"]
 
 [input]
 type = "object"

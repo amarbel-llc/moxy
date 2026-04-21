@@ -1,11 +1,11 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = """Get the full file tree of a repository at a given ref. Returns a flat JSON array of all \
 files and directories with path, type (blob/tree), and size."""
 command = "@BIN@/content-tree"
-arg_order = ["repo", "ref"]
+arg-order = ["repo", "ref"]
 
 [input]
 type = "object"

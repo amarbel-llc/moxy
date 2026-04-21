@@ -1,4 +1,4 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "List available recipes with their descriptions, grouped by category. Shows recipe names, parameters, and doc comments. Includes recipes from child justfiles in subdirectories, shown with dir/recipe prefix."
 command = "@BIN@/list-recipes"

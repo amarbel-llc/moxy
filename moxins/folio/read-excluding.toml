@@ -1,10 +1,10 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Read a file with an inclusive line range omitted, equivalent to `sed 'delete_start,delete_end d' <file>`. \
 Output format: `     N\\tcontent` per line. Accepts moxy.native:// result URIs as file paths, replacing `sed` \
 deletion piping on command output."""
 command = "@BIN@/read-excluding"
-arg_order = ["file_path", "delete_start", "delete_end"]
+arg-order = ["file_path", "delete_start", "delete_end"]
 
 [input]
 type = "object"

@@ -1,4 +1,4 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "List all variables defined in the justfile with their values."
 command = "just"

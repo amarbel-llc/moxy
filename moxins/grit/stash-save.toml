@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Save uncommitted changes to a stash"
 command = "@BIN@/stash-save"
-arg_order = ["message", "include_untracked", "repo_path"]
+arg-order = ["message", "include_untracked", "repo_path"]
 
 [input]
 type = "object"

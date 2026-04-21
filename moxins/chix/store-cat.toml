@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Read file contents from a nix store path. Use head/tail to limit output for large files."
 command = "@BIN@/store-cat"
-arg_order = ["path"]
+arg-order = ["path"]
 
 [input]
 required = ["path"]

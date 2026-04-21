@@ -1,9 +1,9 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """List unique tool names seen across all sessions or a filtered set. Returns each tool \
 name with the number of sessions it appeared in, sorted by frequency."""
 command = "@BIN@/unique-tools"
-arg_order = ["project", "days", "session_ids", "scope"]
+arg-order = ["project", "days", "session_ids", "scope"]
 
 [input]
 type = "object"

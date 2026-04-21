@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Create a directory and any missing parent directories. No error if the \
 directory already exists."""
 command = "@BIN@/mkdir"
-arg_order = ["path"]
+arg-order = ["path"]
 
 [input]
 type = "object"

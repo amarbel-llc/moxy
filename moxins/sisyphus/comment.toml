@@ -1,7 +1,7 @@
-schema = 2
+schema = 3
 description = "Post a comment on an issue or pull request"
 command = "@BIN@/comment"
-arg_order = ["issue_key", "body", "output_format"]
+arg-order = ["issue_key", "body", "output_format"]
 
 [input]
 type = "object"

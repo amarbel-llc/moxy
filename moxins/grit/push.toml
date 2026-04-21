@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Push commits to a remote repository"
 command = "@BIN@/push"
-arg_order = ["remote", "branch", "set_upstream", "force", "repo_path"]
+arg-order = ["remote", "branch", "set_upstream", "force", "repo_path"]
 
 [input]
 type = "object"

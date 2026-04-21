@@ -1,9 +1,9 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 description = "Make an authenticated PUT request to the GitHub REST API"
 command = "@BIN@/api-put"
-arg_order = ["endpoint", "body", "params", "headers"]
+arg-order = ["endpoint", "body", "params", "headers"]
 
 [input]
 type = "object"

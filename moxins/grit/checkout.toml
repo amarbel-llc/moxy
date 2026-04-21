@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Switch branches or restore individual files from a ref. Use paths to restore specific files; omit paths to switch branches."
 command = "@BIN@/checkout"
-arg_order = ["ref", "create", "paths", "ours", "theirs", "repo_path"]
+arg-order = ["ref", "create", "paths", "ours", "theirs", "repo_path"]
 
 [input]
 type = "object"

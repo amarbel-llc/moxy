@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Close an issue with optional comment"
 command = "@BIN@/issue-close"
-arg_order = ["repo", "number", "comment", "reason"]
+arg-order = ["repo", "number", "comment", "reason"]
 
 [input]
 type = "object"

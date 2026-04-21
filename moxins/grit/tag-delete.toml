@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Delete a local tag. Does not delete the tag on a remote — push :refs/tags/<name> via grit_push for that."
 command = "@BIN@/tag-delete"
-arg_order = ["name", "repo_path"]
+arg-order = ["name", "repo_path"]
 
 [input]
 type = "object"

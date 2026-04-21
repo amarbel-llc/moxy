@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "List all git worktrees with path, HEAD, branch, and lock/prune state"
 command = "@BIN@/worktree-list"
-arg_order = ["repo_path"]
+arg-order = ["repo_path"]
 
 [input]
 type = "object"

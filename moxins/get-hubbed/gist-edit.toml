@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Edit an existing gist by adding or updating a file."
 command = "@BIN@/gist-edit"
-arg_order = ["id", "filename", "content"]
+arg-order = ["id", "filename", "content"]
 
 [input]
 type = "object"

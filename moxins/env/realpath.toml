@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Resolve a path to its absolute canonical form, resolving all symlinks and relative components."
 command = "@BIN@/realpath"
-arg_order = ["path"]
+arg-order = ["path"]
 
 [input]
 type = "object"

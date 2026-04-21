@@ -1,4 +1,4 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/x-ndjson"
 perms-request = "always-allow"

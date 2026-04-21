@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Add one or more labels to an issue without touching existing labels."
 command = "@BIN@/issue-label-add"
-arg_order = ["number", "labels"]
+arg-order = ["number", "labels"]
 
 [input]
 type = "object"

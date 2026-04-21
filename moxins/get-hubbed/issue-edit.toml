@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Edit an existing issue's title, body, labels, or assignees. Only fields you pass are changed."
 command = "@BIN@/issue-edit"
-arg_order = ["number", "title", "body", "add_labels", "remove_labels", "add_assignees", "remove_assignees"]
+arg-order = ["number", "title", "body", "add_labels", "remove_labels", "add_assignees", "remove_assignees"]
 
 [input]
 type = "object"

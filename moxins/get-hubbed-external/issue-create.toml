@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Create a new issue"
 command = "@BIN@/issue-create"
-arg_order = ["repo", "title", "body", "labels"]
+arg-order = ["repo", "title", "body", "labels"]
 
 [input]
 type = "object"

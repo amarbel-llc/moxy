@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = """Move or rename a file or directory. Source and destination must be within CWD."""
 command = "@BIN@/mv"
-arg_order = ["source", "destination"]
+arg-order = ["source", "destination"]
 
 [input]
 type = "object"

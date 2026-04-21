@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """List contents of a tarball (.tar.gz, .tar.bz2, .tar, etc). \
 Optionally filter entries by a grep pattern."""
 command = "@BIN@/tar-list"
-arg_order = ["path", "pattern"]
+arg-order = ["path", "pattern"]
 
 [input]
 required = ["path"]

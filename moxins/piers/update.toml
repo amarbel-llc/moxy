@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Update an existing Google Doc with new markdown content. Replaces the document body entirely."
 command = "@BIN@/update"
-arg_order = ["file_id", "content"]
+arg-order = ["file_id", "content"]
 
 [annotations]
 open-world-hint = true

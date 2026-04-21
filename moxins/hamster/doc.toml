@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Show documentation for a Go package or symbol. Returns 'go doc -all' output, plus a 'Sub-packages:' section listing any sub-packages of the queried package so the full module surface is discoverable in one call. Sub-packages are not listed when querying a specific symbol."
 command = "@BIN@/doc"
-arg_order = ["package", "symbol"]
+arg-order = ["package", "symbol"]
 
 [input]
 type = "object"

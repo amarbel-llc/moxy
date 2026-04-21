@@ -1,9 +1,9 @@
-schema = 2
+schema = 3
 result-type = "text"
 perms-request = "always-allow"
 description = "View the contents of a gist. Returns all files by default, or a single file if filename is specified."
 command = "@BIN@/gist-view"
-arg_order = ["id", "filename"]
+arg-order = ["id", "filename"]
 
 [input]
 type = "object"

@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Create a new pull request"
 command = "@BIN@/pr-create"
-arg_order = ["title", "body", "base", "head", "draft", "labels"]
+arg-order = ["title", "body", "base", "head", "draft", "labels"]
 
 [input]
 type = "object"

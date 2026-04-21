@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Move or rename a file, directory, or symlink and stage the change (git mv)"
 command = "@BIN@/mv"
-arg_order = ["source", "destination", "repo_path"]
+arg-order = ["source", "destination", "repo_path"]
 
 [input]
 type = "object"

@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Create a new commit with staged changes"
 command = "@BIN@/commit"
-arg_order = ["message", "amend", "repo_path"]
+arg-order = ["message", "amend", "repo_path"]
 
 [input]
 type = "object"

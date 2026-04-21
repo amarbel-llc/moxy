@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
 description = "Fetch a GitHub Actions workflow run's metadata and per-job rows in a single call. Combines /actions/runs/{id} and /actions/runs/{id}/jobs into one JSON object: {run: {...}, jobs: [...]}."
 command = "@BIN@/ci-run-get"
-arg_order = ["repo", "run_id"]
+arg-order = ["repo", "run_id"]
 
 [input]
 type = "object"

@@ -1,11 +1,11 @@
-schema = 2
+schema = 3
 result-type = "text"
 content-type = "application/json"
 description = """Create or update a file in a repository via the GitHub Contents API. \
 Automatically fetches the existing file's SHA for updates (upsert). \
 Content is provided as plain text and base64-encoded by the tool."""
 command = "@BIN@/content-put"
-arg_order = ["repo", "path", "content", "message", "branch"]
+arg-order = ["repo", "path", "content", "message", "branch"]
 
 [input]
 type = "object"

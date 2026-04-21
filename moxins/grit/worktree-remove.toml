@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Remove a git worktree by path"
 command = "@BIN@/worktree-remove"
-arg_order = ["path", "force", "repo_path"]
+arg-order = ["path", "force", "repo_path"]
 
 [input]
 type = "object"

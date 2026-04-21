@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Print the value of a single environment variable by name."
 command = "@BIN@/print"
-arg_order = ["name"]
+arg-order = ["name"]
 
 [input]
 type = "object"

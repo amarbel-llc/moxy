@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 description = """Copy a file or directory. Creates destination parent directories if needed. \
 Use recursive to copy directories."""
 command = "@BIN@/cp"
-arg_order = ["source", "destination", "recursive"]
+arg-order = ["source", "destination", "recursive"]
 
 [input]
 type = "object"

@@ -1,7 +1,7 @@
-schema = 1
+schema = 3
 description = "Run garbage collection on the Nix store."
 command = "@BIN@/store-gc"
-arg_order = ["dry_run", "max_freed"]
+arg-order = ["dry_run", "max_freed"]
 
 [input.properties.dry_run]
 type = "string"

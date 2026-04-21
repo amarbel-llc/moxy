@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Resolve a symbolic link, printing its target. With canonicalize=true, follow every symlink recursively (-f)."
 command = "@BIN@/readlink"
-arg_order = ["path", "canonicalize"]
+arg-order = ["path", "canonicalize"]
 
 [input]
 type = "object"

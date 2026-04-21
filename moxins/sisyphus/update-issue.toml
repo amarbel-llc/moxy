@@ -1,7 +1,7 @@
-schema = 2
+schema = 3
 description = "Update fields on an existing Jira issue"
 command = "@BIN@/update-issue"
-arg_order = ["issue_key", "summary", "description", "assignee", "labels", "issuetype", "output_format"]
+arg-order = ["issue_key", "summary", "description", "assignee", "labels", "issuetype", "output_format"]
 
 [input]
 type = "object"

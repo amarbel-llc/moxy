@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Initialize a new flake in the specified directory."
 command = "@BIN@/flake-init"
-arg_order = ["template", "flake_dir"]
+arg-order = ["template", "flake_dir"]
 
 [input.properties.template]
 type = "string"

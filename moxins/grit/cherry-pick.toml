@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Apply commits from other branches onto the current branch"
 command = "@BIN@/cherry-pick"
-arg_order = ["commits", "no_commit", "repo_path"]
+arg-order = ["commits", "no_commit", "repo_path"]
 
 [input]
 type = "object"

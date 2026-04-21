@@ -1,9 +1,9 @@
-schema = 2
+schema = 3
 result-type = "text"
 perms-request = "always-allow"
 description = "List gists for the authenticated user. Returns ID, description, file count, visibility, and updated time."
 command = "@BIN@/gist-list"
-arg_order = ["limit", "public"]
+arg-order = ["limit", "public"]
 
 [input]
 type = "object"

@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Pull changes from a remote repository"
 command = "@BIN@/pull"
-arg_order = ["remote", "branch", "rebase", "repo_path"]
+arg-order = ["remote", "branch", "rebase", "repo_path"]
 
 [input]
 type = "object"

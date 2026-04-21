@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Show the full source of a recipe including its body, parameters, dependencies, and any doc comments."
 command = "just"
-arg_order = ["recipe"]
+arg-order = ["recipe"]
 args = ["--show"]
 
 [input]

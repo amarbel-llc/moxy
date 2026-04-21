@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Stage files for commit"
 command = "@BIN@/add"
-arg_order = ["paths", "repo_path", "intent_to_add"]
+arg-order = ["paths", "repo_path", "intent_to_add"]
 
 [input]
 type = "object"

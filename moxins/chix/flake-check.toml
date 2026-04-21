@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Run flake checks and tests. Args are passed literally to 'nix flake check' — consult your system nix's 'nix flake check --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-check"
-arg_order = ["args", "flake_dir"]
+arg-order = ["args", "flake_dir"]
 
 [input.properties.args]
 type = "array"

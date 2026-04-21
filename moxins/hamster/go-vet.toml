@@ -1,9 +1,9 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = """Run Go vet static analysis. Reports suspicious constructs \
 that the compiler does not catch."""
 command = "@BIN@/go-vet"
-arg_order = ["packages"]
+arg-order = ["packages"]
 
 [input]
 

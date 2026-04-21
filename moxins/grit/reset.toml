@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Unstage files (soft reset only, does not modify working tree)"
 command = "@BIN@/reset"
-arg_order = ["paths", "soft", "ref", "repo_path"]
+arg-order = ["paths", "soft", "ref", "repo_path"]
 
 [input]
 type = "object"

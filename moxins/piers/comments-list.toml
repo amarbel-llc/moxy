@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "List comments on a Google Doc. Returns comment text, author, quoted content, and resolved status."
 command = "@BIN@/comments-list"
-arg_order = ["file_id", "page_size"]
+arg-order = ["file_id", "page_size"]
 
 [annotations]
 read-only-hint = true

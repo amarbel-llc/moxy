@@ -1,8 +1,8 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = "Crawl a Google Workspace resource, extract links to other GWS resources recursively, and output a Graphviz DOT graph. External links (Jira, PagerDuty, GitHub, etc.) appear as styled leaf nodes."
 command = "@BIN@/doc-graph"
-arg_order = ["file_id", "max_depth", "output"]
+arg-order = ["file_id", "max_depth", "output"]
 
 [annotations]
 read-only-hint = true

@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Delete files and stage the deletion (git rm)"
 command = "@BIN@/rm"
-arg_order = ["paths", "force", "repo_path"]
+arg-order = ["paths", "force", "repo_path"]
 
 [input]
 type = "object"

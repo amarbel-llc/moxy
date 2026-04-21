@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 description = """Copy a file or directory. Source and destination must be within CWD. \
 Use recursive to copy directories."""
 command = "@BIN@/cp"
-arg_order = ["source", "destination", "recursive"]
+arg-order = ["source", "destination", "recursive"]
 
 [input]
 type = "object"

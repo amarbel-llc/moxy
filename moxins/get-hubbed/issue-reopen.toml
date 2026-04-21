@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Reopen a closed issue with optional comment"
 command = "@BIN@/issue-reopen"
-arg_order = ["number", "comment"]
+arg-order = ["number", "comment"]
 
 [input]
 type = "object"

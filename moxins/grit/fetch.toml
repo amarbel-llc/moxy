@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 perms-request = "always-allow"
 description = "Fetch from a remote repository"
 command = "@BIN@/fetch"
-arg_order = ["remote", "prune", "all", "tags", "repo_path"]
+arg-order = ["remote", "prune", "all", "tags", "repo_path"]
 
 [input]
 type = "object"

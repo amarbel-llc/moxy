@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 description = """Identify file type using magic bytes. Returns a human-readable \
 description (e.g. 'ELF 64-bit executable', 'Bash script, ASCII text')."""
 command = "@BIN@/file-type"
-arg_order = ["path"]
+arg-order = ["path"]
 
 [input]
 required = ["path"]

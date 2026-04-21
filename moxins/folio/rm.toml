@@ -1,8 +1,8 @@
-schema = 1
+schema = 3
 description = """Remove files or directories. Removes the specified paths within the current \
 working directory. Use force to ignore nonexistent paths, recursive to remove directories."""
 command = "@BIN@/rm"
-arg_order = ["paths", "force", "recursive"]
+arg-order = ["paths", "force", "recursive"]
 
 [input]
 type = "object"

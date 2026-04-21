@@ -1,10 +1,10 @@
-schema = 2
+schema = 3
 perms-request = "always-allow"
 description = """Aggregate tool usage frequency across multiple sessions. Returns a ranked table \
 with counts and percentages. When filtering to a specific tool like Bash, breaks down by \
 command/subcommand. Much faster than calling tool_usage per session and tallying manually."""
 command = "@BIN@/tool-frequency"
-arg_order = ["project", "days", "tool_name", "limit", "scope"]
+arg-order = ["project", "days", "tool_name", "limit", "scope"]
 
 [input]
 type = "object"
