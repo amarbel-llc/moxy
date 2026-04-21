@@ -218,7 +218,10 @@
         chix-moxin = mkBunMoxin "chix" [
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.git pkgs.gnugrep pkgs.jq pkgs.manix
         ] {
+          "flake-check" = "moxins/chix/src/flake-check.ts";
+          "flake-lock" = "moxins/chix/src/flake-lock.ts";
           "flake-show" = "moxins/chix/src/flake-show.ts";
+          "flake-update" = "moxins/chix/src/flake-update.ts";
           "store-ls" = "moxins/chix/src/store-ls.ts";
         } { pathMode = "suffix"; };
         conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};

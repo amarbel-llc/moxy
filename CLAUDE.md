@@ -143,6 +143,22 @@ config. Inline shell scripts must use `command = "bash"` (not `"sh"`) since they
 rely on bash features (`pipefail`, arrays, process substitution). `bash` is
 provided via the nix wrapper PATH.
 
+**Bash vs. bun/zx for moxin scripts:** bash is fine for simple pipelines, but
+prefer bun + [zx](https://github.com/google/zx) for any tool that (a) parses
+JSON input, (b) passes caller-controlled arguments to a subprocess, or (c) has
+more than trivial output shaping. The safety argument is much shorter:
+`await $\`cmd ${arrayOfArgs}\`` in zx interpolates each array element as one
+distinct argv entry with no shell involvement --- compared to bash, where you
+need NUL-delimited `jq` + `while read -d ''` + `"${array[@]}"` to achieve the
+same property. Bun startup is negligible for tools that already spend
+hundreds of ms in network/IPC calls: a hello-world ESM script measures 36 ms,
+proved in the bun fork at
+[`amarbel-llc/bun@d2da258bc`](https://github.com/amarbel-llc/bun/commit/d2da258bc22a1198857afd2f301c0d524a6060d2).
+Bun moxins are wired through `mkBunMoxin` in `flake.nix`; scripts live in
+`moxins/<name>/src/*.ts` and get compiled to `bin/` entries at nix build time
+via `buildBunBinaries`. See `moxins/chix/src/flake-*.ts`, `flake-show.ts`,
+`store-ls.ts` for existing examples.
+
 ### Folio (File I/O Tools)
 
 Native server (`.moxy/servers/folio.toml`) providing file read/write operations

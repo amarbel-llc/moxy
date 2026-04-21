@@ -1,23 +1,21 @@
 schema = 1
 perms-request = "always-allow"
-description = "Run flake checks and tests."
+description = "Run flake checks and tests. Args are passed literally to 'nix flake check' — consult your system nix's 'nix flake check --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-check"
-arg_order = ["flake_ref", "flake_dir", "keep_going"]
+arg_order = ["args", "flake_dir"]
 
-[input.properties.flake_ref]
+[input.properties.args]
+type = "array"
+description = "Positional arguments and flags passed literally to 'nix flake check'. Each element is a single argv entry — no shell parsing. Common choices: ['--keep-going'] to report every failing check."
+
+[input.properties.args.items]
 type = "string"
-description = "Flake reference. Defaults to '.'."
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory containing the flake. Defaults to current directory."
-
-[input.properties.keep_going]
-type = "string"
-description = "Continue on error. Defaults to true."
+description = "Directory to cd into before invoking nix. Defaults to current directory. Orthogonal to any '--flake' arg you pass."
 
 [annotations]
 read-only-hint = true
 idempotent-hint = true
 open-world-hint = true
-

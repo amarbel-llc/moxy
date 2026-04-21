@@ -1,32 +1,19 @@
 schema = 1
 perms-request = "always-allow"
-description = "Update flake.lock file."
+description = "Update flake.lock file. Args are passed literally to 'nix flake update' — consult your system nix's 'nix flake update --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-update"
-arg_order = ["flake_ref", "inputs", "flake_dir", "head", "tail", "max_bytes"]
+arg_order = ["args", "flake_dir"]
 
-[input.properties.flake_ref]
-type = "string"
-description = "Flake reference. Defaults to '.'."
-
-[input.properties.inputs]
+[input.properties.args]
 type = "array"
-description = "Specific inputs to update. If empty, updates all inputs."
+description = "Positional arguments and flags passed literally to 'nix flake update'. Each element is a single argv entry — no shell parsing. Example: ['--flake', '.', 'nixpkgs'] to update only the 'nixpkgs' input of the current flake."
+
+[input.properties.args.items]
+type = "string"
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory containing the flake. Defaults to current directory."
-
-[input.properties.head]
-type = "string"
-description = "Only return the first N lines of output."
-
-[input.properties.tail]
-type = "string"
-description = "Only return the last N lines of output."
-
-[input.properties.max_bytes]
-type = "string"
-description = "Maximum bytes of output to return."
+description = "Directory to cd into before invoking nix. Defaults to current directory. Orthogonal to any '--flake' arg you pass."
 
 [annotations]
 open-world-hint = true

@@ -1,36 +1,19 @@
 schema = 1
 perms-request = "always-allow"
-description = "Lock flake inputs without building."
+description = "Create or update flake.lock without building. Args are passed literally to 'nix flake lock' — consult your system nix's 'nix flake lock --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-lock"
-arg_order = ["flake_ref", "update_inputs", "override_inputs", "flake_dir", "head", "tail", "max_bytes"]
+arg_order = ["args", "flake_dir"]
 
-[input.properties.flake_ref]
-type = "string"
-description = "Flake reference. Defaults to '.'."
-
-[input.properties.update_inputs]
+[input.properties.args]
 type = "array"
-description = "Inputs to update."
+description = "Positional arguments and flags passed literally to 'nix flake lock'. Each element is a single argv entry — no shell parsing."
 
-[input.properties.override_inputs]
-type = "object"
-description = "Map of input names to flake references to override."
+[input.properties.args.items]
+type = "string"
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory containing the flake. Defaults to current directory."
-
-[input.properties.head]
-type = "string"
-description = "Only return the first N lines of output."
-
-[input.properties.tail]
-type = "string"
-description = "Only return the last N lines of output."
-
-[input.properties.max_bytes]
-type = "string"
-description = "Maximum bytes of output to return."
+description = "Directory to cd into before invoking nix. Defaults to current directory. Orthogonal to any '--flake' arg you pass."
 
 [annotations]
 idempotent-hint = true
