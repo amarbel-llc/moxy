@@ -1,4 +1,5 @@
 schema = 3
+substitute-result-uris = false
 result-type = "text"
 content-type = "application/json"
 description = """Create or update a file in a repository via the GitHub Contents API. \

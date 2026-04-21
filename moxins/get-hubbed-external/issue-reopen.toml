@@ -1,4 +1,5 @@
 schema = 3
+substitute-result-uris = false
 description = "Reopen a closed issue with optional comment"
 command = "@BIN@/issue-reopen"
 arg-order = ["repo", "number", "comment"]

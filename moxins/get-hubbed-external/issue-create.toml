@@ -1,4 +1,5 @@
 schema = 3
+substitute-result-uris = false
 description = "Create a new issue"
 command = "@BIN@/issue-create"
 arg-order = ["repo", "title", "body", "labels"]

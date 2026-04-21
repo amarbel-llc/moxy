@@ -1,4 +1,5 @@
 schema = 3
+substitute-result-uris = false
 perms-request = "always-allow"
 description = "Edit an existing issue's title, body, labels, or assignees. Only fields you pass are changed."
 command = "@BIN@/issue-edit"

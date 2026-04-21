@@ -1,4 +1,5 @@
 schema = 3
+substitute-result-uris = false
 perms-request = "always-allow"
 description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate. Preserves anchored comments on unchanged text. Use replaceAllText for find-and-replace, or insertText/deleteContentRange for index-based edits."
 command = "@BIN@/batch-update"

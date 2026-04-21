@@ -1,4 +1,5 @@
 schema = 3
+substitute-result-uris = false
 perms-request = "always-allow"
 description = "Close an issue with optional comment"
 command = "@BIN@/issue-close"
