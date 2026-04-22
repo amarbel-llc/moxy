@@ -78,6 +78,13 @@ type ResultReader interface {
 	ReadResult(uri string) (string, error)
 }
 
+type pavedPathState struct {
+	SelectedPath string
+	CurrentStage int
+	CalledTools  map[string]bool
+	Complete     bool
+}
+
 type Proxy struct {
 	children                    []ChildEntry
 	failed                      []FailedServer
@@ -90,6 +97,8 @@ type Proxy struct {
 	moxyProvider                *moxyResourceProvider
 	resourceProviders           []resourceProviderEntry
 	builtinTools                *server.ToolRegistryV1
+	pavedPaths                  []config.PavedPathConfig
+	pavedPathState              *pavedPathState
 	notifier                    func(*jsonrpc.Message) error
 	mu                          sync.RWMutex
 }
@@ -113,6 +122,14 @@ func (p *Proxy) SetResultReader(rr ResultReader) {
 
 func (p *Proxy) SetBuiltinTools(registry *server.ToolRegistryV1) {
 	p.builtinTools = registry
+}
+
+func (p *Proxy) SetPavedPaths(paths []config.PavedPathConfig) {
+	p.pavedPaths = paths
+}
+
+func (p *Proxy) pavedPathsActive() bool {
+	return len(p.pavedPaths) > 0
 }
 
 func (p *Proxy) hasBuiltinTool(name string) bool {
