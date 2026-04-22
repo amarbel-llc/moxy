@@ -132,6 +132,15 @@ func (p *Proxy) pavedPathsActive() bool {
 	return len(p.pavedPaths) > 0
 }
 
+func (p *Proxy) findPavedPath(name string) *config.PavedPathConfig {
+	for i := range p.pavedPaths {
+		if p.pavedPaths[i].Name == name {
+			return &p.pavedPaths[i]
+		}
+	}
+	return nil
+}
+
 func (p *Proxy) pavedPathToolAllowed(name string) bool {
 	if !p.pavedPathsActive() {
 		return true
@@ -145,20 +154,18 @@ func (p *Proxy) pavedPathToolAllowed(name string) bool {
 	if p.pavedPathState.Complete {
 		return true
 	}
-	for _, path := range p.pavedPaths {
-		if path.Name != p.pavedPathState.SelectedPath {
-			continue
-		}
-		stage := p.pavedPathState.CurrentStage
-		if stage < 0 || stage >= len(path.Stages) {
-			return false
-		}
-		for _, t := range path.Stages[stage].Tools {
-			if t == name {
-				return true
-			}
-		}
+	path := p.findPavedPath(p.pavedPathState.SelectedPath)
+	if path == nil {
 		return false
+	}
+	stage := p.pavedPathState.CurrentStage
+	if stage < 0 || stage >= len(path.Stages) {
+		return false
+	}
+	for _, t := range path.Stages[stage].Tools {
+		if t == name {
+			return true
+		}
 	}
 	return false
 }
@@ -1228,6 +1235,67 @@ func (p *Proxy) handleExecMCP(
 		return nil, fmt.Errorf("calling tool %s on %s: %w", params.Tool, params.Server, err)
 	}
 	return decodeToolCallResult(raw)
+}
+
+func (p *Proxy) HandlePavedPaths(args map[string]any) string {
+	if len(p.pavedPaths) == 0 {
+		return "no paved paths configured"
+	}
+
+	if args != nil {
+		if selectVal, ok := args["select"]; ok {
+			name, _ := selectVal.(string)
+			path := p.findPavedPath(name)
+			if path == nil {
+				return fmt.Sprintf("unknown path: %q", name)
+			}
+			p.pavedPathState = &pavedPathState{
+				SelectedPath: path.Name,
+				CurrentStage: 0,
+				CalledTools:  make(map[string]bool),
+			}
+			p.notifyToolsChanged()
+			var sb strings.Builder
+			fmt.Fprintf(&sb, "Selected path %q\n", path.Name)
+			if len(path.Stages) > 0 {
+				stage := path.Stages[0]
+				fmt.Fprintf(&sb, "Stage: %s\n", stage.Label)
+				fmt.Fprintf(&sb, "Tools to call:\n")
+				for _, t := range stage.Tools {
+					fmt.Fprintf(&sb, "  - %s\n", t)
+				}
+			}
+			return sb.String()
+		}
+	}
+
+	if p.pavedPathState != nil {
+		state := p.pavedPathState
+		currentPath := p.findPavedPath(state.SelectedPath)
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "Path: %s\n", state.SelectedPath)
+		if currentPath != nil && state.CurrentStage < len(currentPath.Stages) {
+			stage := currentPath.Stages[state.CurrentStage]
+			fmt.Fprintf(&sb, "Stage: %s\n", stage.Label)
+			fmt.Fprintf(&sb, "Tools:\n")
+			for _, t := range stage.Tools {
+				if state.CalledTools[t] {
+					fmt.Fprintf(&sb, "  \u2713 %s\n", t)
+				} else {
+					fmt.Fprintf(&sb, "  - %s\n", t)
+				}
+			}
+		}
+		return sb.String()
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Available paved paths:\n")
+	for _, path := range p.pavedPaths {
+		fmt.Fprintf(&sb, "  %s: %s\n", path.Name, path.Description)
+	}
+	sb.WriteString("\nUse select: \"<name>\" to begin a path.")
+	return sb.String()
 }
 
 func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]protocol.ToolV1, error) {

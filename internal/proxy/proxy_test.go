@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/amarbel-llc/moxy/internal/config"
@@ -116,5 +117,109 @@ func TestPavedPathToolAllowedComplete(t *testing.T) {
 	}
 	if !p.pavedPathToolAllowed("any.tool") {
 		t.Error("all tools should be allowed when path is complete")
+	}
+}
+
+func TestHandlePavedPathsNoPathsConfigured(t *testing.T) {
+	p := &Proxy{}
+	result := p.HandlePavedPaths(nil)
+	if !strings.Contains(result, "no paved paths") {
+		t.Errorf("unexpected result: %s", result)
+	}
+}
+
+func TestHandlePavedPathsListPaths(t *testing.T) {
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name:        "onboarding",
+			Description: "Learn the repo",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read"}},
+			},
+		}},
+	}
+	result := p.HandlePavedPaths(nil)
+	if !strings.Contains(result, "onboarding") {
+		t.Errorf("expected path name in result: %s", result)
+	}
+	if !strings.Contains(result, "Learn the repo") {
+		t.Errorf("expected description in result: %s", result)
+	}
+}
+
+func TestHandlePavedPathsSelectPath(t *testing.T) {
+	notified := false
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name:        "onboarding",
+			Description: "Learn the repo",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read", "folio.glob"}},
+			},
+		}},
+		notifier: func(msg *jsonrpc.Message) error {
+			notified = true
+			return nil
+		},
+	}
+	result := p.HandlePavedPaths(map[string]any{"select": "onboarding"})
+	if p.pavedPathState == nil {
+		t.Fatal("expected pavedPathState to be set")
+	}
+	if p.pavedPathState.SelectedPath != "onboarding" {
+		t.Errorf("expected SelectedPath onboarding, got %s", p.pavedPathState.SelectedPath)
+	}
+	if !notified {
+		t.Error("expected tools/listChanged notification")
+	}
+	if !strings.Contains(result, "orient") {
+		t.Errorf("expected stage label in result: %s", result)
+	}
+}
+
+func TestHandlePavedPathsSelectUnknownPath(t *testing.T) {
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name: "onboarding",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read"}},
+			},
+		}},
+	}
+	result := p.HandlePavedPaths(map[string]any{"select": "nonexistent"})
+	if !strings.Contains(result, "unknown") {
+		t.Errorf("expected 'unknown' in result: %s", result)
+	}
+	if p.pavedPathState != nil {
+		t.Error("expected pavedPathState to remain nil")
+	}
+}
+
+func TestHandlePavedPathsStatus(t *testing.T) {
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name: "onboarding",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read", "folio.glob"}},
+			},
+		}},
+		pavedPathState: &pavedPathState{
+			SelectedPath: "onboarding",
+			CurrentStage: 0,
+			CalledTools:  map[string]bool{"folio.read": true},
+		},
+	}
+	result := p.HandlePavedPaths(nil)
+	if !strings.Contains(result, "onboarding") {
+		t.Errorf("expected path name: %s", result)
+	}
+	if !strings.Contains(result, "orient") {
+		t.Errorf("expected stage label: %s", result)
+	}
+	if !strings.Contains(result, "folio.read") {
+		t.Errorf("expected called tool: %s", result)
+	}
+	if !strings.Contains(result, "folio.glob") {
+		t.Errorf("expected pending tool: %s", result)
 	}
 }

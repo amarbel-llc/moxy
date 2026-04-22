@@ -491,6 +491,25 @@ func runServer(app *command.App, mode transportMode) error {
 
 	builtinRegistry := server.NewToolRegistryV1()
 	app.RegisterMCPToolsV1(builtinRegistry)
+	builtinRegistry.Register(
+		protocol.ToolV1{
+			Name:        config.PavedPathsToolName,
+			Description: "Manage paved-path workflow selection and progress",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"select":{"type":"string","description":"Name of the path to select"}}}`),
+		},
+		func(ctx context.Context, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			var params map[string]any
+			if len(args) > 0 {
+				if err := json.Unmarshal(args, &params); err != nil {
+					return protocol.ErrorResultV1(fmt.Sprintf("invalid paved-paths args: %v", err)), nil
+				}
+			}
+			text := p.HandlePavedPaths(params)
+			return &protocol.ToolCallResultV1{
+				Content: []protocol.ContentBlockV1{{Type: "text", Text: text}},
+			}, nil
+		},
+	)
 	p.SetBuiltinTools(builtinRegistry)
 
 	if cwd, err := os.Getwd(); err != nil {
