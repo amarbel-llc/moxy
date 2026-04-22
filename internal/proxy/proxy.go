@@ -137,6 +137,14 @@ func (p *Proxy) ForwardNotification(msg *jsonrpc.Message) {
 	}
 }
 
+func (p *Proxy) notifyToolsChanged() {
+	if p.notifier == nil {
+		return
+	}
+	msg, _ := jsonrpc.NewNotification(protocol.MethodNotificationsToolsListChanged, nil)
+	_ = p.notifier(msg)
+}
+
 func New(
 	children []ChildEntry,
 	failed []FailedServer,
@@ -272,9 +280,7 @@ func (p *Proxy) reprobeEphemeral(ctx context.Context, meta *EphemeralMeta) error
 		}
 	}
 
-	if msg, err := jsonrpc.NewNotification(protocol.MethodNotificationsToolsListChanged, nil); err == nil {
-		p.ForwardNotification(msg)
-	}
+	p.notifyToolsChanged()
 
 	return nil
 }
@@ -1254,9 +1260,7 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 	})
 	p.mu.Unlock()
 
-	if msg, err := jsonrpc.NewNotification(protocol.MethodNotificationsToolsListChanged, nil); err == nil {
-		p.ForwardNotification(msg)
-	}
+	p.notifyToolsChanged()
 
 	return nil
 }
