@@ -388,7 +388,7 @@
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [ pkgs.makeWrapper pkgs.jq ];
           ldflags = [
             "-X" "main.version=${moxyVersion}"
             "-X" "main.commit=${moxyCommit}"
@@ -396,6 +396,13 @@
           ];
           postInstall = ''
             MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
+
+            # purse-first's generate-plugin doesn't emit a `version` field; inject
+            # it from the nix-pinned moxyVersion so distributed plugin.json tracks
+            # releases (Claude Code plugins spec requires semver `version`).
+            pluginJson="$out/share/purse-first/moxy/.claude-plugin/plugin.json"
+            jq --arg v "${moxyVersion}" '.version = $v' "$pluginJson" > "$pluginJson.tmp"
+            mv "$pluginJson.tmp" "$pluginJson"
 
             # clown-plugin-protocol manifest for HTTP MCP transport.
             substitute ${./clown.json} $out/share/purse-first/moxy/clown.json \
