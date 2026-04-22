@@ -43,6 +43,9 @@ func newApp() *command.App {
 	app := command.NewApp("moxy", "MCP proxy that aggregates child MCP servers")
 	app.Version = version + "+" + commit
 	app.MCPArgs = []string{"serve", "mcp"}
+	if b := os.Getenv("MOXY_MCP_BINARY"); b != "" {
+		app.MCPBinary = b
+	}
 	app.Description.Long = "Moxy spawns child MCP servers as subprocesses, communicates with them " +
 		"via JSON-RPC over stdio, and presents their tools, resources, and prompts " +
 		"through a single unified MCP server. Child server capabilities are namespaced " +

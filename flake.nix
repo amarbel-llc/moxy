@@ -395,10 +395,11 @@
             "-X" "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
           ];
           postInstall = ''
-            $out/bin/moxy generate-plugin $out
+            MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
 
             # clown-plugin-protocol manifest for HTTP MCP transport.
-            cp ${./clown.json} $out/share/purse-first/moxy/clown.json
+            substitute ${./clown.json} $out/share/purse-first/moxy/clown.json \
+              --replace-fail "@MOXY@" "$out/bin/moxy"
 
             # Static hooks — go-mcp's GenerateHooks no-ops (no MapsTools),
             # so we install them at the correct plugin path.

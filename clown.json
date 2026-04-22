@@ -2,7 +2,7 @@
   "version": 1,
   "httpServers": {
     "moxy": {
-      "command": "bin/moxy",
+      "command": "@MOXY@",
       "args": [
         "serve",
         "http"
