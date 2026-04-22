@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -18,7 +19,6 @@ type Config struct {
 	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
 	BuiltinNative         *bool                      `toml:"builtin-native"`
 	DisableMoxins         []string                   `toml:"disable-moxins"`
-	PavedPaths            []PavedPathConfig          `toml:"paved-paths"`
 	Credentials           *credentials.CommandConfig `toml:"credentials"`
 	Servers               []ServerConfig             `toml:"servers"`
 }
@@ -162,14 +162,32 @@ type AnnotationFilter struct {
 }
 
 type PavedPathStage struct {
-	Label string   `toml:"label"`
-	Tools []string `toml:"tools"`
+	Label string   `json:"label"`
+	Tools []string `json:"tools"`
 }
 
 type PavedPathConfig struct {
-	Name        string           `toml:"name"`
-	Description string           `toml:"description"`
-	Stages      []PavedPathStage `toml:"stages"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	Stages      []PavedPathStage `json:"stages"`
+}
+
+const PavedPathsFile = "moxyfile.paved-paths.json"
+
+// LoadPavedPaths returns nil, nil if the file is absent.
+func LoadPavedPaths(dir string) ([]PavedPathConfig, error) {
+	data, err := os.ReadFile(filepath.Join(dir, PavedPathsFile))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("paved-paths: %w", err)
+	}
+	var paths []PavedPathConfig
+	if err := json.Unmarshal(data, &paths); err != nil {
+		return nil, fmt.Errorf("paved-paths: %w", err)
+	}
+	return paths, nil
 }
 
 type LoadSource struct {
@@ -330,20 +348,6 @@ func Merge(base, overlay Config) Config {
 		}
 		if !found {
 			merged.Servers = append(merged.Servers, srv)
-		}
-	}
-
-	for _, pp := range overlay.PavedPaths {
-		found := false
-		for i, existing := range merged.PavedPaths {
-			if existing.Name == pp.Name {
-				merged.PavedPaths[i] = pp
-				found = true
-				break
-			}
-		}
-		if !found {
-			merged.PavedPaths = append(merged.PavedPaths, pp)
 		}
 	}
 
