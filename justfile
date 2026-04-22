@@ -396,16 +396,21 @@ tag:
   git push origin "$tag"
   echo "pushed tag $tag"
 
-# Bump moxyVersion, commit, push branch, signed tag + push (CI handles release artifacts on tag push)
+# Bump moxyVersion on master, commit, push master, signed tag + push (CI handles release artifacts on tag push). Must be run from the master branch.
 release new_version:
   #!/usr/bin/env bash
   set -euo pipefail
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+  if [[ "$current_branch" != "master" ]]; then
+    echo "just release must be run on master (currently on $current_branch)" >&2
+    exit 1
+  fi
   just bump-version {{new_version}}
   if ! git diff --quiet flake.nix; then
     git add flake.nix
     git commit -m "chore: release v{{new_version}}"
   fi
-  git push
+  git push origin master
   just tag
 
 # Open a PR against amarbel-llc/homebrew-moxy setting Formula/moxy.rb to v$version (run after `just release` — v$version assets must exist on the GitHub release; HOMEBREW_TAP_DIR overrides the default .tmp/homebrew-moxy checkout)
