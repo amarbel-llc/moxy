@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -69,7 +71,7 @@ func newApp() *command.App {
 			Short: "Run as MCP proxy server over stdio",
 			Long: "Loads the moxyfile hierarchy, spawns child MCP servers, performs " +
 				"initialize handshakes, probes ephemeral servers, and serves as a " +
-				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT.",
+				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT/SIGTERM.",
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
 			return runServer(app, transportStdio)
@@ -296,7 +298,7 @@ func main() {
 		}
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	if err := app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}); err != nil {
@@ -340,7 +342,7 @@ func runServer(app *command.App, mode transportMode) error {
 
 	credStore := credentials.NewStore(cfg.Credentials)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	// connectServer handles both stdio and HTTP servers.
@@ -520,9 +522,7 @@ func runServer(app *command.App, mode transportMode) error {
 
 		err = srv.Run(ctx)
 
-		for _, c := range children {
-			c.Client.Close()
-		}
+		closeChildrenWithDeadline(children, time.Second)
 
 		return err
 	}
@@ -552,21 +552,41 @@ func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Prox
 		Handler: httpSrv,
 	}
 
+	// Clown grants up to 5s between SIGTERM and SIGKILL. Budget: 3s for HTTP
+	// graceful shutdown, 1s for child teardown, ~1s slack for stderrlog
+	// rotation and runtime exit.
 	go func() {
 		<-ctx.Done()
-		httpServer.Close()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer shutdownCancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			httpServer.Close()
+		}
 	}()
 
 	err := httpServer.Serve(ln)
 
-	for _, c := range children {
-		c.Client.Close()
-	}
+	closeChildrenWithDeadline(children, time.Second)
 
 	if err == http.ErrServerClosed {
 		return nil
 	}
 	return err
+}
+
+func closeChildrenWithDeadline(children []proxy.ChildEntry, deadline time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		for _, c := range children {
+			c.Client.Close()
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(deadline):
+		fmt.Fprintf(os.Stderr, "moxy: child teardown exceeded %s; continuing shutdown\n", deadline)
+	}
 }
 
 func connectHTTPServer(ctx context.Context, cfg config.ServerConfig, store credentials.Store) (*mcpclient.Client, *protocol.InitializeResultV1, error) {
