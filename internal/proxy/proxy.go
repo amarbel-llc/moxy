@@ -132,6 +132,37 @@ func (p *Proxy) pavedPathsActive() bool {
 	return len(p.pavedPaths) > 0
 }
 
+func (p *Proxy) pavedPathToolAllowed(name string) bool {
+	if !p.pavedPathsActive() {
+		return true
+	}
+	if name == config.PavedPathsToolName {
+		return true
+	}
+	if p.pavedPathState == nil {
+		return false
+	}
+	if p.pavedPathState.Complete {
+		return true
+	}
+	for _, path := range p.pavedPaths {
+		if path.Name != p.pavedPathState.SelectedPath {
+			continue
+		}
+		stage := p.pavedPathState.CurrentStage
+		if stage < 0 || stage >= len(path.Stages) {
+			return false
+		}
+		for _, t := range path.Stages[stage].Tools {
+			if t == name {
+				return true
+			}
+		}
+		return false
+	}
+	return false
+}
+
 func (p *Proxy) hasBuiltinTool(name string) bool {
 	if p.builtinTools == nil {
 		return false
@@ -508,7 +539,12 @@ func (p *Proxy) ListToolsV1(
 				debugLog("ListToolsV1: FILTERED %q.%q by annotation", child.Client.Name(), tool.Name)
 				continue
 			}
-			tool.Name = child.Client.Name() + "." + tool.Name
+			toolFullName := child.Client.Name() + "." + tool.Name
+			if !p.pavedPathToolAllowed(toolFullName) {
+				debugLog("ListToolsV1: FILTERED %q.%q by paved path", child.Client.Name(), tool.Name)
+				continue
+			}
+			tool.Name = toolFullName
 			prefixToolTitle(&tool, child.Client.Name())
 			allTools = append(allTools, tool)
 		}

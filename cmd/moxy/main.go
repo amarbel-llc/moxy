@@ -493,6 +493,14 @@ func runServer(app *command.App, mode transportMode) error {
 	app.RegisterMCPToolsV1(builtinRegistry)
 	p.SetBuiltinTools(builtinRegistry)
 
+	if cwd, err := os.Getwd(); err != nil {
+		fmt.Fprintf(os.Stderr, "moxy: getting cwd for paved paths: %v\n", err)
+	} else if pavedPaths, err := config.LoadPavedPaths(cwd); err != nil {
+		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
+	} else {
+		p.SetPavedPaths(pavedPaths)
+	}
+
 	// Wire notification forwarding for startup children
 	for _, c := range children {
 		c.Client.SetOnNotification(p.ForwardNotification)
