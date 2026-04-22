@@ -128,3 +128,7 @@ enhancement pending verification that the elicitation flow works end-to-end.
   arguments or return values, not just tool name called.
 - **Human-in-the-loop selection:** Future enhancement — path selection via
   elicitation mechanism (pending verification).
+- **Semantic tool discovery:** After proving the pattern, consider embedding-based
+  semantic search as an alternative to `tools/list` — agents could request tools
+  by description and moxy adds matching ones to scope progressively, avoiding the
+  need to enumerate the full list at each stage transition.
