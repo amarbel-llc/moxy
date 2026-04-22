@@ -16,14 +16,18 @@ var (
 	_ = strings.Contains
 )
 
+type pavedPathConfigHandle struct {
+	node *cst.Node
+}
 type serverConfigHandle struct {
 	node *cst.Node
 }
 type ConfigDocument struct {
-	data     Config
-	cstDoc   *document.Document
-	consumed map[string]bool
-	servers  []serverConfigHandle
+	data       Config
+	cstDoc     *document.Document
+	consumed   map[string]bool
+	pavedPaths []pavedPathConfigHandle
+	servers    []serverConfigHandle
 }
 
 func DecodeConfig(input []byte) (*ConfigDocument, error) {
@@ -61,6 +65,78 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 			if v, ok := cst.ExtractStringSlice(_kv); ok {
 				d.data.DisableMoxins = v
 				d.consumed["disable-moxins"] = true
+			}
+		}
+	}
+	var _nodesPavedPaths []*cst.Node
+	for _, _ch := range d.cstDoc.Root().Children {
+		if _ch.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_ch) == "paved-paths" {
+			_nodesPavedPaths = append(_nodesPavedPaths, _ch)
+		}
+	}
+	d.pavedPaths = make([]pavedPathConfigHandle, len(_nodesPavedPaths))
+	d.data.PavedPaths = make([]PavedPathConfig, len(_nodesPavedPaths))
+	d.consumed["paved-paths"] = true
+	for i, _node := range _nodesPavedPaths {
+		d.pavedPaths[i] = pavedPathConfigHandle{node: _node}
+		for _, _kv := range _node.Children {
+			if _kv.Kind != cst.NodeKeyValue {
+				continue
+			}
+			switch cst.KeyValueName(_kv) {
+			case "name":
+				if v, ok := cst.ExtractString(_kv); ok {
+					d.data.PavedPaths[i].Name = v
+					d.consumed["paved-paths.name"] = true
+				}
+			case "description":
+				if v, ok := cst.ExtractString(_kv); ok {
+					d.data.PavedPaths[i].Description = v
+					d.consumed["paved-paths.description"] = true
+				}
+			}
+		}
+		{
+			var _stagesNodes []*cst.Node
+			_pi := 0
+			_inScope := false
+			for _, _rc := range d.cstDoc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable {
+					_hdr := cst.TableHeaderKey(_rc)
+					if _hdr == "paved-paths" {
+						if _pi == i {
+							_inScope = true
+						} else if _pi > i {
+							break
+						}
+						_pi++
+						continue
+					}
+					if _inScope && _hdr == "paved-paths.stages" {
+						_stagesNodes = append(_stagesNodes, _rc)
+					}
+				}
+			}
+			d.data.PavedPaths[i].Stages = make([]PavedPathStage, len(_stagesNodes))
+			d.consumed["paved-paths.stages"] = true
+			for _ii, _nn := range _stagesNodes {
+				for _, _kv := range _nn.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "label":
+						if v, ok := cst.ExtractString(_kv); ok {
+							d.data.PavedPaths[i].Stages[_ii].Label = v
+							d.consumed["paved-paths.stages.label"] = true
+						}
+					case "tools":
+						if v, ok := cst.ExtractStringSlice(_kv); ok {
+							d.data.PavedPaths[i].Stages[_ii].Tools = v
+							d.consumed["paved-paths.stages.tools"] = true
+						}
+					}
+				}
 			}
 		}
 	}
@@ -345,6 +421,49 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			}
 		}
 	}
+	{
+		for i := range d.data.PavedPaths {
+			var container *cst.Node
+			if i < len(d.pavedPaths) {
+				container = d.pavedPaths[i].node
+			} else {
+				container = cst.AppendArrayTableEntryAfter(d.cstDoc.Root(), "paved-paths")
+			}
+			if d.data.PavedPaths[i].Name != "" || cst.HasValue(container, "name") {
+				if err := cst.SetAny(container, "name", d.data.PavedPaths[i].Name); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
+			}
+			if d.data.PavedPaths[i].Description != "" || cst.HasValue(container, "description") {
+				if err := cst.SetAny(container, "description", d.data.PavedPaths[i].Description); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
+			}
+			{
+				_existPavedPathsStages := cst.FindArrayTableNodes(d.cstDoc.Root(), "paved-paths.stages")
+				for i := range d.data.PavedPaths[i].Stages {
+					var container *cst.Node
+					if i < len(_existPavedPathsStages) {
+						container = _existPavedPathsStages[i]
+					} else {
+						container = cst.AppendArrayTableEntryAfter(d.cstDoc.Root(), "paved-paths.stages")
+					}
+					if d.data.PavedPaths[i].Stages[i].Label != "" || cst.HasValue(container, "label") {
+						if err := cst.SetAny(container, "label", d.data.PavedPaths[i].Stages[i].Label); err != nil {
+							return nil, fmt.Errorf("%w", err)
+						}
+					}
+					{
+						if len(d.data.PavedPaths[i].Stages[i].Tools) > 0 || cst.HasValue(container, "tools") {
+							if err := cst.SetAny(container, "tools", d.data.PavedPaths[i].Stages[i].Tools); err != nil {
+								return nil, fmt.Errorf("%w", err)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	if d.data.Credentials != nil {
 		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "credentials")
 		if err := credentials.EncodeCommandConfigFrom(d.data.Credentials, d.cstDoc, tableNode); err != nil {
@@ -497,6 +616,72 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 			if v, ok := cst.ExtractStringSlice(_kv); ok {
 				data.DisableMoxins = v
 				consumed[keyPrefix+"disable-moxins"] = true
+			}
+		}
+	}
+	var _nodesPavedPaths []*cst.Node
+	_nodesPavedPaths = doc.FindArrayTableNodes(keyPrefix + "paved-paths")
+	data.PavedPaths = make([]PavedPathConfig, len(_nodesPavedPaths))
+	consumed[keyPrefix+"paved-paths"] = true
+	for i, _node := range _nodesPavedPaths {
+		for _, _kv := range _node.Children {
+			if _kv.Kind != cst.NodeKeyValue {
+				continue
+			}
+			switch cst.KeyValueName(_kv) {
+			case "name":
+				if v, ok := cst.ExtractString(_kv); ok {
+					data.PavedPaths[i].Name = v
+					consumed[keyPrefix+"paved-paths.name"] = true
+				}
+			case "description":
+				if v, ok := cst.ExtractString(_kv); ok {
+					data.PavedPaths[i].Description = v
+					consumed[keyPrefix+"paved-paths.description"] = true
+				}
+			}
+		}
+		{
+			var _stagesNodes []*cst.Node
+			_pi := 0
+			_inScope := false
+			for _, _rc := range doc.Root().Children {
+				if _rc.Kind == cst.NodeArrayTable {
+					_hdr := cst.TableHeaderKey(_rc)
+					if _hdr == keyPrefix+"paved-paths" {
+						if _pi == i {
+							_inScope = true
+						} else if _pi > i {
+							break
+						}
+						_pi++
+						continue
+					}
+					if _inScope && _hdr == keyPrefix+"paved-paths.stages" {
+						_stagesNodes = append(_stagesNodes, _rc)
+					}
+				}
+			}
+			data.PavedPaths[i].Stages = make([]PavedPathStage, len(_stagesNodes))
+			consumed[keyPrefix+"paved-paths.stages"] = true
+			for _ii, _nn := range _stagesNodes {
+				for _, _kv := range _nn.Children {
+					if _kv.Kind != cst.NodeKeyValue {
+						continue
+					}
+					switch cst.KeyValueName(_kv) {
+					case "label":
+						if v, ok := cst.ExtractString(_kv); ok {
+							data.PavedPaths[i].Stages[_ii].Label = v
+							consumed[keyPrefix+"paved-paths.stages.label"] = true
+						}
+					case "tools":
+						if v, ok := cst.ExtractStringSlice(_kv); ok {
+							data.PavedPaths[i].Stages[_ii].Tools = v
+							consumed[keyPrefix+"paved-paths.stages.tools"] = true
+						}
+					}
+				}
 			}
 		}
 	}
@@ -769,6 +954,50 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 		if len(data.DisableMoxins) > 0 || cst.HasValue(container, "disable-moxins") {
 			if err := cst.SetAny(container, "disable-moxins", data.DisableMoxins); err != nil {
 				return fmt.Errorf("%w", err)
+			}
+		}
+	}
+	{
+		_existPavedPaths := cst.FindArrayTableNodes(doc.Root(), "paved-paths")
+		for i := range data.PavedPaths {
+			var container *cst.Node
+			if i < len(_existPavedPaths) {
+				container = _existPavedPaths[i]
+			} else {
+				container = cst.AppendArrayTableEntryAfter(doc.Root(), "paved-paths")
+			}
+			if data.PavedPaths[i].Name != "" || cst.HasValue(container, "name") {
+				if err := cst.SetAny(container, "name", data.PavedPaths[i].Name); err != nil {
+					return fmt.Errorf("%w", err)
+				}
+			}
+			if data.PavedPaths[i].Description != "" || cst.HasValue(container, "description") {
+				if err := cst.SetAny(container, "description", data.PavedPaths[i].Description); err != nil {
+					return fmt.Errorf("%w", err)
+				}
+			}
+			{
+				_existPavedPathsStages := cst.FindArrayTableNodes(doc.Root(), "paved-paths.stages")
+				for i := range data.PavedPaths[i].Stages {
+					var container *cst.Node
+					if i < len(_existPavedPathsStages) {
+						container = _existPavedPathsStages[i]
+					} else {
+						container = cst.AppendArrayTableEntryAfter(doc.Root(), "paved-paths.stages")
+					}
+					if data.PavedPaths[i].Stages[i].Label != "" || cst.HasValue(container, "label") {
+						if err := cst.SetAny(container, "label", data.PavedPaths[i].Stages[i].Label); err != nil {
+							return fmt.Errorf("%w", err)
+						}
+					}
+					{
+						if len(data.PavedPaths[i].Stages[i].Tools) > 0 || cst.HasValue(container, "tools") {
+							if err := cst.SetAny(container, "tools", data.PavedPaths[i].Stages[i].Tools); err != nil {
+								return fmt.Errorf("%w", err)
+							}
+						}
+					}
+				}
 			}
 		}
 	}

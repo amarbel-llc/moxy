@@ -1208,6 +1208,71 @@ func TestDisableMoxinSet(t *testing.T) {
 	}
 }
 
+func TestParsePavedPaths(t *testing.T) {
+	input := `
+[[paved-paths]]
+name = "onboarding"
+description = "Learn the repo before making changes"
+
+  [[paved-paths.stages]]
+  label = "orient"
+  tools = ["folio.read", "folio.glob"]
+
+  [[paved-paths.stages]]
+  label = "edit"
+  tools = ["folio.write", "grit.commit"]
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.PavedPaths) != 1 {
+		t.Fatalf("expected 1 paved path, got %d", len(cfg.PavedPaths))
+	}
+	p := cfg.PavedPaths[0]
+	if p.Name != "onboarding" {
+		t.Errorf("name: got %q, want %q", p.Name, "onboarding")
+	}
+	if len(p.Stages) != 2 {
+		t.Fatalf("expected 2 stages, got %d", len(p.Stages))
+	}
+	if p.Stages[0].Label != "orient" {
+		t.Errorf("stage 0 label: got %q", p.Stages[0].Label)
+	}
+	if len(p.Stages[0].Tools) != 2 {
+		t.Errorf("stage 0 tools: got %v", p.Stages[0].Tools)
+	}
+}
+
+func TestMergePavedPathsAddsNew(t *testing.T) {
+	base := Config{PavedPaths: []PavedPathConfig{
+		{Name: "onboarding", Description: "base"},
+	}}
+	overlay := Config{PavedPaths: []PavedPathConfig{
+		{Name: "cleanup", Description: "new"},
+	}}
+	merged := Merge(base, overlay)
+	if len(merged.PavedPaths) != 2 {
+		t.Fatalf("expected 2 paved paths, got %d", len(merged.PavedPaths))
+	}
+}
+
+func TestMergePavedPathsOverridesByName(t *testing.T) {
+	base := Config{PavedPaths: []PavedPathConfig{
+		{Name: "onboarding", Description: "original"},
+	}}
+	overlay := Config{PavedPaths: []PavedPathConfig{
+		{Name: "onboarding", Description: "overridden"},
+	}}
+	merged := Merge(base, overlay)
+	if len(merged.PavedPaths) != 1 {
+		t.Fatalf("expected 1 paved path, got %d", len(merged.PavedPaths))
+	}
+	if merged.PavedPaths[0].Description != "overridden" {
+		t.Errorf("expected overridden description, got %q", merged.PavedPaths[0].Description)
+	}
+}
+
 func TestParseHeadersExpandEnvVars(t *testing.T) {
 	t.Setenv("TEST_TOKEN", "secret123")
 	input := `

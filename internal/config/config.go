@@ -18,6 +18,7 @@ type Config struct {
 	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
 	BuiltinNative         *bool                      `toml:"builtin-native"`
 	DisableMoxins         []string                   `toml:"disable-moxins"`
+	PavedPaths            []PavedPathConfig          `toml:"paved-paths"`
 	Credentials           *credentials.CommandConfig `toml:"credentials"`
 	Servers               []ServerConfig             `toml:"servers"`
 }
@@ -158,6 +159,17 @@ type AnnotationFilter struct {
 	DestructiveHint *bool `toml:"destructiveHint"`
 	IdempotentHint  *bool `toml:"idempotentHint"`
 	OpenWorldHint   *bool `toml:"openWorldHint"`
+}
+
+type PavedPathStage struct {
+	Label string   `toml:"label"`
+	Tools []string `toml:"tools"`
+}
+
+type PavedPathConfig struct {
+	Name        string           `toml:"name"`
+	Description string           `toml:"description"`
+	Stages      []PavedPathStage `toml:"stages"`
 }
 
 type LoadSource struct {
@@ -318,6 +330,20 @@ func Merge(base, overlay Config) Config {
 		}
 		if !found {
 			merged.Servers = append(merged.Servers, srv)
+		}
+	}
+
+	for _, pp := range overlay.PavedPaths {
+		found := false
+		for i, existing := range merged.PavedPaths {
+			if existing.Name == pp.Name {
+				merged.PavedPaths[i] = pp
+				found = true
+				break
+			}
+		}
+		if !found {
+			merged.PavedPaths = append(merged.PavedPaths, pp)
 		}
 	}
 
