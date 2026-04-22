@@ -147,6 +147,21 @@ func newApp() *command.App {
 	})
 
 	app.AddCommand(&command.Command{
+		Name: "version",
+		Description: command.Description{
+			Short: "Print moxy build version and commit",
+			Long:  "Prints the version and commit SHA burnt in via -ldflags at build time.",
+		},
+		Annotations: &protocol.ToolAnnotations{
+			ReadOnlyHint: boolPtr(true),
+		},
+		RunCLI: func(_ context.Context, _ json.RawMessage) error {
+			fmt.Println(app.Version)
+			return nil
+		},
+	})
+
+	app.AddCommand(&command.Command{
 		Name: "status",
 		Description: command.Description{
 			Short: "Show all configured servers and moxins with their sources",
