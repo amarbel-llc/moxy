@@ -31,6 +31,8 @@ Servers are matched by name: a same-named server in an overlay replaces
 the base server entirely.
 New servers from overlays are appended.
 Top-level boolean flags are replaced if present in the overlay.
+.Va disable-moxins
+entries are merged additively: each layer appends to the disabled set.
 .Sh TOP-LEVEL KEYS
 .Bl -tag -width "progressive-disclosure"
 .It Va ephemeral
@@ -49,6 +51,22 @@ enables progressive disclosure for servers without an explicit setting.
 Optional.
 Default:
 .Cm false .
+.It Va disable-moxins
+Array of moxin names or
+.Dq name.tool
+pairs to suppress.
+A bare name (e.g.\&
+.Dq chix )
+hides the entire moxin server.
+A dotted pair (e.g.\&
+.Dq man.semantic-search )
+hides a single tool within a moxin while leaving the rest visible.
+Only affects moxins discovered via
+.Ev MOXIN_PATH ;
+moxyfile-configured servers are unaffected.
+Entries are merged additively across the hierarchy.
+Optional.
+Default: empty.
 .El
 .Sh SERVERS
 Each server is defined as an array-of-tables entry:
@@ -229,6 +247,22 @@ In this example,
 inherits the global ephemeral setting while
 .Dq grit
 overrides it to stay persistent.
+.Pp
+Disabling specific moxins and individual tools:
+.Bd -literal -offset indent
+disable-moxins = ["chix", "man.semantic-search"]
+.Ed
+.Pp
+This hides the entire
+.Dq chix
+moxin and the
+.Dq semantic-search
+tool from the
+.Dq man
+moxin.
+Other tools in
+.Dq man
+remain visible.
 .Sh SEE ALSO
 .Xr moxy 1 ,
 .Xr moxy-native 7 ,
