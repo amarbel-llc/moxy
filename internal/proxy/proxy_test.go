@@ -195,6 +195,119 @@ func TestHandlePavedPathsSelectUnknownPath(t *testing.T) {
 	}
 }
 
+func TestMaybeAdvanceStageNoState(t *testing.T) {
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name: "onboarding",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read"}},
+			},
+		}},
+	}
+	// must not panic when state is nil
+	p.maybeAdvanceStage("folio.read")
+}
+
+func TestMaybeAdvanceStageRecordsTool(t *testing.T) {
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name: "onboarding",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read", "folio.glob"}},
+				{Label: "edit", Tools: []string{"folio.write"}},
+			},
+		}},
+		pavedPathState: &pavedPathState{
+			SelectedPath: "onboarding",
+			CurrentStage: 0,
+			CalledTools:  make(map[string]bool),
+		},
+	}
+	p.maybeAdvanceStage("folio.read")
+	if !p.pavedPathState.CalledTools["folio.read"] {
+		t.Error("expected folio.read recorded in CalledTools")
+	}
+	// first call in stage advances to next stage
+	if p.pavedPathState.CurrentStage != 1 {
+		t.Errorf("expected CurrentStage 1, got %d", p.pavedPathState.CurrentStage)
+	}
+}
+
+func TestMaybeAdvanceStageCompletes(t *testing.T) {
+	notified := 0
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name: "onboarding",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read"}},
+			},
+		}},
+		pavedPathState: &pavedPathState{
+			SelectedPath: "onboarding",
+			CurrentStage: 0,
+			CalledTools:  make(map[string]bool),
+		},
+		notifier: func(msg *jsonrpc.Message) error {
+			notified++
+			return nil
+		},
+	}
+	p.maybeAdvanceStage("folio.read")
+	if !p.pavedPathState.Complete {
+		t.Error("expected Complete after last stage tool called")
+	}
+	if notified != 1 {
+		t.Errorf("expected 1 notification, got %d", notified)
+	}
+}
+
+func TestMaybeAdvanceStageNotInStage(t *testing.T) {
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name: "onboarding",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read"}},
+				{Label: "edit", Tools: []string{"folio.write"}},
+			},
+		}},
+		pavedPathState: &pavedPathState{
+			SelectedPath: "onboarding",
+			CurrentStage: 0,
+			CalledTools:  make(map[string]bool),
+		},
+	}
+	// calling a tool not in the current stage should not advance
+	p.maybeAdvanceStage("folio.write")
+	if p.pavedPathState.CurrentStage != 0 {
+		t.Errorf("expected CurrentStage 0, got %d", p.pavedPathState.CurrentStage)
+	}
+}
+
+func TestMaybeAdvanceStageAlreadyComplete(t *testing.T) {
+	notified := 0
+	p := &Proxy{
+		pavedPaths: []config.PavedPathConfig{{
+			Name: "onboarding",
+			Stages: []config.PavedPathStage{
+				{Label: "orient", Tools: []string{"folio.read"}},
+			},
+		}},
+		pavedPathState: &pavedPathState{
+			SelectedPath: "onboarding",
+			Complete:     true,
+			CalledTools:  make(map[string]bool),
+		},
+		notifier: func(msg *jsonrpc.Message) error {
+			notified++
+			return nil
+		},
+	}
+	p.maybeAdvanceStage("folio.read")
+	if notified != 0 {
+		t.Errorf("expected no notification when already complete, got %d", notified)
+	}
+}
+
 func TestHandlePavedPathsStatus(t *testing.T) {
 	p := &Proxy{
 		pavedPaths: []config.PavedPathConfig{{

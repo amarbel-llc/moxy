@@ -141,6 +141,15 @@ func (p *Proxy) findPavedPath(name string) *config.PavedPathConfig {
 	return nil
 }
 
+func stageContainsTool(stage config.PavedPathStage, name string) bool {
+	for _, t := range stage.Tools {
+		if t == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Proxy) pavedPathToolAllowed(name string) bool {
 	if !p.pavedPathsActive() {
 		return true
@@ -162,12 +171,32 @@ func (p *Proxy) pavedPathToolAllowed(name string) bool {
 	if stage < 0 || stage >= len(path.Stages) {
 		return false
 	}
-	for _, t := range path.Stages[stage].Tools {
-		if t == name {
-			return true
-		}
+	return stageContainsTool(path.Stages[stage], name)
+}
+
+func (p *Proxy) maybeAdvanceStage(toolName string) {
+	if p.pavedPathState == nil || p.pavedPathState.Complete {
+		return
 	}
-	return false
+	path := p.findPavedPath(p.pavedPathState.SelectedPath)
+	if path == nil {
+		return
+	}
+	stage := p.pavedPathState.CurrentStage
+	if stage >= len(path.Stages) {
+		return
+	}
+	if !stageContainsTool(path.Stages[stage], toolName) {
+		return
+	}
+	p.pavedPathState.CalledTools[toolName] = true
+	next := stage + 1
+	if next >= len(path.Stages) {
+		p.pavedPathState.Complete = true
+	} else {
+		p.pavedPathState.CurrentStage = next
+	}
+	p.notifyToolsChanged()
 }
 
 func (p *Proxy) hasBuiltinTool(name string) bool {
@@ -725,7 +754,11 @@ func (p *Proxy) CallToolV1(
 	if !ok {
 		// Check if this is an ephemeral server
 		if _, isEphemeral := p.ephemeral[serverName]; isEphemeral {
-			return p.callToolEphemeral(ctx, serverName, toolName, args)
+			result, err := p.callToolEphemeral(ctx, serverName, toolName, args)
+			if err == nil && result != nil && !result.IsError && p.pavedPathsActive() {
+				p.maybeAdvanceStage(name)
+			}
+			return result, err
 		}
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("unknown server %q", serverName),
@@ -762,6 +795,10 @@ func (p *Proxy) CallToolV1(
 			serverName,
 			err,
 		)
+	}
+
+	if !result.IsError && p.pavedPathsActive() {
+		p.maybeAdvanceStage(name)
 	}
 
 	return result, nil
