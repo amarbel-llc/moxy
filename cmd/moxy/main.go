@@ -495,6 +495,7 @@ func runServer(app *command.App, mode transportMode) error {
 			return fmt.Errorf("binding ephemeral port: %w", err)
 		}
 		fmt.Fprintf(os.Stdout, "1|1|tcp|%s|streamable-http\n", ln.Addr())
+		fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (clown-plugin-protocol)\n", ln.Addr())
 		return runHTTPServerOnListener(ctx, ln, p, children, instructions)
 
 	default:
@@ -502,6 +503,7 @@ func runServer(app *command.App, mode transportMode) error {
 			return runHTTPServer(ctx, httpAddr, p, children, instructions)
 		}
 
+		fmt.Fprintf(os.Stderr, "moxy: serving stdio\n")
 		t := transport.NewStdio(os.Stdin, os.Stdout)
 		p.SetNotifier(t.Write)
 
@@ -533,7 +535,7 @@ func runHTTPServer(ctx context.Context, addr string, p *proxy.Proxy, children []
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", addr, err)
 	}
-	fmt.Fprintf(os.Stderr, "moxy: listening on %s (streamable HTTP)\n", ln.Addr())
+	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (MOXY_HTTP_ADDR)\n", ln.Addr())
 	return runHTTPServerOnListener(ctx, ln, p, children, instructions)
 }
 
