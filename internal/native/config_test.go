@@ -978,6 +978,52 @@ command = "echo"
 	})
 }
 
+func TestParseMoxinDirNoTruncate(t *testing.T) {
+	t.Run("explicit true", func(t *testing.T) {
+		dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+			"tool": `
+schema = 3
+command = "echo"
+no-truncate = true
+`,
+		})
+
+		result, err := ParseMoxinDirFull(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Config.Tools[0].NoTruncate {
+			t.Error("NoTruncate = false, want true")
+		}
+		if len(result.Undecoded) > 0 {
+			t.Errorf("unexpected undecoded keys: %v", result.Undecoded)
+		}
+	})
+
+	t.Run("omitted defaults to false", func(t *testing.T) {
+		dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+			"tool": `
+schema = 3
+command = "echo"
+`,
+		})
+
+		cfg, err := ParseMoxinDir(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Tools[0].NoTruncate {
+			t.Error("NoTruncate should default to false when omitted")
+		}
+	})
+}
+
 func TestParseMoxinDirSchema2KebabNoWarning(t *testing.T) {
 	dir := writeMoxinDir(t, t.TempDir(), "test", `
 schema = 1

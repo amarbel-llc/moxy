@@ -405,6 +405,13 @@ func (s *Server) buildTextResult(spec *ToolSpec, output string) (json.RawMessage
 				TokenCount: tokens,
 			}
 			if storeErr := s.cache.store(cached); storeErr == nil {
+				if spec.NoTruncate {
+					uri := fmt.Sprintf("moxy.native://results/%s/%s", cached.Session, cached.ID)
+					inline := fmt.Sprintf("Full output: %s\nLines: %d\n\n%s", uri, cached.LineCount, output)
+					return marshalResult(&protocol.ToolCallResultV1{
+						Content: []protocol.ContentBlockV1{protocol.TextContentV1(inline)},
+					})
+				}
 				summary := formatSummary(cached)
 				return marshalResult(&protocol.ToolCallResultV1{
 					Content: []protocol.ContentBlockV1{protocol.TextContentV1(summary)},

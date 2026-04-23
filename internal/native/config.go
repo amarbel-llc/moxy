@@ -87,6 +87,7 @@ type ToolSpec struct {
 	PermsRequest         PermsRequest
 	ContentType          string
 	ResultType           ResultType
+	NoTruncate           bool
 	SubstituteResultURIs *bool
 	Annotations          *ToolAnnotations
 	Input                json.RawMessage
@@ -120,6 +121,7 @@ type rawToolFile struct {
 	PermsRequest         PermsRequest     `toml:"perms-request"`
 	ContentType          string           `toml:"content-type"`
 	ResultType           string           `toml:"result-type"`
+	NoTruncate           bool             `toml:"no-truncate"`
 	SubstituteResultURIs *bool            `toml:"substitute-result-uris"`
 	Annotations          *ToolAnnotations `toml:"annotations"`
 	Input                *InputSchema     `toml:"input"`
@@ -257,6 +259,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			PermsRequest:         raw.PermsRequest,
 			ContentType:          raw.ContentType,
 			ResultType:           resultType,
+			NoTruncate:           raw.NoTruncate,
 			SubstituteResultURIs: raw.SubstituteResultURIs,
 			Annotations:          raw.Annotations,
 		}
@@ -343,7 +346,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 	keys := []string{
 		"schema", "name", "description", "command", "args",
 		"arg-order", "stdin-param", "perms-request",
-		"content-type", "result-type", "substitute-result-uris",
+		"content-type", "result-type", "no-truncate", "substitute-result-uris",
 	}
 	if schema <= 2 {
 		keys = append(keys, "arg_order", "stdin_param")

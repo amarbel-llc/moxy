@@ -338,6 +338,62 @@ func TestServerToolsCallCachesLargeOutput(t *testing.T) {
 	}
 }
 
+func TestServerToolsCallNoTruncateReturnsFullOutput(t *testing.T) {
+	cacheDir := t.TempDir()
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:       "exec",
+				Command:    "sh",
+				Args:       []string{"-c"},
+				NoTruncate: true,
+				Input:      json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.cache = newResultCache(cacheDir)
+	srv.SetSession("test-session")
+
+	params := protocol.ToolCallParams{
+		Name:      "exec",
+		Arguments: json.RawMessage(`{"command":"seq 1 1000"}`),
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	text := result.Content[0].Text
+	// URI pointer must be present.
+	if !strings.Contains(text, "moxy.native://results/test-session/") {
+		t.Errorf("expected cached result URI in output, got:\n%s", text)
+	}
+	// Head/tail truncation markers must NOT be present.
+	if strings.Contains(text, "First 10 lines") {
+		t.Errorf("expected no truncation with no-truncate=true, but got head section:\n%s", text)
+	}
+	if strings.Contains(text, "Last 10 lines") {
+		t.Errorf("expected no truncation with no-truncate=true, but got tail section:\n%s", text)
+	}
+	// All 1000 lines must appear.
+	if !strings.Contains(text, "\n1000\n") {
+		t.Errorf("expected all lines in output, but line 1000 missing:\n%s", text[:min(200, len(text))])
+	}
+}
+
 func TestServerToolsCallURISubstitution(t *testing.T) {
 	cacheDir := t.TempDir()
 	cfg := &NativeConfig{
