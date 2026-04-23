@@ -54,8 +54,8 @@ function native_exec_passes_arguments_to_sh_c { # @test
 }
 
 function native_exec_caches_large_output { # @test
-  # Generate output exceeding the 50-token threshold (~200 chars).
-  local params='{"name":"shell.exec","arguments":{"command":"seq 1 100"}}'
+  # Generate output exceeding the 200-token threshold (~800 chars).
+  local params='{"name":"shell.exec","arguments":{"command":"seq 1 1000"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
@@ -68,7 +68,7 @@ function native_exec_caches_large_output { # @test
 }
 
 function native_exec_cache_layout_includes_session_directory { # @test
-  local params='{"name":"shell.exec","arguments":{"command":"seq 1 100"}}'
+  local params='{"name":"shell.exec","arguments":{"command":"seq 1 1000"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
