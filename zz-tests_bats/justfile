@@ -2,7 +2,10 @@ bats_timeout := "15"
 # Prompt proxy tests need ~10s for child server startup + JSON-RPC round-trip
 bin_dir := ""
 
-_bats_args := if bin_dir != "" { "--bin-dir " + bin_dir } else { "" }
+# --allow-local-binding is required for streamable_http.bats (moxy
+# serve-http binds an ephemeral port on 127.0.0.1). The relaxation is
+# local-only and does not weaken sandcastle's external-network denial.
+_bats_args := "--allow-local-binding" + if bin_dir != "" { " --bin-dir " + bin_dir } else { "" }
 
 test-targets *targets="*.bats":
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
