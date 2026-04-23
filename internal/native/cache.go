@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	resultTokenThreshold  = 50
+	resultTokenThreshold  = 200
 	tokenThreshold        = resultTokenThreshold
 	summaryHeadLines      = 10
 	summaryTailLines      = 10

@@ -308,7 +308,7 @@ func TestServerToolsCallCachesLargeOutput(t *testing.T) {
 
 	params := protocol.ToolCallParams{
 		Name:      "exec",
-		Arguments: json.RawMessage(`{"command":"seq 1 100"}`),
+		Arguments: json.RawMessage(`{"command":"seq 1 1000"}`),
 	}
 	raw, err := srv.Call(context.Background(), "tools/call", params)
 	if err != nil {
