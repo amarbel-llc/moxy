@@ -62,17 +62,7 @@ function paved_paths_before_selection_hides_child_tools { # @test
   [[ $count -eq 0 ]]
 }
 
-# 3. exec-mcp meta tool is still visible before path selection
-function paved_paths_exec_mcp_visible_before_selection { # @test
-  _setup_project
-  _write_paved_paths
-  cd "$HOME/repo"
-  run_moxy_mcp tools/list
-  assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "exec-mcp")'
-}
-
-# 4. Calling paved-paths with no args lists available paths
+# 3. Calling paved-paths with no args lists available paths
 function paved_paths_no_args_lists_available_paths { # @test
   _setup_project
   _write_paved_paths

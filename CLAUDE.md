@@ -73,10 +73,9 @@ capabilities.
 
 ### Meta Tools
 
-Moxy injects `restart` and `exec-mcp` tools. `restart` restarts any configured
-child server by name. `exec-mcp` invokes a tool on a named child server
-directly. For persistent children, restart closes and re-spawns the process. For
-ephemeral children, it re-probes capabilities.
+Moxy injects a `restart` meta tool. `restart` restarts any configured child
+server by name. For persistent children, restart closes and re-spawns the
+process. For ephemeral children, it re-probes capabilities.
 
 ### Synthetic Resource Tools
 

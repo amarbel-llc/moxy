@@ -691,17 +691,6 @@ func (p *Proxy) ListToolsV1(
 	// The handleRestart path in CallToolV1 is still reachable if called
 	// directly, but agents won't discover it via tools/list.
 
-	allTools = append(allTools, protocol.ToolV1{
-		Name:        "exec-mcp",
-		Title:       "Execute Tool on Server",
-		Description: "Execute a tool on a child server by name. Use moxy:// resources to discover available tools and schemas.",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server name"},"tool":{"type":"string","description":"Tool name"},"arguments":{"type":"object","description":"Tool arguments"}},"required":["server","tool"]}`),
-		Annotations: &protocol.ToolAnnotations{
-			Title:         "Execute Tool on Server",
-			OpenWorldHint: boolPtr(true),
-		},
-	})
-
 	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
@@ -718,10 +707,6 @@ func (p *Proxy) CallToolV1(
 
 	if name == "restart" {
 		return p.handleRestart(ctx, args)
-	}
-
-	if name == "exec-mcp" {
-		return p.handleExecMCP(ctx, args)
 	}
 
 	p.mu.RLock()
@@ -1203,75 +1188,6 @@ func (p *Proxy) handleRestart(
 			{Type: "text", Text: fmt.Sprintf("Server %q restarted successfully", params.Server)},
 		},
 	}, nil
-}
-
-func (p *Proxy) handleExecMCP(
-	ctx context.Context,
-	args json.RawMessage,
-) (*protocol.ToolCallResultV1, error) {
-	var params struct {
-		Server    string          `json:"server"`
-		Tool      string          `json:"tool"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("invalid exec-mcp args: %v", err),
-		), nil
-	}
-	if params.Server == "" {
-		return protocol.ErrorResultV1("server name is required"), nil
-	}
-	if params.Tool == "" {
-		return protocol.ErrorResultV1("tool name is required"), nil
-	}
-
-	p.mu.RLock()
-	children := p.children
-	p.mu.RUnlock()
-
-	callParams := protocol.ToolCallParams{
-		Name:      params.Tool,
-		Arguments: params.Arguments,
-	}
-
-	child, ok := findChildIn(children, params.Server)
-	if !ok {
-		if meta, isEphemeral := p.ephemeral[params.Server]; isEphemeral {
-			if err := validateToolExists(params.Tool, meta.Tools, meta.Config.Annotations); err != nil {
-				return protocol.ErrorResultV1(err.Error()), nil
-			}
-
-			client, err := p.spawnEphemeral(ctx, params.Server)
-			if err != nil {
-				return nil, err
-			}
-			defer client.Close()
-
-			raw, err := client.Call(ctx, protocol.MethodToolsCall, callParams)
-			if err != nil {
-				return nil, fmt.Errorf("calling tool %s on ephemeral %s: %w", params.Tool, params.Server, err)
-			}
-			return decodeToolCallResult(raw)
-		}
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("unknown server %q", params.Server),
-		), nil
-	}
-
-	tools, err := p.getToolsForServer(ctx, params.Server)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateToolExists(params.Tool, tools, child.Config.Annotations); err != nil {
-		return protocol.ErrorResultV1(err.Error()), nil
-	}
-
-	raw, err := child.Client.Call(ctx, protocol.MethodToolsCall, callParams)
-	if err != nil {
-		return nil, fmt.Errorf("calling tool %s on %s: %w", params.Tool, params.Server, err)
-	}
-	return decodeToolCallResult(raw)
 }
 
 func (p *Proxy) HandlePavedPaths(args map[string]any) string {
@@ -1765,28 +1681,6 @@ func matchesAnnotationFilter(
 		return true
 	}
 	return false
-}
-
-func validateToolExists(
-	toolName string,
-	tools []protocol.ToolV1,
-	filter *config.AnnotationFilter,
-) error {
-	registered := 0
-	for _, t := range tools {
-		if !matchesAnnotationFilter(t.Annotations, filter) {
-			continue
-		}
-		registered++
-		if t.Name == toolName {
-			return nil
-		}
-	}
-	return fmt.Errorf(
-		"tool %q not found on server (%d tools registered)",
-		toolName,
-		registered,
-	)
 }
 
 func paginateResourceResult(
