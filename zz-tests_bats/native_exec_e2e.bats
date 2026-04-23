@@ -84,7 +84,7 @@ function native_exec_cache_layout_includes_session_directory { # @test
 
 function native_exec_resource_as_fd_substitution { # @test
   # Step 1: Generate large output to get a cached URI.
-  local params='{"name":"shell.exec","arguments":{"command":"seq 1 100"}}'
+  local params='{"name":"shell.exec","arguments":{"command":"seq 1 1000"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
@@ -104,7 +104,7 @@ function native_exec_resource_as_fd_substitution { # @test
 
 function native_exec_resource_as_fd_repeated_uri_shares_fd { # @test
   # Step 1: Generate large output.
-  local params='{"name":"shell.exec","arguments":{"command":"seq 1 100"}}'
+  local params='{"name":"shell.exec","arguments":{"command":"seq 1 1000"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
