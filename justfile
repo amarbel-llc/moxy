@@ -558,6 +558,15 @@ explore-nix-tools-list: build-nix
   count=$(echo "$init_result" | tail -1 | jq '.result.tools | length' 2>/dev/null || echo "PARSE_ERROR")
   echo "Tool count: $count"
 
+# Launch claude directly in a paved-paths test workspace (all builtin tools denied, moxy only).
+# Usage: just explore-paved-paths [path-to-paved-paths.json]
+[group('explore')]
+explore-paved-paths json="":
+  #!/usr/bin/env bash
+  args=()
+  [[ -n "{{json}}" ]] && args+=(--json "{{json}}")
+  exec zx {{justfile_directory()}}/bin/explore-paved-paths.mjs "${args[@]}"
+
 # Test install-moxin.bash extraction logic against local nix build artifacts.
 # Replicates the script's extract steps without hitting GitHub or brew.
 # Usage: just debug-install-moxin piers
