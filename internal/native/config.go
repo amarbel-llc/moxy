@@ -23,7 +23,22 @@ const (
 	PermsAlwaysAllow PermsRequest = "always-allow"
 	// PermsEachUse forces a user confirmation prompt every time.
 	PermsEachUse PermsRequest = "each-use"
+	// PermsDynamic runs the [dynamic-perms] script per call to derive a decision.
+	// Added for moxy POC dynamic-perms
+	PermsDynamic PermsRequest = "dynamic"
 )
+
+// DynamicPermsSpec describes how to invoke the per-call permission predicate.
+// Mirrors the main tool's argv/stdin shaping so the existing input pipeline
+// can be reused at execution time.
+// Added for moxy POC dynamic-perms
+type DynamicPermsSpec struct {
+	Command    string   `toml:"command"           json:"command"`
+	Args       []string `toml:"args"              json:"args,omitempty"`
+	ArgOrder   []string `toml:"arg-order"         json:"arg-order,omitempty"`
+	StdinParam string   `toml:"stdin-param"       json:"stdin-param,omitempty"`
+	TimeoutMS  int      `toml:"timeout-ms"        json:"timeout-ms,omitempty"`
+}
 
 // ResultType controls how a tool's stdout is interpreted.
 type ResultType string
@@ -85,6 +100,7 @@ type ToolSpec struct {
 	ArgOrder             []string
 	StdinParam           string
 	PermsRequest         PermsRequest
+	DynamicPerms         *DynamicPermsSpec // Added for moxy POC dynamic-perms
 	ContentType          string
 	ResultType           ResultType
 	NoTruncate           bool
@@ -111,20 +127,21 @@ type MoxinMeta struct {
 // Struct tags use kebab-case (schema 3). For schema 1/2 backward
 // compatibility, legacyToolKeys handles the old snake_case spellings.
 type rawToolFile struct {
-	Schema               int              `toml:"schema"`
-	Name                 string           `toml:"name"`
-	Description          string           `toml:"description"`
-	Command              string           `toml:"command"`
-	Args                 []string         `toml:"args"`
-	ArgOrder             []string         `toml:"arg-order"`
-	StdinParam           string           `toml:"stdin-param"`
-	PermsRequest         PermsRequest     `toml:"perms-request"`
-	ContentType          string           `toml:"content-type"`
-	ResultType           string           `toml:"result-type"`
-	NoTruncate           bool             `toml:"no-truncate"`
-	SubstituteResultURIs *bool            `toml:"substitute-result-uris"`
-	Annotations          *ToolAnnotations `toml:"annotations"`
-	Input                *InputSchema     `toml:"input"`
+	Schema               int               `toml:"schema"`
+	Name                 string            `toml:"name"`
+	Description          string            `toml:"description"`
+	Command              string            `toml:"command"`
+	Args                 []string          `toml:"args"`
+	ArgOrder             []string          `toml:"arg-order"`
+	StdinParam           string            `toml:"stdin-param"`
+	PermsRequest         PermsRequest      `toml:"perms-request"`
+	DynamicPerms         *DynamicPermsSpec `toml:"dynamic-perms"` // Added for moxy POC dynamic-perms
+	ContentType          string            `toml:"content-type"`
+	ResultType           string            `toml:"result-type"`
+	NoTruncate           bool              `toml:"no-truncate"`
+	SubstituteResultURIs *bool             `toml:"substitute-result-uris"`
+	Annotations          *ToolAnnotations  `toml:"annotations"`
+	Input                *InputSchema      `toml:"input"`
 }
 
 // legacyToolKeys captures the old snake_case key spellings from schema 1/2.
@@ -243,6 +260,10 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		if err := validatePermsRequest(raw.PermsRequest); err != nil {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
+		// Added for moxy POC dynamic-perms
+		if err := validateDynamicPerms(raw.PermsRequest, raw.DynamicPerms); err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
+		}
 
 		resultType, err := resolveResultType(raw.Schema, raw.ResultType)
 		if err != nil {
@@ -257,6 +278,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			ArgOrder:             raw.ArgOrder,
 			StdinParam:           raw.StdinParam,
 			PermsRequest:         raw.PermsRequest,
+			DynamicPerms:         raw.DynamicPerms, // Added for moxy POC dynamic-perms
 			ContentType:          raw.ContentType,
 			ResultType:           resultType,
 			NoTruncate:           raw.NoTruncate,
@@ -308,11 +330,35 @@ func resolveResultType(schema int, raw string) (ResultType, error) {
 
 func validatePermsRequest(pr PermsRequest) error {
 	switch pr {
-	case "", PermsDelegateToClient, PermsAlwaysAllow, PermsEachUse:
+	case "", PermsDelegateToClient, PermsAlwaysAllow, PermsEachUse, PermsDynamic:
 		return nil
 	default:
-		return fmt.Errorf("invalid perms-request %q (want always-allow, each-use, or delegate-to-client)", pr)
+		return fmt.Errorf("invalid perms-request %q (want always-allow, each-use, dynamic, or delegate-to-client)", pr)
 	}
+}
+
+// Added for moxy POC dynamic-perms
+//
+// validateDynamicPerms enforces the contract between perms-request = "dynamic"
+// and the [dynamic-perms] block: the block is required when dynamic is set,
+// must declare a command, and is otherwise meaningless.
+func validateDynamicPerms(pr PermsRequest, spec *DynamicPermsSpec) error {
+	if pr == PermsDynamic {
+		if spec == nil {
+			return fmt.Errorf(`perms-request = "dynamic" requires a [dynamic-perms] block`)
+		}
+		if spec.Command == "" {
+			return fmt.Errorf("[dynamic-perms]: command is required")
+		}
+		if spec.TimeoutMS < 0 {
+			return fmt.Errorf("[dynamic-perms]: timeout-ms must be >= 0")
+		}
+		return nil
+	}
+	if spec != nil {
+		return fmt.Errorf(`[dynamic-perms] is only valid with perms-request = "dynamic"`)
+	}
+	return nil
 }
 
 // detectUndecodedMeta returns undecoded keys in a _moxin.toml file.
@@ -346,6 +392,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 	keys := []string{
 		"schema", "name", "description", "command", "args",
 		"arg-order", "stdin-param", "perms-request",
+		"dynamic-perms", // Added for moxy POC dynamic-perms
 		"content-type", "result-type", "no-truncate", "substitute-result-uris",
 	}
 	if schema <= 2 {
@@ -367,6 +414,13 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 	if annNode := doc.FindTableInContainer(doc.Root(), "annotations"); annNode != nil {
 		consumed["annotations"] = true
 		document.MarkAllConsumed(annNode, "annotations", consumed)
+	}
+
+	// dynamic-perms is a known table with typed fields.
+	// Added for moxy POC dynamic-perms
+	if dpNode := doc.FindTableInContainer(doc.Root(), "dynamic-perms"); dpNode != nil {
+		consumed["dynamic-perms"] = true
+		document.MarkAllConsumed(dpNode, "dynamic-perms", consumed)
 	}
 
 	for _, child := range doc.Root().Children {

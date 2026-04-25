@@ -498,6 +498,14 @@ func validateEnumConstraints(arguments json.RawMessage, schema *InputSchema) err
 	return nil
 }
 
+// BuildExtraArgs is the exported alias of buildExtraArgs, used by the
+// dynamic-perms executor in dynperms.go so it shares argv-shaping with the
+// main tool dispatcher.
+// Added for moxy POC dynamic-perms
+func BuildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage, argOrder []string) ([]string, error) {
+	return buildExtraArgs(arguments, inputSchema, argOrder)
+}
+
 // buildExtraArgs extracts string argument values from the caller's JSON
 // arguments and returns them in a deterministic order: first the keys listed
 // in the input schema's "required" array, then any remaining keys sorted

@@ -657,3 +657,13 @@ debug-validate-serve-moxin name: build-go
 [group('explore')]
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
+
+# Build the dynamic-perms POC driver. POC scope only — not wired into main test.
+[group('explore')]
+poc-build-dynamic-perms:
+  go build -o build/moxy-exporel-dynamic-perms ./cmd/moxy-exporel-dynamic-perms
+
+# Run the dynamic-perms POC bats wrapper. Driver self-asserts.
+[group('explore')]
+poc-test-dynamic-perms: poc-build-dynamic-perms
+  bats {{justfile_directory()}}/zz-bats_explore/dynamic_perms_poc.bats
