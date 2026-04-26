@@ -6,16 +6,35 @@ $.verbose = false;
 const [pkg, symbol, markdownStr, tags] = process.argv.slice(2);
 const useMarkdown = markdownStr === "true";
 
+async function resolveForGomarkdoc(p: string): Promise<string> {
+  // gomarkdoc rejects bare import paths — it loads packages via go/packages
+  // against the cwd's module, so it can only resolve local-on-disk paths.
+  // Mirror what `go doc` does implicitly:
+  //   - "./x" / "/abs/path" / "."  → pass through
+  //   - "fmt", "encoding/json"     → $GOROOT/src/<pkg>     (stdlib)
+  //   - "github.com/x/y/sub"       → resolveMod() → GOMODCACHE absolute path
+  if (p === "." || p.startsWith("./") || p.startsWith("/")) return p;
+  const firstSegment = p.split("/")[0];
+  if (!firstSegment.includes(".")) {
+    const goroot = (await $`go env GOROOT`.quiet()).stdout.trim();
+    if (!goroot) throw new Error("GOROOT is empty; cannot resolve stdlib");
+    return `${goroot}/src/${p}`;
+  }
+  const { modDir, subPkg } = await resolveMod(p);
+  return subPkg ? `${modDir}/${subPkg}` : modDir;
+}
+
 if (useMarkdown) {
   // Experimental gomarkdoc backend — honors build tags via go/packages.
   // Symbol-narrowing is not supported (gomarkdoc renders whole packages).
   // Path is pinned at nix build time via wrapper env var; falls back to
   // PATH so brew/devshell installs work too.
   const gomarkdoc = process.env.HAMSTER_GOMARKDOC || "gomarkdoc";
-  const args: string[] = ["-u"];
-  if (tags) args.push("--tags", tags);
-  args.push(pkg);
   try {
+    const target = await resolveForGomarkdoc(pkg);
+    const args: string[] = ["-u"];
+    if (tags) args.push("--tags", tags);
+    args.push(target);
     const result = await $`${gomarkdoc} ${args}`.quiet();
     process.stdout.write(result.stdout);
     process.exit(0);

@@ -79,6 +79,26 @@ await test('symbol query suppresses sub-packages (encoding.BinaryMarshaler)', as
   assertNotContains(out, 'Sub-packages', 'symbol query must skip sub-package listing')
 })
 
+await test('markdown=true resolves stdlib via GOROOT (`fmt`)', async () => {
+  // Bare stdlib names fail gomarkdoc directly ("invalid package at import path").
+  // doc.ts should rewrite to $GOROOT/src/fmt and pass that. Note: gomarkdoc
+  // infers the import path from the filesystem location, so the rendered
+  // import is `import "std/fmt"` rather than `import "fmt"`.
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} fmt "" true`).stdout
+  assertContains(out, '# fmt', 'should render the stdlib package header')
+  assertContains(out, 'Println', 'should include Println')
+})
+
+await test('markdown=true resolves external module sub-package via GOMODCACHE', async () => {
+  // Module-qualified paths (github.com/...) fail gomarkdoc directly. doc.ts
+  // should resolve via resolveMod() and hand gomarkdoc an absolute path
+  // inside GOMODCACHE. Targets a sub-package because go-mcp's module root
+  // has no top-level Go files (same limitation as `go doc`).
+  const PKG = 'github.com/amarbel-llc/purse-first/libs/go-mcp/server'
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} ${PKG} "" true`).stdout
+  assertContains(out, `import "${PKG}"`, 'should render the resolved sub-package')
+})
+
 await test('experimental markdown=true + tags surfaces tag-gated symbols (#185)', async () => {
   // Reproduce the #185 doc/src half via the gomarkdoc backend. The default
   // `go doc` backend can't show //go:build-tagged types (golang/go#76829).
