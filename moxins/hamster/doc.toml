@@ -1,9 +1,9 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
-description = "Show documentation for a Go package or symbol. Returns 'go doc -all' output, plus a 'Sub-packages:' section listing any sub-packages of the queried package so the full module surface is discoverable in one call. Sub-packages are not listed when querying a specific symbol. Note: `go doc` does not honor build tags (upstream bug golang/go#76829), so symbols in files behind `//go:build <tag>` are not shown — read those files via hamster.mod-read."
+description = "Show documentation for a Go package or symbol. Default backend is 'go doc -all', plus a 'Sub-packages:' section listing any sub-packages of the queried package so the full module surface is discoverable in one call. Sub-packages are not listed when querying a specific symbol. Note: the default `go doc` backend does not honor build tags (upstream bug golang/go#76829) — set `markdown=true` to switch to gomarkdoc (which does), or read tag-gated source via hamster.mod-read."
 command = "@BIN@/doc"
-arg-order = ["package", "symbol"]
+arg-order = ["package", "symbol", "markdown", "tags"]
 
 [input]
 type = "object"
@@ -15,7 +15,15 @@ description = "Go package path (e.g. 'fmt', 'encoding/json', 'github.com/user/re
 
 [input.properties.symbol]
 type = "string"
-description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview."
+description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview. Ignored when markdown=true (gomarkdoc renders the full package)."
+
+[input.properties.markdown]
+type = "boolean"
+description = "Experimental: render via gomarkdoc instead of `go doc`. Output is GitHub-flavored markdown rather than plain text. Honors build tags via the `tags` parameter (the main reason to use this). Includes unexported symbols (gomarkdoc -u) since the markdown view is comprehensive by design. Defaults to false."
+
+[input.properties.tags]
+type = "string"
+description = "Build tags to apply when markdown=true (forwarded as `gomarkdoc --tags`). Comma- or space-separated. Use to surface symbols behind `//go:build <tag>` (e.g. 'test'). Has no effect when markdown=false because `go doc` ignores tags upstream (golang/go#76829)."
 
 [annotations]
 read-only-hint = true

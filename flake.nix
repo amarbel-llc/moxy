@@ -151,7 +151,7 @@
         '';
 
         # Helper: build a moxin that has bun+zx compiled scripts in src/.
-        mkBunMoxin = name: deps: extraEntrypoints: { pathMode ? "set" }: let
+        mkBunMoxin = name: deps: extraEntrypoints: { pathMode ? "set", extraWrapArgs ? [] }: let
           bunBinaries = bunLib.buildBunBinaries {
             pname = "${name}-moxin-scripts";
             version = moxyVersion;
@@ -206,7 +206,8 @@
           for f in $out/bin/*; do
             wrapProgram "$f" \
               ${if pathMode != "inherit" then "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}" else ""} \
-              --unset LD_LIBRARY_PATH
+              --unset LD_LIBRARY_PATH \
+              ${pkgs.lib.concatStringsSep " " extraWrapArgs}
           done
           for f in $(grep -rl '@BIN@' $out); do
             substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
@@ -252,13 +253,19 @@
           "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
         } {};
         grit-moxin = mkMoxin "grit" [ ] { pathMode = "inherit"; };
+        # HAMSTER_GOMARKDOC pins the experimental markdown renderer for
+        # hamster.doc to the nix-built gomarkdoc binary, so the flag works
+        # without requiring users to put gomarkdoc on PATH.
         hamster-moxin = mkBunMoxin "hamster" [
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs.jq pkgs-master.go_1_26
         ] {
           "doc" = "moxins/hamster/src/doc.ts";
           "src" = "moxins/hamster/src/src.ts";
           "mod-read" = "moxins/hamster/src/mod-read.ts";
-        } { pathMode = "inherit"; };
+        } {
+          pathMode = "inherit";
+          extraWrapArgs = [ "--set" "HAMSTER_GOMARKDOC" "${pkgs.gomarkdoc}/bin/gomarkdoc" ];
+        };
         sisyphus-python = pkgs.python3.withPackages (ps: [ ps.atlassian-python-api ]);
         sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};

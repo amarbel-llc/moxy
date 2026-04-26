@@ -79,6 +79,28 @@ await test('symbol query suppresses sub-packages (encoding.BinaryMarshaler)', as
   assertNotContains(out, 'Sub-packages', 'symbol query must skip sub-package listing')
 })
 
+await test('experimental markdown=true + tags surfaces tag-gated symbols (#185)', async () => {
+  // Reproduce the #185 doc/src half via the gomarkdoc backend. The default
+  // `go doc` backend can't show //go:build-tagged types (golang/go#76829).
+  // gomarkdoc uses go/packages which honors tags via --tags.
+  const tmp = fs.mkdtempSync('/tmp/hamster-md-')
+  try {
+    fs.writeFileSync(path.join(tmp, 'go.mod'), 'module hamstermd\n\ngo 1.22\n')
+    fs.writeFileSync(path.join(tmp, 'a.go'), 'package m\n\n// Regular is the default-tag type.\ntype Regular struct{}\n')
+    fs.writeFileSync(
+      path.join(tmp, 't.go'),
+      '//go:build special\n\npackage m\n\n// Tagged is behind //go:build special.\ntype Tagged struct{}\n',
+    )
+
+    // markdown=true tags=special → both types render.
+    const out = (await $({ cwd: tmp })`${bin('doc')} . "" true special`).stdout
+    assertContains(out, 'Regular', 'gomarkdoc should render the default-tag type')
+    assertContains(out, 'Tagged', 'gomarkdoc with --tags=special should render the tagged type')
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
 console.log('')
 
 // --- src ---

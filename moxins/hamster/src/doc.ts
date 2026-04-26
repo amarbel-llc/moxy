@@ -3,7 +3,29 @@ import { resolveMod } from "./resolve-mod.ts";
 
 $.verbose = false;
 
-const [pkg, symbol] = process.argv.slice(2);
+const [pkg, symbol, markdownStr, tags] = process.argv.slice(2);
+const useMarkdown = markdownStr === "true";
+
+if (useMarkdown) {
+  // Experimental gomarkdoc backend — honors build tags via go/packages.
+  // Symbol-narrowing is not supported (gomarkdoc renders whole packages).
+  // Path is pinned at nix build time via wrapper env var; falls back to
+  // PATH so brew/devshell installs work too.
+  const gomarkdoc = process.env.HAMSTER_GOMARKDOC || "gomarkdoc";
+  const args: string[] = ["-u"];
+  if (tags) args.push("--tags", tags);
+  args.push(pkg);
+  try {
+    const result = await $`${gomarkdoc} ${args}`.quiet();
+    process.stdout.write(result.stdout);
+    process.exit(0);
+  } catch (err) {
+    process.stderr.write(
+      `doc (gomarkdoc): ${err instanceof Error ? err.message : err}\n`,
+    );
+    process.exit(1);
+  }
+}
 
 function docArg(target: string, sym: string | undefined): string {
   return sym ? `${target}.${sym}` : target;
