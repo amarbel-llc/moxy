@@ -6,6 +6,16 @@ $.verbose = false;
 const [pkg, symbol, markdownStr, tags] = process.argv.slice(2);
 const useMarkdown = markdownStr === "true";
 
+// Substituted at nix build time via mkBunMoxin's extraSubstitutions. Brew
+// builds and devshell runs leave the placeholder intact; the fallback below
+// resolves the binary name on PATH instead.
+const GOMARKDOC_SUBST = "@GOMARKDOC@";
+const PANDOC_SUBST = "@PANDOC@";
+const gomarkdocBin = GOMARKDOC_SUBST.startsWith("@")
+  ? "gomarkdoc"
+  : GOMARKDOC_SUBST;
+const pandocBin = PANDOC_SUBST.startsWith("@") ? "pandoc" : PANDOC_SUBST;
+
 async function resolveForGomarkdoc(p: string): Promise<string> {
   // gomarkdoc rejects bare import paths — it loads packages via go/packages
   // against the cwd's module, so it can only resolve local-on-disk paths.
@@ -36,7 +46,6 @@ if (useMarkdown) {
         `\`pandoc.select selector="#${symbol}"\` to extract one symbol's section.\n`,
     );
   }
-  const gomarkdoc = process.env.HAMSTER_GOMARKDOC || "gomarkdoc";
   let target: string;
   try {
     target = await resolveForGomarkdoc(pkg);
@@ -54,7 +63,7 @@ if (useMarkdown) {
   // packages routinely exceed this: fmt is ~80 KB), so we bypass the
   // captured-string path entirely. Diverges from the zx-everywhere convention
   // in other moxins — revert once amarbel-llc/nixpkgs#11 is understood.
-  const proc = Bun.spawn([gomarkdoc, ...args], {
+  const proc = Bun.spawn([gomarkdocBin, ...args], {
     stdout: "inherit",
     stderr: "inherit",
   });

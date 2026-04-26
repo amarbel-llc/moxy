@@ -151,18 +151,35 @@
         '';
 
         # Helper: build a moxin that has bun+zx compiled scripts in src/.
-        mkBunMoxin = name: deps: extraEntrypoints: { pathMode ? "set", extraWrapArgs ? [] }: let
+        # extraSubstitutions: attrset of {NAME = "/abs/path";} pairs.
+        # Before bundling, each `@NAME@` placeholder in the moxin's TS source
+        # is replaced with the literal value via `substitute`, so the bundler
+        # bakes the resolved store path directly into the JS — no runtime
+        # env-var or PATH indirection. Same convention as `@BIN@` elsewhere.
+        # Brew bundles (mkBrewBunMoxin) skip this step, leaving placeholders
+        # intact; scripts must include a fallback (PATH lookup) for that case.
+        mkBunMoxin = name: deps: extraEntrypoints: { pathMode ? "set", extraWrapArgs ? [], extraSubstitutions ? {} }: let
+          rawSrc = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = with pkgs.lib.fileset; unions [
+              ./moxins/${name}/src
+              ./package.json
+              ./bun.lock
+            ];
+          };
+          src = if extraSubstitutions == {} then rawSrc else
+            pkgs.runCommand "${name}-moxin-src" {} (''
+              cp -rL ${rawSrc} $out
+              chmod -R u+w $out
+            '' + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+              for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+              done
+            '') (builtins.attrNames extraSubstitutions));
           bunBinaries = bunLib.buildBunBinaries {
             pname = "${name}-moxin-scripts";
             version = moxyVersion;
-            src = pkgs.lib.fileset.toSource {
-              root = ./.;
-              fileset = with pkgs.lib.fileset; unions [
-                ./moxins/${name}/src
-                ./package.json
-                ./bun.lock
-              ];
-            };
+            inherit src;
             bunNix = ./bun.nix;
             entrypoints = extraEntrypoints;
             runtimeInputs = deps;
@@ -253,9 +270,11 @@
           "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
         } {};
         grit-moxin = mkMoxin "grit" [ ] { pathMode = "inherit"; };
-        # HAMSTER_GOMARKDOC pins the experimental markdown renderer for
-        # hamster.doc to the nix-built gomarkdoc binary, so the flag works
-        # without requiring users to put gomarkdoc on PATH.
+        # @GOMARKDOC@ / @PANDOC@ are baked into the bundled JS at build time
+        # via mkBunMoxin's extraSubstitutions, so the markdown renderer path
+        # doesn't depend on the user's PATH or any runtime env var. doc.ts
+        # carries a PATH-fallback for non-nix builds (brew, devshell) where
+        # the placeholders survive into the bundle unmodified.
         hamster-moxin = mkBunMoxin "hamster" [
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs.jq pkgs-master.go_1_26
         ] {
@@ -264,7 +283,10 @@
           "mod-read" = "moxins/hamster/src/mod-read.ts";
         } {
           pathMode = "inherit";
-          extraWrapArgs = [ "--set" "HAMSTER_GOMARKDOC" "${pkgs.gomarkdoc}/bin/gomarkdoc" ];
+          extraSubstitutions = {
+            GOMARKDOC = "${pkgs.gomarkdoc}/bin/gomarkdoc";
+            PANDOC = "${pkgs.pandoc}/bin/pandoc";
+          };
         };
         sisyphus-python = pkgs.python3.withPackages (ps: [ ps.atlassian-python-api ]);
         sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
