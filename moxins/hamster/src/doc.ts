@@ -29,6 +29,13 @@ if (useMarkdown) {
   // Symbol-narrowing is not supported (gomarkdoc renders whole packages).
   // Path is pinned at nix build time via wrapper env var; falls back to
   // PATH so brew/devshell installs work too.
+  if (symbol) {
+    process.stderr.write(
+      `note: symbol="${symbol}" is ignored in markdown mode (gomarkdoc has no symbol filter). ` +
+        `Once moxy#186 lands, pipe this output through ` +
+        `\`pandoc.select selector="#${symbol}"\` to extract one symbol's section.\n`,
+    );
+  }
   const gomarkdoc = process.env.HAMSTER_GOMARKDOC || "gomarkdoc";
   try {
     const target = await resolveForGomarkdoc(pkg);

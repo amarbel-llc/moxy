@@ -99,6 +99,19 @@ await test('markdown=true resolves external module sub-package via GOMODCACHE', 
   assertContains(out, `import "${PKG}"`, 'should render the resolved sub-package')
 })
 
+await test('markdown=true + symbol emits a discoverability hint to stderr', async () => {
+  // gomarkdoc has no symbol filter; the symbol arg is silently dropped without
+  // a note. We emit a stderr hint pointing callers at moxy#186 / pandoc.select
+  // so a clean session sees the path forward without prior knowledge.
+  const res = await $({ cwd: REPO_ROOT })`${bin('doc')} fmt Println true`.quiet()
+  if (!res.stderr.includes('symbol="Println" is ignored')) {
+    throw new Error(`expected stderr hint about Println; got: ${res.stderr.slice(0, 200)}`)
+  }
+  if (!res.stderr.includes('moxy#186')) {
+    throw new Error(`expected stderr hint to reference moxy#186; got: ${res.stderr.slice(0, 200)}`)
+  }
+})
+
 await test('experimental markdown=true + tags surfaces tag-gated symbols (#185)', async () => {
   // Reproduce the #185 doc/src half via the gomarkdoc backend. The default
   // `go doc` backend can't show //go:build-tagged types (golang/go#76829).
