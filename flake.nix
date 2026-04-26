@@ -279,6 +279,7 @@
           pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs.jq pkgs-master.go_1_26
         ] {
           "doc" = "moxins/hamster/src/doc.ts";
+          "doc-outline" = "moxins/hamster/src/doc-outline.ts";
           "src" = "moxins/hamster/src/src.ts";
           "mod-read" = "moxins/hamster/src/mod-read.ts";
         } {
@@ -600,6 +601,7 @@
           };
           hamster = mkBrewBunMoxin "hamster" {
             "doc" = "moxins/hamster/src/doc.ts";
+            "doc-outline" = "moxins/hamster/src/doc-outline.ts";
             "src" = "moxins/hamster/src/src.ts";
             "mod-read" = "moxins/hamster/src/mod-read.ts";
           };

@@ -120,6 +120,23 @@ await test('missing symbol errors with available-anchor hint', async () => {
   }
 })
 
+await test('doc-outline lists exported anchors with kind context', async () => {
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} fmt`).stdout
+  assertContains(out, '# fmt', 'should include the package header')
+  assertContains(out, 'exported anchors', 'should report the exported count')
+  assertContains(out, 'Println', 'should list Println as an anchor')
+  assertContains(out, 'func Println', 'should render the kind + name from gomarkdoc')
+  assertContains(out, 'Stringer', 'should list Stringer (a type)')
+  // Unexported by default → lowercase-headed anchors should be hidden.
+  assertNotContains(out, '\nldigits ', 'should hide unexported by default')
+})
+
+await test('doc-outline includes unexported with unexported=true', async () => {
+  // Third positional arg = unexported flag. (arg-order: package, tags, unexported)
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} fmt "" true`).stdout
+  assertContains(out, 'ldigits', 'should include unexported anchor when unexported=true')
+})
+
 await test('tags surfaces tag-gated symbols (#185)', async () => {
   // gomarkdoc uses go/packages which honors --tags, so a //go:build-gated
   // symbol surfaces only when tags=<tag> is passed.

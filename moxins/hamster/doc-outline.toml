@@ -1,0 +1,26 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "List the addressable symbols in a Go package — what `hamster.doc` accepts as `symbol=`. One symbol per line as `<anchor>  # <kind name>`. Useful for progressive disclosure: outline a package, then drill into individual symbols. Exported only by default."
+command = "@BIN@/doc-outline"
+arg-order = ["package", "tags", "unexported"]
+
+[input]
+type = "object"
+required = ["package"]
+
+[input.properties.package]
+type = "string"
+description = "Go package path (e.g. 'fmt', 'encoding/json', 'github.com/user/repo/pkg', './internal/x')."
+
+[input.properties.tags]
+type = "string"
+description = "Build tags forwarded to `gomarkdoc --tags`. Comma- or space-separated. Use to surface symbols behind `//go:build <tag>` (e.g. 'test', 'integration debug')."
+
+[input.properties.unexported]
+type = "boolean"
+description = "Include unexported (lowercase) symbols. Defaults to false; the package's exported API is usually what callers want for progressive disclosure."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
