@@ -61,62 +61,52 @@ console.log('doc:')
 
 await test('stdlib package (fmt)', async () => {
   const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} fmt`).stdout
-  assertContains(out, 'package fmt', 'fmt header')
+  assertContains(out, '# fmt', 'fmt h1 header')
   assertContains(out, 'func Println', 'fmt has Println')
-  assertNotContains(out, 'Sub-packages', 'fmt should have no sub-packages')
+  assertNotContains(out, '## Sub-packages', 'fmt has no direct sub-packages')
 })
 
-await test('stdlib parent with sub-packages (encoding)', async () => {
+await test('parent package appends ## Sub-packages section (encoding)', async () => {
   const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} encoding`).stdout
-  assertContains(out, 'package encoding', 'encoding header')
-  assertContains(out, 'Sub-packages', 'encoding should list sub-packages')
+  assertContains(out, '# encoding', 'encoding h1 header')
+  assertContains(out, '## Sub-packages', 'encoding should list sub-packages section')
   assertContains(out, 'encoding/json', 'sub-packages should include encoding/json')
 })
 
 await test('symbol query suppresses sub-packages (encoding.BinaryMarshaler)', async () => {
   const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} encoding BinaryMarshaler`).stdout
   assertContains(out, 'BinaryMarshaler', 'symbol body present')
-  assertNotContains(out, 'Sub-packages', 'symbol query must skip sub-package listing')
+  assertNotContains(out, '## Sub-packages', 'symbol query must skip sub-package listing')
 })
 
-await test('markdown=true resolves stdlib via GOROOT (`fmt`)', async () => {
-  // Bare stdlib names fail gomarkdoc directly ("invalid package at import path").
-  // doc.ts should rewrite to $GOROOT/src/fmt and pass that. Note: gomarkdoc
-  // infers the import path from the filesystem location, so the rendered
-  // import is `import "std/fmt"` rather than `import "fmt"`.
-  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} fmt "" true`).stdout
-  assertContains(out, '# fmt', 'should render the stdlib package header')
-  assertContains(out, 'Println', 'should include Println')
-})
-
-await test('markdown=true resolves external module sub-package via GOMODCACHE', async () => {
+await test('external module sub-package resolves via GOMODCACHE', async () => {
   // Module-qualified paths (github.com/...) fail gomarkdoc directly. doc.ts
   // should resolve via resolveMod() and hand gomarkdoc an absolute path
   // inside GOMODCACHE. Targets a sub-package because go-mcp's module root
-  // has no top-level Go files (same limitation as `go doc`).
+  // has no top-level Go files (same limitation gomarkdoc has elsewhere).
   const PKG = 'github.com/amarbel-llc/purse-first/libs/go-mcp/server'
-  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} ${PKG} "" true`).stdout
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} ${PKG}`).stdout
   assertContains(out, `import "${PKG}"`, 'should render the resolved sub-package')
 })
 
-await test('markdown=true + symbol slices to that symbol section (#188)', async () => {
-  // gomarkdoc renders whole packages; doc.ts should run pandoc internally
-  // to slice the matching `<a name="<symbol>">` block through the next
-  // anchor block. Output should contain Println but not Printf, Errorf, etc.
-  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} fmt Println true`).stdout
+await test('symbol slices to that symbol section (#188)', async () => {
+  // gomarkdoc renders whole packages; doc.ts runs pandoc internally to
+  // slice the matching `<a name="<symbol>">` block through the next
+  // anchor block. Output should contain Println but not Printf, Errorf.
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} fmt Println`).stdout
   assertContains(out, '<a name="Println">', 'should include the Println anchor')
   assertContains(out, 'func Println', 'should include Println signature')
   assertNotContains(out, '<a name="Printf">', 'should not bleed into the next symbol')
   assertNotContains(out, 'func Errorf', 'should not include unrelated symbols')
 })
 
-await test('markdown=true + missing symbol errors with available-anchor hint', async () => {
-  // Wrong symbol name should exit nonzero with a stderr hint listing some of
-  // the package's actual anchors so the caller can correct.
+await test('missing symbol errors with available-anchor hint', async () => {
+  // Wrong symbol name should exit nonzero with a stderr hint listing some
+  // of the package's actual anchors so the caller can correct.
   let exitCode = 0
   let stderr = ''
   try {
-    await $({ cwd: REPO_ROOT })`${bin('doc')} fmt NotARealSymbol true`.quiet()
+    await $({ cwd: REPO_ROOT })`${bin('doc')} fmt NotARealSymbol`.quiet()
   } catch (e) {
     exitCode = e.exitCode
     stderr = e.stderr || ''
@@ -130,10 +120,9 @@ await test('markdown=true + missing symbol errors with available-anchor hint', a
   }
 })
 
-await test('experimental markdown=true + tags surfaces tag-gated symbols (#185)', async () => {
-  // Reproduce the #185 doc/src half via the gomarkdoc backend. The default
-  // `go doc` backend can't show //go:build-tagged types (golang/go#76829).
-  // gomarkdoc uses go/packages which honors tags via --tags.
+await test('tags surfaces tag-gated symbols (#185)', async () => {
+  // gomarkdoc uses go/packages which honors --tags, so a //go:build-gated
+  // symbol surfaces only when tags=<tag> is passed.
   const tmp = fs.mkdtempSync('/tmp/hamster-md-')
   try {
     fs.writeFileSync(path.join(tmp, 'go.mod'), 'module hamstermd\n\ngo 1.22\n')
@@ -143,8 +132,8 @@ await test('experimental markdown=true + tags surfaces tag-gated symbols (#185)'
       '//go:build special\n\npackage m\n\n// Tagged is behind //go:build special.\ntype Tagged struct{}\n',
     )
 
-    // markdown=true tags=special → both types render.
-    const out = (await $({ cwd: tmp })`${bin('doc')} . "" true special`).stdout
+    // tags=special → both types render.
+    const out = (await $({ cwd: tmp })`${bin('doc')} . "" special`).stdout
     assertContains(out, 'Regular', 'gomarkdoc should render the default-tag type')
     assertContains(out, 'Tagged', 'gomarkdoc with --tags=special should render the tagged type')
   } finally {

@@ -1,9 +1,9 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
-description = "Show documentation for a Go package or symbol. Default backend is 'go doc -all', plus a 'Sub-packages:' section listing any sub-packages of the queried package so the full module surface is discoverable in one call. Sub-packages are not listed when querying a specific symbol. Note: the default `go doc` backend does not honor build tags (upstream bug golang/go#76829) — set `markdown=true` to switch to gomarkdoc (which does), or read tag-gated source via hamster.mod-read."
+description = "Render Go package documentation as GitHub-flavored markdown via gomarkdoc. Includes unexported symbols (gomarkdoc -u). When `symbol` is set, returns just that symbol's anchor section via an internal pandoc round-trip. When `symbol` is omitted, returns the whole package and appends a `## Sub-packages` section listing direct children for one-shot module discovery."
 command = "@BIN@/doc"
-arg-order = ["package", "symbol", "markdown", "tags"]
+arg-order = ["package", "symbol", "tags"]
 
 [input]
 type = "object"
@@ -11,19 +11,15 @@ required = ["package"]
 
 [input.properties.package]
 type = "string"
-description = "Go package path (e.g. 'fmt', 'encoding/json', 'github.com/user/repo/pkg')"
+description = "Go package path (e.g. 'fmt', 'encoding/json', 'github.com/user/repo/pkg', './internal/x')."
 
 [input.properties.symbol]
 type = "string"
-description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview. Honored in both backends: go doc filters via `go doc <pkg>.<sym>`; markdown mode runs gomarkdoc and slices the symbol's `<a name>` anchor section via pandoc. For methods, pass `Type.Method` (e.g. 'Handler.Handle')."
-
-[input.properties.markdown]
-type = "boolean"
-description = "Experimental: render via gomarkdoc instead of `go doc`. Output is GitHub-flavored markdown rather than plain text. Honors build tags via the `tags` parameter (the main reason to use this). Includes unexported symbols (gomarkdoc -u) since the markdown view is comprehensive by design. When `symbol` is also set, the output is sliced to that symbol's anchor section via an internal pandoc round-trip. Defaults to false."
+description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview. Errors with a list of available anchors if the symbol isn't found. For methods, pass `Type.Method` (e.g. 'Handler.Handle')."
 
 [input.properties.tags]
 type = "string"
-description = "Build tags to apply when markdown=true (forwarded as `gomarkdoc --tags`). Comma- or space-separated. Use to surface symbols behind `//go:build <tag>` (e.g. 'test'). Has no effect when markdown=false because `go doc` ignores tags upstream (golang/go#76829)."
+description = "Build tags forwarded to `gomarkdoc --tags`. Comma- or space-separated. Use to surface symbols behind `//go:build <tag>` (e.g. 'test', 'integration debug')."
 
 [annotations]
 read-only-hint = true
