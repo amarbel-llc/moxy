@@ -137,6 +137,19 @@ await test('doc-outline includes unexported with unexported=true', async () => {
   assertContains(out, 'ldigits', 'should include unexported anchor when unexported=true')
 })
 
+await test('doc-outline labels vars/consts via section context', async () => {
+  // gomarkdoc puts var/const anchors inline under `## Variables` / `## Constants`
+  // sections rather than before a per-symbol Header. doc-outline tracks the
+  // current section so these still get a kind annotation.
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} errors`).stdout
+  assertContains(out, 'ErrUnsupported  # var ErrUnsupported', 'errors.ErrUnsupported should be labeled "var"')
+  const ioOut = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} io`).stdout
+  assertContains(ioOut, 'SeekStart', 'should include the SeekStart constant')
+  assertContains(ioOut, '# const SeekStart', 'SeekStart should be labeled "const" via Constants section context')
+  assertContains(ioOut, 'EOF', 'should include the EOF variable')
+  assertContains(ioOut, '# var EOF', 'EOF should be labeled "var" via Variables section context')
+})
+
 await test('doc-outline hides Type.unexportedMethod by default', async () => {
   // Regression for the isExported logic on dotted anchors: a method with a
   // lowercase name on an exported type is not callable from outside the

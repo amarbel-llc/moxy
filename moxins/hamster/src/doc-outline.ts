@@ -148,14 +148,28 @@ try {
 
 // Walk blocks. For each anchor, look at the next block; if it's a Header,
 // take its rendered text as context (e.g. "func Println", "type Stringer").
+// gomarkdoc puts `## Constants` and `## Variables` section headers above
+// inline-anchored blocks (no per-symbol Header), so we also track the
+// current section as a fallback kind label for those cases.
+const SECTION_KIND: Record<string, string> = {
+  constants: "const",
+  variables: "var",
+};
 type Entry = { anchor: string; heading: string };
 const entries: Entry[] = [];
+let currentSection: string | null = null;
 for (let i = 0; i < ast.blocks.length; i++) {
-  const a = blockAnchorName(ast.blocks[i]);
+  const block = ast.blocks[i];
+  if (block.t === "Header" && block.c[0] === 2) {
+    currentSection = inlineText(block.c[2]).trim().toLowerCase();
+  }
+  const a = blockAnchorName(block);
   if (a === null) continue;
   let heading = "";
   if (i + 1 < ast.blocks.length && ast.blocks[i + 1].t === "Header") {
     heading = inlineText(ast.blocks[i + 1].c[2]).trim();
+  } else if (currentSection && SECTION_KIND[currentSection]) {
+    heading = `${SECTION_KIND[currentSection]} ${a}`;
   }
   entries.push({ anchor: a, heading });
 }
