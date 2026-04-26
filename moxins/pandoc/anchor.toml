@@ -1,0 +1,23 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Extract a section from a markdown document by HTML anchor name (`<a name=\"X\">` or `<a id=\"X\">`). Returns content from the anchor's containing block through the next anchor block. Use for outputs that address sub-units via inline HTML anchors rather than markdown headings (gomarkdoc, autodoc tooling). Tracer bullet for #186."
+command = "@BIN@/anchor"
+arg-order = ["anchor"]
+stdin-param = "markdown"
+
+[input]
+type = "object"
+required = ["markdown", "anchor"]
+
+[input.properties.markdown]
+type = "string"
+description = "Markdown content to parse. Pass literal text or a moxy.native://results/{session}/{id} URI."
+
+[input.properties.anchor]
+type = "string"
+description = "Anchor name to extract — the value of the `name=` or `id=` attribute on an `<a>` tag. Example: 'Println'."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

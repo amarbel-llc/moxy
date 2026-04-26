@@ -309,6 +309,7 @@
         pandoc-moxin = mkBunMoxin "pandoc" [ pkgs.bash pkgs.pandoc ] {
           "toc" = "moxins/pandoc/src/toc.ts";
           "section" = "moxins/pandoc/src/section.ts";
+          "anchor" = "moxins/pandoc/src/anchor.ts";
         } {};
 
         gwsDeps = [ pkgs.bash pkgs.coreutils gws-bin ];
@@ -587,6 +588,7 @@
           pandoc = mkBrewBunMoxin "pandoc" {
             "toc" = "moxins/pandoc/src/toc.ts";
             "section" = "moxins/pandoc/src/section.ts";
+            "anchor" = "moxins/pandoc/src/anchor.ts";
           };
           sisyphus = mkBrewMoxin "sisyphus";
           car = mkBrewBunMoxin "car" {
