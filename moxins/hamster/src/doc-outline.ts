@@ -106,11 +106,12 @@ function inlineText(inlines: any[]): string {
 }
 
 function isExported(anchor: string): boolean {
-  // Anchors like "Type.method" — exported if the first path segment starts
-  // with an uppercase letter. Methods on unexported types are still
-  // unexported even if the method name is uppercase.
-  const head = anchor.split(".")[0];
-  return /^[A-Z]/.test(head);
+  // Anchors are either bare names ("Println") or dotted ("Type.Method").
+  // To be callable from outside the package, every segment must start with
+  // an uppercase letter — `Handler.handleInternal` is NOT exported even
+  // though Handler itself is, because the method can't be called from
+  // outside. Mirrors Go's own export visibility rules.
+  return anchor.split(".").every((seg) => /^[A-Z]/.test(seg));
 }
 
 // --- Main ---

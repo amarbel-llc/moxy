@@ -137,6 +137,18 @@ await test('doc-outline includes unexported with unexported=true', async () => {
   assertContains(out, 'ldigits', 'should include unexported anchor when unexported=true')
 })
 
+await test('doc-outline hides Type.unexportedMethod by default', async () => {
+  // Regression for the isExported logic on dotted anchors: a method with a
+  // lowercase name on an exported type is not callable from outside the
+  // package and should be hidden in the default exported-only view.
+  const PKG = 'github.com/amarbel-llc/purse-first/libs/go-mcp/server'
+  const exported = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} ${PKG}`).stdout
+  assertContains(exported, 'Handler.Handle', 'exported method should appear')
+  assertNotContains(exported, 'Handler.handleInitialize', 'unexported method on exported type should be hidden by default')
+  const withUnexp = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} ${PKG} "" true`).stdout
+  assertContains(withUnexp, 'Handler.handleInitialize', 'unexported method should appear with unexported=true')
+})
+
 await test('tags surfaces tag-gated symbols (#185)', async () => {
   // gomarkdoc uses go/packages which honors --tags, so a //go:build-gated
   // symbol surfaces only when tags=<tag> is passed.
