@@ -1,0 +1,30 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = """
+Run a bash command inside a Nix derivation sandbox against a snapshot of the current working directory.
+
+The snapshot is read-only and is filtered by .gitignore plus a small dev-cruft list (.git, .direnv, .tmp, result*).
+Untracked files that are not gitignored ARE visible.
+Mutations the command makes don't leak back to the host.
+External network is reachable, but TLS verification fails by default (the sandbox has no real CA bundle).
+$HOME inside the sandbox is /homeless-shelter; the host's $HOME, /home, and /etc/passwd entries for real users are not visible.
+
+Returns labeled exit/stdout/stderr blocks. The wrapper itself always exits 0 unless the build infrastructure failed.
+
+Use for exploratory/throwaway commands where you do NOT want host side-effects.
+"""
+command = "@BIN@/try"
+arg-order = ["cmd"]
+
+[input]
+required = ["cmd"]
+
+[input.properties.cmd]
+type = "string"
+description = "Bash command to run inside the sandbox (e.g. 'find . -name *.go | head', 'go vet ./...', 'rg pattern')."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = false
+open-world-hint = false

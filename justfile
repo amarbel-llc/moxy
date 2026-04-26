@@ -667,3 +667,139 @@ poc-build-dynamic-perms:
 [group('explore')]
 poc-test-dynamic-perms: poc-build-dynamic-perms
   bats {{justfile_directory()}}/zz-bats_explore/dynamic_perms_poc.bats
+
+# Enable impure-derivations + ca-derivations on the nix-daemon and restart it.
+# Idempotent: re-running is a no-op if both features are already in nix.custom.conf.
+# Mirrors amarbel-llc/eng#41's resolution but for Determinate Nix on Linux instead of darwin.
+[group('debug')]
+debug-pkexec-enable-impure-derivations:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  export SHELL=/bin/bash
+  echo "=== before ==="
+  grep -E '^(extra-)?experimental-features' /etc/nix/nix.custom.conf || true
+  echo ""
+  echo "=== pkexec edit + daemon restart ==="
+  pkexec bash -c '
+    set -euo pipefail
+    conf=/etc/nix/nix.custom.conf
+    if grep -qE "^extra-experimental-features.*\bimpure-derivations\b" "$conf"; then
+      echo "[skip] extra-experimental-features already enables impure-derivations"
+    else
+      printf "\n# Added for moxy chix.bash prototype (mirrors amarbel-llc/eng#41).\n" >> "$conf"
+      printf "extra-experimental-features = impure-derivations ca-derivations\n" >> "$conf"
+      echo "[appended] extra-experimental-features = impure-derivations ca-derivations"
+    fi
+    systemctl restart nix-daemon.service
+    systemctl is-active nix-daemon.service
+  '
+  echo ""
+  echo "=== after ==="
+  grep -E '^(extra-)?experimental-features|^# Added for moxy' /etc/nix/nix.custom.conf || true
+  echo ""
+  echo "=== nix config show (post-restart) ==="
+  nix config show 2>/dev/null | grep -i experimental || nix-instantiate --eval --expr 'builtins.currentSystem' 2>&1 | tail -3
+
+# Look up nix.conf docs for a setting via `nix config show --json` to get its description.
+[group('debug')]
+debug-nix-setting key:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  nix config show --json 2>/dev/null | jq --arg k '{{key}}' '.[$k] // .[($k | sub("^extra-"; ""))]'
+
+# Smallest possible __impure derivation, exercise every flag override path.
+[group('debug')]
+debug-nix-impure-min:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  drv=$(mktemp --suffix=.nix)
+  trap 'rm -f "$drv"' EXIT
+  cat > "$drv" <<'NIX'
+  { pkgs ? import <nixpkgs> {} }:
+  pkgs.runCommand "impure-min" {
+    __impure = true;
+    buildInputs = [ pkgs.coreutils ];
+  } ''
+    echo hello > $out
+  ''
+  NIX
+
+  echo "=== A: --extra-experimental-features (subcommand flag) ==="
+  nix build --impure --no-link --print-out-paths \
+    --extra-experimental-features impure-derivations \
+    --extra-experimental-features ca-derivations \
+    --file "$drv" 2>&1 | tail -5
+  echo ""
+  echo "=== B: --option experimental-features ==="
+  nix build --impure --no-link --print-out-paths \
+    --option experimental-features 'nix-command flakes impure-derivations ca-derivations' \
+    --file "$drv" 2>&1 | tail -5
+  echo ""
+  echo "=== C: NIX_CONFIG env ==="
+  NIX_CONFIG="experimental-features = nix-command flakes impure-derivations ca-derivations" \
+    nix build --impure --no-link --print-out-paths --file "$drv" 2>&1 | tail -5
+  echo ""
+  echo "=== D: pre-subcommand --extra-experimental-features ==="
+  nix --extra-experimental-features impure-derivations \
+      --extra-experimental-features ca-derivations \
+      build --impure --no-link --print-out-paths --file "$drv" 2>&1 | tail -5
+
+# Smoke chix.try via the nix-built bin. Single arg = bash command.
+[group('debug')]
+debug-chix-try CMD:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  exec {{justfile_directory()}}/result/share/moxy/moxins/chix/bin/try '{{CMD}}'
+
+# Probe nix capabilities (version, experimental features) for chix.bash work.
+[group('debug')]
+debug-nix-features:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  echo "--- nix --version ---"
+  nix --version
+  echo ""
+  echo "--- nix --help | grep experimental ---"
+  nix --help 2>&1 | grep -i experimental || echo "(no match)"
+  echo ""
+  echo "--- nix-build --help | grep -E 'experimental|option' ---"
+  nix-build --help 2>&1 | grep -iE 'experimental|option' || echo "(no match)"
+  echo ""
+  echo "--- try --option experimental-features ---"
+  echo 'derivation { name = "x"; system = "x86_64-linux"; builder = "/bin/sh"; }' | \
+    nix-instantiate --option experimental-features "nix-command flakes impure-derivations ca-derivations" \
+    --expr 'builtins.toString (derivation { name = "x"; system = "x86_64-linux"; builder = "/bin/sh"; __impure = true; })' \
+    2>&1 | head -20 || true
+
+# Probe: does --option extra-sandbox-paths take effect from a non-trusted user?
+# Tries to bind-mount /home/sasha/eng/repos/moxy/.worktrees/snug-sumac into the sandbox
+# and `ls` inside. If the bind silently fails, the worktree path won't exist in the sandbox.
+[group('debug')]
+debug-extra-sandbox-paths:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  drv=$(mktemp --suffix=.nix)
+  trap 'rm -f "$drv"' EXIT
+  cwd="{{justfile_directory()}}"
+  cat > "$drv" <<NIX
+  { pkgs ? import <nixpkgs> {} }:
+  pkgs.runCommand "extra-sandbox-paths-probe" {
+    __impure = true;
+    buildInputs = [ pkgs.coreutils ];
+  } ''
+    mkdir -p \$out
+    set +e
+    echo "ls $cwd:" > \$out/result
+    ls -la "$cwd" >> \$out/result 2>&1
+    echo "" >> \$out/result
+    echo "ls $cwd/flake.nix:" >> \$out/result
+    ls -la "$cwd/flake.nix" >> \$out/result 2>&1
+    set -e
+  ''
+  NIX
+  echo "--- with --option extra-sandbox-paths ---"
+  out=$(nix build --impure --no-link --print-out-paths \
+    --option extra-sandbox-paths "$cwd" \
+    --file "$drv" 2>&1) || { echo "BUILD FAILED:"; echo "$out"; exit 1; }
+  cat "$out/result"
+

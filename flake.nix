@@ -246,6 +246,7 @@
           "flake-show" = "moxins/chix/src/flake-show.ts";
           "flake-update" = "moxins/chix/src/flake-update.ts";
           "store-ls" = "moxins/chix/src/store-ls.ts";
+          "try" = "moxins/chix/src/try.ts";
         } { pathMode = "suffix"; };
         conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
