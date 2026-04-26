@@ -1,7 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
-description = "List headings from a markdown document with level indicators. Use to discover structure before reading specific sections."
+description = "List headings from a markdown document with level indicators and auto-generated IDs (suitable for `pandoc.section` / `pandoc.anchor` selectors). Uses pandoc's gfm reader so headings adjacent to inline `<a name=...>` HTML anchors are recovered correctly. Use to discover structure before reading specific sections."
 command = "@BIN@/toc"
 stdin-param = "markdown"
 

@@ -37,20 +37,29 @@ if (useMarkdown) {
     );
   }
   const gomarkdoc = process.env.HAMSTER_GOMARKDOC || "gomarkdoc";
+  let target: string;
   try {
-    const target = await resolveForGomarkdoc(pkg);
-    const args: string[] = ["-u"];
-    if (tags) args.push("--tags", tags);
-    args.push(target);
-    const result = await $`${gomarkdoc} ${args}`.quiet();
-    process.stdout.write(result.stdout);
-    process.exit(0);
+    target = await resolveForGomarkdoc(pkg);
   } catch (err) {
     process.stderr.write(
       `doc (gomarkdoc): ${err instanceof Error ? err.message : err}\n`,
     );
     process.exit(1);
   }
+  const args: string[] = ["-u"];
+  if (tags) args.push("--tags", tags);
+  args.push(target);
+  // Stream gomarkdoc's stdout/stderr straight through. zx/Bun's `$` capture
+  // truncates large outputs at ~8 KiB in the nix-bundled moxin (real
+  // packages routinely exceed this: fmt is ~80 KB), so we bypass the
+  // captured-string path entirely. Diverges from the zx-everywhere convention
+  // in other moxins — revert once amarbel-llc/nixpkgs#11 is understood.
+  const proc = Bun.spawn([gomarkdoc, ...args], {
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const exitCode = await proc.exited;
+  process.exit(exitCode);
 }
 
 function docArg(target: string, sym: string | undefined): string {

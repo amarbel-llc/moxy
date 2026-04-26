@@ -8,7 +8,10 @@ if (!markdown.trim()) {
   process.exit(1);
 }
 
-const { stdout } = await $({ input: markdown })`pandoc -f markdown -t json`;
+// gfm reader keeps headings adjacent to inline `<a name="X">` HTML anchors
+// as real Header blocks; the default markdown reader collapses them into
+// Paragraphs and the toc disappears. Same reader pandoc.anchor uses.
+const { stdout } = await $({ input: markdown })`pandoc -f gfm -t json`;
 const ast = JSON.parse(stdout);
 
 function inlineText(inlines: any[]): string {
@@ -28,8 +31,11 @@ function inlineText(inlines: any[]): string {
 const lines: string[] = [];
 for (const block of ast.blocks) {
   if (block.t === "Header") {
-    const [level, , inlines] = block.c;
-    lines.push("#".repeat(level) + " " + inlineText(inlines));
+    const [level, attrs, inlines] = block.c;
+    const id =
+      Array.isArray(attrs) && typeof attrs[0] === "string" ? attrs[0] : "";
+    const heading = "#".repeat(level) + " " + inlineText(inlines);
+    lines.push(id ? `${heading}  #${id}` : heading);
   }
 }
 
