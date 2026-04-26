@@ -99,16 +99,34 @@ await test('markdown=true resolves external module sub-package via GOMODCACHE', 
   assertContains(out, `import "${PKG}"`, 'should render the resolved sub-package')
 })
 
-await test('markdown=true + symbol emits a discoverability hint to stderr', async () => {
-  // gomarkdoc has no symbol filter; the symbol arg is silently dropped without
-  // a note. We emit a stderr hint pointing callers at moxy#186 / pandoc.select
-  // so a clean session sees the path forward without prior knowledge.
-  const res = await $({ cwd: REPO_ROOT })`${bin('doc')} fmt Println true`.quiet()
-  if (!res.stderr.includes('symbol="Println" is ignored')) {
-    throw new Error(`expected stderr hint about Println; got: ${res.stderr.slice(0, 200)}`)
+await test('markdown=true + symbol slices to that symbol section (#188)', async () => {
+  // gomarkdoc renders whole packages; doc.ts should run pandoc internally
+  // to slice the matching `<a name="<symbol>">` block through the next
+  // anchor block. Output should contain Println but not Printf, Errorf, etc.
+  const out = (await $({ cwd: REPO_ROOT })`${bin('doc')} fmt Println true`).stdout
+  assertContains(out, '<a name="Println">', 'should include the Println anchor')
+  assertContains(out, 'func Println', 'should include Println signature')
+  assertNotContains(out, '<a name="Printf">', 'should not bleed into the next symbol')
+  assertNotContains(out, 'func Errorf', 'should not include unrelated symbols')
+})
+
+await test('markdown=true + missing symbol errors with available-anchor hint', async () => {
+  // Wrong symbol name should exit nonzero with a stderr hint listing some of
+  // the package's actual anchors so the caller can correct.
+  let exitCode = 0
+  let stderr = ''
+  try {
+    await $({ cwd: REPO_ROOT })`${bin('doc')} fmt NotARealSymbol true`.quiet()
+  } catch (e) {
+    exitCode = e.exitCode
+    stderr = e.stderr || ''
   }
-  if (!res.stderr.includes('moxy#186')) {
-    throw new Error(`expected stderr hint to reference moxy#186; got: ${res.stderr.slice(0, 200)}`)
+  if (exitCode === 0) throw new Error('expected nonzero exit for missing symbol')
+  if (!stderr.includes('not found')) {
+    throw new Error(`expected 'not found' in stderr; got: ${stderr.slice(0, 200)}`)
+  }
+  if (!stderr.includes('Available anchors')) {
+    throw new Error(`expected anchor list in stderr; got: ${stderr.slice(0, 200)}`)
   }
 })
 

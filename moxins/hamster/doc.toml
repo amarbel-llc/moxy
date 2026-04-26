@@ -15,11 +15,11 @@ description = "Go package path (e.g. 'fmt', 'encoding/json', 'github.com/user/re
 
 [input.properties.symbol]
 type = "string"
-description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview. Ignored when markdown=true — gomarkdoc has no symbol filter and renders the full package; once #186 lands, pipe the markdown output through `pandoc.select selector=\"#<Symbol>\"` to extract one symbol's section."
+description = "Exported symbol name (e.g. 'Println', 'Decoder'). Omit for package overview. Honored in both backends: go doc filters via `go doc <pkg>.<sym>`; markdown mode runs gomarkdoc and slices the symbol's `<a name>` anchor section via pandoc. For methods, pass `Type.Method` (e.g. 'Handler.Handle')."
 
 [input.properties.markdown]
 type = "boolean"
-description = "Experimental: render via gomarkdoc instead of `go doc`. Output is GitHub-flavored markdown rather than plain text. Honors build tags via the `tags` parameter (the main reason to use this). Includes unexported symbols (gomarkdoc -u) since the markdown view is comprehensive by design. Note: `symbol` is not honored in this mode — use `pandoc.select` (#186) on the output to filter to one symbol once that lands. Defaults to false."
+description = "Experimental: render via gomarkdoc instead of `go doc`. Output is GitHub-flavored markdown rather than plain text. Honors build tags via the `tags` parameter (the main reason to use this). Includes unexported symbols (gomarkdoc -u) since the markdown view is comprehensive by design. When `symbol` is also set, the output is sliced to that symbol's anchor section via an internal pandoc round-trip. Defaults to false."
 
 [input.properties.tags]
 type = "string"
