@@ -111,6 +111,75 @@ await test('./internal/native/...', async () => {
   await $({ cwd: REPO_ROOT })`${bin('go-vet')} ./internal/native/...`
 })
 
+await test('cwd flag points go-vet at a subdirectory module (#174)', async () => {
+  // Reproduce the #174 scenario: go.mod lives in a subdirectory, not at CWD.
+  // Without `cwd`, `go vet ./...` reports
+  // "directory prefix . does not contain main module".
+  const tmp = fs.mkdtempSync('/tmp/hamster-cwd-')
+  try {
+    const sub = path.join(tmp, 'go')
+    fs.mkdirSync(sub)
+    fs.writeFileSync(path.join(sub, 'go.mod'), 'module hamstertest\n\ngo 1.22\n')
+    fs.writeFileSync(path.join(sub, 'main.go'), 'package main\n\nfunc main() {}\n')
+
+    // Baseline: without cwd, vet from tmp root fails.
+    let baselineFailed = false
+    try {
+      await $({ cwd: tmp })`${bin('go-vet')} ./...`.quiet()
+    } catch {
+      baselineFailed = true
+    }
+    if (!baselineFailed) {
+      throw new Error('expected baseline `go vet` to fail without cwd')
+    }
+
+    // With cwd=go, vet succeeds.
+    await $({ cwd: tmp })`${bin('go-vet')} ./... "" go`
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+console.log('')
+
+// --- go-test ---
+
+console.log('go-test:')
+
+await test('tags flag includes test files behind //go:build (#185)', async () => {
+  // Tagged file holds a Test that fails on purpose. Without tags=special the
+  // file is excluded ("no test files", exit 0). With tags=special the file
+  // compiles, the test runs, and the t.Fatal payload reaches stdout.
+  const tmp = fs.mkdtempSync('/tmp/hamster-tags-')
+  try {
+    fs.writeFileSync(path.join(tmp, 'go.mod'), 'module hamstertagtest\n\ngo 1.22\n')
+    fs.writeFileSync(path.join(tmp, 'lib.go'), 'package m\n')
+    fs.writeFileSync(
+      path.join(tmp, 'tagged_test.go'),
+      '//go:build special\n\n' +
+        'package m\n\n' +
+        'import "testing"\n\n' +
+        'func TestTagged(t *testing.T) { t.Fatal("HAMSTER_TAGGED_RAN") }\n',
+    )
+
+    // Baseline: no tags → tagged file excluded → exit 0.
+    await $({ cwd: tmp })`${bin('go-test')} ./...`.quiet()
+
+    // With tags=special: 12 positional args (everything before tags as defaults).
+    let sawMarker = false
+    try {
+      await $({ cwd: tmp })`${bin('go-test')} ./... "" false "" false false "" "" false false "" special`.quiet()
+    } catch (e) {
+      if ((e.stdout || '').includes('HAMSTER_TAGGED_RAN')) sawMarker = true
+    }
+    if (!sawMarker) {
+      throw new Error('expected tagged test to compile and run with tags=special')
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
 console.log('')
 
 // --- go-build ---

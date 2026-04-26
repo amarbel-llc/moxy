@@ -2,6 +2,11 @@
 set -euo pipefail
 module="$1"
 update="${2:-false}"
+cwd="${3:-}"
+
+if [ -n "$cwd" ]; then
+  cd "$cwd"
+fi
 
 args=(get)
 if [ "$update" = "true" ]; then

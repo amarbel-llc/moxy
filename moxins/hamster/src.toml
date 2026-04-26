@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 content-type = "text/x-go"
 perms-request = "always-allow"
-description = "Show source code for a Go symbol."
+description = "Show source code for a Go symbol. Note: backed by `go doc -src`, which does not honor build tags (upstream bug golang/go#76829), so symbols in files behind `//go:build <tag>` are not shown — read those files via hamster.mod-read."
 command = "@BIN@/src"
 arg-order = ["package", "symbol"]
 

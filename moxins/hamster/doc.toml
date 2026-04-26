@@ -1,7 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
-description = "Show documentation for a Go package or symbol. Returns 'go doc -all' output, plus a 'Sub-packages:' section listing any sub-packages of the queried package so the full module surface is discoverable in one call. Sub-packages are not listed when querying a specific symbol."
+description = "Show documentation for a Go package or symbol. Returns 'go doc -all' output, plus a 'Sub-packages:' section listing any sub-packages of the queried package so the full module surface is discoverable in one call. Sub-packages are not listed when querying a specific symbol. Note: `go doc` does not honor build tags (upstream bug golang/go#76829), so symbols in files behind `//go:build <tag>` are not shown — read those files via hamster.mod-read."
 command = "@BIN@/doc"
 arg-order = ["package", "symbol"]
 

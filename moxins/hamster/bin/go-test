@@ -11,6 +11,12 @@ timeout="${8:-}"
 short="${9:-false}"
 failfast="${10:-false}"
 shuffle="${11:-}"
+tags="${12:-}"
+cwd="${13:-}"
+
+if [ -n "$cwd" ]; then
+  cd "$cwd"
+fi
 
 args=(test)
 if [ "$verbose" = "true" ]; then
@@ -42,6 +48,9 @@ if [ "$failfast" = "true" ]; then
 fi
 if [ -n "$shuffle" ]; then
   args+=(-shuffle "$shuffle")
+fi
+if [ -n "$tags" ]; then
+  args+=(-tags "$tags")
 fi
 args+=("$packages")
 

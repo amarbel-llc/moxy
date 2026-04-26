@@ -4,13 +4,21 @@ perms-request = "always-allow"
 description = """Run Go vet static analysis. Reports suspicious constructs \
 that the compiler does not catch."""
 command = "@BIN@/go-vet"
-arg-order = ["packages"]
+arg-order = ["packages", "tags", "cwd"]
 
 [input]
 
 [input.properties.packages]
 type = "string"
 description = "Package pattern to vet (default './...'). Examples: './internal/...', './cmd/moxy'."
+
+[input.properties.tags]
+type = "string"
+description = "Build tags (-tags), comma- or space-separated. Example: 'integration debug'."
+
+[input.properties.cwd]
+type = "string"
+description = "Working directory to run go from. Use when go.mod lives in a subdirectory (e.g. 'go'). Defaults to the moxy process's CWD."
 
 [annotations]
 read-only-hint = true

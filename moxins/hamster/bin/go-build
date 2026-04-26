@@ -5,6 +5,11 @@ output="${2:-}"
 tags="${3:-}"
 ldflags="${4:-}"
 race="${5:-false}"
+cwd="${6:-}"
+
+if [ -n "$cwd" ]; then
+  cd "$cwd"
+fi
 
 args=(build)
 if [ "$race" = "true" ]; then

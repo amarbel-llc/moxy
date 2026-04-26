@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 packages="${1:-./...}"
+tags="${2:-}"
+cwd="${3:-}"
 
-go vet "$packages"
+if [ -n "$cwd" ]; then
+  cd "$cwd"
+fi
+
+args=(vet)
+if [ -n "$tags" ]; then
+  args+=(-tags "$tags")
+fi
+args+=("$packages")
+
+go "${args[@]}"

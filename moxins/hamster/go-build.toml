@@ -4,7 +4,7 @@ perms-request = "always-allow"
 description = """Run a Go build. Equivalent to 'go build' with optional output \
 path, build tags, ldflags, and race detector."""
 command = "@BIN@/go-build"
-arg-order = ["packages", "output", "tags", "ldflags", "race"]
+arg-order = ["packages", "output", "tags", "ldflags", "race", "cwd"]
 
 [input]
 
@@ -27,6 +27,10 @@ description = "Linker flags (-ldflags). Example: '-X main.version=1.2.3 -s -w'."
 [input.properties.race]
 type = "boolean"
 description = "Enable the race detector (-race). Defaults to false."
+
+[input.properties.cwd]
+type = "string"
+description = "Working directory to run go from. Use when go.mod lives in a subdirectory (e.g. 'go'). Defaults to the moxy process's CWD."
 
 [annotations]
 idempotent-hint = true

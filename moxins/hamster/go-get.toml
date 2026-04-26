@@ -5,7 +5,7 @@ description = """Run 'go get' to add or update a module dependency. Only \
 mutates go.mod and go.sum; does not build code. Pass 'module@version' to pin \
 a specific version, or set update=true to bump to the latest."""
 command = "@BIN@/go-get"
-arg-order = ["module", "update"]
+arg-order = ["module", "update", "cwd"]
 
 [input]
 type = "object"
@@ -18,6 +18,10 @@ description = "Module path, optionally with @version (e.g. 'github.com/x/y', 'gi
 [input.properties.update]
 type = "boolean"
 description = "Pass -u to update the module to its latest minor/patch version. Defaults to false."
+
+[input.properties.cwd]
+type = "string"
+description = "Working directory to run go from. Use when go.mod lives in a subdirectory (e.g. 'go'). Defaults to the moxy process's CWD."
 
 [annotations]
 idempotent-hint = true

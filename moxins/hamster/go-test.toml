@@ -4,7 +4,7 @@ perms-request = "always-allow"
 description = """Run Go tests. Equivalent to 'go test' with optional package \
 filter, test name pattern, verbose output, and run count."""
 command = "@BIN@/go-test"
-arg-order = ["packages", "run", "verbose", "count", "race", "cover", "coverprofile", "timeout", "short", "failfast", "shuffle"]
+arg-order = ["packages", "run", "verbose", "count", "race", "cover", "coverprofile", "timeout", "short", "failfast", "shuffle", "tags", "cwd"]
 
 [input]
 
@@ -51,6 +51,14 @@ description = "Stop on first test failure instead of running the full suite (-fa
 [input.properties.shuffle]
 type = "string"
 description = "Randomize test execution order (-shuffle=<seed|on>). Use 'on' for random seed or a number for reproducible order."
+
+[input.properties.tags]
+type = "string"
+description = "Build tags (-tags), comma- or space-separated. Example: 'integration debug'. Surfaces test files behind `//go:build <tag>`."
+
+[input.properties.cwd]
+type = "string"
+description = "Working directory to run go from. Use when go.mod lives in a subdirectory (e.g. 'go'). Defaults to the moxy process's CWD."
 
 [annotations]
 idempotent-hint = true

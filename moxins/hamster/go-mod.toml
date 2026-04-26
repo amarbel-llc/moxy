@@ -5,7 +5,7 @@ description = """Run 'go mod <subcommand>' for module maintenance. Supports \
 tidy, sync, download, verify, why, and edit. Use args for any extra arguments \
 the subcommand needs (e.g. ['github.com/x/y'] for 'go mod why')."""
 command = "@BIN@/go-mod"
-arg-order = ["subcommand", "args"]
+arg-order = ["subcommand", "args", "cwd"]
 
 [input]
 type = "object"
@@ -21,6 +21,10 @@ description = "Additional positional arguments forwarded to 'go mod <subcommand>
 
 [input.properties.args.items]
 type = "string"
+
+[input.properties.cwd]
+type = "string"
+description = "Working directory to run go from. Use when go.mod lives in a subdirectory (e.g. 'go'). Defaults to the moxy process's CWD."
 
 [annotations]
 idempotent-hint = true
