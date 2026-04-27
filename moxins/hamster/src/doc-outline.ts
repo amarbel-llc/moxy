@@ -114,93 +114,98 @@ function isExported(anchor: string): boolean {
   return anchor.split(".").every((seg) => /^[A-Z]/.test(seg));
 }
 
-// --- Main ---
-
-let target: string;
-try {
-  target = await resolveForGomarkdoc(pkg);
-} catch (err) {
-  process.stderr.write(
-    `doc-outline: ${err instanceof Error ? err.message : err}\n`,
-  );
-  process.exit(1);
-}
-
-let markdown: string;
-try {
-  markdown = await captureGomarkdoc(target, tags);
-} catch (err) {
-  process.stderr.write(
-    `doc-outline (gomarkdoc): ${err instanceof Error ? err.message : err}\n`,
-  );
-  process.exit(1);
-}
-
-let ast: any;
-try {
-  ast = JSON.parse(await pandocPipe("gfm", "json", markdown));
-} catch (err) {
-  process.stderr.write(
-    `doc-outline (pandoc): ${err instanceof Error ? err.message : err}\n`,
-  );
-  process.exit(1);
-}
-
-// Walk blocks. For each anchor, look at the next block; if it's a Header,
-// take its rendered text as context (e.g. "func Println", "type Stringer").
-// gomarkdoc puts `## Constants` and `## Variables` section headers above
-// inline-anchored blocks (no per-symbol Header), so we also track the
-// current section as a fallback kind label for those cases.
-const SECTION_KIND: Record<string, string> = {
-  constants: "const",
-  variables: "var",
-};
-type Entry = { anchor: string; heading: string };
-const entries: Entry[] = [];
-let currentSection: string | null = null;
-for (let i = 0; i < ast.blocks.length; i++) {
-  const block = ast.blocks[i];
-  if (block.t === "Header" && block.c[0] === 2) {
-    currentSection = inlineText(block.c[2]).trim().toLowerCase();
+async function main(): Promise<number> {
+  let target: string;
+  try {
+    target = await resolveForGomarkdoc(pkg);
+  } catch (err) {
+    process.stderr.write(
+      `doc-outline: ${err instanceof Error ? err.message : err}\n`,
+    );
+    return 1;
   }
-  const a = blockAnchorName(block);
-  if (a === null) continue;
-  let heading = "";
-  if (i + 1 < ast.blocks.length && ast.blocks[i + 1].t === "Header") {
-    heading = inlineText(ast.blocks[i + 1].c[2]).trim();
-  } else if (currentSection && SECTION_KIND[currentSection]) {
-    heading = `${SECTION_KIND[currentSection]} ${a}`;
+
+  let markdown: string;
+  try {
+    markdown = await captureGomarkdoc(target, tags);
+  } catch (err) {
+    process.stderr.write(
+      `doc-outline (gomarkdoc): ${err instanceof Error ? err.message : err}\n`,
+    );
+    return 1;
   }
-  entries.push({ anchor: a, heading });
-}
 
-const totalCount = entries.length;
-const exportedCount = entries.filter((e) => isExported(e.anchor)).length;
-const unexportedCount = totalCount - exportedCount;
-const filtered = includeUnexported
-  ? entries
-  : entries.filter((e) => isExported(e.anchor));
+  let ast: any;
+  try {
+    ast = JSON.parse(await pandocPipe("gfm", "json", markdown));
+  } catch (err) {
+    process.stderr.write(
+      `doc-outline (pandoc): ${err instanceof Error ? err.message : err}\n`,
+    );
+    return 1;
+  }
 
-// Pad anchor column for readability when the heading is shown.
-const anchorWidth = filtered.reduce((w, e) => Math.max(w, e.anchor.length), 0);
+  // Walk blocks. For each anchor, look at the next block; if it's a Header,
+  // take its rendered text as context (e.g. "func Println", "type Stringer").
+  // gomarkdoc puts `## Constants` and `## Variables` section headers above
+  // inline-anchored blocks (no per-symbol Header), so we also track the
+  // current section as a fallback kind label for those cases.
+  const SECTION_KIND: Record<string, string> = {
+    constants: "const",
+    variables: "var",
+  };
+  type Entry = { anchor: string; heading: string };
+  const entries: Entry[] = [];
+  let currentSection: string | null = null;
+  for (let i = 0; i < ast.blocks.length; i++) {
+    const block = ast.blocks[i];
+    if (block.t === "Header" && block.c[0] === 2) {
+      currentSection = inlineText(block.c[2]).trim().toLowerCase();
+    }
+    const a = blockAnchorName(block);
+    if (a === null) continue;
+    let heading = "";
+    if (i + 1 < ast.blocks.length && ast.blocks[i + 1].t === "Header") {
+      heading = inlineText(ast.blocks[i + 1].c[2]).trim();
+    } else if (currentSection && SECTION_KIND[currentSection]) {
+      heading = `${SECTION_KIND[currentSection]} ${a}`;
+    }
+    entries.push({ anchor: a, heading });
+  }
 
-const lines: string[] = [];
-lines.push(`# ${pkg}`);
-if (includeUnexported) {
-  lines.push(`${totalCount} anchors`);
-} else {
-  lines.push(
-    `${exportedCount} exported anchors${unexportedCount > 0 ? ` (${unexportedCount} unexported hidden; pass unexported=true to include)` : ""}`,
+  const totalCount = entries.length;
+  const exportedCount = entries.filter((e) => isExported(e.anchor)).length;
+  const unexportedCount = totalCount - exportedCount;
+  const filtered = includeUnexported
+    ? entries
+    : entries.filter((e) => isExported(e.anchor));
+
+  // Pad anchor column for readability when the heading is shown.
+  const anchorWidth = filtered.reduce(
+    (w, e) => Math.max(w, e.anchor.length),
+    0,
   );
-}
-lines.push("");
-for (const e of filtered) {
-  if (e.heading) {
-    lines.push(`${e.anchor.padEnd(anchorWidth)}  # ${e.heading}`);
+
+  const lines: string[] = [];
+  lines.push(`# ${pkg}`);
+  if (includeUnexported) {
+    lines.push(`${totalCount} anchors`);
   } else {
-    lines.push(e.anchor);
+    lines.push(
+      `${exportedCount} exported anchors${unexportedCount > 0 ? ` (${unexportedCount} unexported hidden; pass unexported=true to include)` : ""}`,
+    );
   }
+  lines.push("");
+  for (const e of filtered) {
+    if (e.heading) {
+      lines.push(`${e.anchor.padEnd(anchorWidth)}  # ${e.heading}`);
+    } else {
+      lines.push(e.anchor);
+    }
+  }
+
+  process.stdout.write(lines.join("\n") + "\n");
+  return 0;
 }
 
-process.stdout.write(lines.join("\n") + "\n");
-process.exit(0);
+process.exitCode = await main();

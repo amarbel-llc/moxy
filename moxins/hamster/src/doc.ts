@@ -92,16 +92,6 @@ async function captureGomarkdoc(
   return result.stdout;
 }
 
-// process.stdout.write is non-blocking; without awaiting drain,
-// process.exit() drops anything still in the kernel pipe buffer
-// (truncates large outputs at PIPE_BUF, ~64 KiB on Linux).
-async function writeStdoutAndExit(data: string, code: number): Promise<never> {
-  await new Promise<void>((resolve, reject) => {
-    process.stdout.write(data, (err) => (err ? reject(err) : resolve()));
-  });
-  process.exit(code);
-}
-
 async function pandocPipe(
   inFmt: string,
   outFmt: string,
@@ -148,21 +138,86 @@ function appendSubPackagesSection(markdown: string, subs: string[]): string {
   return `${trimmed}\n\n## Sub-packages\n\nUse \`hamster.doc\` on each for its API.\n\n${items}\n`;
 }
 
-// --- Main flow ---
+async function main(): Promise<number> {
+  let target: string;
+  try {
+    target = await resolveForGomarkdoc(pkg);
+  } catch (err) {
+    process.stderr.write(`doc: ${err instanceof Error ? err.message : err}\n`);
+    return 1;
+  }
 
-let target: string;
-try {
-  target = await resolveForGomarkdoc(pkg);
-} catch (err) {
-  process.stderr.write(`doc: ${err instanceof Error ? err.message : err}\n`);
-  process.exit(1);
-}
+  if (symbol) {
+    // Symbol filter: capture gomarkdoc → pandoc gfm AST → slice the block
+    // carrying `<a name="<symbol>">` through the next anchor block → render
+    // back to gfm. Same algorithm as pandoc.anchor, inlined to avoid
+    // cross-moxin runtime coupling.
+    let markdown: string;
+    try {
+      markdown = await captureGomarkdoc(target, tags);
+    } catch (err) {
+      process.stderr.write(
+        `doc (gomarkdoc): ${err instanceof Error ? err.message : err}\n`,
+      );
+      return 1;
+    }
+    let ast: any;
+    try {
+      ast = JSON.parse(await pandocPipe("gfm", "json", markdown));
+    } catch (err) {
+      process.stderr.write(
+        `doc (pandoc parse): ${err instanceof Error ? err.message : err}\n`,
+      );
+      return 1;
+    }
+    const startIdx = ast.blocks.findIndex((b: any) =>
+      blockHasNamedAnchor(b, symbol),
+    );
+    if (startIdx === -1) {
+      const anchors: string[] = [];
+      for (const block of ast.blocks) {
+        const a = blockAnchorName(block);
+        if (a) anchors.push(a);
+      }
+      process.stderr.write(
+        `doc: symbol "${symbol}" not found in package "${pkg}"\n`,
+      );
+      if (anchors.length > 0) {
+        const shown = anchors.slice(0, 20);
+        process.stderr.write(
+          `Available anchors (${anchors.length} total${anchors.length > shown.length ? `, showing first ${shown.length}` : ""}):\n`,
+        );
+        for (const a of shown) process.stderr.write(`  ${a}\n`);
+      } else {
+        process.stderr.write(`(package has no anchor blocks)\n`);
+      }
+      return 1;
+    }
+    let endIdx = ast.blocks.length;
+    for (let i = startIdx + 1; i < ast.blocks.length; i++) {
+      if (blockAnchorName(ast.blocks[i]) !== null) {
+        endIdx = i;
+        break;
+      }
+    }
+    const sliced = { ...ast, blocks: ast.blocks.slice(startIdx, endIdx) };
+    let rendered: string;
+    try {
+      rendered = await pandocPipe("json", "gfm", JSON.stringify(sliced), [
+        "--wrap=none",
+      ]);
+    } catch (err) {
+      process.stderr.write(
+        `doc (pandoc render): ${err instanceof Error ? err.message : err}\n`,
+      );
+      return 1;
+    }
+    process.stdout.write(rendered);
+    return 0;
+  }
 
-if (symbol) {
-  // Symbol filter: capture gomarkdoc → pandoc gfm AST → slice the block
-  // carrying `<a name="<symbol>">` through the next anchor block → render
-  // back to gfm. Same algorithm as pandoc.anchor, inlined to avoid
-  // cross-moxin runtime coupling.
+  // Whole package: capture gomarkdoc + append a Sub-packages section so
+  // callers can discover the module surface in one query.
   let markdown: string;
   try {
     markdown = await captureGomarkdoc(target, tags);
@@ -170,73 +225,12 @@ if (symbol) {
     process.stderr.write(
       `doc (gomarkdoc): ${err instanceof Error ? err.message : err}\n`,
     );
-    process.exit(1);
+    return 1;
   }
-  let ast: any;
-  try {
-    ast = JSON.parse(await pandocPipe("gfm", "json", markdown));
-  } catch (err) {
-    process.stderr.write(
-      `doc (pandoc parse): ${err instanceof Error ? err.message : err}\n`,
-    );
-    process.exit(1);
-  }
-  const startIdx = ast.blocks.findIndex((b: any) =>
-    blockHasNamedAnchor(b, symbol),
-  );
-  if (startIdx === -1) {
-    const anchors: string[] = [];
-    for (const block of ast.blocks) {
-      const a = blockAnchorName(block);
-      if (a) anchors.push(a);
-    }
-    process.stderr.write(
-      `doc: symbol "${symbol}" not found in package "${pkg}"\n`,
-    );
-    if (anchors.length > 0) {
-      const shown = anchors.slice(0, 20);
-      process.stderr.write(
-        `Available anchors (${anchors.length} total${anchors.length > shown.length ? `, showing first ${shown.length}` : ""}):\n`,
-      );
-      for (const a of shown) process.stderr.write(`  ${a}\n`);
-    } else {
-      process.stderr.write(`(package has no anchor blocks)\n`);
-    }
-    process.exit(1);
-  }
-  let endIdx = ast.blocks.length;
-  for (let i = startIdx + 1; i < ast.blocks.length; i++) {
-    if (blockAnchorName(ast.blocks[i]) !== null) {
-      endIdx = i;
-      break;
-    }
-  }
-  const sliced = { ...ast, blocks: ast.blocks.slice(startIdx, endIdx) };
-  let rendered: string;
-  try {
-    rendered = await pandocPipe("json", "gfm", JSON.stringify(sliced), [
-      "--wrap=none",
-    ]);
-  } catch (err) {
-    process.stderr.write(
-      `doc (pandoc render): ${err instanceof Error ? err.message : err}\n`,
-    );
-    process.exit(1);
-  }
-  await writeStdoutAndExit(rendered, 0);
+
+  const subs = await listSubPackages(pkg);
+  process.stdout.write(appendSubPackagesSection(markdown, subs));
+  return 0;
 }
 
-// Whole package: capture gomarkdoc + append a Sub-packages section so
-// callers can discover the module surface in one query.
-let markdown: string;
-try {
-  markdown = await captureGomarkdoc(target, tags);
-} catch (err) {
-  process.stderr.write(
-    `doc (gomarkdoc): ${err instanceof Error ? err.message : err}\n`,
-  );
-  process.exit(1);
-}
-
-const subs = await listSubPackages(pkg);
-await writeStdoutAndExit(appendSubPackagesSection(markdown, subs), 0);
+process.exitCode = await main();

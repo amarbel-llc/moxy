@@ -26,6 +26,4 @@ const result = await $`nix flake update ${extraArgs}`.nothrow();
 
 const output = (result.stdout ?? "") + (result.stderr ?? "");
 process.stdout.write(output);
-if (result.exitCode !== 0) {
-  process.exit(1);
-}
+process.exitCode = result.exitCode === 0 ? 0 : 1;
