@@ -1,0 +1,17 @@
+schema = 3
+perms-request = "always-allow"
+description = "Report sisyphus configuration and connectivity. Lists which JIRA_* environment variables are set and, if all are present, calls the Jira /myself endpoint to verify the credentials work."
+command = "@BIN@/status"
+arg-order = ["output_format"]
+
+[input]
+type = "object"
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

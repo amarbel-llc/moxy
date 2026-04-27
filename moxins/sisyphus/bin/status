@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import _lib
+
+output_format = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else ""
+
+ENV_VARS = ["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN"]
+env_present = {name: bool(os.environ.get(name)) for name in ENV_VARS}
+missing = [name for name, present in env_present.items() if not present]
+
+report = {
+    "env": env_present,
+    "configured": not missing,
+    "auth": None,
+}
+
+if not missing:
+    from atlassian import Jira
+
+    try:
+        jira = Jira(
+            url=os.environ["JIRA_URL"],
+            username=os.environ["JIRA_USERNAME"],
+            password=os.environ["JIRA_API_TOKEN"],
+            cloud=True,
+        )
+        me = jira.myself()
+        report["auth"] = {
+            "ok": True,
+            "displayName": me.get("displayName"),
+            "accountId": me.get("accountId"),
+            "emailAddress": me.get("emailAddress"),
+        }
+    except Exception as exc:
+        report["auth"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+if output_format == "json":
+    _lib.emit(report)
+else:
+    lines = ["Environment:"]
+    for name in ENV_VARS:
+        mark = "set" if env_present[name] else "MISSING"
+        lines.append(f"  {name}: {mark}")
+
+    auth = report["auth"]
+    if auth is None:
+        lines.append("")
+        lines.append(f"Auth check skipped: missing {', '.join(missing)}")
+    elif auth["ok"]:
+        lines.append("")
+        lines.append("Auth: OK")
+        lines.append(f"  displayName: {auth.get('displayName') or '(unknown)'}")
+        lines.append(f"  accountId:   {auth.get('accountId') or '(unknown)'}")
+        if auth.get("emailAddress"):
+            lines.append(f"  email:       {auth['emailAddress']}")
+    else:
+        lines.append("")
+        lines.append("Auth: FAILED")
+        lines.append(f"  {auth['error']}")
+
+    _lib.emit("\n".join(lines))
