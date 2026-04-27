@@ -88,14 +88,18 @@ async function captureGomarkdoc(
   const args: string[] = ["-u"];
   if (buildTags) args.push("--tags", buildTags);
   args.push(target);
-  const proc = Bun.spawn([gomarkdocBin, ...args], {
-    stdout: "pipe",
-    stderr: "inherit",
+  const result = await $`${gomarkdocBin} ${args}`.quiet();
+  return result.stdout;
+}
+
+// process.stdout.write is non-blocking; without awaiting drain,
+// process.exit() drops anything still in the kernel pipe buffer
+// (truncates large outputs at PIPE_BUF, ~64 KiB on Linux).
+async function writeStdoutAndExit(data: string, code: number): Promise<never> {
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(data, (err) => (err ? reject(err) : resolve()));
   });
-  const out = await new Response(proc.stdout).text();
-  const exitCode = await proc.exited;
-  if (exitCode !== 0) throw new Error(`gomarkdoc exited ${exitCode}`);
-  return out;
+  process.exit(code);
 }
 
 async function pandocPipe(
@@ -104,10 +108,11 @@ async function pandocPipe(
   input: string,
   extraArgs: string[] = [],
 ): Promise<string> {
-  const proc = Bun.spawn(
-    [pandocBin, "-f", inFmt, "-t", outFmt, ...extraArgs],
-    { stdin: "pipe", stdout: "pipe", stderr: "pipe" },
-  );
+  const proc = Bun.spawn([pandocBin, "-f", inFmt, "-t", outFmt, ...extraArgs], {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   proc.stdin.write(input);
   proc.stdin.end();
   const [stdout, exitCode, stderr] = await Promise.all([
@@ -207,21 +212,18 @@ if (symbol) {
     }
   }
   const sliced = { ...ast, blocks: ast.blocks.slice(startIdx, endIdx) };
+  let rendered: string;
   try {
-    const rendered = await pandocPipe(
-      "json",
-      "gfm",
-      JSON.stringify(sliced),
-      ["--wrap=none"],
-    );
-    process.stdout.write(rendered);
+    rendered = await pandocPipe("json", "gfm", JSON.stringify(sliced), [
+      "--wrap=none",
+    ]);
   } catch (err) {
     process.stderr.write(
       `doc (pandoc render): ${err instanceof Error ? err.message : err}\n`,
     );
     process.exit(1);
   }
-  process.exit(0);
+  await writeStdoutAndExit(rendered, 0);
 }
 
 // Whole package: capture gomarkdoc + append a Sub-packages section so
@@ -237,5 +239,4 @@ try {
 }
 
 const subs = await listSubPackages(pkg);
-process.stdout.write(appendSubPackagesSection(markdown, subs));
-process.exit(0);
+await writeStdoutAndExit(appendSubPackagesSection(markdown, subs), 0);
