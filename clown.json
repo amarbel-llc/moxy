@@ -8,6 +8,7 @@
         "http"
       ],
       "transport": "streamable-http",
+      "timeout": 300000,
       "healthcheck": {
         "path": "/healthz",
         "interval": "1s",
