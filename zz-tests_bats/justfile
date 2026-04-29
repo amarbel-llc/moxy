@@ -1,5 +1,9 @@
-bats_timeout := "15"
-# Prompt proxy tests need ~10s for child server startup + JSON-RPC round-trip
+bats_timeout := "30"
+# Prompt proxy tests need ~10s for child server startup + JSON-RPC round-trip;
+# raised from 15 because high parallelism (--jobs num_cpus) can blow the margin.
+# Halve job count vs. num_cpus() so child-server startup contention doesn't
+# starve individual tests past their per-test timeout.
+bats_jobs := `n=$(nproc 2>/dev/null || sysctl -n hw.ncpu); echo $((n / 2 > 0 ? n / 2 : 1))`
 bin_dir := ""
 
 # --allow-local-binding is required for streamable_http.bats (moxy
@@ -10,11 +14,11 @@ _bats_args := "--allow-local-binding" + if bin_dir != "" { " --bin-dir " + bin_d
 test-targets *targets="*.bats":
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
   PARALLEL_HOME="$(mktemp -d)" \
-    bats {{_bats_args}} --jobs {{num_cpus()}} {{targets}}
+    bats {{_bats_args}} --jobs {{bats_jobs}} {{targets}}
 
 test-tags *tags:
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
   PARALLEL_HOME="$(mktemp -d)" \
-    bats {{_bats_args}} --jobs {{num_cpus()}} --filter-tags {{tags}} *.bats
+    bats {{_bats_args}} --jobs {{bats_jobs}} --filter-tags {{tags}} *.bats
 
 test: (test-targets "*.bats")
