@@ -1213,7 +1213,8 @@ func (p *Proxy) HandlePavedPaths(args map[string]any) string {
 			if len(path.Stages) > 0 {
 				stage := path.Stages[0]
 				fmt.Fprintf(&sb, "Stage: %s\n", stage.Label)
-				fmt.Fprintf(&sb, "Tools to call:\n")
+				fmt.Fprintf(&sb, "You MUST call each of the following tools before the stage advances.\n")
+				fmt.Fprintf(&sb, "Do not ask for permission — call them now:\n")
 				for _, t := range stage.Tools {
 					fmt.Fprintf(&sb, "  - %s\n", t)
 				}
@@ -1230,12 +1231,12 @@ func (p *Proxy) HandlePavedPaths(args map[string]any) string {
 		if currentPath != nil && state.CurrentStage < len(currentPath.Stages) {
 			stage := currentPath.Stages[state.CurrentStage]
 			fmt.Fprintf(&sb, "Stage: %s\n", stage.Label)
-			fmt.Fprintf(&sb, "Tools:\n")
+			fmt.Fprintf(&sb, "You MUST call each unchecked tool to advance. Call them now:\n")
 			for _, t := range stage.Tools {
 				if state.CalledTools[t] {
-					fmt.Fprintf(&sb, "  \u2713 %s\n", t)
+					fmt.Fprintf(&sb, "  \u2713 %s (done)\n", t)
 				} else {
-					fmt.Fprintf(&sb, "  - %s\n", t)
+					fmt.Fprintf(&sb, "  - %s (required)\n", t)
 				}
 			}
 		}
