@@ -1,0 +1,21 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Restack a stacked-PR branch chain. Runs `git rebase -i --autosquash --update-refs --onto <onto> <root>` non-interactively. If the rebase fails (conflicts, unfinished operation), resume via grit.rebase --continue or --abort."
+command = "@BIN@/restack"
+arg-order = ["onto", "root", "repo_path"]
+
+[input]
+type = "object"
+
+[input.properties.onto]
+type = "string"
+description = "New base ref to graft the stack onto (branch, tag, or commit)."
+
+[input.properties.root]
+type = "string"
+description = "Lower bound of the rebase — typically the bottom of your stack. Commits between <root> and HEAD are replayed onto <onto>."
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"

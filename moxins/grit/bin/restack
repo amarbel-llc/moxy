@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Non-interactive: `true` exits 0, which accepts the rebase plan
+# (including the autosquash todo list) verbatim with no edits.
+export GIT_EDITOR=true
+export GIT_SEQUENCE_EDITOR=true
+onto="${1:?onto is required}"
+root="${2:?root is required}"
+repo="${3:-.}"
+cd "$repo"
+
+current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+if [ "$current" = "main" ] || [ "$current" = "master" ]; then
+  echo "ERROR: restacking main/master is blocked for safety" >&2
+  exit 1
+fi
+
+# `root` is the inclusive lower bound of the stack (the bottom branch's tip).
+# git rebase's <upstream> argument is exclusive, so pass <root>^ to include
+# <root> itself in the replayed range — that is what makes autosquash and
+# --update-refs reach the bottom of the stack.
+git rebase -i --autosquash --update-refs --onto "$onto" "$root^"
