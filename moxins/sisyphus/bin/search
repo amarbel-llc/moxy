@@ -22,7 +22,19 @@ if output_format == "json":
     _lib.emit(result)
 else:
     issues = result.get("issues", [])
-    lines = [f"Found {result.get('total', len(issues))} issues\n"]
+    # v3's /search/jql endpoint returns no `total` — only `isLast` and a
+    # `nextPageToken` for paging. Adapt the header to whichever shape we
+    # got back so we don't claim "Found 50 issues" when really we just
+    # returned 50 of an unknown-larger total.
+    total = result.get("total")
+    is_last = result.get("isLast")
+    if total is not None:
+        header = f"Found {total} issues"
+    elif is_last is False:
+        header = f"Returned {len(issues)} issues (more available — pass a higher max_results to see them)"
+    else:
+        header = f"Returned {len(issues)} issues"
+    lines = [header + "\n"]
     for issue in issues:
         f = issue.get("fields", {})
         status = (f.get("status") or {}).get("name", "")
