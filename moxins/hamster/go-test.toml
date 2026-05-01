@@ -10,7 +10,7 @@ arg-order = ["packages", "run", "verbose", "count", "race", "cover", "coverprofi
 
 [input.properties.packages]
 type = "string"
-description = "Package pattern to test (default './...'). Examples: './internal/config/...', './cmd/moxy'."
+description = "Package pattern(s) to test (default './...'). Multiple patterns separated by whitespace are forwarded as separate argv entries to `go test`. Examples: './internal/config/...', './cmd/moxy', './internal/india/... ./internal/charlie/...'."
 
 [input.properties.run]
 type = "string"

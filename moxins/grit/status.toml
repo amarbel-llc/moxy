@@ -1,0 +1,33 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Show working-tree status. Lists staged, unstaged, and untracked changes in `git status --short` format (e.g. ` M file`, `?? newfile`). Use this before `add` and `commit` to make sure new files aren't silently omitted from `diff --stat-only`, which only shows tracked changes."
+command = "@BIN@/status"
+arg-order = ["paths", "untracked", "ignored", "repo_path"]
+
+[input]
+type = "object"
+
+[input.properties.paths]
+type = "array"
+description = "Limit status to specific paths (relative to repo root). Omit for the whole tree."
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.untracked]
+type = "string"
+description = "Untracked file mode: 'no', 'normal' (default), or 'all' (also recurses into untracked directories)."
+enum = ["no", "normal", "all"]
+
+[input.properties.ignored]
+type = "boolean"
+description = "Also show ignored files. Default false."
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+paths_json="${1:-}"
+untracked="${2:-}"
+ignored="${3:-}"
+repo="${4:-.}"
+cd "$repo"
+
+git_args=(status --short --branch)
+
+case "$untracked" in
+  no|normal|all) git_args+=(--untracked-files="$untracked") ;;
+  "") : ;;
+  *) echo "untracked must be no|normal|all" >&2; exit 2 ;;
+esac
+
+[ "$ignored" = "true" ] && git_args+=(--ignored)
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  git_args+=(--)
+  while IFS= read -r p; do
+    git_args+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+fi
+
+git "${git_args[@]}"

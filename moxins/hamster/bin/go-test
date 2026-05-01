@@ -52,6 +52,9 @@ fi
 if [ -n "$tags" ]; then
   args+=(-tags "$tags")
 fi
-args+=("$packages")
+# Split $packages on whitespace so multi-package patterns
+# (e.g. './a/... ./b/...') become separate argv entries.
+read -r -a pkg_array <<< "$packages"
+args+=("${pkg_array[@]}")
 
 go "${args[@]}"

@@ -1,0 +1,37 @@
+schema = 3
+substitute-result-uris = false
+result-type = "text"
+content-type = "application/json"
+description = "Make an authenticated DELETE request to the GitHub REST API"
+command = "@BIN@/api-delete"
+arg-order = ["endpoint", "body", "params", "headers"]
+
+[input]
+type = "object"
+required = ["endpoint"]
+
+[input.properties.endpoint]
+type = "string"
+description = "REST API path, e.g. /repos/{owner}/{repo}/labels/{name}"
+
+[input.properties.body]
+type = "string"
+description = "Optional JSON request body (most DELETE endpoints take none)"
+
+[input.properties.params]
+type = "object"
+description = "Query string parameters as key-value pairs"
+
+[input.properties.params.additionalProperties]
+type = "string"
+
+[input.properties.headers]
+type = "array"
+description = "Additional headers in key:value format"
+
+[input.properties.headers.items]
+type = "string"
+
+[annotations]
+destructive-hint = true
+open-world-hint = true

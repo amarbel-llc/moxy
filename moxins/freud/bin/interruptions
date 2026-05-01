@@ -274,7 +274,14 @@ def main():
     lines.append(f"Agent pauses across {len(session_paths)} sessions ({days} days{proj_desc})")
     lines.append(f"Total: {total_p} prompted, {total_a} approved, {total_r} rejected, {total_i} interrupted")
 
-    max_name = max(4, max(len(t) for t in ranked))
+    # Tools tagged [auto] never prompt — Prompted/Approved render as `—`
+    # rather than 0/0, which previously read as "nobody approves this tool".
+    AUTO_TAG = " [auto]"
+    display_names = {
+        t: (t + AUTO_TAG) if total_prompted[t] == 0 else t
+        for t in ranked
+    }
+    max_name = max(4, max(len(n) for n in display_names.values()))
 
     lines.append("")
     lines.append(
@@ -284,12 +291,17 @@ def main():
     for i, tool in enumerate(ranked, start=1):
         pc = total_prompted[tool]
         rc = total_rejects[tool]
-        ac = max(0, pc - rc)
         ic = total_interrupts[tool]
         total = pc + ic
+        if pc == 0:
+            pc_cell = "—"
+            ac_cell = "—"
+        else:
+            pc_cell = str(pc)
+            ac_cell = str(max(0, pc - rc))
         lines.append(
-            f"  {i:>3}  {tool:<{max_name}}"
-            f"  {pc:>8}  {ac:>8}  {rc:>8}  {ic:>11}  {total:>5}"
+            f"  {i:>3}  {display_names[tool]:<{max_name}}"
+            f"  {pc_cell:>8}  {ac_cell:>8}  {rc:>8}  {ic:>11}  {total:>5}"
         )
 
     # Date range
