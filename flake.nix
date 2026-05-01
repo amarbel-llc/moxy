@@ -277,7 +277,11 @@
           "issue-get" = "moxins/get-hubbed-external/src/issue-get.ts";
           "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
         } {};
-        grit-moxin = mkMoxin "grit" [ ] { pathMode = "inherit"; };
+        grit-moxin = mkBunMoxin "grit" [
+          pkgs.bash pkgs.coreutils pkgs.git
+        ] {
+          "push-stack" = "moxins/grit/src/push-stack.ts";
+        } { pathMode = "inherit"; };
         # @GOMARKDOC@ / @PANDOC@ are baked into the bundled JS at build time
         # via mkBunMoxin's extraSubstitutions, so the markdown renderer path
         # doesn't depend on the user's PATH or any runtime env var. doc.ts

@@ -1,0 +1,26 @@
+schema = 3
+result-type = "text"
+description = "Push a stacked branch chain with --force-with-lease. Runs a dry-run pre-flight across every branch first; if any dry-run fails, no real pushes happen. Otherwise pushes branches in order, stopping at the first failure. Returns a JSON object: {phase: 'dry-run'|'push', results: [{branch, status: 'ok'|'rejected'|'skipped', reason?}]}."
+command = "@BIN@/push-stack"
+arg-order = ["branches", "remote", "repo_path"]
+
+[input]
+type = "object"
+
+[input.properties.branches]
+type = "array"
+description = "Branches to push, ordered bottom→top. Each is pushed independently with --force-with-lease."
+
+[input.properties.branches.items]
+type = "string"
+
+[input.properties.remote]
+type = "string"
+description = "Remote name (default origin)"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+open-world-hint = true
