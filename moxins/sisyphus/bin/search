@@ -13,6 +13,9 @@ output_format = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else ""
 jira = _lib.make_client()
 result = jira.jql(jql, fields=fields, limit=max_results)
 
+if isinstance(result, dict) and isinstance(result.get("issues"), list):
+    result["issues"] = [_lib.render_issue_body_fields(i) for i in result["issues"]]
+
 if output_format == "json":
     _lib.emit(result)
 else:

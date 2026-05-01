@@ -10,7 +10,10 @@ body = sys.argv[2]
 output_format = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ""
 
 jira = _lib.make_client()
-result = jira.issue_add_comment(issue_key, body)
+# v3 issue_add_comment posts {"body": comment} where comment is wiki markup on
+# v2 but ADF JSON on v3. The atlassian SDK doesn't transform it for us — we
+# must hand it pre-converted.
+result = jira.issue_add_comment(issue_key, _lib.md_to_adf(body))
 
 if output_format == "json":
     _lib.emit(result)

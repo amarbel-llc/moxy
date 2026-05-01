@@ -17,7 +17,7 @@ fields = {}
 if summary:
     fields["summary"] = summary
 if description:
-    fields["description"] = description
+    fields["description"] = _lib.md_to_adf(description)
 if assignee:
     fields["assignee"] = {"id": assignee}
 if labels:
@@ -33,6 +33,6 @@ jira = _lib.make_client()
 jira.update_issue_field(issue_key, fields)
 
 if output_format == "json":
-    _lib.emit(jira.get_issue(issue_key))
+    _lib.emit(_lib.render_issue_body_fields(jira.get_issue(issue_key)))
 else:
     _lib.emit(f"Updated {issue_key}")

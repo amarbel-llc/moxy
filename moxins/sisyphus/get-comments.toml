@@ -1,0 +1,26 @@
+schema = 3
+perms-request = "always-allow"
+description = "Get comments on a Jira issue"
+command = "@BIN@/get-comments"
+arg-order = ["issue_key", "max_results", "output_format"]
+
+[input]
+type = "object"
+required = ["issue_key"]
+
+[input.properties.issue_key]
+type = "string"
+description = "Issue key (e.g. XORCH-703)"
+
+[input.properties.max_results]
+type = "integer"
+description = "Maximum number of comments to return. Server caps and pagination semantics are decided by Jira; on Jira Cloud the default page size is 100."
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output. Comment bodies are rendered as Markdown in both modes."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": { "level": 2 },
+      "content": [{ "type": "text", "text": "Heads up" }]
+    },
+    {
+      "type": "panel",
+      "attrs": { "panelType": "info" },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "This panel carries an ADF-only construct that has no native Markdown equivalent." }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "Surrounding paragraph after the panel." }
+      ]
+    }
+  ]
+}

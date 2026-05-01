@@ -13,6 +13,6 @@ jira = _lib.make_client()
 jira.set_issue_status(issue_key, status)
 
 if output_format == "json":
-    _lib.emit(jira.get_issue(issue_key))
+    _lib.emit(_lib.render_issue_body_fields(jira.get_issue(issue_key)))
 else:
     _lib.emit(f"Transitioned {issue_key} to {status}")

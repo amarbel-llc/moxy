@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import _lib
+
+issue_key = sys.argv[1]
+max_results = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 0
+output_format = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ""
+
+jira = _lib.make_client()
+result = jira.issue_get_comments(issue_key)
+
+comments = result.get("comments", []) if isinstance(result, dict) else []
+if max_results > 0:
+    comments = comments[:max_results]
+
+# Render each comment body (ADF dict on v3) to Markdown for both text and
+# json output. Mutates a shallow copy so the original isn't disturbed.
+rendered = []
+for c in comments:
+    if isinstance(c, dict) and "body" in c:
+        new_c = dict(c)
+        new_c["body"] = _lib.adf_to_md(c["body"])
+        rendered.append(new_c)
+    else:
+        rendered.append(c)
+
+if output_format == "json":
+    out = dict(result) if isinstance(result, dict) else {}
+    out["comments"] = rendered
+    _lib.emit(out)
+else:
+    if not rendered:
+        _lib.emit(f"No comments on {issue_key}")
+    else:
+        lines = [f"{len(rendered)} comment(s) on {issue_key}"]
+        for c in rendered:
+            author = (c.get("author") or {}).get("displayName", "(unknown)")
+            created = c.get("created", "")
+            updated = c.get("updated", "")
+            stamp = created if created == updated else f"{created} (edited {updated})"
+            lines.append("")
+            lines.append(f"--- {author} · {stamp} ---")
+            lines.append(c.get("body", ""))
+        _lib.emit("\n".join(lines))

@@ -1,0 +1,54 @@
+set shell := ["bash", "-cu"]
+
+dir := justfile_directory()
+
+# Default: run all POC steps
+default: round-trip cross
+
+round-trip: round-trip-adflux round-trip-marklas
+
+# adflux: PyPI -> uv ephemeral env -> driver
+round-trip-adflux:
+  uv run --with adflux python {{dir}}/round_trip.py adflux
+
+# marklas: PyPI -> uv ephemeral env -> driver
+round-trip-marklas:
+  uv run --with marklas python {{dir}}/round_trip.py marklas
+
+# Cross-library: ADF -> {adflux | marklas} -> MD -> marklas -> ADF
+# Probes whether marklas can re-parse Markdown that came out of adflux's
+# ADF reader (and what each library does with ADF-only constructs).
+cross:
+  uv run --with adflux --with marklas python {{dir}}/cross_round_trip.py
+
+# Show the per-library summary table
+summary:
+  @for f in {{dir}}/out/adflux/SUMMARY.txt {{dir}}/out/marklas/SUMMARY.txt {{dir}}/out/cross/SUMMARY.txt; do \
+    if [ -f "$f" ]; then \
+      echo "## $f"; \
+      cat "$f"; \
+      echo; \
+    fi; \
+  done
+
+# Pretty-print the unified diff for a single fixture under one library
+# Usage: just diff adflux 01-basic
+diff lib fixture:
+  cat {{dir}}/out/{{lib}}/{{fixture}}.diff || \
+    echo "(no diff file — run 'just round-trip-{{lib}}' first)"
+
+# Pretty-print the ADF JSON produced for a fixture
+adf lib fixture:
+  cat {{dir}}/out/{{lib}}/{{fixture}}/out.adf.json | jq .
+
+# Show the intermediate Markdown a cross-library run produced
+cross-md read_lib fixture:
+  cat {{dir}}/out/cross/{{read_lib}}/{{fixture}}/intermediate.md
+
+# Show the round-tripped ADF a cross-library run produced
+cross-adf read_lib fixture:
+  cat {{dir}}/out/cross/{{read_lib}}/{{fixture}}/out.adf.json | jq .
+
+# Wipe out/
+clean:
+  rm -rf {{dir}}/out

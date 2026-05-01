@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "Assigning to " },
+        { "type": "mention", "attrs": { "id": "557058:abc123", "text": "@Sasha" } },
+        { "type": "text", "text": ". Current state: " },
+        { "type": "status", "attrs": { "text": "IN PROGRESS", "color": "yellow" } },
+        { "type": "text", "text": "." }
+      ]
+    }
+  ]
+}

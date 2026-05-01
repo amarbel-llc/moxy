@@ -21,7 +21,7 @@ fields = {
     "issuetype": {"name": issuetype},
 }
 if description:
-    fields["description"] = description
+    fields["description"] = _lib.md_to_adf(description)
 if priority:
     fields["priority"] = {"name": priority}
 if labels:

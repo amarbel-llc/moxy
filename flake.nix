@@ -288,7 +288,11 @@
             PANDOC = "${pkgs.pandoc}/bin/pandoc";
           };
         };
-        sisyphus-python = pkgs.python3.withPackages (ps: [ ps.atlassian-python-api ]);
+        sisyphus-python = pkgs.python3.withPackages (ps: [
+          ps.atlassian-python-api
+          # Sole runtime dep of vendored marklas (moxins/sisyphus/lib/_vendor/marklas).
+          ps.mistune
+        ]);
         sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
         just-us-agents-moxin = let
