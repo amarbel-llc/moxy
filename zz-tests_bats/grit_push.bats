@@ -41,6 +41,16 @@ teardown() {
   assert_output --partial "force push to main/master is blocked"
 }
 
+@test "push --force-with-lease blocks detached HEAD with no branch arg" {
+  cd "$WORK"
+  # detach HEAD
+  git checkout -q --detach
+  # remote="origin", branch="" (empty), set_upstream="", force_with_lease=true
+  run "$BIN/push" "origin" "" "" true "$WORK"
+  assert_failure
+  assert_output --partial "explicit branch argument"
+}
+
 @test "push --force-with-lease rejects when remote has moved" {
   cd "$WORK"
   git clone -q "$REMOTE" "$HOME/other"

@@ -12,6 +12,10 @@ if [ "$force_with_lease" = "true" ]; then
   if [ -z "$target" ]; then
     target=$(git rev-parse --abbrev-ref HEAD)
   fi
+  if [ "$target" = "HEAD" ]; then
+    echo "ERROR: force push in detached HEAD state requires an explicit branch argument" >&2
+    exit 1
+  fi
   if [ "$target" = "main" ] || [ "$target" = "master" ]; then
     echo "ERROR: force push to main/master is blocked for safety" >&2
     exit 1
