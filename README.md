@@ -123,7 +123,7 @@ The following moxins ship with moxy. Each can be served individually via
 | get-hubbed | 31 | GitHub tools for the current repository | gh, jq, bun |
 | get-hubbed-external | 10 | GitHub tools for other repositories | gh, jq, bun |
 | gmail | 2 | Gmail: triage and read messages | bun, gws |
-| grit | 29 | Git operations (force-push/hard-reset blocked on main/master) | git, jq |
+| grit | 31 | Git operations (force-push/hard-reset blocked on main/master) | git, jq |
 | gws | 1 | Google Workspace: generic API passthrough | bun, gws |
 | hamster | 8 | Go package documentation via `go doc` | go, bun |
 | jq | 1 | Execute jq filters on JSON data | jq |
