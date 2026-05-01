@@ -63,6 +63,17 @@ Behavior: `git rebase -i --autosquash --update-refs --onto <onto> <root>`.
 No optional flags. If a caller wants to skip autosquash or update-refs,
 they reach for `grit.rebase` instead. Tight contract on purpose.
 
+**Implementation note:** The script pre-resolves `root` to a SHA via
+`git rev-parse --verify <root>` and passes `${root_sha}^` to git rebase,
+so `<root>` is the *inclusive* bottom of the stack — its own commit is
+replayed and its branch ref is repositioned by `--update-refs`. Without
+this translation, callers who pass `pr-a` (intending pr-a's tip to be
+replayed) would hit git's exclusive-upstream convention and skip
+pr-a's commit; callers who pre-decrement (`pr-a^`) would hit a
+double-decrement. Pre-resolving to a SHA also gives a clear error
+("cannot resolve root ref: <name>") on bad refs, instead of git's
+opaque "ambiguous argument" wording.
+
 `continue`/`abort`/`skip` are NOT on this tool. A failed restack is
 resumed via `grit.rebase --continue` (or aborted via `--abort`). The
 restack tool's job is to start the operation; the rebase tool already
