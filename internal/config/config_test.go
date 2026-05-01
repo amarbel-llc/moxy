@@ -1208,6 +1208,107 @@ func TestDisableMoxinSet(t *testing.T) {
 	}
 }
 
+func TestParseDisableServers(t *testing.T) {
+	input := `
+disable-servers = ["dodder", "nebulous"]
+
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DisableServers) != 2 {
+		t.Fatalf("expected 2 disable-servers entries, got %d", len(cfg.DisableServers))
+	}
+	if cfg.DisableServers[0] != "dodder" || cfg.DisableServers[1] != "nebulous" {
+		t.Errorf("got %v", cfg.DisableServers)
+	}
+}
+
+func TestParseDisableServersEmpty(t *testing.T) {
+	input := `
+[[servers]]
+name = "echo"
+command = "echo"
+`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.DisableServers) != 0 {
+		t.Errorf("expected empty disable-servers, got %v", cfg.DisableServers)
+	}
+}
+
+func TestParseDisableServersRejectsEmptyEntry(t *testing.T) {
+	input := `disable-servers = ["dodder", ""]`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for empty disable-servers entry")
+	}
+}
+
+func TestParseDisableServersRejectsDottedEntry(t *testing.T) {
+	// disable-servers is whole-server only; dotted entries (per-tool) are
+	// not supported because [[servers]] tool lists come from the runtime
+	// initialize handshake, not static config.
+	input := `disable-servers = ["dodder.foo"]`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for dotted disable-servers entry")
+	}
+}
+
+func TestMergeDisableServersAdditive(t *testing.T) {
+	base := Config{DisableServers: []string{"dodder", "nebulous"}}
+	overlay := Config{DisableServers: []string{"nebulous", "chrest"}}
+	merged := Merge(base, overlay)
+
+	if len(merged.DisableServers) != 3 {
+		t.Fatalf("expected 3 entries (union), got %d: %v", len(merged.DisableServers), merged.DisableServers)
+	}
+	want := map[string]bool{"dodder": true, "nebulous": true, "chrest": true}
+	for _, entry := range merged.DisableServers {
+		if !want[entry] {
+			t.Errorf("unexpected entry %q", entry)
+		}
+	}
+}
+
+func TestMergeDisableServersBaseOnly(t *testing.T) {
+	base := Config{DisableServers: []string{"dodder"}}
+	merged := Merge(base, Config{})
+	if len(merged.DisableServers) != 1 || merged.DisableServers[0] != "dodder" {
+		t.Errorf("expected base preserved, got %v", merged.DisableServers)
+	}
+}
+
+func TestMergeDisableServersOverlayOnly(t *testing.T) {
+	overlay := Config{DisableServers: []string{"dodder"}}
+	merged := Merge(Config{}, overlay)
+	if len(merged.DisableServers) != 1 || merged.DisableServers[0] != "dodder" {
+		t.Errorf("expected overlay preserved, got %v", merged.DisableServers)
+	}
+}
+
+func TestDisableServerSet(t *testing.T) {
+	cfg := Config{DisableServers: []string{"dodder", "nebulous"}}
+	set := cfg.BuildDisableServerSet()
+
+	if !set.ServerDisabled("dodder") {
+		t.Error("expected dodder disabled")
+	}
+	if !set.ServerDisabled("nebulous") {
+		t.Error("expected nebulous disabled")
+	}
+	if set.ServerDisabled("chrest") {
+		t.Error("chrest should not be disabled")
+	}
+}
+
 func TestLoadPavedPaths(t *testing.T) {
 	dir := t.TempDir()
 	input := `[

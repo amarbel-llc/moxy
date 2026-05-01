@@ -62,6 +62,11 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 				d.data.DisableMoxins = v
 				d.consumed["disable-moxins"] = true
 			}
+		case "disable-servers":
+			if v, ok := cst.ExtractStringSlice(_kv); ok {
+				d.data.DisableServers = v
+				d.consumed["disable-servers"] = true
+			}
 		}
 	}
 	{
@@ -345,6 +350,13 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			}
 		}
 	}
+	{
+		if len(d.data.DisableServers) > 0 || cst.HasValue(d.cstDoc.Root(), "disable-servers") {
+			if err := cst.SetAny(d.cstDoc.Root(), "disable-servers", d.data.DisableServers); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+	}
 	if d.data.Credentials != nil {
 		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "credentials")
 		if err := credentials.EncodeCommandConfigFrom(d.data.Credentials, d.cstDoc, tableNode); err != nil {
@@ -497,6 +509,11 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 			if v, ok := cst.ExtractStringSlice(_kv); ok {
 				data.DisableMoxins = v
 				consumed[keyPrefix+"disable-moxins"] = true
+			}
+		case "disable-servers":
+			if v, ok := cst.ExtractStringSlice(_kv); ok {
+				data.DisableServers = v
+				consumed[keyPrefix+"disable-servers"] = true
 			}
 		}
 	}
@@ -768,6 +785,13 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 	{
 		if len(data.DisableMoxins) > 0 || cst.HasValue(container, "disable-moxins") {
 			if err := cst.SetAny(container, "disable-moxins", data.DisableMoxins); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+	}
+	{
+		if len(data.DisableServers) > 0 || cst.HasValue(container, "disable-servers") {
+			if err := cst.SetAny(container, "disable-servers", data.DisableServers); err != nil {
 				return fmt.Errorf("%w", err)
 			}
 		}

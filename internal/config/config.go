@@ -19,6 +19,7 @@ type Config struct {
 	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
 	BuiltinNative         *bool                      `toml:"builtin-native"`
 	DisableMoxins         []string                   `toml:"disable-moxins"`
+	DisableServers        []string                   `toml:"disable-servers"`
 	Credentials           *credentials.CommandConfig `toml:"credentials"`
 	Servers               []ServerConfig             `toml:"servers"`
 }
@@ -230,6 +231,18 @@ func Parse(data []byte) (Config, error) {
 		}
 	}
 
+	// disable-servers is whole-server only. Per-tool granularity is not
+	// supported for [[servers]] entries because their tool lists come from
+	// the initialize handshake at runtime rather than static config.
+	for _, entry := range cfg.DisableServers {
+		if entry == "" {
+			return Config{}, fmt.Errorf("disable-servers: entries must not be empty")
+		}
+		if strings.Contains(entry, ".") {
+			return Config{}, fmt.Errorf("disable-servers: invalid entry %q (per-tool disable not supported; use the bare server name)", entry)
+		}
+	}
+
 	for _, srv := range cfg.Servers {
 		if strings.Contains(srv.Name, ".") {
 			return Config{}, fmt.Errorf(
@@ -333,6 +346,19 @@ func Merge(base, overlay Config) Config {
 		for _, d := range overlay.DisableMoxins {
 			if !seen[d] {
 				merged.DisableMoxins = append(merged.DisableMoxins, d)
+				seen[d] = true
+			}
+		}
+	}
+
+	if len(overlay.DisableServers) > 0 {
+		seen := make(map[string]bool, len(merged.DisableServers))
+		for _, d := range merged.DisableServers {
+			seen[d] = true
+		}
+		for _, d := range overlay.DisableServers {
+			if !seen[d] {
+				merged.DisableServers = append(merged.DisableServers, d)
 				seen[d] = true
 			}
 		}
@@ -459,4 +485,24 @@ func (s DisableMoxinSet) ServerDisabled(name string) bool {
 // ToolDisabled reports whether a specific tool within a moxin is disabled.
 func (s DisableMoxinSet) ToolDisabled(serverName, toolName string) bool {
 	return s.tools[serverName+"."+toolName]
+}
+
+// DisableServerSet provides O(1) lookups for disabled [[servers]] entries.
+// Whole-server only — per-tool granularity is rejected at parse time.
+type DisableServerSet struct {
+	servers map[string]bool // bare names like "dodder"
+}
+
+// BuildDisableServerSet returns a set keyed by server name for fast lookup.
+func (c Config) BuildDisableServerSet() DisableServerSet {
+	s := DisableServerSet{servers: make(map[string]bool, len(c.DisableServers))}
+	for _, entry := range c.DisableServers {
+		s.servers[entry] = true
+	}
+	return s
+}
+
+// ServerDisabled reports whether a configured [[servers]] entry is disabled.
+func (s DisableServerSet) ServerDisabled(name string) bool {
+	return s.servers[name]
 }

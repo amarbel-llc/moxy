@@ -45,6 +45,8 @@ func Run(w io.Writer, home, dir string) int {
 	failed := false
 
 	// --- Moxyfile hierarchy ---
+	disableServerSet := hierarchy.Merged.BuildDisableServerSet()
+
 	fmt.Fprintln(w, "Moxyfile hierarchy:")
 	for _, src := range hierarchy.Sources {
 		fmt.Fprintln(w)
@@ -53,16 +55,32 @@ func Run(w io.Writer, home, dir string) int {
 			continue
 		}
 		fmt.Fprintf(w, "  %s\n", src.Path)
-		if len(src.File.Servers) == 0 {
+		if len(src.File.Servers) == 0 && len(src.File.DisableServers) == 0 {
 			fmt.Fprintln(w, "    (no servers)")
 		}
 		for _, srv := range src.File.Servers {
-			fmt.Fprintf(w, "    %-24s %s\n", srv.Name, serverSummary(srv))
+			suffix := ""
+			if disableServerSet.ServerDisabled(srv.Name) {
+				suffix = " [disabled]"
+			}
+			fmt.Fprintf(w, "    %-24s %s%s\n", srv.Name, serverSummary(srv), suffix)
+		}
+		if len(src.File.DisableServers) > 0 {
+			fmt.Fprintf(w, "    disable-servers: %s\n", strings.Join(src.File.DisableServers, ", "))
 		}
 	}
 
 	fmt.Fprintln(w)
-	if len(hierarchy.Merged.Servers) == 0 {
+	disabledServerCount := 0
+	for _, srv := range hierarchy.Merged.Servers {
+		if disableServerSet.ServerDisabled(srv.Name) {
+			disabledServerCount++
+		}
+	}
+	activeServers := len(hierarchy.Merged.Servers) - disabledServerCount
+	if disabledServerCount > 0 {
+		fmt.Fprintf(w, "  Merged: %d server(s) (%d disabled)\n", activeServers, disabledServerCount)
+	} else if len(hierarchy.Merged.Servers) == 0 {
 		fmt.Fprintln(w, "  Merged: 0 server(s)")
 	} else {
 		fmt.Fprintf(w, "  Merged: %d server(s)\n", len(hierarchy.Merged.Servers))

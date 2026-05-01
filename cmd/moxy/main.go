@@ -372,9 +372,24 @@ func runServer(app *command.App, mode transportMode) error {
 		return mcpclient.SpawnAndInitialize(ctx, srvCfg.Name, exe, args)
 	}
 
+	// Filter out disabled [[servers]] entries before spawning. Disabled
+	// servers stay in cfg.Servers for collision-set purposes (a disabled
+	// server name still blocks a same-named moxin from squatting), but
+	// activeServers is what the proxy actually drives — ephemeral and
+	// non-ephemeral both.
+	disableServers := cfg.BuildDisableServerSet()
+	var activeServers []config.ServerConfig
+	for _, srvCfg := range cfg.Servers {
+		if disableServers.ServerDisabled(srvCfg.Name) {
+			fmt.Fprintf(os.Stderr, "moxy: skipping server %q (disabled by moxyfile)\n", srvCfg.Name)
+			continue
+		}
+		activeServers = append(activeServers, srvCfg)
+	}
+
 	var children []proxy.ChildEntry
 	var failed []proxy.FailedServer
-	for _, srvCfg := range cfg.Servers {
+	for _, srvCfg := range activeServers {
 		if srvCfg.IsEphemeral(cfg.Ephemeral) {
 			fmt.Fprintf(os.Stderr, "moxy: %s configured as ephemeral (on-demand)\n", srvCfg.Name)
 			continue
@@ -486,7 +501,7 @@ func runServer(app *command.App, mode transportMode) error {
 	}
 	fmt.Fprintf(os.Stderr, "moxy: session %s (from %s)\n", sessionID, sessionSource)
 
-	p := proxy.New(children, failed, cfg.Servers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
+	p := proxy.New(children, failed, activeServers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
 	p.SetResultReader(native.NewResultReader())
 
 	builtinRegistry := server.NewToolRegistryV1()

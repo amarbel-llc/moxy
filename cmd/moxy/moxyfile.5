@@ -32,6 +32,8 @@ the base server entirely.
 New servers from overlays are appended.
 Top-level boolean flags are replaced if present in the overlay.
 .Va disable-moxins
+and
+.Va disable-servers
 entries are merged additively: each layer appends to the disabled set.
 .Sh TOP-LEVEL KEYS
 .Bl -tag -width "progressive-disclosure"
@@ -65,6 +67,21 @@ Only affects moxins discovered via
 .Ev MOXIN_PATH ;
 moxyfile-configured servers are unaffected.
 Entries are merged additively across the hierarchy.
+Optional.
+Default: empty.
+.It Va disable-servers
+Array of
+.Sx SERVERS
+names to suppress, e.g.\&
+.Dq dodder .
+Whole-server only \(em dotted entries are rejected at parse time because
+.Sx SERVERS
+tool lists come from the runtime initialize handshake rather than static
+config.
+A disabled server name still occupies the namespace, so a moxin with the
+same name remains shadowed (consistent with the normal collision rule).
+Entries are merged additively across the hierarchy, so a layer can add
+disables but not re-enable a server disabled by a higher-priority layer.
 Optional.
 Default: empty.
 .El
@@ -263,6 +280,17 @@ moxin.
 Other tools in
 .Dq man
 remain visible.
+.Pp
+Disabling configured
+.Sx SERVERS
+entries (e.g. for a per-directory laptop where some globally configured
+servers are not relevant):
+.Bd -literal -offset indent
+disable-servers = ["dodder", "nebulous"]
+.Ed
+.Pp
+The two servers stay defined globally but are not spawned for sessions
+under this directory subtree.
 .Sh SEE ALSO
 .Xr moxy 1 ,
 .Xr moxy-native 7 ,
