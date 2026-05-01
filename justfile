@@ -744,13 +744,6 @@ debug-nix-impure-min:
       --extra-experimental-features ca-derivations \
       build --impure --no-link --print-out-paths --file "$drv" 2>&1 | tail -5
 
-# Smoke chix.try via the nix-built bin. Single arg = bash command.
-[group('debug')]
-debug-chix-try CMD:
-  #!/usr/bin/env bash
-  set -uo pipefail
-  exec {{justfile_directory()}}/result/share/moxy/moxins/chix/bin/try '{{CMD}}'
-
 # Probe nix capabilities (version, experimental features) for chix.bash work.
 [group('debug')]
 debug-nix-features:

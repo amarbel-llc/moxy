@@ -182,9 +182,7 @@ and `skills/<name>/` directories at the repo root. They're installed into
 `$out/share/purse-first/moxy/<category>/` by hand-written `cp`/`substitute`
 lines in the `moxy` derivation's `postInstall` in `flake.nix`. Paths that need
 to resolve to `/nix/store/…` absolutes use `@TOKEN@` placeholders that
-postInstall replaces --- same technique as `@MOXY@` in `hooks/pre-tool-use`,
-and `@WALKIE_TALKIE_MONITOR@` / `@GH_WATCH_MONITOR@` in
-`monitors/monitors.json`.
+postInstall replaces --- same technique as `@MOXY@` in `hooks/pre-tool-use`.
 
 When a plugin monitor script needs a real PATH (`tail`, `grep`, `date`, etc.),
 put it in the matching moxin's `bin/` so it gets the standard `mkMoxin`
