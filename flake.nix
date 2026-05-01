@@ -128,9 +128,14 @@
         '';
 
         # Helper: build a moxin with bin/ scripts wrapped with PATH deps.
-        mkMoxin = name: deps: { pathMode ? "set", extraWrapArgs ? [] }: pkgs.runCommand "${name}-moxin" {
+        # extraSubstitutions: attrset of {NAME = "/abs/path";} pairs. Each
+        # `@NAME@` placeholder anywhere under the moxin tree is replaced with
+        # the literal value via `substitute`, so resolved store paths are
+        # baked into the scripts at build time — same convention as `@BIN@`
+        # and as mkBunMoxin's extraSubstitutions.
+        mkMoxin = name: deps: { pathMode ? "set", extraWrapArgs ? [], extraSubstitutions ? {} }: pkgs.runCommand "${name}-moxin" {
           nativeBuildInputs = [ pkgs.makeWrapper ];
-        } ''
+        } (''
           cp -r ${./moxins/${name}} $out
           chmod -R u+w $out
           chmod +x $out/bin/*
@@ -148,7 +153,11 @@
           for f in $(grep -rl '@BIN@' $out); do
             substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
           done
-        '';
+        '' + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+          for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+            substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+          done
+        '') (builtins.attrNames extraSubstitutions));
 
         # Helper: build a moxin that has bun+zx compiled scripts in src/.
         # extraSubstitutions: attrset of {NAME = "/abs/path";} pairs.
@@ -293,7 +302,16 @@
           # Sole runtime dep of vendored marklas (moxins/sisyphus/lib/_vendor/marklas).
           ps.mistune
         ]);
-        sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {};
+        # @PANDOC@ in moxins/sisyphus/lib/_lib.py is baked in at build time
+        # so the read-side ADF→Markdown post-process doesn't depend on the
+        # user's PATH. The Lua filter path is resolved at runtime relative
+        # to _lib.py's location (it's a sibling file), so it doesn't need
+        # a substitution.
+        sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {
+          extraSubstitutions = {
+            PANDOC = "${pkgs.pandoc}/bin/pandoc";
+          };
+        };
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
         just-us-agents-moxin = let
           listRecipes = bunLib.buildZxScript {

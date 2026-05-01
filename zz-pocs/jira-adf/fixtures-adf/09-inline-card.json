@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "See related: " },
+        {
+          "type": "inlineCard",
+          "attrs": { "url": "https://example.atlassian.net/browse/KEY-1" }
+        },
+        { "type": "text", "text": " for details." }
+      ]
+    }
+  ]
+}

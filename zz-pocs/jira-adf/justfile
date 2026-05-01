@@ -49,6 +49,16 @@ cross-md read_lib fixture:
 cross-adf read_lib fixture:
   cat {{dir}}/out/cross/{{read_lib}}/{{fixture}}/out.adf.json | jq .
 
+# Run the strip_adf_wrappers Lua filter against every fixtures-adf JSON
+# (renders ADF -> marklas Markdown -> pandoc+lua -> final). Used to iterate
+# on the filter without rebuilding the whole sisyphus moxin.
+filter-probe:
+  uv run --with marklas python {{dir}}/lua_filter_probe.py
+
+# Same as filter-probe but for a single fixture (e.g. just filter-probe-one 06-panel)
+filter-probe-one fixture:
+  uv run --with marklas python {{dir}}/lua_filter_probe.py {{fixture}}
+
 # Wipe out/
 clean:
   rm -rf {{dir}}/out
