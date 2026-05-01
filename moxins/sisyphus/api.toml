@@ -1,0 +1,51 @@
+schema = 3
+description = """
+Adhoc Jira REST API v3 client. Use for any v3 endpoint sisyphus doesn't yet
+expose as a dedicated tool. Authenticated session is inherited from
+JIRA_URL/JIRA_USERNAME/JIRA_API_TOKEN.
+
+`path` accepts any of:
+- a full URL,
+- '/rest/api/3/issue/KEY-1',
+- 'rest/api/3/issue/KEY-1',
+- 'issue/KEY-1' (auto-prefixed with /rest/api/3/).
+
+Permission policy: GET/HEAD/OPTIONS auto-allow; POST/PUT/PATCH/DELETE
+require user confirmation per call.
+"""
+command = "@BIN@/api"
+arg-order = ["method", "path", "body", "params", "output_format"]
+perms-request = "dynamic"
+
+[input]
+type = "object"
+required = ["method", "path"]
+
+[input.properties.method]
+type = "string"
+description = "HTTP verb (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)."
+enum = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+
+[input.properties.path]
+type = "string"
+description = "Endpoint path. Bare resource paths are auto-prefixed with /rest/api/3/."
+
+[input.properties.body]
+type = "string"
+description = "Optional JSON request body (as a JSON-encoded string)."
+
+[input.properties.params]
+type = "string"
+description = "Optional query string parameters as a JSON object string."
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (default), or 'json' for JSON output (status, headers, body)."
+
+[annotations]
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/api-perms"
+arg-order = ["method"]
+timeout-ms = 1000

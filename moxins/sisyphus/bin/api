@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Adhoc Jira REST API v3 client.
+
+Used as an escape hatch for any v3 endpoint sisyphus doesn't yet wrap.
+Inherits the authenticated `requests.Session` from `_lib.make_client()`,
+so credentials and base URL come for free; the caller supplies just the
+method, path, and (optional) JSON body / query params.
+
+Permission gating happens at the moxin layer via `perms-request = "dynamic"`
+plus the sibling script `bin/api-perms` — read-only verbs (GET/HEAD/OPTIONS)
+auto-allow; everything else asks the user.
+"""
+import json
+import os
+import sys
+from urllib.parse import urljoin
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import _lib
+
+method = (sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else "GET").upper()
+path = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else "/"
+body_arg = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ""
+params_arg = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else ""
+output_format = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else ""
+
+
+def _normalize_path(p):
+    """Accept any of:
+      https://acme.atlassian.net/rest/api/3/issue/KEY-1   (full URL)
+      /rest/api/3/issue/KEY-1                              (root-relative)
+      rest/api/3/issue/KEY-1                               (no leading slash)
+      issue/KEY-1                                          (just the resource)
+    Return a path that can be joined onto the base URL.
+    """
+    if p.startswith(("http://", "https://")):
+        return p
+    p = p.lstrip("/")
+    # If the caller already specified rest/api/<v>/, keep it; else prepend
+    # /rest/api/3/.
+    if not p.startswith("rest/api/"):
+        p = "rest/api/3/" + p
+    return "/" + p
+
+
+def _parse_json_arg(name, value):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except (ValueError, TypeError) as exc:
+        _lib.emit(f"sisyphus.api: failed to parse {name!r} as JSON: {exc}")
+        sys.exit(0)
+
+
+body = _parse_json_arg("body", body_arg)
+params = _parse_json_arg("params", params_arg)
+if params is not None and not isinstance(params, dict):
+    _lib.emit("sisyphus.api: 'params' must be a JSON object")
+    sys.exit(0)
+
+jira = _lib.make_client()
+url = urljoin(jira.url.rstrip("/") + "/", _normalize_path(path).lstrip("/"))
+
+resp = jira.session.request(
+    method,
+    url,
+    json=body if body is not None else None,
+    params=params,
+    timeout=30,
+)
+
+# Try to parse the response as JSON; fall back to text. 204 No Content is
+# common on DELETE / PUT and yields an empty body.
+content_type = resp.headers.get("Content-Type", "")
+try:
+    parsed = resp.json() if resp.text else None
+except (ValueError, TypeError):
+    parsed = None
+
+result = {
+    "status": resp.status_code,
+    "ok": resp.ok,
+    "method": method,
+    "url": url,
+    "headers": dict(resp.headers),
+    "body": parsed if parsed is not None else resp.text,
+}
+
+if output_format == "json":
+    _lib.emit(result)
+else:
+    lines = [
+        f"{method} {url}",
+        f"-> {resp.status_code} {resp.reason}",
+        f"   Content-Type: {content_type or '(none)'}",
+    ]
+    if parsed is not None:
+        lines.append("")
+        lines.append(json.dumps(parsed, indent=2))
+    elif resp.text:
+        lines.append("")
+        lines.append(resp.text)
+    _lib.emit("\n".join(lines))
