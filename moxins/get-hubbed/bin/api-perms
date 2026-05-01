@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for get-hubbed.api. Receives the same arg-order as the
+# main tool: $1=method. Endpoint/body/params/headers/paginate are dropped by
+# the dynamic-perms arg-order configured in api.toml.
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+#
+# Read-only verbs are always allowed; everything else asks. We don't deny
+# anything — the user retains the final say on every mutation.
+# Use bash's built-in case conversion (`${var^^}`) so this script doesn't
+# need `tr` on PATH.
+method="${1:-GET}"
+method="${method^^}"
+
+case "$method" in
+  GET|HEAD|OPTIONS)
+    echo "read-only ($method) — auto-allowed"
+    exit 0
+    ;;
+  POST|PUT|PATCH|DELETE)
+    echo "mutation ($method) — confirmation required"
+    exit 1
+    ;;
+  *)
+    echo "unknown HTTP method ($method) — confirmation required"
+    exit 1
+    ;;
+esac

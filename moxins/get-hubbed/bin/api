@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
+# Adhoc GitHub REST API client. Forwards to `gh api` so auth, pagination,
+# and accept-headers come for free. The dynamic-perms gate (bin/api-perms)
+# is what restricts mutating verbs to confirm-only; this script trusts
+# whatever method it's handed.
 set -euo pipefail
-endpoint="$1"
-body="${2:-}"
-params_json="${3:-}"
-headers_json="${4:-}"
-gh_args=(api "$endpoint" --method PUT)
+method="${1:-GET}"
+endpoint="${2:-}"
+body="${3:-}"
+params_json="${4:-}"
+headers_json="${5:-}"
+paginate="${6:-}"
+
+gh_args=(api "$endpoint" --method "$method")
+
+[ "$paginate" = "true" ] && gh_args+=(--paginate)
 
 if [ -n "$body" ] && [ "$body" != "null" ] && [ "$body" != "{}" ]; then
   gh_args+=(--input -)
 fi
+
 if [ -n "$params_json" ] && [ "$params_json" != "null" ] && [ "$params_json" != "{}" ]; then
   while IFS=$'\t' read -r key val; do
     gh_args+=(-f "$key=$val")
   done < <(printf '%s' "$params_json" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
 fi
+
 if [ -n "$headers_json" ] && [ "$headers_json" != "null" ]; then
   while IFS= read -r h; do
     gh_args+=(-H "$h")
