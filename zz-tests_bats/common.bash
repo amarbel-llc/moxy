@@ -308,3 +308,40 @@ sse_wait_for() {
   done
   return 1
 }
+
+# Build a three-branch stack against a local bare remote. Layout:
+#   main → pr-a → pr-b → pr-c   (each branch tracks its parent, one commit each)
+# Caller passes the enclosing tmp root (typically "$HOME" inside setup_test_home).
+# Exports: STACK_REMOTE, STACK_WORK, STACK_BRANCH_A, STACK_BRANCH_B, STACK_BRANCH_C.
+setup_stack_fixture() {
+  local root="$1"
+  STACK_REMOTE="$root/remote.git"
+  STACK_WORK="$root/work"
+  STACK_BRANCH_A="pr-a"
+  STACK_BRANCH_B="pr-b"
+  STACK_BRANCH_C="pr-c"
+  git init -q --bare "$STACK_REMOTE"
+  git init -q -b main "$STACK_WORK"
+  (
+    cd "$STACK_WORK"
+    git config user.email t@t
+    git config user.name t
+    git config commit.gpgSign false
+    git remote add origin "$STACK_REMOTE"
+    git commit --allow-empty -m base -q
+    git push -q -u origin main
+
+    git checkout -q -b "$STACK_BRANCH_A"
+    git commit --allow-empty -m a1 -q
+    git push -q -u origin "$STACK_BRANCH_A"
+
+    git checkout -q -b "$STACK_BRANCH_B"
+    git commit --allow-empty -m b1 -q
+    git push -q -u origin "$STACK_BRANCH_B"
+
+    git checkout -q -b "$STACK_BRANCH_C"
+    git commit --allow-empty -m c1 -q
+    git push -q -u origin "$STACK_BRANCH_C"
+  )
+  export STACK_REMOTE STACK_WORK STACK_BRANCH_A STACK_BRANCH_B STACK_BRANCH_C
+}
