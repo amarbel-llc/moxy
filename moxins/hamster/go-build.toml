@@ -2,7 +2,9 @@ schema = 3
 result-type = "text"
 perms-request = "always-allow"
 description = """Run a Go build. Equivalent to 'go build' with optional output \
-path, build tags, ldflags, and race detector."""
+path, build tags, ldflags, and race detector. Defaults to discarding the \
+built binary (-o /dev/null) so the call doubles as a compile check; pass \
+`output` explicitly to keep the artifact."""
 command = "@BIN@/go-build"
 arg-order = ["packages", "output", "tags", "ldflags", "race", "cwd"]
 
@@ -14,7 +16,7 @@ description = "Package pattern to build (default './...'). Examples: './cmd/moxy
 
 [input.properties.output]
 type = "string"
-description = "Write resulting binary to this path (-o). Defaults to Go's normal placement."
+description = "Write resulting binary to this path (-o). Defaults to /dev/null (compile-check; no binary kept). Pass an explicit path to keep the artifact."
 
 [input.properties.tags]
 type = "string"

@@ -150,10 +150,16 @@ async function main(): Promise<number> {
   // gomarkdoc puts `## Constants` and `## Variables` section headers above
   // inline-anchored blocks (no per-symbol Header), so we also track the
   // current section as a fallback kind label for those cases.
+  // Some sentinel vars/consts (e.g. `var Discard io.Writer = ...`,
+  // `Sunday Weekday = iota`) are inline-anchored *next to their type*, so
+  // they have neither a per-symbol Header nor a `## Variables`/`## Constants`
+  // section above them. For those, fall back to parsing the leading keyword
+  // of the next CodeBlock (`var X`, `const X`, `func X`, `type X`).
   const SECTION_KIND: Record<string, string> = {
     constants: "const",
     variables: "var",
   };
+  const CODE_KEYWORD_RE = /^\s*(var|const|func|type)\b/;
   type Entry = { anchor: string; heading: string };
   const entries: Entry[] = [];
   let currentSection: string | null = null;
@@ -169,6 +175,23 @@ async function main(): Promise<number> {
       heading = inlineText(ast.blocks[i + 1].c[2]).trim();
     } else if (currentSection && SECTION_KIND[currentSection]) {
       heading = `${SECTION_KIND[currentSection]} ${a}`;
+    } else {
+      // Look forward for the first CodeBlock before the next anchor.
+      // gomarkdoc emits the declaration as a Go fenced code block right
+      // after the description Para — its first token is the kind keyword.
+      for (let j = i + 1; j < ast.blocks.length; j++) {
+        const next = ast.blocks[j];
+        if (blockAnchorName(next) !== null) break;
+        if (next.t === "Header") break;
+        if (next.t === "CodeBlock" && Array.isArray(next.c)) {
+          const code = next.c[1];
+          if (typeof code === "string") {
+            const m = CODE_KEYWORD_RE.exec(code);
+            if (m) heading = `${m[1]} ${a}`;
+          }
+          break;
+        }
+      }
     }
     entries.push({ anchor: a, heading });
   }

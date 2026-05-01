@@ -15,9 +15,13 @@ args=(build)
 if [ "$race" = "true" ]; then
   args+=(-race)
 fi
-if [ -n "$output" ]; then
-  args+=(-o "$output")
+# Default output to /dev/null so go-build doubles as a compile check
+# without leaving a binary in the caller's CWD. Pass `output` explicitly
+# to keep the built artifact.
+if [ -z "$output" ]; then
+  output="/dev/null"
 fi
+args+=(-o "$output")
 if [ -n "$tags" ]; then
   args+=(-tags "$tags")
 fi

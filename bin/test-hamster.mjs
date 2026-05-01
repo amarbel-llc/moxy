@@ -150,6 +150,19 @@ await test('doc-outline labels vars/consts via section context', async () => {
   assertContains(ioOut, '# var EOF', 'EOF should be labeled "var" via Variables section context')
 })
 
+await test('doc-outline labels inline-anchored sentinels via CodeBlock fallback (#190)', async () => {
+  // Sentinel vars/consts declared inline with their associated type don't sit
+  // under `## Variables` / `## Constants` sections. The CodeBlock following
+  // each anchor carries the declaration; its first keyword (var/const) gives
+  // the kind. Three canonical stdlib examples:
+  const ioOut = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} io`).stdout
+  assertContains(ioOut, '# var Discard', 'io.Discard should be labeled "var" via CodeBlock fallback')
+  const timeOut = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} time`).stdout
+  assertContains(timeOut, '# const Sunday', 'time.Sunday should be labeled "const" via CodeBlock fallback')
+  const osOut = (await $({ cwd: REPO_ROOT })`${bin('doc-outline')} os`).stdout
+  assertContains(osOut, '# var Interrupt', 'os.Interrupt should be labeled "var" via CodeBlock fallback')
+})
+
 await test('doc-outline hides Type.unexportedMethod by default', async () => {
   // Regression for the isExported logic on dotted anchors: a method with a
   // lowercase name on an exported type is not callable from outside the
@@ -299,6 +312,23 @@ await test('./cmd/moxy → /tmp/moxy-test-build', async () => {
     if (stat.size < 1_000_000) throw new Error(`binary too small: ${stat.size} bytes`)
   } finally {
     try { fs.unlinkSync(outPath) } catch {}
+  }
+})
+
+await test('default output discards binary; CWD stays clean (#198)', async () => {
+  // With no `output` arg, go-build should compile-check without writing a
+  // binary anywhere. Run from a tempdir and confirm nothing was created.
+  const tmp = fs.mkdtempSync('/tmp/hamster-go-build-cwd-')
+  try {
+    fs.writeFileSync(path.join(tmp, 'go.mod'), 'module hamsterbuildtest\n\ngo 1.22\n')
+    fs.writeFileSync(path.join(tmp, 'main.go'), 'package main\n\nfunc main() {}\n')
+    await $({ cwd: tmp })`${bin('go-build')} ./...`
+    const leftover = fs.readdirSync(tmp).filter(f => f !== 'go.mod' && f !== 'main.go')
+    if (leftover.length > 0) {
+      throw new Error(`go-build with no output arg left stray files: ${leftover.join(', ')}`)
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
   }
 })
 
