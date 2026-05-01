@@ -25,7 +25,11 @@ if description:
 if priority:
     fields["priority"] = {"name": priority}
 if labels:
-    fields["labels"] = [l.strip() for l in labels.split(",")]
+    parsed = _lib.parse_argv_list(labels)
+    if isinstance(parsed, list):
+        fields["labels"] = [str(l).strip() for l in parsed]
+    else:
+        fields["labels"] = [l.strip() for l in parsed.split(",")]
 if assignee:
     if assignee == "@me":
         jira = _lib.make_client()

@@ -21,7 +21,11 @@ if description:
 if assignee:
     fields["assignee"] = {"id": assignee}
 if labels:
-    fields["labels"] = [l.strip() for l in labels.split(",")]
+    parsed = _lib.parse_argv_list(labels)
+    if isinstance(parsed, list):
+        fields["labels"] = [str(l).strip() for l in parsed]
+    else:
+        fields["labels"] = [l.strip() for l in parsed.split(",")]
 if issuetype:
     fields["issuetype"] = {"name": issuetype}
 

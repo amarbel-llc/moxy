@@ -84,6 +84,42 @@ def make_client():
     )
 
 
+def parse_argv_list(value):
+    """Coerce a CLI-arg `value` to a Python list when it looks list-shaped.
+
+    MCP tool inputs declared as `string` arrive verbatim as `sys.argv[N]`,
+    even when the LLM passes a JSON array (the moxy native server
+    serialises the array back to its literal JSON-string form: e.g. a
+    caller passing `["a","b"]` gets `argv[N] == '["a","b"]'`). The Jira
+    SDK accepts comma strings or real Python sequences, but not literal
+    JSON-array strings — so without coercion v3 sees something like
+    `?fields=%5B%22description%22%5D` and silently degrades.
+
+    This helper:
+      - returns `None`/empty unchanged for `None`/empty;
+      - parses `value` as JSON when it starts with `[`/`{` and yields a
+        list — returns the list;
+      - otherwise returns `value` unchanged (the SDK and Jira both accept
+        comma-separated strings).
+    """
+    if not value:
+        return value
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    if not isinstance(value, str):
+        return value
+    stripped = value.lstrip()
+    if not stripped or stripped[0] not in ("[",):
+        return value
+    try:
+        parsed = json.loads(value)
+    except (ValueError, TypeError):
+        return value
+    if isinstance(parsed, list):
+        return parsed
+    return value
+
+
 def md_to_adf(markdown: str) -> dict:
     """Convert a Markdown string to an Atlassian Document Format dict.
 
