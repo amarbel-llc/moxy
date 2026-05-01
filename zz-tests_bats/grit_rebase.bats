@@ -47,4 +47,5 @@ teardown() {
   run "$BIN/rebase" "$old_main" "" "" "" "" "" main "" "" "$TMPDIR_TEST"
   # arg-order: upstream=$old_main, onto=main (7th positional)
   assert_success
+  assert_equal "$(git merge-base feat main)" "$(git rev-parse main)"
 }
