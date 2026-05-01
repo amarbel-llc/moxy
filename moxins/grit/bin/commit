@@ -1,11 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
-message="$1"
+message="${1:-}"
 amend="${2:-}"
-repo="${3:-.}"
+fixup="${3:-}"
+squash="${4:-}"
+allow_empty="${5:-}"
+repo="${6:-.}"
 cd "$repo"
-git_args=(commit)
 
+if [ -n "$fixup" ] && [ -n "$squash" ]; then
+  echo "ERROR: fixup and squash are mutually exclusive" >&2
+  exit 1
+fi
+
+git_args=(commit)
 [ "$amend" = "true" ] && git_args+=(--amend)
-git_args+=(-m "$message")
+[ "$allow_empty" = "true" ] && git_args+=(--allow-empty)
+
+# fixup/squash autogenerate the commit message — don't pass -m. For ordinary
+# commits the message is required.
+if [ -n "$fixup" ]; then
+  git_args+=("--fixup=$fixup")
+elif [ -n "$squash" ]; then
+  git_args+=("--squash=$squash")
+elif [ -n "$message" ]; then
+  git_args+=(-m "$message")
+else
+  echo "ERROR: message is required (unless fixup or squash is set)" >&2
+  exit 1
+fi
+
 git "${git_args[@]}"
