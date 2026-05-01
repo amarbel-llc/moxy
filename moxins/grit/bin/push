@@ -3,11 +3,11 @@ set -euo pipefail
 remote="${1:-}"
 branch="${2:-}"
 set_upstream="${3:-}"
-force="${4:-}"
+force_with_lease="${4:-}"
 repo="${5:-.}"
 cd "$repo"
 
-if [ "$force" = "true" ]; then
+if [ "$force_with_lease" = "true" ]; then
   target="$branch"
   if [ -z "$target" ]; then
     target=$(git rev-parse --abbrev-ref HEAD)
@@ -20,8 +20,7 @@ fi
 
 git_args=(push)
 
-[ "$force" = "true" ] && git_args+=(--force)
-
+[ "$force_with_lease" = "true" ] && git_args+=(--force-with-lease)
 [ "$set_upstream" = "true" ] && git_args+=(-u)
 
 # Default remote to origin when a branch is specified, so git doesn't
@@ -31,6 +30,5 @@ if [ -n "$branch" ] && [ -z "$remote" ]; then
 fi
 
 [ -n "$remote" ] && git_args+=("$remote")
-
 [ -n "$branch" ] && git_args+=("$branch")
 git "${git_args[@]}"

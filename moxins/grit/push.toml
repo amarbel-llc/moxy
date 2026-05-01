@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 description = "Push commits to a remote repository"
 command = "@BIN@/push"
-arg-order = ["remote", "branch", "set_upstream", "force", "repo_path"]
+arg-order = ["remote", "branch", "set_upstream", "force_with_lease", "repo_path"]
 
 [input]
 type = "object"
@@ -11,9 +11,9 @@ type = "object"
 type = "string"
 description = "Branch to push"
 
-[input.properties.force]
+[input.properties.force_with_lease]
 type = "boolean"
-description = "Force push"
+description = "Force-push with lease (--force-with-lease). Refuses the push if the remote has moved beyond the local ref's last-known position. Safer than --force; use this for stacked-PR workflows."
 
 [input.properties.remote]
 type = "string"
