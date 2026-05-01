@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/amarbel-llc/moxy/internal/native"
 )
 
 func TestParseNativeToolName(t *testing.T) {
@@ -177,6 +179,72 @@ func TestTryBuiltinAutoAllow(t *testing.T) {
 			t.Fatal("expected tryBuiltinAutoAllow to return false for non-moxy tool")
 		}
 	})
+}
+
+// TestEvalDynamicForHook drives the dynamic-perms predicate through a series
+// of fixture scripts that exit with each contract code (0=allow, 1=ask,
+// 2=deny, other=fall-through). The script reads the tool input from argv via
+// arg-order so we can also confirm the input plumbing reaches the script.
+func TestEvalDynamicForHook(t *testing.T) {
+	tests := []struct {
+		name       string
+		exitCode   int
+		wantDec    string
+		wantReason string
+	}{
+		{name: "allow", exitCode: 0, wantDec: "allow"},
+		{name: "ask", exitCode: 1, wantDec: "ask"},
+		{name: "deny", exitCode: 2, wantDec: "deny"},
+		// EvalDynamicPerms maps unmapped non-zero codes to "ask" with a
+		// reason describing the unexpected exit — the cautious default.
+		{name: "ask (unmapped exit 7)", exitCode: 7, wantDec: "ask"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := &native.DynamicPermsSpec{
+				Command:   "bash",
+				Args:      []string{"-c", "exit " + itoa(tt.exitCode)},
+				ArgOrder:  []string{"verb"},
+				TimeoutMS: 1000,
+			}
+			input := map[string]any{"verb": "GET"}
+
+			gotDec, gotReason := evalDynamicForHook(spec, input)
+			if gotDec != tt.wantDec {
+				t.Errorf("decision: got %q, want %q (reason=%q)", gotDec, tt.wantDec, gotReason)
+			}
+		})
+	}
+
+	t.Run("nil spec returns fall-through", func(t *testing.T) {
+		gotDec, _ := evalDynamicForHook(nil, nil)
+		if gotDec != "" {
+			t.Errorf("expected fall-through for nil spec, got %q", gotDec)
+		}
+	})
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		i--
+		buf[i] = '-'
+	}
+	return string(buf[i:])
 }
 
 func TestInstallSettingsHook(t *testing.T) {
