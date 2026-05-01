@@ -1,7 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
-description = "Restack a stacked-PR branch chain. Runs `git rebase -i --autosquash --update-refs --onto <onto> <root>` non-interactively. If the rebase fails (conflicts, unfinished operation), resume via grit.rebase --continue or --abort."
+description = "Restack a stacked-PR branch chain. Runs `git rebase -i --autosquash --update-refs --onto <onto> <root>^` non-interactively, where <root> is the inclusive bottom of your stack (the script translates to <root>^ internally so <root>'s own commit gets replayed). If the rebase fails (conflicts), resume via grit.rebase --continue or --abort."
 command = "@BIN@/restack"
 arg-order = ["onto", "root", "repo_path"]
 
@@ -14,7 +14,7 @@ description = "New base ref to graft the stack onto (branch, tag, or commit)."
 
 [input.properties.root]
 type = "string"
-description = "Lower bound of the rebase — typically the bottom of your stack. Commits between <root> and HEAD are replayed onto <onto>."
+description = "Inclusive lower bound of the rebase — typically the bottom branch of your stack. Its tip is itself replayed and its ref repositioned via --update-refs. Internally translated to <root>^ before being passed to git rebase."
 
 [input.properties.repo_path]
 type = "string"

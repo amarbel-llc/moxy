@@ -19,4 +19,19 @@ fi
 # git rebase's <upstream> argument is exclusive, so pass <root>^ to include
 # <root> itself in the replayed range — that is what makes autosquash and
 # --update-refs reach the bottom of the stack.
-git rebase -i --autosquash --update-refs --onto "$onto" "$root^"
+#
+# Pre-resolve $root to a SHA via `git rev-parse --verify` before appending ^.
+# Two reasons:
+#   1. If the caller passes an already-decremented ref like `pr-a^`, naively
+#      appending another ^ yields `pr-a^^` — silently rebasing a commit too
+#      far back. Resolving to a SHA first means the appended ^ is always
+#      "first parent of this commit", regardless of input form.
+#   2. If the caller passes a non-existent ref, --verify fails fast with our
+#      own clear error rather than git's confusing "ambiguous argument"
+#      wording that blames the trailing ^ rather than the bad ref.
+root_sha=$(git rev-parse --verify "$root" 2>/dev/null) || {
+  echo "ERROR: cannot resolve root ref: $root — is it a valid branch name or commit?" >&2
+  exit 1
+}
+
+git rebase -i --autosquash --update-refs --onto "$onto" "${root_sha}^"
