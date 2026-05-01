@@ -2,6 +2,9 @@
 set -euo pipefail
 # Prevent git from opening an editor (no TTY available in MCP context).
 # `true` exits 0, accepting the default commit message.
+# GIT_SEQUENCE_EDITOR=true also makes -i --autosquash non-interactive:
+# autosquash needs the interactive plan, but exiting 0 accepts the
+# auto-generated todo list verbatim.
 export GIT_EDITOR=true
 export GIT_SEQUENCE_EDITOR=true
 upstream="${1:-}"
@@ -10,7 +13,10 @@ autostash="${3:-}"
 do_continue="${4:-}"
 do_abort="${5:-}"
 do_skip="${6:-}"
-repo="${7:-.}"
+onto="${7:-}"
+autosquash="${8:-}"
+update_refs="${9:-}"
+repo="${10:-.}"
 cd "$repo"
 
 # Safety: block rebase on main/master
@@ -31,9 +37,11 @@ else
   git_args=(rebase)
 
   [ "$autostash" = "true" ] && git_args+=(--autostash)
+  [ "$autosquash" = "true" ] && git_args+=(-i --autosquash)
+  [ "$update_refs" = "true" ] && git_args+=(--update-refs)
+  [ -n "$onto" ] && git_args+=(--onto "$onto")
 
   [ -n "$upstream" ] && git_args+=("$upstream")
-
   [ -n "$branch" ] && git_args+=("$branch")
   git "${git_args[@]}"
 fi

@@ -3,7 +3,7 @@ result-type = "text"
 perms-request = "always-allow"
 description = "Rebase current branch onto another ref"
 command = "@BIN@/rebase"
-arg-order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "repo_path"]
+arg-order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "onto", "autosquash", "update_refs", "repo_path"]
 
 [input]
 type = "object"
@@ -31,6 +31,18 @@ description = "Abort current rebase operation"
 [input.properties.skip]
 type = "boolean"
 description = "Skip current commit and continue rebase"
+
+[input.properties.onto]
+type = "string"
+description = "Graft the current branch onto this ref (passed to git rebase --onto). Use when an upstream branch's hashes have changed."
+
+[input.properties.autosquash]
+type = "boolean"
+description = "Squash fixup!/squash! commits into their targets (-i --autosquash, runs non-interactively)."
+
+[input.properties.update_refs]
+type = "boolean"
+description = "Reposition any intermediate branch refs touched by the rebase (--update-refs). Required for stacked-PR workflows."
 
 [input.properties.repo_path]
 type = "string"
