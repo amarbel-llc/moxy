@@ -1,0 +1,48 @@
+set shell := ["bash", "-cu"]
+
+dir := justfile_directory()
+
+# [explore] default: install + outline every sample
+default: install outline-all
+
+# [explore] install bun deps
+install:
+  cd {{dir}} && bun install
+
+# [explore] phase 1: load web-tree-sitter and parse a Go snippet
+probe:
+  cd {{dir}} && bun run probe.ts
+
+# [explore] outline a single file
+outline file:
+  cd {{dir}} && bun run outline.ts {{file}}
+
+# [explore] phase 2: outline the Go sample
+outline-go:
+  cd {{dir}} && bun run outline.ts samples/sample.go
+
+# [explore] phase 3: outline every sample, one per line per language
+outline-all:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  cd {{dir}}
+  pass=0
+  fail=0
+  for f in samples/sample.*; do
+    out=$(bun run outline.ts "$f" 2>&1)
+    if [[ -n "$out" && "$out" != *"(unsupported"* && "$out" != *"(parse failed)"* ]]; then
+      echo "PASS $f"
+      pass=$((pass+1))
+    else
+      echo "FAIL $f"
+      fail=$((fail+1))
+    fi
+    echo "$out" | sed 's/^/  /'
+    echo
+  done
+  echo "summary: $pass pass, $fail fail"
+  [[ $fail -eq 0 ]]
+
+# [explore] dump the S-expression for a file (debug)
+dump lang file:
+  cd {{dir}} && bun run dump.ts {{lang}} {{file}}

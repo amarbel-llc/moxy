@@ -1,0 +1,9 @@
+{
+  "name": "outline-poc",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "web-tree-sitter": "^0.25.0",
+    "tree-sitter-wasms": "^0.1.12"
+  }
+}
