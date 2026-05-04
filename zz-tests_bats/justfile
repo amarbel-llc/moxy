@@ -9,7 +9,12 @@ bin_dir := ""
 # --allow-local-binding is required for streamable_http.bats (moxy
 # serve-http binds an ephemeral port on 127.0.0.1). The relaxation is
 # local-only and does not weaken sandcastle's external-network denial.
-_bats_args := "--allow-local-binding" + if bin_dir != "" { " --bin-dir " + bin_dir } else { "" }
+#
+# --allow-unix-sockets is required for any bun-based moxin under test —
+# Bun's async spawn (and therefore zx's `await $`) uses socketpair(AF_UNIX)
+# internally for child IPC, which sandcastle's seccomp filter otherwise
+# blocks (EPERM "failed to spawn process"). See #223.
+_bats_args := "--allow-local-binding --allow-unix-sockets" + if bin_dir != "" { " --bin-dir " + bin_dir } else { "" }
 
 test-targets *targets="*.bats":
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
