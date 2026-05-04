@@ -150,7 +150,7 @@ async function main(): Promise<number> {
   if (symbol) {
     // Symbol filter: capture gomarkdoc → pandoc gfm AST → slice the block
     // carrying `<a name="<symbol>">` through the next anchor block → render
-    // back to gfm. Same algorithm as pandoc.anchor, inlined to avoid
+    // back to gfm. Same algorithm as arboretum.md-anchor, inlined to avoid
     // cross-moxin runtime coupling.
     let markdown: string;
     try {
