@@ -1,7 +1,13 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/4590696c8693fea477850fe379a01544293ca4e2";
+    nixpkgs.url = "github:amarbel-llc/nixpkgs";
     nixpkgs-master.url = "github:NixOS/nixpkgs/e2dde111aea2c0699531dc616112a96cd55ab8b5";
+    # Pinned to the last upstream nixpkgs commit where pkgs.gomarkdoc still
+    # builds. A regression after 2026-03-23 (still present on master as of
+    # 2026-05-04) breaks gomarkdoc's checkPhase — used only as the source of
+    # `pkgs.gomarkdoc` for hamster-moxin's @GOMARKDOC@ substitution. Remove
+    # this input once NixOS/nixpkgs#516481 lands.
+    nixpkgs-gomarkdoc-pin.url = "github:NixOS/nixpkgs/4590696c8693fea477850fe379a01544293ca4e2";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     gomod2nix = {
@@ -48,6 +54,7 @@
       self,
       nixpkgs,
       nixpkgs-master,
+      nixpkgs-gomarkdoc-pin,
       utils,
       gomod2nix,
       purse-first,
@@ -67,6 +74,11 @@
         };
 
         pkgs-master = import nixpkgs-master {
+          inherit system;
+        };
+
+        # See nixpkgs-gomarkdoc-pin in inputs above.
+        pkgs-gomarkdoc-pin = import nixpkgs-gomarkdoc-pin {
           inherit system;
         };
 
@@ -297,7 +309,10 @@
         } {
           pathMode = "inherit";
           extraSubstitutions = {
-            GOMARKDOC = "${pkgs.gomarkdoc}/bin/gomarkdoc";
+            # gomarkdoc pulled from a pinned older nixpkgs (see the
+            # nixpkgs-gomarkdoc-pin input) because the version in
+            # current nixpkgs has a broken checkPhase.
+            GOMARKDOC = "${pkgs-gomarkdoc-pin.gomarkdoc}/bin/gomarkdoc";
             PANDOC = "${pkgs.pandoc}/bin/pandoc";
           };
         };
