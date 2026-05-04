@@ -2,9 +2,12 @@ import { Parser, Language, type Node } from "web-tree-sitter";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { extname, join } from "node:path";
 
-// @WASM_DIR@ is replaced at build time with the moxin's absolute
-// share dir (e.g. /nix/store/...-arboretum-moxin/wasm). The placeholder
-// pattern matches @BIN@ — both are substituted post-bundle by mkBunMoxin.
+// @WASM_DIR@ is replaced **pre-bundle** by mkBunMoxin's extraSubstitutions
+// with the moxin's vendored wasm dir as a /nix/store/...-arboretum-moxin/wasm
+// path. Bun then bakes the resolved string straight into outline.js — no
+// runtime PATH or env-var indirection. (Note: this is mechanically opposite
+// to @BIN@, which is post-bundle. Don't try to add a post-bundle @WASM_DIR@
+// substitution; the bundle is immutable in a separate derivation by then.)
 const WASM_DIR = "@WASM_DIR@";
 
 type NodeRule = {
@@ -125,21 +128,25 @@ function findName(node: Node, rule: NodeRule): string {
   }
   if (rule.name.child) {
     const cursor = node.walk();
-    const visit = (): string | null => {
-      do {
-        const c = cursor.currentNode;
-        if (c.type === rule.name.child) return c.text;
-        if (cursor.gotoFirstChild()) {
-          const r = visit();
-          if (r) return r;
-          cursor.gotoParent();
-        }
-      } while (cursor.gotoNextSibling());
-      return null;
-    };
-    cursor.gotoFirstChild();
-    const found = visit();
-    if (found) return found;
+    try {
+      const visit = (): string | null => {
+        do {
+          const c = cursor.currentNode;
+          if (c.type === rule.name.child) return c.text;
+          if (cursor.gotoFirstChild()) {
+            const r = visit();
+            if (r) return r;
+            cursor.gotoParent();
+          }
+        } while (cursor.gotoNextSibling());
+        return null;
+      };
+      cursor.gotoFirstChild();
+      const found = visit();
+      if (found) return found;
+    } finally {
+      cursor.delete();
+    }
   }
   return "<anonymous>";
 }
