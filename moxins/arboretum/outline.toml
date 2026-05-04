@@ -1,0 +1,18 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Hierarchical source-code outline of a file or directory. Lists types, functions, methods, and fields with line ranges. Supports Go, TypeScript, JavaScript, Rust, Python, PHP, Bash. Use to navigate large files without reading their full content."
+command = "@BIN@/outline"
+arg-order = ["path"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Absolute path to a file or directory. Files with unsupported extensions are skipped silently in directory mode and reported in file mode. Common skip dirs (.git, node_modules, target, dist, .venv, build) are excluded from directory walks."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
