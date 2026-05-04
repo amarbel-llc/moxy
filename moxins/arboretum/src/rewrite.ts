@@ -44,7 +44,8 @@ if (apply.exitCode !== 0 && apply.exitCode !== 1) {
 // Caller wants to see what changed; preview's stdout is the diff.
 process.stdout.write(preview.stdout);
 if (preview.stdout.length === 0) process.stdout.write("(no matches)\n");
-// ast-grep prints "Applied N changes" on its own stream when -U succeeds;
-// surface it as a footer so the caller can confirm the apply ran.
-const footer = (apply.stdout + apply.stderr).trim();
+// ast-grep prints "Applied N changes" on -U success. Versions vary on
+// which stream the message lands on (some send it to both), so prefer
+// stdout and only fall back to stderr.
+const footer = (apply.stdout.trim() || apply.stderr.trim());
 if (footer) process.stdout.write(`\n${footer}\n`);
