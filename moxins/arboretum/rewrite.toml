@@ -1,0 +1,48 @@
+schema = 3
+result-type = "text"
+no-truncate = true
+perms-request = "always-allow"
+description = """Rewrite code by AST pattern via ast-grep. By default applies \
+matches in place (ast-grep -U). Set dry_run=true to preview the diff without \
+modifying any files."""
+command = "@BIN@/rewrite"
+arg-order = [
+  "pattern",
+  "rewrite",
+  "path",
+  "lang",
+  "globs",
+  "dry_run",
+]
+
+[input]
+type = "object"
+required = ["pattern", "rewrite"]
+
+[input.properties.pattern]
+type = "string"
+description = "AST pattern with metavariables (e.g. `$F($A)`)."
+
+[input.properties.rewrite]
+type = "string"
+description = "Replacement template; can reference metavariables from `pattern` (e.g. `logger.info($MSG)`)."
+
+[input.properties.path]
+type = "string"
+description = "Path or directory. Defaults to the current working directory."
+
+[input.properties.lang]
+type = "string"
+description = "Language override (e.g. `go`, `ts`). Omit to auto-detect."
+
+[input.properties.globs]
+type = "string"
+description = "Comma-separated include/exclude globs."
+
+[input.properties.dry_run]
+type = "boolean"
+description = "If true, returns the diff without modifying any files. Defaults to false (applies in place)."
+
+[annotations]
+read-only-hint = false
+idempotent-hint = false

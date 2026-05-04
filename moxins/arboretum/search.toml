@@ -1,0 +1,50 @@
+schema = 3
+result-type = "text"
+no-truncate = true
+perms-request = "always-allow"
+description = """Find code by AST pattern via ast-grep. Patterns use a syntax \
+where `$VAR` matches any AST node — e.g. `$F($A)` matches every single-arg \
+call, `console.log($MSG)` matches every console.log call. Languages are \
+auto-detected from file extension; pass `lang` to override. Wraps the \
+`ast-grep run` CLI."""
+command = "@BIN@/search"
+arg-order = [
+  "pattern",
+  "path",
+  "lang",
+  "globs",
+  "context",
+  "output_mode",
+]
+
+[input]
+type = "object"
+required = ["pattern"]
+
+[input.properties.pattern]
+type = "string"
+description = "AST pattern (e.g. `$F($A)`, `console.log($MSG)`). Metavariables start with `$` and match any node."
+
+[input.properties.path]
+type = "string"
+description = "Path or directory to search. Defaults to the current working directory."
+
+[input.properties.lang]
+type = "string"
+description = "Language override (e.g. `go`, `ts`, `tsx`, `python`, `rust`, `bash`). Omit to auto-detect from file extension."
+
+[input.properties.globs]
+type = "string"
+description = "Comma-separated include/exclude globs (ast-grep --globs syntax, e.g. `**/*.ts,!**/*.test.ts`)."
+
+[input.properties.context]
+type = "integer"
+description = "Lines of context around each match (-C N)."
+
+[input.properties.output_mode]
+type = "string"
+description = "Output mode: `text` (default, human-readable) or `json` (structured stream)."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

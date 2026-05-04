@@ -266,9 +266,11 @@
         # bundled JS can locate both web-tree-sitter's runtime wasm and the
         # language grammars without any PATH or env-var indirection.
         arboretum-moxin = mkBunMoxin "arboretum" [
-          pkgs.bash
+          pkgs.bash pkgs.ast-grep
         ] {
           "outline" = "moxins/arboretum/src/outline.ts";
+          "search" = "moxins/arboretum/src/search.ts";
+          "rewrite" = "moxins/arboretum/src/rewrite.ts";
         } {
           extraSubstitutions = {
             WASM_DIR = "${./moxins/arboretum/wasm}";

@@ -517,6 +517,26 @@ debug-bun2nix:
 debug-arboretum-smoke:
   {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
 
+# Smoke-test arboretum-moxin search against a small fixture
+[group('debug')]
+debug-arboretum-search-smoke:
+  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/search 'console.log($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke
+
+# Smoke-test arboretum-moxin search against a small Go fixture (lang=go)
+[group('debug')]
+debug-arboretum-search-go-smoke:
+  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/search 'fmt.Println($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go
+
+# Smoke-test arboretum-moxin rewrite (dry-run) against a small fixture
+[group('debug')]
+debug-arboretum-rewrite-smoke:
+  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' true
+
+# Smoke-test arboretum-moxin rewrite (apply) against a small fixture
+[group('debug')]
+debug-arboretum-rewrite-apply-smoke:
+  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' false
+
 # Re-capture arboretum golden-output fixtures from the nix-built binary
 [group('debug')]
 debug-arboretum-regen-goldens:
