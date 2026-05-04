@@ -1,0 +1,4 @@
+# samples/sample.sh
+func shout [8-11]
+func greet [13-16]
+func main [18-20]

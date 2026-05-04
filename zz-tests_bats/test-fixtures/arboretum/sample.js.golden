@@ -1,0 +1,9 @@
+# samples/sample.js
+func shout [3-5]
+class Counter [7-19]
+  method constructor [8-10]
+  method inc [12-14]
+  method value [16-18]
+let DEFAULT [21-21]
+let total [22-22]
+let greet [24-24]

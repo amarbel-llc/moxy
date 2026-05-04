@@ -1,0 +1,9 @@
+# samples/sample.py
+def shout [6-7]
+class Counter [10-19]
+  def __init__ [11-12]
+  def inc [14-15]
+  decorated property [17-19]
+    def value [18-19]
+class Greeter [22-24]
+  def greet [23-24]

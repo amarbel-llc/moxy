@@ -517,6 +517,20 @@ debug-bun2nix:
 debug-arboretum-smoke:
   {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
 
+# Re-capture arboretum golden-output fixtures from the nix-built binary
+[group('debug')]
+debug-arboretum-regen-goldens:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  bin={{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/outline
+  fixtures={{justfile_directory()}}/zz-tests_bats/test-fixtures/arboretum
+  for f in "$fixtures"/sample.*; do
+    case "$f" in *.golden) continue;; esac
+    name=$(basename "$f")
+    "$bin" "$f" | sed "s|$f|samples/$name|" > "$f.golden"
+    echo "wrote $f.golden"
+  done
+
 # Integration test for moxin discovery via a fresh temp workspace
 test-moxin-loading:
   zx bin/test-moxin-loading.mjs

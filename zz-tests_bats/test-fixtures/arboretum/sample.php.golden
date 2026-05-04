@@ -1,0 +1,11 @@
+# samples/sample.php
+const DEFAULT_NAME [6-6]
+func shout [8-10]
+interface Greeter [12-14]
+  method greet [13-13]
+trait Countable [16-22]
+  field $count [17-17]
+  method tick [19-21]
+class HelloGreeter [24-33]
+  field $salutation [27-27]
+  method greet [29-32]

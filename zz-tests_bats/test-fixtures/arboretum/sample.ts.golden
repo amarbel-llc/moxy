@@ -1,0 +1,12 @@
+# samples/sample.ts
+type Status [3-3]
+interface Greeter [5-8]
+  method greet [6-6]
+  field count [7-7]
+class HelloGreeter [10-17]
+  field count [11-11]
+  method greet [13-16]
+func createGreeter [19-21]
+enum Color [23-27]
+let DEFAULT_NAME [29-29]
+let mutableState [31-31]

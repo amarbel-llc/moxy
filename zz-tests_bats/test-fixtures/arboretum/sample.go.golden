@@ -1,0 +1,11 @@
+# samples/sample.go
+type Greeter [9-12]
+  field Salutation [10-10]
+  field count [11-11]
+method Greet [15-18]
+method Count [20-20]
+func NewGreeter [22-24]
+const DefaultSalutation [26-26]
+var globalGreeter [28-28]
+type Renamer [30-32]
+  method Rename [31-31]
