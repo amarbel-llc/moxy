@@ -2,6 +2,7 @@
   "name": "moxy-scripts",
   "private": true,
   "dependencies": {
+    "web-tree-sitter": "^0.25.0",
     "zx": "^8"
   }
 }

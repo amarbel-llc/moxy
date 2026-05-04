@@ -259,6 +259,21 @@
         '';
 
         # Per-moxin derivations — each moxin is self-contained with its deps.
+        # @WASM_DIR@ resolves at build time to the moxin's vendored wasm dir
+        # (the source `moxins/arboretum/wasm` becomes a deterministic store
+        # path). Same convention as hamster's @GOMARKDOC@/@PANDOC@: pre-bundle
+        # substitution bakes the absolute store path into outline.js so the
+        # bundled JS can locate both web-tree-sitter's runtime wasm and the
+        # language grammars without any PATH or env-var indirection.
+        arboretum-moxin = mkBunMoxin "arboretum" [
+          pkgs.bash
+        ] {
+          "outline" = "moxins/arboretum/src/outline.ts";
+        } {
+          extraSubstitutions = {
+            WASM_DIR = "${./moxins/arboretum/wasm}";
+          };
+        };
         # chix uses pathMode = "suffix" so the user's nix binary wins (and
         # picks up the user's NIX_PATH / config), while manix + git + the
         # shell helpers are guaranteed to resolve from the wrapper's
@@ -427,6 +442,7 @@
         # Symlink-only aggregation of all per-moxin derivations.
         moxy-moxins = pkgs.runCommand "moxy-moxins" {} ''
           mkdir -p $out/share/moxy/moxins
+          ln -s ${arboretum-moxin} $out/share/moxy/moxins/arboretum
           ln -s ${chix-moxin} $out/share/moxy/moxins/chix
           ln -s ${conch-moxin} $out/share/moxy/moxins/conch
           ln -s ${env-moxin} $out/share/moxy/moxins/env

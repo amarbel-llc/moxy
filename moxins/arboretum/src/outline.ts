@@ -245,7 +245,15 @@ if (!target) {
   process.exit(2);
 }
 
-await Parser.init();
+// web-tree-sitter loads its own runtime wasm (tree-sitter.wasm) at init time.
+// Without locateFile, it looks for tree-sitter.wasm sibling to the bundled JS
+// — that file doesn't exist after bun bundles us into a single file in the
+// nix store. tree-sitter.wasm is vendored alongside the grammars in WASM_DIR.
+await Parser.init({
+  locateFile(scriptName: string) {
+    return `${WASM_DIR}/${scriptName}`;
+  },
+});
 
 try {
   const stat = statSync(target);

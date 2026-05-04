@@ -502,6 +502,21 @@ clean: clean-build
 clean-build:
   rm -rf result build/
 
+# Run `bun install` at the repo root (refresh bun.lock for mkBunMoxin bundling)
+[group('debug')]
+debug-bun-install:
+  cd {{justfile_directory()}} && bun install
+
+# Regenerate bun.nix from bun.lock via nix-community/bun2nix
+[group('debug')]
+debug-bun2nix:
+  cd {{justfile_directory()}} && nix run github:nix-community/bun2nix -- -o bun.nix
+
+# Smoke-test arboretum-moxin outline against POC sample
+[group('debug')]
+debug-arboretum-smoke:
+  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
+
 # Integration test for moxin discovery via a fresh temp workspace
 test-moxin-loading:
   zx bin/test-moxin-loading.mjs
