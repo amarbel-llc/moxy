@@ -19,7 +19,7 @@ if (globs) baseArgs.push("--globs", globs);
 // First pass: capture the diff for the caller (no -U). ast-grep prints the
 // proposed change without touching disk when --update-all is omitted.
 const previewArgs = [...baseArgs, targetPath];
-const preview = await $`ast-grep ${previewArgs}`.nothrow();
+const preview = await $`ast-grep ${previewArgs}`.quiet().nothrow();
 
 if (preview.exitCode !== 0 && preview.exitCode !== 1) {
   process.stderr.write(preview.stderr);
@@ -34,7 +34,7 @@ if (dryRun) {
 
 // Second pass: actually apply. -U skips the interactive confirmation.
 const applyArgs = [...baseArgs, "--update-all", targetPath];
-const apply = await $`ast-grep ${applyArgs}`.nothrow();
+const apply = await $`ast-grep ${applyArgs}`.quiet().nothrow();
 
 if (apply.exitCode !== 0 && apply.exitCode !== 1) {
   process.stderr.write(apply.stderr);

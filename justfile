@@ -537,6 +537,26 @@ debug-arboretum-rewrite-smoke:
 debug-arboretum-rewrite-apply-smoke:
   {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' false
 
+# Probe ast-grep's --update-all output streams independently
+[group('debug')]
+debug-astgrep-streams:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  cd {{justfile_directory()}}
+  cat > .tmp/astgrep-smoke/test.js <<'EOF'
+  console.log("startup");
+  console.log("done");
+  EOF
+  ag=/nix/store/zfpg4kzi0lw9a18nld7q212pjp1galkl-ast-grep-0.42.1/bin/ast-grep
+  echo "=== STDOUT ONLY ==="
+  "$ag" run -p 'console.log($MSG)' -r 'logger.info($MSG)' --update-all .tmp/astgrep-smoke 2>/dev/null
+  cat > .tmp/astgrep-smoke/test.js <<'EOF'
+  console.log("startup");
+  console.log("done");
+  EOF
+  echo "=== STDERR ONLY ==="
+  "$ag" run -p 'console.log($MSG)' -r 'logger.info($MSG)' --update-all .tmp/astgrep-smoke 1>/dev/null
+
 # Re-capture arboretum golden-output fixtures from the nix-built binary
 [group('debug')]
 debug-arboretum-regen-goldens:

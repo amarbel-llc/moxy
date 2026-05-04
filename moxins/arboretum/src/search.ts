@@ -21,7 +21,7 @@ args.push(pathArg && pathArg.length > 0 ? pathArg : ".");
 
 // ast-grep exits 1 when no matches are found. That's not a tool error —
 // surface an empty result instead.
-const result = await $`ast-grep ${args}`.nothrow();
+const result = await $`ast-grep ${args}`.quiet().nothrow();
 
 if (result.exitCode === 0 || result.exitCode === 1) {
   process.stdout.write(result.stdout);
