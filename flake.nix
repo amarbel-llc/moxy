@@ -10,11 +10,6 @@
     nixpkgs-gomarkdoc-pin.url = "github:NixOS/nixpkgs/4590696c8693fea477850fe379a01544293ca4e2";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
-    gomod2nix = {
-      url = "github:nix-community/gomod2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     purse-first = {
       url = "github:amarbel-llc/purse-first";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -56,7 +51,6 @@
       nixpkgs-master,
       nixpkgs-gomarkdoc-pin,
       utils,
-      gomod2nix,
       purse-first,
       tommy,
       maneater,
@@ -66,12 +60,13 @@
     (utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [
-            gomod2nix.overlays.default
-          ];
-        };
+        # The amarbel-llc/nixpkgs fork auto-applies its own overlay,
+        # which carries a patched buildGoApplication that auto-injects
+        # `-X main.version` and `-X main.commit` ldflags. Re-applying
+        # `gomod2nix.overlays.default` from nix-community/gomod2nix
+        # would shadow the patched version with the upstream one and
+        # silently drop the auto-injection — see madder's go/default.nix.
+        pkgs = import nixpkgs { inherit system; };
 
         pkgs-master = import nixpkgs-master {
           inherit system;
@@ -123,7 +118,18 @@
           '';
         };
 
-        moxyVersion = "0.6.6";
+        # version.env at repo root is the single source of truth for
+        # the release version. Burnt into the binary via the fork's
+        # auto-injected -ldflags. `just bump-version` sed-rewrites
+        # version.env. Match expression captures everything after
+        # `MOXY_VERSION=` up to the line break.
+        moxyVersion = builtins.head (builtins.match
+          ".*MOXY_VERSION=([^\n]+).*"
+          (builtins.readFile ./version.env));
+        # shortRev for clean builds, dirtyShortRev for dirty working
+        # trees (so devshell builds show `dirty-abcdef` rather than
+        # masquerading as a clean release), "unknown" as a last-resort
+        # fallback.
         moxyCommit = self.shortRev or self.dirtyShortRev or "unknown";
 
         # Man pages as a standalone derivation, referenced by both the moxy
@@ -449,25 +455,31 @@
         moxy = pkgs.buildGoApplication {
           pname = "moxy";
           version = moxyVersion;
+          commit = moxyCommit;
           src = moxySrc;
           subPackages = [ "cmd/moxy" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
           nativeBuildInputs = [ pkgs.makeWrapper pkgs.jq ];
+          # The fork's buildGoApplication auto-injects
+          # `-X main.version` and `-X main.commit` from the `version`
+          # and `commit` attrs above. Only project-specific ldflags
+          # need to live here.
           ldflags = [
-            "-X" "main.version=${moxyVersion}"
-            "-X" "main.commit=${moxyCommit}"
             "-X" "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
           ];
           postInstall = ''
             MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
 
-            # purse-first's generate-plugin doesn't emit a `version` field; inject
-            # it from the nix-pinned moxyVersion so distributed plugin.json tracks
-            # releases (Claude Code plugins spec requires semver `version`).
+            # purse-first's generate-plugin doesn't emit a `version` field;
+            # inject `<semver>+<commit>` so the distributed plugin.json
+            # matches what `moxy --version` reports (semver build-metadata
+            # is the suffix after `+`). Claude Code plugins spec requires a
+            # semver `version`, and `+commit` is valid SemVer 2.0.0
+            # build-metadata.
             pluginJson="$out/share/purse-first/moxy/.claude-plugin/plugin.json"
-            jq --arg v "${moxyVersion}" '.version = $v' "$pluginJson" > "$pluginJson.tmp"
+            jq --arg v "${moxyVersion}+${moxyCommit}" '.version = $v' "$pluginJson" > "$pluginJson.tmp"
             mv "$pluginJson.tmp" "$pluginJson"
 
             # clown-plugin-protocol manifest for HTTP MCP transport.
@@ -509,13 +521,15 @@
         moxy-static = pkgs.buildGoApplication {
           pname = "moxy";
           version = moxyVersion;
+          commit = moxyCommit;
           src = moxySrc;
           subPackages = [ "cmd/moxy" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
           CGO_ENABLED = 0;
-          ldflags = [ "-X" "main.version=${moxyVersion}" "-X" "main.commit=${moxyCommit}" ];
+          # Version/commit ldflags are auto-injected by the fork's
+          # buildGoApplication from the `version` and `commit` attrs.
         };
 
         # Unwrapped moxin helper: replaces @BIN@ with relative "bin"
@@ -763,7 +777,7 @@
             pkgs-master.gopls
             pkgs-master.gotools
             pkgs-master.govulncheck
-            gomod2nix.packages.${system}.default
+            pkgs.gomod2nix
             pkgs.just
             pkgs.manix
             pkgs.man-db

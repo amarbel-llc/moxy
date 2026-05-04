@@ -369,23 +369,23 @@ man-search-download-model:
     echo "Downloaded to: $model_path"
   fi
 
-# Bump moxyVersion in flake.nix to the given semver
+# Bump MOXY_VERSION in version.env to the given semver
 bump-version new_version:
   #!/usr/bin/env bash
   set -euo pipefail
-  current=$(grep 'moxyVersion = ' flake.nix | sed 's/.*"\(.*\)".*/\1/')
+  current=$(sed -n 's/^MOXY_VERSION=//p' version.env)
   if [[ "$current" == "{{new_version}}" ]]; then
     echo "already at {{new_version}}" >&2
     exit 0
   fi
-  sed -i.bak 's/moxyVersion = "'"$current"'"/moxyVersion = "{{new_version}}"/' flake.nix && rm flake.nix.bak
+  sed -i.bak 's/^MOXY_VERSION=.*/MOXY_VERSION={{new_version}}/' version.env && rm version.env.bak
   echo "$current → {{new_version}}"
 
-# Create a signed git tag for the current moxyVersion and push it to origin
+# Create a signed git tag for the current MOXY_VERSION and push it to origin
 tag:
   #!/usr/bin/env bash
   set -euo pipefail
-  version=$(grep 'moxyVersion = ' flake.nix | sed 's/.*"\(.*\)".*/\1/')
+  version=$(sed -n 's/^MOXY_VERSION=//p' version.env)
   tag="v${version}"
   if git rev-parse "$tag" >/dev/null 2>&1; then
     echo "tag $tag already exists" >&2
@@ -396,7 +396,7 @@ tag:
   git push origin "$tag"
   echo "pushed tag $tag"
 
-# Bump moxyVersion on master, commit, push master, signed tag + push (CI handles release artifacts on tag push). Must be run from the master branch.
+# Bump MOXY_VERSION on master, commit, push master, signed tag + push (CI handles release artifacts on tag push). Must be run from the master branch.
 release new_version:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -406,8 +406,8 @@ release new_version:
     exit 1
   fi
   just bump-version {{new_version}}
-  if ! git diff --quiet flake.nix; then
-    git add flake.nix
+  if ! git diff --quiet version.env; then
+    git add version.env
     git commit -m "chore: release v{{new_version}}"
   fi
   git push origin master
