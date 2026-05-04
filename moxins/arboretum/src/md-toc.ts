@@ -10,7 +10,7 @@ if (!markdown.trim()) {
 
 // gfm reader keeps headings adjacent to inline `<a name="X">` HTML anchors
 // as real Header blocks; the default markdown reader collapses them into
-// Paragraphs and the toc disappears. Same reader pandoc.anchor uses.
+// Paragraphs and the toc disappears. Same reader md-anchor.ts uses.
 const { stdout } = await $({ input: markdown })`pandoc -f gfm -t json`;
 const ast = JSON.parse(stdout);
 

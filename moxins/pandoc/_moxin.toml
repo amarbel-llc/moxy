@@ -1,3 +1,0 @@
-schema = 1
-name = "pandoc"
-description = "Progressive-disclosure navigation of markdown documents via pandoc AST"

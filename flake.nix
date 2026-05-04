@@ -266,11 +266,16 @@
         # bundled JS can locate both web-tree-sitter's runtime wasm and the
         # language grammars without any PATH or env-var indirection.
         arboretum-moxin = mkBunMoxin "arboretum" [
-          pkgs.bash pkgs.ast-grep
+          pkgs.bash pkgs.ast-grep pkgs.pandoc
         ] {
           "outline" = "moxins/arboretum/src/outline.ts";
           "search" = "moxins/arboretum/src/search.ts";
           "rewrite" = "moxins/arboretum/src/rewrite.ts";
+          # md-* tools shell out to pandoc for markdown AST work. Same gfm
+          # reader the (now-retired) pandoc moxin used.
+          "md-toc" = "moxins/arboretum/src/md-toc.ts";
+          "md-section" = "moxins/arboretum/src/md-section.ts";
+          "md-anchor" = "moxins/arboretum/src/md-anchor.ts";
         } {
           extraSubstitutions = {
             WASM_DIR = "${./moxins/arboretum/wasm}";
@@ -392,11 +397,6 @@
           pathMode = "suffix";
         };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {};
-        pandoc-moxin = mkBunMoxin "pandoc" [ pkgs.bash pkgs.pandoc ] {
-          "toc" = "moxins/pandoc/src/toc.ts";
-          "section" = "moxins/pandoc/src/section.ts";
-          "anchor" = "moxins/pandoc/src/anchor.ts";
-        } {};
 
         gwsDeps = [ pkgs.bash pkgs.coreutils gws-bin ];
         piers-moxin = mkBunMoxin "piers" gwsDeps {
@@ -460,7 +460,6 @@
           ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents
           ln -s ${man-moxin} $out/share/moxy/moxins/man
           ln -s ${rg-moxin} $out/share/moxy/moxins/rg
-          ln -s ${pandoc-moxin} $out/share/moxy/moxins/pandoc
           ln -s ${piers-moxin} $out/share/moxy/moxins/piers
           ln -s ${car-moxin} $out/share/moxy/moxins/car
           ln -s ${slip-moxin} $out/share/moxy/moxins/slip
@@ -664,11 +663,6 @@
             "list-recipes" = "moxins/just-us-agents/src/list-recipes.ts";
           };
           man = mkBrewMoxin "man";
-          pandoc = mkBrewBunMoxin "pandoc" {
-            "toc" = "moxins/pandoc/src/toc.ts";
-            "section" = "moxins/pandoc/src/section.ts";
-            "anchor" = "moxins/pandoc/src/anchor.ts";
-          };
           sisyphus = mkBrewMoxin "sisyphus";
           car = mkBrewBunMoxin "car" {
             "search" = "moxins/car/src/search.ts";

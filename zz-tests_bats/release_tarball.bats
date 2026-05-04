@@ -66,7 +66,7 @@ function release_tarball_has_moxins_tree { # @test
   # than at brew install time.
   local expected=(
     env folio folio-external freud get-hubbed get-hubbed-external
-    grit hamster jq just-us-agents man pandoc rg sisyphus
+    grit hamster jq just-us-agents man rg sisyphus
   )
   for name in "${expected[@]}"; do
     [ -d "$RELEASE_EXTRACT/moxy/share/moxy/moxins/$name" ] ||

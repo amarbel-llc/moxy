@@ -532,6 +532,21 @@ debug-arboretum-search-go-smoke:
 debug-arboretum-rewrite-go-smoke:
   {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'fmt.Println($X)' 'log.Info($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go '' false
 
+# Smoke-test arboretum md-toc against a tiny markdown blob on stdin
+[group('debug')]
+debug-arboretum-md-toc-smoke:
+  printf '# Hello\n\n## World\n\nbody\n\n## Again\n' | {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/md-toc
+
+# Smoke-test arboretum md-section against a tiny markdown blob on stdin
+[group('debug')]
+debug-arboretum-md-section-smoke:
+  printf '# Hello\n\n## World\n\nbody\n\n## Again\nmore\n' | {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/md-section World
+
+# Smoke-test arboretum md-anchor against a tiny markdown blob on stdin
+[group('debug')]
+debug-arboretum-md-anchor-smoke:
+  printf '<a name="x"></a>\n# X\nbody\n\n<a name="y"></a>\n# Y\nmore\n' | {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/md-anchor x
+
 # Smoke-test arboretum-moxin rewrite (dry-run) against a small fixture
 [group('debug')]
 debug-arboretum-rewrite-smoke:
