@@ -4,7 +4,9 @@ no-truncate = true
 perms-request = "always-allow"
 description = """Rewrite code by AST pattern via ast-grep. By default applies \
 matches in place (ast-grep -U). Set dry_run=true to preview the diff without \
-modifying any files."""
+modifying any files. With `lang=go` and a call-shaped pattern, ast-grep's Go \
+grammar ambiguity is auto-handled, so renames like `fmt.Println($X)` → \
+`log.Info($X)` work without writing a YAML rule."""
 command = "@BIN@/rewrite"
 arg-order = [
   "pattern",

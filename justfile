@@ -527,6 +527,11 @@ debug-arboretum-search-smoke:
 debug-arboretum-search-go-smoke:
   {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/search 'fmt.Println($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go
 
+# Smoke-test arboretum-moxin rewrite (apply) against a small Go fixture
+[group('debug')]
+debug-arboretum-rewrite-go-smoke:
+  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'fmt.Println($X)' 'log.Info($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go '' false
+
 # Smoke-test arboretum-moxin rewrite (dry-run) against a small fixture
 [group('debug')]
 debug-arboretum-rewrite-smoke:

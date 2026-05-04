@@ -5,8 +5,9 @@ perms-request = "always-allow"
 description = """Find code by AST pattern via ast-grep. Patterns use a syntax \
 where `$VAR` matches any AST node — e.g. `$F($A)` matches every single-arg \
 call, `console.log($MSG)` matches every console.log call. Languages are \
-auto-detected from file extension; pass `lang` to override. Wraps the \
-`ast-grep run` CLI."""
+auto-detected from file extension; pass `lang` to override. With `lang=go` \
+and a call-shaped pattern, ast-grep's Go grammar ambiguity is auto-handled \
+(so `fmt.Println($X)` matches calls, not type conversions)."""
 command = "@BIN@/search"
 arg-order = [
   "pattern",

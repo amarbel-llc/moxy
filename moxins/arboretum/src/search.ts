@@ -1,4 +1,5 @@
 import { $ } from "zx";
+import { buildSearchInvocation } from "./astgrep.ts";
 
 $.verbose = false;
 
@@ -9,15 +10,16 @@ if (!pattern) {
   process.exit(2);
 }
 
-const args: string[] = ["run", "--pattern", pattern];
+const targetPath = pathArg && pathArg.length > 0 ? pathArg : ".";
+const inv = buildSearchInvocation({
+  pattern,
+  lang: lang || undefined,
+  globs: globs || undefined,
+  context: contextStr || undefined,
+  outputMode: outputMode || undefined,
+});
 
-if (lang) args.push("--lang", lang);
-if (globs) args.push("--globs", globs);
-if (contextStr) args.push("-C", contextStr);
-if (outputMode === "json") args.push("--json=stream");
-
-// ast-grep treats trailing positionals as paths; default to "." when omitted.
-args.push(pathArg && pathArg.length > 0 ? pathArg : ".");
+const args = [inv.subcommand, ...inv.args, targetPath];
 
 // ast-grep exits 1 when no matches are found. That's not a tool error —
 // surface an empty result instead.

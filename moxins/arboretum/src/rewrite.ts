@@ -1,4 +1,5 @@
 import { $ } from "zx";
+import { buildRewriteInvocation } from "./astgrep.ts";
 
 $.verbose = false;
 
@@ -12,13 +13,16 @@ if (!pattern || !rewrite) {
 const dryRun = dryRunStr === "true";
 const targetPath = pathArg && pathArg.length > 0 ? pathArg : ".";
 
-const baseArgs: string[] = ["run", "--pattern", pattern, "--rewrite", rewrite];
-if (lang) baseArgs.push("--lang", lang);
-if (globs) baseArgs.push("--globs", globs);
+const inv = buildRewriteInvocation({
+  pattern,
+  rewrite,
+  lang: lang || undefined,
+  globs: globs || undefined,
+});
 
 // First pass: capture the diff for the caller (no -U). ast-grep prints the
 // proposed change without touching disk when --update-all is omitted.
-const previewArgs = [...baseArgs, targetPath];
+const previewArgs = [inv.subcommand, ...inv.args, targetPath];
 const preview = await $`ast-grep ${previewArgs}`.quiet().nothrow();
 
 if (preview.exitCode !== 0 && preview.exitCode !== 1) {
@@ -33,7 +37,7 @@ if (dryRun) {
 }
 
 // Second pass: actually apply. -U skips the interactive confirmation.
-const applyArgs = [...baseArgs, "--update-all", targetPath];
+const applyArgs = [inv.subcommand, ...inv.args, "--update-all", targetPath];
 const apply = await $`ast-grep ${applyArgs}`.quiet().nothrow();
 
 if (apply.exitCode !== 0 && apply.exitCode !== 1) {
@@ -47,5 +51,5 @@ if (preview.stdout.length === 0) process.stdout.write("(no matches)\n");
 // ast-grep prints "Applied N changes" on -U success. Versions vary on
 // which stream the message lands on (some send it to both), so prefer
 // stdout and only fall back to stderr.
-const footer = (apply.stdout.trim() || apply.stderr.trim());
+const footer = apply.stdout.trim() || apply.stderr.trim();
 if (footer) process.stdout.write(`\n${footer}\n`);

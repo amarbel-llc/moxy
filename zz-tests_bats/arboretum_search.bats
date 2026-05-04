@@ -37,26 +37,27 @@ EOF
   fi
 }
 
-function arboretum_search_with_explicit_lang { # @test
-  # NOTE: Go's grammar is parser-ambiguous for `fmt.Println($X)` patterns —
-  # tree-sitter-go prefers type_conversion over call_expression. The
-  # workaround is a YAML rule with `context` and `selector: call_expression`,
-  # which requires `ast-grep scan` — out of scope for v1's `ast-grep run`
-  # wrapper. See https://ast-grep.github.io/catalog/go/#match-function-call-in-golang
-  #
-  # For this smoke we match a bare identifier, which parses unambiguously.
+function arboretum_search_matches_go_call_via_auto_wrap { # @test
+  # Go's grammar is parser-ambiguous for `fmt.Println($X)` patterns at top
+  # level (tree-sitter-go prefers type_conversion over call_expression). The
+  # arboretum wrapper detects lang=go + call-shaped pattern and synthesizes
+  # a YAML rule with context + `selector: call_expression` via ast-grep scan
+  # --inline-rules. See moxins/arboretum/src/astgrep.ts for the heuristic
+  # and https://ast-grep.github.io/catalog/go/#match-function-call-in-golang
+  # for the underlying issue.
   cat > "$HOME/main.go" <<'EOF'
 package main
 
 import "fmt"
 
-func Hello() {
+func main() {
   fmt.Println("hi")
+  fmt.Println("there")
 }
 EOF
 
   local params
-  params=$(jq -cn --arg n "arboretum.search" --arg p "Hello" --arg path "$HOME" --arg lang "go" \
+  params=$(jq -cn --arg n "arboretum.search" --arg p "fmt.Println(\$X)" --arg path "$HOME" --arg lang "go" \
     '{name: $n, arguments: {pattern: $p, path: $path, lang: $lang}}')
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
@@ -64,5 +65,6 @@ EOF
   local text
   text=$(echo "$output" | jq -r '.content[0].resource.text // .content[0].text')
 
-  echo "$text" | grep -qE 'func Hello'
+  echo "$text" | grep -qE 'fmt\.Println\("hi"\)'
+  echo "$text" | grep -qE 'fmt\.Println\("there"\)'
 }

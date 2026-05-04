@@ -61,3 +61,35 @@ EOF
   grep -q 'logger.info("done")' "$HOME/app.js"
   ! grep -q 'console.log' "$HOME/app.js"
 }
+
+function arboretum_rewrite_applies_a_go_call_rename_via_auto_wrap { # @test
+  # Validates the lang=go auto-wrap path (see astgrep.ts). Plain --pattern
+  # would fail to match `fmt.Println($X)` due to Go's call-vs-conversion
+  # parser ambiguity; the wrapper synthesizes a YAML rule with
+  # `selector: call_expression` via --inline-rules.
+  cat > "$HOME/main.go" <<'EOF'
+package main
+
+import "fmt"
+
+func main() {
+  fmt.Println("hello")
+  fmt.Println("world")
+}
+EOF
+
+  local params
+  params=$(jq -cn \
+    --arg n "arboretum.rewrite" \
+    --arg pat "fmt.Println(\$X)" \
+    --arg rep "log.Info(\$X)" \
+    --arg path "$HOME" \
+    --arg lang "go" \
+    '{name: $n, arguments: {pattern: $pat, rewrite: $rep, path: $path, lang: $lang}}')
+  run_moxy_mcp_v1 "tools/call" "$params"
+  assert_success
+
+  grep -q 'log.Info("hello")' "$HOME/main.go"
+  grep -q 'log.Info("world")' "$HOME/main.go"
+  ! grep -q 'fmt.Println' "$HOME/main.go"
+}
