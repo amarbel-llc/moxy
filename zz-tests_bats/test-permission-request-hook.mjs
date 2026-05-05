@@ -107,7 +107,7 @@ await fs.writeFile(
 Temporary test environment for PermissionRequest hook + freud interruptions.
 
 Steps:
-1. Ask Claude to use a moxy tool that requires permission (e.g. folio-external)
+1. Ask Claude to use a moxy tool that requires permission (e.g. folio.read on a path outside CWD)
 2. Approve or reject the prompt
 3. Exit Claude Code, then exit this shell
 4. Check the output for hook log entries and freud output
