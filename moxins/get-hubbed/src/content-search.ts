@@ -2,12 +2,31 @@ import { $ } from "zx";
 
 $.verbose = false;
 
-const [query, path, extension, perPage = "30", page = "1"] =
-  process.argv.slice(2);
+const [
+  query,
+  path,
+  extension,
+  perPage = "30",
+  page = "1",
+  repoOwnerName,
+] = process.argv.slice(2);
 
-const repo = JSON.parse(
-  (await $`gh repo view --json nameWithOwner`).stdout,
-).nameWithOwner;
+async function resolveRepo(): Promise<string> {
+  if (repoOwnerName) {
+    if (!repoOwnerName.includes("/")) {
+      console.error("ERROR: repo_owner_name must be in OWNER/NAME format");
+      process.exit(2);
+    }
+    return repoOwnerName;
+  }
+  const user = (await $`gh api /user --jq ${".login"}`).stdout.trim();
+  const name = (
+    await $`gh repo view --json name --jq ${".name"}`
+  ).stdout.trim();
+  return `${user}/${name}`;
+}
+
+const repo = await resolveRepo();
 
 let q = `${query} repo:${repo}`;
 if (path) q += ` path:${path}`;

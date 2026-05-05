@@ -10,7 +10,25 @@ const [
   search,
   limitStr,
   outputFormatArg,
+  repoOwnerName,
 ] = process.argv.slice(2);
+
+async function resolveRepo(): Promise<string> {
+  if (repoOwnerName) {
+    if (!repoOwnerName.includes("/")) {
+      console.error("ERROR: repo_owner_name must be in OWNER/NAME format");
+      process.exit(2);
+    }
+    return repoOwnerName;
+  }
+  const user = (await $`gh api /user --jq ${".login"}`).stdout.trim();
+  const name = (
+    await $`gh repo view --json name --jq ${".name"}`
+  ).stdout.trim();
+  return `${user}/${name}`;
+}
+
+const repo = await resolveRepo();
 
 const state = stateArg || "open";
 const outputFormat = outputFormatArg || "json";
@@ -22,6 +40,8 @@ const fields =
 const args = [
   "issue",
   "list",
+  "-R",
+  repo,
   "--state",
   state,
   "--limit",

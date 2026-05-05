@@ -4,19 +4,19 @@ content-type = "application/json"
 perms-request = "always-allow"
 description = "Fetch a GitHub Actions workflow run's metadata and per-job rows in a single call. Combines /actions/runs/{id} and /actions/runs/{id}/jobs into one JSON object: {run: {...}, jobs: [...]}."
 command = "@BIN@/ci-run-get"
-arg-order = ["repo", "run_id"]
+arg-order = ["run_id", "repo_owner_name"]
 
 [input]
 type = "object"
-required = ["repo", "run_id"]
-
-[input.properties.repo]
-type = "string"
-description = "Repository in OWNER/REPO format."
+required = ["run_id"]
 
 [input.properties.run_id]
 type = "string"
 description = "Numeric workflow run ID."
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
 
 [annotations]
 read-only-hint = true

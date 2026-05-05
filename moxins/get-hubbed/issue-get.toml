@@ -2,7 +2,7 @@ schema = 3
 perms-request = "always-allow"
 description = "Get a GitHub issue by number"
 command = "@BIN@/issue-get"
-arg-order = ["number", "fields", "output_format"]
+arg-order = ["number", "fields", "output_format", "repo_owner_name"]
 
 [input]
 type = "object"
@@ -19,6 +19,10 @@ description = "Comma-separated field names to return (e.g. 'summary,status,assig
 [input.properties.output_format]
 type = "string"
 description = "Output format: omit for text (default), or 'json' for JSON output"
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
 
 [annotations]
 read-only-hint = true

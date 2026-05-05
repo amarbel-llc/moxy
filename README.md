@@ -120,8 +120,7 @@ The following moxins ship with moxy. Each can be served individually via
 | folio | 16 | File I/O scoped to current working directory | jq, coreutils |
 | folio-external | 13 | File I/O for paths outside the current working directory | jq, coreutils |
 | freud | 12 | Past Claude Code session transcripts | python3 |
-| get-hubbed | 31 | GitHub tools for the current repository | gh, jq, bun |
-| get-hubbed-external | 10 | GitHub tools for other repositories | gh, jq, bun |
+| get-hubbed | 31 | GitHub tools (defaults to current repo; pass `repo_owner_name` to target a different repo) | gh, jq, bun |
 | gmail | 2 | Gmail: triage and read messages | bun, gws |
 | grit | 31 | Git operations (force-push/hard-reset blocked on main/master) | git, jq |
 | gws | 1 | Google Workspace: generic API passthrough | bun, gws |

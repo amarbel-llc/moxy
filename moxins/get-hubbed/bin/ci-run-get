@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo="${1:-}"
-run_id="${2:-}"
-if [ -z "$repo" ] || [ -z "$run_id" ]; then
-  echo "usage: ci-run-get <repo> <run_id>" >&2
+run_id="${1:-}"
+repo_owner_name="${2:-}"
+if [ -z "$run_id" ]; then
+  echo "usage: ci-run-get <run_id> [<repo_owner_name>]" >&2
   exit 2
+fi
+
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  user=$(gh api /user --jq '.login')
+  name=$(gh repo view --json name --jq '.name')
+  repo="$user/$name"
 fi
 
 run_json=$(gh api "repos/$repo/actions/runs/$run_id")

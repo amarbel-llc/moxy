@@ -2,13 +2,27 @@
 set -euo pipefail
 number="$1"
 labels_json="$2"
+repo_owner_name="${3:-}"
 
-gh_args=(issue edit "$number")
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  user=$(gh api /user --jq '.login')
+  name=$(gh repo view --json name --jq '.name')
+  repo="$user/$name"
+fi
+
+gh_args=(issue edit "$number" -R "$repo")
 while IFS= read -r label; do
   [ -n "$label" ] && gh_args+=(--remove-label "$label")
 done < <(printf '%s' "$labels_json" | jq -r '.[]')
 
-if [ "${#gh_args[@]}" -eq 3 ]; then
+# 5 fixed args (issue + edit + number + -R + repo) when no labels supplied.
+if [ "${#gh_args[@]}" -eq 5 ]; then
   echo "issue-label-remove: no labels provided" >&2
   exit 2
 fi

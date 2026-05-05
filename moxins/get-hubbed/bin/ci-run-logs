@@ -1,14 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo="${1:-}"
-run_id="${2:-}"
-job_id="${3:-}"
-failed_only="${4:-}"
+run_id="${1:-}"
+job_id="${2:-}"
+failed_only="${3:-}"
+repo_owner_name="${4:-}"
 
-if [ -z "$repo" ] || [ -z "$run_id" ]; then
-  echo "usage: ci-run-logs <repo> <run_id> [job_id] [failed_only]" >&2
+if [ -z "$run_id" ]; then
+  echo "usage: ci-run-logs <run_id> [<job_id>] [<failed_only>] [<repo_owner_name>]" >&2
   exit 2
+fi
+
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  user=$(gh api /user --jq '.login')
+  name=$(gh repo view --json name --jq '.name')
+  repo="$user/$name"
 fi
 
 if [ -n "$job_id" ] && [ "$failed_only" = "true" ]; then

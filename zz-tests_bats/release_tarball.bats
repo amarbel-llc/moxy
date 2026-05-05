@@ -65,7 +65,7 @@ function release_tarball_has_moxins_tree { # @test
   # formula's depends_on list may be wrong — fail loudly here rather
   # than at brew install time.
   local expected=(
-    env folio folio-external freud get-hubbed get-hubbed-external
+    env folio folio-external freud get-hubbed
     grit hamster jq just-us-agents man rg sisyphus
   )
   for name in "${expected[@]}"; do

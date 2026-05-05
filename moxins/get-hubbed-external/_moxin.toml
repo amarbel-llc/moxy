@@ -1,3 +1,0 @@
-schema = 1
-name = "get-hubbed-external"
-description = "GitHub tools for repositories OTHER than the current one. Every tool requires an explicit repo parameter in OWNER/REPO format, or just REPO to default owner from the current repo's org. For current-repo operations, use get-hubbed tools instead."

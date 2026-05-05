@@ -1,8 +1,8 @@
 schema = 3
 perms-request = "always-allow"
-description = "List issues in the current repository with optional filters"
+description = "List issues in a repository with optional filters"
 command = "@BIN@/issue-list"
-arg-order = ["state", "labels", "assignee", "milestone", "search", "limit", "output_format"]
+arg-order = ["state", "labels", "assignee", "milestone", "search", "limit", "output_format", "repo_owner_name"]
 
 [input]
 type = "object"
@@ -37,6 +37,10 @@ description = "Maximum number of issues to return (default 30)"
 [input.properties.output_format]
 type = "string"
 description = "Output format: json (default, full details) or text (one line per issue with number, state, title, labels)"
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
 
 [annotations]
 read-only-hint = true

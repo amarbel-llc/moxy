@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
-repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
 path="$1"
 content="$2"
 message="$3"
 branch="${4:-}"
+repo_owner_name="${5:-}"
+
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  user=$(gh api /user --jq '.login')
+  name=$(gh repo view --json name --jq '.name')
+  repo="$user/$name"
+fi
 
 gh_args=(api "repos/$repo/contents/$path" --method PUT --input -)
 

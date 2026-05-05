@@ -311,12 +311,6 @@
           "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
           "content-search" = "moxins/get-hubbed/src/content-search.ts";
         } { pathMode = "suffix"; };
-        get-hubbed-external-moxin = mkBunMoxin "get-hubbed-external" [
-          pkgs.bash pkgs.coreutils pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
-        ] {
-          "issue-get" = "moxins/get-hubbed-external/src/issue-get.ts";
-          "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
-        } {};
         grit-moxin = mkBunMoxin "grit" [
           pkgs.bash pkgs.coreutils pkgs.git
         ] {
@@ -452,7 +446,6 @@
           ln -s ${folio-external-moxin} $out/share/moxy/moxins/folio-external
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud
           ln -s ${get-hubbed-moxin} $out/share/moxy/moxins/get-hubbed
-          ln -s ${get-hubbed-external-moxin} $out/share/moxy/moxins/get-hubbed-external
           ln -s ${grit-moxin} $out/share/moxy/moxins/grit
           ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
           ln -s ${sisyphus-moxin} $out/share/moxy/moxins/sisyphus
@@ -648,10 +641,6 @@
             "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
             "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
             "content-search" = "moxins/get-hubbed/src/content-search.ts";
-          };
-          get-hubbed-external = mkBrewBunMoxin "get-hubbed-external" {
-            "issue-get" = "moxins/get-hubbed-external/src/issue-get.ts";
-            "issue-list" = "moxins/get-hubbed-external/src/issue-list.ts";
           };
           hamster = mkBrewBunMoxin "hamster" {
             "doc" = "moxins/hamster/src/doc.ts";

@@ -3,7 +3,21 @@ set -euo pipefail
 number="$1"
 comment="${2:-}"
 reason="${3:-}"
-gh_args=(issue close "$number")
+repo_owner_name="${4:-}"
+
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  user=$(gh api /user --jq '.login')
+  name=$(gh repo view --json name --jq '.name')
+  repo="$user/$name"
+fi
+
+gh_args=(issue close "$number" -R "$repo")
 
 [ -n "$comment" ] && gh_args+=(--comment "$comment")
 

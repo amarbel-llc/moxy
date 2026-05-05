@@ -4,7 +4,7 @@ perms-request = "always-allow"
 description = """Get file content or directory listing from a repository. For files, returns decoded content. \
 For directories, returns a JSON listing with name, type, size, and path for each entry."""
 command = "@BIN@/content-get"
-arg-order = ["path", "ref"]
+arg-order = ["path", "ref", "repo_owner_name"]
 
 [input]
 type = "object"
@@ -16,6 +16,10 @@ description = "File or directory path within the repo (default: root)"
 [input.properties.ref]
 type = "string"
 description = "Branch, tag, or commit SHA (default: repo's default branch)"
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
 
 [annotations]
 read-only-hint = true

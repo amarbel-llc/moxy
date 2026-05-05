@@ -4,7 +4,7 @@ content-type = "application/json"
 perms-request = "always-allow"
 description = "Compare two refs (branches, tags, or commits) showing commits and file changes"
 command = "@BIN@/content-compare"
-arg-order = ["base", "head", "per_page", "page"]
+arg-order = ["base", "head", "per_page", "page", "repo_owner_name"]
 
 [input]
 type = "object"
@@ -25,6 +25,10 @@ description = "Number of file entries per page (max 100, default 30)"
 [input.properties.page]
 type = "integer"
 description = "Page number for pagination (default 1)"
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
 
 [annotations]
 read-only-hint = true

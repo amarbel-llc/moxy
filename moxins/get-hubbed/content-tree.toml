@@ -5,7 +5,7 @@ perms-request = "always-allow"
 description = """Get the full file tree of a repository at a given ref. Returns a flat JSON array of all \
 files and directories with path, type (blob/tree), and size."""
 command = "@BIN@/content-tree"
-arg-order = ["ref"]
+arg-order = ["ref", "repo_owner_name"]
 
 [input]
 type = "object"
@@ -13,6 +13,10 @@ type = "object"
 [input.properties.ref]
 type = "string"
 description = "Branch, tag, or commit SHA (default: HEAD)"
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
 
 [annotations]
 read-only-hint = true

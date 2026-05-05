@@ -2,14 +2,31 @@ import { $ } from "zx";
 
 $.verbose = false;
 
-const [number, fields, outputFormat] = process.argv.slice(2);
+const [number, fields, outputFormat, repoOwnerName] = process.argv.slice(2);
+
+async function resolveRepo(): Promise<string> {
+  if (repoOwnerName) {
+    if (!repoOwnerName.includes("/")) {
+      console.error("ERROR: repo_owner_name must be in OWNER/NAME format");
+      process.exit(2);
+    }
+    return repoOwnerName;
+  }
+  const user = (await $`gh api /user --jq ${".login"}`).stdout.trim();
+  const name = (
+    await $`gh repo view --json name --jq ${".name"}`
+  ).stdout.trim();
+  return `${user}/${name}`;
+}
+
+const repo = await resolveRepo();
 
 const defaultFields =
   "number,title,state,stateReason,body,labels,assignees,milestone,comments,createdAt,updatedAt,url";
 const queryFields = fields || defaultFields;
 
 const raw = JSON.parse(
-  (await $`gh issue view ${number} --json ${queryFields}`).stdout,
+  (await $`gh issue view ${number} -R ${repo} --json ${queryFields}`).stdout,
 );
 
 let mime: string, text: string;

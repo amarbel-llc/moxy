@@ -3,8 +3,19 @@ set -euo pipefail
 parent="$1"
 sub="$2"
 replace_parent="${3:-}"
+repo_owner_name="${4:-}"
 
-repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  user=$(gh api /user --jq '.login')
+  name=$(gh repo view --json name --jq '.name')
+  repo="$user/$name"
+fi
 
 # sub_issue_id on the REST endpoint is the internal database id, not the
 # issue number. Resolve via the REST API rather than trusting the two to

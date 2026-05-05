@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for get-hubbed write tools. Allows when the resolved
+# owner is the gh-authenticated user or one of their orgs; asks otherwise.
+#
+# Receives: $1 = repo_owner_name (may be empty; empty defaults to self).
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+set -euo pipefail
+repo_owner_name="${1:-}"
+self=$(gh api /user --jq '.login')
+
+if [ -z "$repo_owner_name" ]; then
+  echo "owner defaulted to gh-authenticated user ($self) — auto-allowed"
+  exit 0
+fi
+
+owner="${repo_owner_name%%/*}"
+if [ "$owner" = "$self" ]; then
+  echo "owner ($owner) matches gh-authenticated user — auto-allowed"
+  exit 0
+fi
+
+if gh api /user/orgs --paginate --jq '.[].login' | grep -qx "$owner"; then
+  echo "owner ($owner) is a member org — auto-allowed"
+  exit 0
+fi
+
+echo "owner ($owner) is not in your orgs — confirmation required"
+exit 1
