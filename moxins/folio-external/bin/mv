@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-source="$1"
-destination="$2"
-mkdir -p "$(dirname "$destination")"
-mv -- "$source" "$destination"
-echo "Moved $source -> $destination"

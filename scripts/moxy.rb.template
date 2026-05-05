@@ -18,7 +18,7 @@ class Moxy < Formula
     end
   end
 
-  depends_on "coreutils"       # GNU stat (folio, folio-external)
+  depends_on "coreutils"       # GNU stat (folio)
   depends_on "gh"              # get-hubbed
   depends_on "git"             # grit
   depends_on "go"              # hamster

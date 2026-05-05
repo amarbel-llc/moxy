@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Fast file pattern matching tool that works with any codebase size. \
 Supports glob patterns like "**/*.js" or "src/**/*.ts". \
 Returns matching file paths sorted by modification time (newest first)."""
@@ -17,8 +17,14 @@ description = "The glob pattern to match files against (e.g. \"**/*.go\", \"src/
 
 [input.properties.path]
 type = "string"
-description = "The directory to search in. Defaults to current working directory. Must be within CWD."
+description = "The directory to search in. Defaults to current working directory. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
 
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 1000

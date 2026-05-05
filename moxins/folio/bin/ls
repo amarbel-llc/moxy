@@ -1,18 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-assert_within_cwd() {
-  case "$1" in /dev/fd/*) return ;; esac
-  local resolved cwd
-  resolved=$(realpath -m "$1")
-  cwd=$(realpath -m "$PWD")
-  case "$resolved" in
-    "$cwd"|"$cwd"/*) ;;
-    *) echo "path '$1' is outside CWD ($cwd). Use folio-external instead." >&2; exit 1 ;;
-  esac
-}
 dir="${1:-.}"
 flags="${2:-}"
-assert_within_cwd "$dir"
 
 if [ ! -d "$dir" ]; then
   echo "not a directory: $dir" >&2

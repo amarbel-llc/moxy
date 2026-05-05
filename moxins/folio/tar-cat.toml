@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Extract and print a single file from a tarball to stdout. \
 Use tar-list first to discover available members."""
 command = "@BIN@/tar-cat"
@@ -11,7 +11,7 @@ required = ["path", "member"]
 
 [input.properties.path]
 type = "string"
-description = "Path to the tarball (e.g. '/nix/store/...-tarball/foo.tar.gz')."
+description = "Path to the tarball. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.member]
 type = "string"
@@ -20,3 +20,9 @@ description = "Path of the member to extract (e.g. 'moxy/bin/moxy', 'moxy/share/
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 1000

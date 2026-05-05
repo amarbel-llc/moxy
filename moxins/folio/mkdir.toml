@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Create a directory and any missing parent directories. No error if the \
 directory already exists."""
 command = "@BIN@/mkdir"
@@ -12,7 +12,13 @@ required = ["path"]
 
 [input.properties.path]
 type = "string"
-description = "Directory path to create (must be within CWD)"
+description = "Directory path to create. Auto-allowed inside CWD and Claude write-allow dirs; refuses /nix/store; prompts elsewhere."
 
 [annotations]
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["write"]
+arg-order = ["path"]
+timeout-ms = 1000

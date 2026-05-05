@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
-description = """Move or rename a file or directory. Source and destination must be within CWD."""
+perms-request = "dynamic"
+description = """Move or rename a file or directory. Source is read-policy-gated; destination is write-policy-gated."""
 command = "@BIN@/mv"
 arg-order = ["source", "destination"]
 
@@ -10,11 +11,17 @@ required = ["source", "destination"]
 
 [input.properties.source]
 type = "string"
-description = "Source path (must be within CWD)"
+description = "Source path. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.destination]
 type = "string"
-description = "Destination path (must be within CWD)"
+description = "Destination path. Auto-allowed inside CWD and Claude write-allow dirs; refuses /nix/store; prompts elsewhere."
 
 [annotations]
 destructive-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["move"]
+arg-order = ["source", "destination"]
+timeout-ms = 1000

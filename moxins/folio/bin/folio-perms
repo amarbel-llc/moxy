@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for folio file ops.
+# Usage: folio-perms <op> <path1> [<path2>...]
+#
+# Op values:
+#   read         — apply read policy to all paths
+#   write        — apply write policy to all paths
+#   copy|move    — apply read policy to $2 (source), write policy to $3 (dest)
+#
+# Policy:
+#   - Path inside CWD                              → allow (read or write)
+#   - /dev/fd/* (result-URI substitution pipe)     → allow
+#   - Path inside /nix/store                       → allow read; deny write
+#   - Path inside Claude-native read dirs          → allow read
+#   - Path inside Claude-native write-allow dirs   → allow write
+#   - Anywhere else                                → ask
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+
+set -euo pipefail
+
+op="${1:-}"
+shift || true
+if [ -z "$op" ]; then
+  echo "folio-perms: op (read|write|copy|move) required" >&2
+  exit 2
+fi
+
+cwd_real=$(realpath -m "${PWD}")
+home_real=$(realpath -m "${HOME:-/}")
+uid="${UID:-$(id -u)}"
+session_tmp="${CLAUDE_CODE_TMPDIR:-}"
+[ -n "$session_tmp" ] && session_tmp=$(realpath -m "$session_tmp")
+
+# Read-allowed: any read inside any of these passes without prompting.
+# Includes the umbrella ~/.claude tree so historical sessions, config,
+# memory, plans, agents, hooks, etc. are all readable.
+read_dirs=(
+  "$cwd_real"
+  "/nix/store"
+  "${home_real}/.claude"
+  "/tmp/claude-${uid}"
+  "${home_real}/.local/log/moxy"
+)
+[ -n "$session_tmp" ] && read_dirs+=("$session_tmp")
+
+# Write-allowed: writes inside any of these pass without prompting.
+# Reads still pass via read_dirs.
+write_dirs=(
+  "$cwd_real"
+  "${home_real}/.claude/plans"
+  "${home_real}/.claude/projects"
+  "/tmp/claude-${uid}"
+)
+[ -n "$session_tmp" ] && write_dirs+=("$session_tmp")
+
+# Deny-on-write: any write into these is rejected outright (not prompted).
+# /nix/store is immutable; trying to write to it is a category error.
+deny_write_dirs=(
+  "/nix/store"
+)
+
+within_dir() {
+  local p="$1" dir="$2"
+  [ -z "$dir" ] && return 1
+  case "$p" in
+    "$dir"|"$dir"/*) return 0 ;;
+  esac
+  return 1
+}
+
+within_any() {
+  local p="$1"
+  shift
+  for dir in "$@"; do
+    [ -z "$dir" ] && continue
+    if within_dir "$p" "$dir"; then return 0; fi
+  done
+  return 1
+}
+
+resolve() {
+  local p="$1"
+  case "$p" in
+    /dev/fd/*) echo "$p"; return ;;
+  esac
+  realpath -m "$p"
+}
+
+check_read() {
+  local p="$1"
+  case "$p" in /dev/fd/*) return 0 ;; esac
+  local resolved
+  resolved=$(resolve "$p")
+  if within_any "$resolved" "${read_dirs[@]}"; then
+    return 0
+  fi
+  echo "$p resolves outside CWD/nix store/Claude dirs — confirmation required for read"
+  exit 1
+}
+
+check_write() {
+  local p="$1"
+  case "$p" in /dev/fd/*) return 0 ;; esac
+  local resolved
+  resolved=$(resolve "$p")
+  if within_any "$resolved" "${deny_write_dirs[@]}"; then
+    echo "$p is in /nix/store (immutable) — refusing write"
+    exit 2
+  fi
+  if within_any "$resolved" "${write_dirs[@]}"; then
+    return 0
+  fi
+  echo "$p resolves outside CWD/Claude write-allow dirs — confirmation required for write"
+  exit 1
+}
+
+case "$op" in
+  read)
+    for path in "$@"; do
+      [ -n "$path" ] && check_read "$path"
+    done
+    echo "all paths inside read-allowed dirs — auto-allowed"
+    exit 0
+    ;;
+  write)
+    # `paths` arg in folio.rm is a single space-separated string. Split on
+    # whitespace so each path gets independently checked.
+    for blob in "$@"; do
+      [ -z "$blob" ] && continue
+      # shellcheck disable=SC2206
+      pieces=($blob)
+      for p in "${pieces[@]}"; do
+        [ -n "$p" ] && check_write "$p"
+      done
+    done
+    echo "all paths inside write-allowed dirs — auto-allowed"
+    exit 0
+    ;;
+  copy|move)
+    [ -n "${1:-}" ] && check_read "$1"
+    [ -n "${2:-}" ] && check_write "$2"
+    echo "$op auto-allowed: source readable, dest writable"
+    exit 0
+    ;;
+  *)
+    echo "folio-perms: unknown op '$op' (want read|write|copy|move)" >&2
+    exit 2
+    ;;
+esac

@@ -1,7 +1,8 @@
 schema = 3
 result-type = "text"
-description = """Remove files or directories. Removes the specified paths within the current \
-working directory. Use force to ignore nonexistent paths, recursive to remove directories."""
+perms-request = "dynamic"
+description = """Remove files or directories. Each path is independently write-policy-gated. \
+Use force to ignore nonexistent paths, recursive to remove directories."""
 command = "@BIN@/rm"
 arg-order = ["paths", "force", "recursive"]
 
@@ -11,7 +12,7 @@ required = ["paths"]
 
 [input.properties.paths]
 type = "string"
-description = "Space-separated file or directory paths to remove (must be within CWD)"
+description = "Space-separated file or directory paths to remove. Each is auto-allowed inside CWD or Claude write-allow dirs; refuses /nix/store; prompts elsewhere."
 
 [input.properties.force]
 type = "boolean"
@@ -23,3 +24,9 @@ description = "Remove directories and their contents recursively. Default false.
 
 [annotations]
 destructive-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["write"]
+arg-order = ["paths"]
+timeout-ms = 1000

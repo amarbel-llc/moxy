@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "each-use"
+perms-request = "dynamic"
 description = """Change file mode bits on a single path. Mode is octal (\"755\") or symbolic (\"+x\", \"u+x,go-w\"). \
 No recursion — pair with folio.glob if you need to act on many paths."""
 command = "@BIN@/chmod"
@@ -12,7 +12,7 @@ required = ["path", "mode"]
 
 [input.properties.path]
 type = "string"
-description = "File or directory path. Must be within CWD."
+description = "File or directory path. Auto-allowed inside CWD and Claude write-allow dirs; refuses /nix/store; prompts elsewhere."
 
 [input.properties.mode]
 type = "string"
@@ -21,3 +21,9 @@ description = "Octal mode (e.g. \"755\", \"0644\") or symbolic mode (e.g. \"+x\"
 [annotations]
 destructive-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["write"]
+arg-order = ["path"]
+timeout-ms = 1000

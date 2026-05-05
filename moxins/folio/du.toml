@@ -1,5 +1,5 @@
 schema = 3
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Disk usage of a file or directory. Defaults to summary mode (one row per argument) and \
 does not cross filesystem boundaries. Returns JSON {path, bytes, human}; pass flags for raw du output."""
 command = "@BIN@/du"
@@ -11,7 +11,7 @@ required = ["path"]
 
 [input.properties.path]
 type = "string"
-description = "File or directory path. Must be within CWD."
+description = "File or directory path. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.flags]
 type = "string"
@@ -20,3 +20,9 @@ description = "Optional flags passed to du (e.g. \"-ah\", \"-c\"). When provided
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 1000

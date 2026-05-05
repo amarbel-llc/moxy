@@ -49,21 +49,9 @@ function folio_du_with_flags_returns_raw_text { # @test
   echo "$text" | grep -q "dir/b"
 }
 
-function folio_du_rejects_path_outside_cwd { # @test
-  mkdir -p "$HOME/project"
-  mkdir -p "$HOME/other"
-
-  cd "$HOME/project"
-
-  local params
-  params=$(jq -cn --arg n "folio.du" --arg p "$HOME/other" \
-    '{name: $n, arguments: {path: $p}}')
-  run_moxy_mcp_v1 "tools/call" "$params"
-  assert_success
-  assert_output --partial "outside CWD"
-}
-
-function folio_external_du_works_outside_cwd { # @test
+function folio_du_works_outside_cwd { # @test
+  # Native layer no longer restricts to CWD; dynamic-perms gating happens
+  # at the Claude Code hook layer (not in bats).
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
   echo "data" >"$HOME/other/file.txt"
@@ -71,7 +59,7 @@ function folio_external_du_works_outside_cwd { # @test
   cd "$HOME/project"
 
   local params
-  params=$(jq -cn --arg n "folio-external.du" --arg p "$HOME/other" \
+  params=$(jq -cn --arg n "folio.du" --arg p "$HOME/other" \
     '{name: $n, arguments: {path: $p}}')
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success

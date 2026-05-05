@@ -15,7 +15,6 @@ INSTALL_SHARE="$HOME/.local/share/moxy/moxins"
 declare -A MOXIN_DEPS=(
   ["env"]=""
   ["folio"]="jq gawk"
-  ["folio-external"]="jq gawk"
   ["freud"]="python3"
   ["grit"]="git jq"
   ["jq"]="jq"

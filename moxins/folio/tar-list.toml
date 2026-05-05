@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """List contents of a tarball (.tar.gz, .tar.bz2, .tar, etc). \
 Optionally filter entries by a grep pattern."""
 command = "@BIN@/tar-list"
@@ -11,7 +11,7 @@ required = ["path"]
 
 [input.properties.path]
 type = "string"
-description = "Path to the tarball (e.g. '/nix/store/...-tarball/foo.tar.gz')."
+description = "Path to the tarball. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.pattern]
 type = "string"
@@ -20,3 +20,9 @@ description = "Optional grep pattern to filter entries (e.g. 'bin/' or '\\.toml$
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 1000

@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Identify file type using magic bytes. Returns a human-readable \
 description (e.g. 'ELF 64-bit executable', 'Bash script, ASCII text')."""
 command = "@BIN@/file-type"
@@ -11,8 +11,14 @@ required = ["path"]
 
 [input.properties.path]
 type = "string"
-description = "Path to the file to identify (e.g. '/nix/store/...-hello/bin/hello')."
+description = "Path to the file to identify. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
 
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 1000

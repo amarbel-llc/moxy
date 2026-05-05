@@ -299,7 +299,6 @@
         conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
-        folio-external-moxin = mkMoxin "folio-external" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] {};
         # pathMode = "suffix" so user PATH wins (and can shadow gh with a
         # stub in tests).
@@ -443,7 +442,6 @@
           ln -s ${conch-moxin} $out/share/moxy/moxins/conch
           ln -s ${env-moxin} $out/share/moxy/moxins/env
           ln -s ${folio-moxin} $out/share/moxy/moxins/folio
-          ln -s ${folio-external-moxin} $out/share/moxy/moxins/folio-external
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud
           ln -s ${get-hubbed-moxin} $out/share/moxy/moxins/get-hubbed
           ln -s ${grit-moxin} $out/share/moxy/moxins/grit
@@ -631,7 +629,6 @@
           conch = mkBrewMoxin "conch";
           env = mkBrewMoxin "env";
           folio = mkBrewMoxin "folio";
-          folio-external = mkBrewMoxin "folio-external";
           freud = mkBrewMoxin "freud";
           grit = mkBrewMoxin "grit";
           jq = mkBrewMoxin "jq";

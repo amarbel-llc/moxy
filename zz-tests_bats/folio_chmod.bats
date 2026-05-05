@@ -44,26 +44,6 @@ function folio_chmod_sets_octal_mode { # @test
   [ "$mode" = "644" ]
 }
 
-function folio_chmod_rejects_path_outside_cwd { # @test
-  mkdir -p "$HOME/project"
-  mkdir -p "$HOME/other"
-  echo "data" >"$HOME/other/file.txt"
-  chmod 600 "$HOME/other/file.txt"
-
-  cd "$HOME/project"
-
-  local params
-  params=$(jq -cn --arg n "folio.chmod" --arg p "$HOME/other/file.txt" \
-    '{name: $n, arguments: {path: $p, mode: "777"}}')
-  run_moxy_mcp "tools/call" "$params"
-  assert_success
-  assert_output --partial "outside CWD"
-
-  local mode
-  mode=$(stat -c '%a' "$HOME/other/file.txt")
-  [ "$mode" = "600" ]
-}
-
 function folio_chmod_rejects_missing_path { # @test
   mkdir -p "$HOME/project"
 
@@ -77,7 +57,9 @@ function folio_chmod_rejects_missing_path { # @test
   assert_output --partial "no such file"
 }
 
-function folio_external_chmod_works_outside_cwd { # @test
+function folio_chmod_works_outside_cwd { # @test
+  # Native layer no longer restricts to CWD; dynamic-perms gating happens
+  # at the Claude Code hook layer (not in bats).
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
   echo "data" >"$HOME/other/file.txt"
@@ -86,7 +68,7 @@ function folio_external_chmod_works_outside_cwd { # @test
   cd "$HOME/project"
 
   local params
-  params=$(jq -cn --arg n "folio-external.chmod" --arg p "$HOME/other/file.txt" \
+  params=$(jq -cn --arg n "folio.chmod" --arg p "$HOME/other/file.txt" \
     '{name: $n, arguments: {path: $p, mode: "+x"}}')
   run_moxy_mcp "tools/call" "$params"
   assert_success

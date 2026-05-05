@@ -33,20 +33,6 @@ func TestParseNativeToolName(t *testing.T) {
 			wantOK: true,
 		},
 		{
-			name:   "hyphenated server",
-			input:  "mcp__moxy__folio-external_read",
-			prefix: "mcp__moxy__",
-			want:   "folio-external.read",
-			wantOK: true,
-		},
-		{
-			name:   "hyphenated server (plugin)",
-			input:  "mcp__plugin_moxy_moxy__folio-external_read",
-			prefix: "mcp__plugin_moxy_moxy__",
-			want:   "folio-external.read",
-			wantOK: true,
-		},
-		{
 			name:   "hyphenated tool",
 			input:  "mcp__moxy__just-us-agents_list-recipes",
 			prefix: "mcp__moxy__",

@@ -117,8 +117,7 @@ The following moxins ship with moxy. Each can be served individually via
 | car | 5 | Google Drive: search, list, get, and export files | bun, gws |
 | conch | 1 | Shell inspection: syntax checking and script analysis | bash |
 | env | 5 | Environment inspection: PATH binaries and env vars | — |
-| folio | 16 | File I/O scoped to current working directory | jq, coreutils |
-| folio-external | 13 | File I/O for paths outside the current working directory | jq, coreutils |
+| folio | 16 | File I/O. Auto-allows inside CWD, /nix/store, and ~/.claude tree; prompts elsewhere | jq, coreutils |
 | freud | 12 | Past Claude Code session transcripts | python3 |
 | get-hubbed | 31 | GitHub tools (defaults to current repo; pass `repo_owner_name` to target a different repo) | gh, jq, bun |
 | gmail | 2 | Gmail: triage and read messages | bun, gws |

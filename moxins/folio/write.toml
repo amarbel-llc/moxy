@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
 partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
 command = "@BIN@/write"
@@ -12,7 +12,7 @@ required = ["file_path", "content"]
 
 [input.properties.file_path]
 type = "string"
-description = "Path to the file to write (must be within CWD)"
+description = "Path to the file to write. Auto-allowed inside CWD, $CLAUDE_CODE_TMPDIR, /tmp/claude-*, ~/.claude/plans/, and ~/.claude/projects/<proj>/memory/; refuses /nix/store; prompts elsewhere."
 
 [input.properties.content]
 type = "string"
@@ -21,3 +21,9 @@ description = "The content to write to the file"
 [annotations]
 destructive-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["write"]
+arg-order = ["file_path"]
+timeout-ms = 1000

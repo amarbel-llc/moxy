@@ -1,3 +1,0 @@
-schema = 1
-name = "folio-external"
-description = "File I/O tools for paths outside the current working directory. Same tools as folio but without CWD restriction."

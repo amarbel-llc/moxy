@@ -1,5 +1,5 @@
 schema = 3
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """List directory contents with type and size metadata. Returns JSON array of entries \
 sorted alphabetically. Each entry has name, type (file/directory/symlink), and size (bytes, files only). \
 Pass flags to customize output (e.g. \"-la\" for long format with hidden files)."""
@@ -11,7 +11,7 @@ type = "object"
 
 [input.properties.path]
 type = "string"
-description = "Directory path to list. Defaults to current working directory. Must be within CWD."
+description = "Directory path to list. Defaults to current working directory. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.flags]
 type = "string"
@@ -20,3 +20,9 @@ description = "Optional flags passed to ls (e.g. \"-la\", \"-lh\"). When provide
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 1000

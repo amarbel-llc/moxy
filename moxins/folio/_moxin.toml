@@ -1,3 +1,3 @@
 schema = 1
 name = "folio"
-description = "File I/O tools scoped to the current working directory. For paths outside CWD, use folio-external."
+description = "File I/O tools. Reads auto-allow inside CWD, /nix/store, and the entire ~/.claude tree (plus /tmp/claude-*, $CLAUDE_CODE_TMPDIR, ~/.local/log/moxy). Writes auto-allow inside CWD, $CLAUDE_CODE_TMPDIR, /tmp/claude-*, ~/.claude/plans, and ~/.claude/projects. /nix/store writes are denied. Anywhere else prompts."
