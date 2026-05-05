@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for grit.tag.
+# Receives: $1 = subcommand, $2 = force (optional), $3 = delete (optional)
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+set -euo pipefail
+subcommand="${1:-}"
+force="${2:-}"
+delete="${3:-}"
+
+case "$subcommand" in
+  list|verify)
+    echo "$subcommand is read-only — auto-allowed"
+    exit 0
+    ;;
+  create)
+    if [ "$force" = "true" ]; then
+      echo "create --force replaces existing tag — confirmation required"
+      exit 1
+    fi
+    echo "create without --force — auto-allowed"
+    exit 0
+    ;;
+  push)
+    if [ "$force" = "true" ]; then
+      echo "push --force overwrites remote tag — confirmation required"
+      exit 1
+    fi
+    if [ "$delete" = "true" ]; then
+      echo "push --delete removes remote tag — confirmation required"
+      exit 1
+    fi
+    echo "regular push — auto-allowed"
+    exit 0
+    ;;
+  delete)
+    echo "delete is destructive — confirmation required"
+    exit 1
+    ;;
+  *)
+    echo "unknown subcommand ($subcommand) — confirmation required"
+    exit 1
+    ;;
+esac

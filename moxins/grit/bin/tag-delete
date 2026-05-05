@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-name="$1"
-repo="${2:-.}"
-cd "$repo"
-
-git tag -d "$name"

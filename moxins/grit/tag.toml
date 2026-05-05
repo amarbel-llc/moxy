@@ -1,0 +1,80 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+description = """Manage git tags. Subcommands: create, delete, list, push, verify. \
+The arg shape for each subcommand mirrors the corresponding `git tag` / `git push` invocation. \
+Read-only subcommands (list, verify) auto-allow; create and push without --force auto-allow; \
+create --force, push --force, push --delete, and delete prompt for confirmation."""
+command = "@BIN@/tag"
+arg-order = ["subcommand", "name", "message", "ref", "sign", "lightweight", "force", "remote", "delete", "pattern", "sort", "max_count", "contains", "repo_path"]
+
+[input]
+type = "object"
+required = ["subcommand"]
+
+[input.properties.subcommand]
+type = "string"
+enum = ["create", "delete", "list", "push", "verify"]
+description = "Tag operation: create, delete (local only), list, push (to remote), verify (signature)."
+
+[input.properties.name]
+type = "string"
+description = "Tag name (e.g. \"v0.4.4\"). Required for create, delete, push, verify; ignored by list."
+
+[input.properties.message]
+type = "string"
+description = "Tag message (create only). Required for annotated/signed tags; ignored when lightweight = true."
+
+[input.properties.ref]
+type = "string"
+description = "Commit/branch/tag to point at (create only; default HEAD)."
+
+[input.properties.sign]
+type = "boolean"
+description = "Sign the tag with the configured signing key (create only; default true). Implies an annotated tag."
+
+[input.properties.lightweight]
+type = "boolean"
+description = "Create a lightweight tag with no message or signature (create only). Mutually exclusive with sign and message."
+
+[input.properties.force]
+type = "boolean"
+description = "Replace an existing tag (create) or overwrite a remote tag (push). Triggers a confirmation prompt."
+
+[input.properties.remote]
+type = "string"
+description = "Remote name (push only; default origin)."
+
+[input.properties.delete]
+type = "boolean"
+description = "Delete the tag on the remote instead of pushing it (push only). Triggers a confirmation prompt."
+
+[input.properties.pattern]
+type = "string"
+description = "Glob to filter tag names (list only; e.g. \"v*\", \"go/v0.*\")."
+
+[input.properties.sort]
+type = "string"
+description = "Sort key passed to `git tag --sort` (list only; default `-creatordate`)."
+
+[input.properties.max_count]
+type = "integer"
+description = "Cap the number of tags returned (list only; 0 means no cap)."
+
+[input.properties.contains]
+type = "string"
+description = "Only show tags reachable from this commit/ref (list only)."
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)."
+
+[annotations]
+destructive-hint = true
+idempotent-hint = false
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/tag-perms"
+arg-order = ["subcommand", "force", "delete"]
+timeout-ms = 1000

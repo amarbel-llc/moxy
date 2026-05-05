@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+subcommand="${1:-}"
+name="${2:-}"
+message="${3:-}"
+ref="${4:-}"
+sign="${5:-}"
+lightweight="${6:-}"
+force="${7:-}"
+remote="${8:-}"
+delete="${9:-}"
+pattern="${10:-}"
+sort="${11:-}"
+max_count="${12:-}"
+contains="${13:-}"
+repo="${14:-.}"
+
+cd "$repo"
+
+require_name() {
+  if [ -z "$name" ]; then
+    echo "tag $subcommand: name is required" >&2
+    exit 2
+  fi
+}
+
+case "$subcommand" in
+  create)
+    require_name
+    if [ "$lightweight" = "true" ]; then
+      if [ -n "$message" ]; then
+        echo "tag create: lightweight tags cannot have a message" >&2
+        exit 2
+      fi
+      if [ "$sign" = "true" ]; then
+        echo "tag create: lightweight tags cannot be signed" >&2
+        exit 2
+      fi
+    fi
+
+    git_args=(tag)
+    [ "$force" = "true" ] && git_args+=(-f)
+
+    if [ "$lightweight" != "true" ]; then
+      if [ "$sign" = "false" ]; then
+        git_args+=(-a)
+      else
+        git_args+=(-s)
+      fi
+      if [ -z "$message" ]; then
+        echo "tag create: message is required for annotated/signed tags" >&2
+        exit 2
+      fi
+      git_args+=(-m "$message")
+    fi
+
+    git_args+=("$name")
+    [ -n "$ref" ] && git_args+=("$ref")
+
+    git "${git_args[@]}"
+    echo "Created tag $name"
+    ;;
+  delete)
+    require_name
+    git tag -d "$name"
+    ;;
+  list)
+    git_args=(tag --list)
+    if [ -n "$sort" ]; then
+      git_args+=(--sort "$sort")
+    else
+      git_args+=(--sort "-creatordate")
+    fi
+    [ -n "$contains" ] && git_args+=(--contains "$contains")
+    [ -n "$pattern" ] && git_args+=("$pattern")
+
+    if [ -n "$max_count" ] && [ "$max_count" != "0" ]; then
+      git "${git_args[@]}" | head -n "$max_count"
+    else
+      git "${git_args[@]}"
+    fi
+    ;;
+  push)
+    require_name
+    [ -z "$remote" ] && remote="origin"
+    git_args=(push)
+    [ "$force" = "true" ] && git_args+=(--force)
+    git_args+=("$remote")
+    if [ "$delete" = "true" ]; then
+      git_args+=(":refs/tags/$name")
+    else
+      git_args+=("refs/tags/$name")
+    fi
+    git "${git_args[@]}"
+    ;;
+  verify)
+    require_name
+    git tag -v "$name"
+    ;;
+  "")
+    echo "tag: subcommand is required (create|delete|list|push|verify)" >&2
+    exit 2
+    ;;
+  *)
+    echo "tag: unknown subcommand '$subcommand' (want create|delete|list|push|verify)" >&2
+    exit 2
+    ;;
+esac
