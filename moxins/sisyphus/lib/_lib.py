@@ -9,6 +9,12 @@ from atlassian import Jira
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "_vendor"))
 from marklas import to_adf as _marklas_to_adf, to_md as _marklas_to_md  # noqa: E402
 
+# Local sibling — `lib/` is on sys.path because each `bin/*` script inserts it
+# before `import _lib`.
+import _validate  # noqa: E402
+
+ADFValidationError = _validate.ADFValidationError
+
 # Burned in at build time by the sisyphus mkMoxin invocation in flake.nix
 # (see `extraSubstitutions = { PANDOC = …; LUA_FILTER = …; }`). At dev /
 # brew time the placeholder may remain literal; we fall back to a PATH
@@ -125,10 +131,23 @@ def md_to_adf(markdown: str) -> dict:
 
     Returns an ADF document suitable for the v3 description / comment body
     fields. Empty input yields an empty doc rather than failing the request.
+
+    On a known v3 invariant violation (see `_validate` for the rules), emits
+    the guidance message via `emit` and exits the process non-zero. The
+    intent is to fail with an actionable message before hitting Jira so the
+    calling LLM can rewrite the Markdown and retry without going around the
+    wrapper. Tests can call `_validate.validate` directly to exercise the
+    rules without the exit.
     """
     if not markdown:
         return {"version": 1, "type": "doc", "content": []}
-    return _marklas_to_adf(markdown)
+    adf = _marklas_to_adf(markdown)
+    try:
+        _validate.validate(adf)
+    except ADFValidationError as exc:
+        emit(f"sisyphus: {exc}")
+        sys.exit(1)
+    return adf
 
 
 def adf_to_md(value):
