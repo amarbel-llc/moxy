@@ -18,8 +18,6 @@ if summary:
     fields["summary"] = summary
 if description:
     fields["description"] = _lib.md_to_adf(description)
-if assignee:
-    fields["assignee"] = {"id": assignee}
 if labels:
     parsed = _lib.parse_argv_list(labels)
     if isinstance(parsed, list):
@@ -29,11 +27,17 @@ if labels:
 if issuetype:
     fields["issuetype"] = {"name": issuetype}
 
-if not fields:
+if not fields and not assignee:
     _lib.emit(f"No fields to update on {issue_key}")
     sys.exit(0)
 
 jira = _lib.make_client()
+if assignee:
+    # v3's fields.assignee documents the JSON key as `id` (with the value
+    # being an accountId). The dedicated /assignee endpoint uses `accountId`,
+    # but that's a different path. See:
+    # https://developer.atlassian.com/cloud/jira/platform/deprecation-notice-user-privacy-api-migration-guide/#issue
+    fields["assignee"] = {"id": _lib.resolve_assignee(jira, assignee)}
 jira.update_issue_field(issue_key, fields)
 
 if output_format == "json":

@@ -126,6 +126,47 @@ def parse_argv_list(value):
     return value
 
 
+def resolve_assignee(jira, value: str) -> str:
+    """Resolve a user-facing assignee string to a Jira accountId.
+
+    Accepts:
+      - "@me" or "me" → resolved via `/rest/api/3/myself`.
+      - email-shaped (contains "@") → resolved via `/rest/api/3/user/search`
+        with the value as the query string.
+      - anything else → returned verbatim (assumed to already be an accountId).
+
+    The `/myself` lookup is cached on the `jira` client to avoid repeated
+    round-trips for back-to-back `@me` calls in the same process — short-lived
+    moxin processes mean this only matters across multiple resolves in one
+    invocation.
+
+    On lookup failure, raises `ValueError` with a sisyphus-friendly message.
+    """
+    if value in ("@me", "me"):
+        cached = getattr(jira, "_sisyphus_myself_cache", None)
+        if cached is None:
+            cached = jira.myself()
+            jira._sisyphus_myself_cache = cached
+        return cached["accountId"]
+    if "@" in value:
+        results = jira.user_find_by_user_string(query=value) or []
+        if not results:
+            msg = (
+                f"sisyphus: assignee {value!r} did not match any Jira user. "
+                f"Pass an accountId, an email registered with Jira, or '@me'."
+            )
+            raise ValueError(msg)
+        if len(results) > 1:
+            names = ", ".join(r.get("displayName", "?") for r in results[:5])
+            msg = (
+                f"sisyphus: assignee {value!r} matched {len(results)} Jira "
+                f"users ({names}). Pass a more specific email or an accountId."
+            )
+            raise ValueError(msg)
+        return results[0]["accountId"]
+    return value
+
+
 def md_to_adf(markdown: str) -> dict:
     """Convert a Markdown string to an Atlassian Document Format dict.
 

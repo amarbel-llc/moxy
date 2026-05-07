@@ -30,17 +30,16 @@ if labels:
         fields["labels"] = [str(l).strip() for l in parsed]
     else:
         fields["labels"] = [l.strip() for l in parsed.split(",")]
-if assignee:
-    if assignee == "@me":
-        jira = _lib.make_client()
-        me = jira.myself()
-        fields["assignee"] = {"accountId": me["accountId"]}
-    else:
-        fields["assignee"] = {"id": assignee}
 if parent:
     fields["parent"] = {"key": parent}
 
 jira = _lib.make_client()
+if assignee:
+    # v3's fields.assignee documents the JSON key as `id` (with the value
+    # being an accountId). The dedicated /assignee endpoint uses `accountId`,
+    # but that's a different path. See:
+    # https://developer.atlassian.com/cloud/jira/platform/deprecation-notice-user-privacy-api-migration-guide/#issue
+    fields["assignee"] = {"id": _lib.resolve_assignee(jira, assignee)}
 result = jira.create_issue(fields=fields)
 
 if output_format == "json":

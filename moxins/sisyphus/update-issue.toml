@@ -22,7 +22,7 @@ description = "New description"
 
 [input.properties.assignee]
 type = "string"
-description = "Assignee email or account ID"
+description = "Assignee email or account ID. Use '@me' to self-assign"
 
 [input.properties.labels]
 type = "string"
