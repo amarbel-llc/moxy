@@ -70,15 +70,21 @@ For ephemeral servers, re-probes capabilities.
 For moxins, re-discovers the moxin's TOML from
 .Ev MOXIN_PATH
 and rebuilds the in-process server.
+.Pp
+Omit
+.Li server
+to reload everything: re-read the moxyfile hierarchy and
+.Ev MOXIN_PATH ,
+close every running child, re-spawn subprocess servers, rebuild moxin
+servers, re-probe ephemeral, and emit one
+.Li tools/list_changed .
+.Pp
 Annotated with
 .Li destructiveHint: true ;
 clients prompt the user before each invocation.
-After
-.Li restart ,
-moxy emits
-.Li notifications/tools/list_changed ,
-but Claude Code does not propagate it to the active conversation's
-system prompt \(em see
+Claude Code does not propagate
+.Li tools/list_changed
+to the active conversation's system prompt \(em see
 .Xr moxy-restart 7
 for the workaround
 .Pq /mcp \(-> Reconnect .

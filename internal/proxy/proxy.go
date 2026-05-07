@@ -26,6 +26,24 @@ type MoxinReloader interface {
 	ReloadMoxin(name string) (*native.NativeConfig, error)
 }
 
+// BootstrapResult is the data Bootstrapper returns: the freshly-spawned
+// child set, failed-startup list, active server configs, and the global
+// ephemeral default. Reload uses this to wholesale-replace the proxy's
+// running state.
+type BootstrapResult struct {
+	Children      []ChildEntry
+	Failed        []FailedServer
+	ActiveServers []config.ServerConfig
+	Ephemeral     *bool
+}
+
+// Bootstrapper produces a fresh BootstrapResult from the moxyfile hierarchy
+// and MOXIN_PATH. Implementations live in cmd/moxy and re-spawn subprocess
+// children + rebuild moxin children on every call.
+type Bootstrapper interface {
+	Bootstrap(ctx context.Context) (*BootstrapResult, error)
+}
+
 var debugLogger *log.Logger
 
 func init() {
@@ -110,6 +128,7 @@ type Proxy struct {
 	notifier                    func(*jsonrpc.Message) error
 	sessionID                   string
 	moxinReloader               MoxinReloader
+	bootstrapper                Bootstrapper
 	mu                          sync.RWMutex
 }
 
@@ -140,6 +159,10 @@ func (p *Proxy) SetSessionID(id string) {
 
 func (p *Proxy) SetMoxinReloader(r MoxinReloader) {
 	p.moxinReloader = r
+}
+
+func (p *Proxy) SetBootstrapper(b Bootstrapper) {
+	p.bootstrapper = b
 }
 
 func (p *Proxy) SetPavedPaths(paths []config.PavedPathConfig) {
@@ -1175,6 +1198,10 @@ func (p *Proxy) GetPromptV1(
 
 // HandleRestart is the dispatch entrypoint for the `restart` builtin tool.
 // Exported so cmd/moxy can register it via the builtin tool registry.
+//
+// With params.Server set: per-server restart (subprocess re-spawn or moxin
+// re-discovery). With params.Server empty / omitted: full reload — re-read
+// the moxyfile hierarchy and MOXIN_PATH, replace every running child.
 func (p *Proxy) HandleRestart(
 	ctx context.Context,
 	args json.RawMessage,
@@ -1182,13 +1209,24 @@ func (p *Proxy) HandleRestart(
 	var params struct {
 		Server string `json:"server"`
 	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("invalid restart args: %v", err),
-		), nil
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &params); err != nil {
+			return protocol.ErrorResultV1(
+				fmt.Sprintf("invalid restart args: %v", err),
+			), nil
+		}
 	}
 	if params.Server == "" {
-		return protocol.ErrorResultV1("server name is required"), nil
+		if err := p.Reload(ctx); err != nil {
+			return protocol.ErrorResultV1(
+				fmt.Sprintf("reload failed: %v", err),
+			), nil
+		}
+		return &protocol.ToolCallResultV1{
+			Content: []protocol.ContentBlockV1{
+				{Type: "text", Text: "Reloaded moxyfile hierarchy and MOXIN_PATH."},
+			},
+		}, nil
 	}
 	if err := p.restartServer(ctx, params.Server); err != nil {
 		return protocol.ErrorResultV1(
@@ -1200,6 +1238,61 @@ func (p *Proxy) HandleRestart(
 			{Type: "text", Text: fmt.Sprintf("Server %q restarted successfully", params.Server)},
 		},
 	}, nil
+}
+
+// Reload re-reads the moxyfile hierarchy and MOXIN_PATH via the configured
+// Bootstrapper, then wholesale-replaces the running child set, configs,
+// ephemeral metadata, and failed list. Closes every existing child before
+// installing the new ones. Re-probes ephemeral and emits one
+// notifications/tools/list_changed when finished.
+//
+// On bootstrap failure, the existing state is left intact and the error is
+// returned to the caller.
+func (p *Proxy) Reload(ctx context.Context) error {
+	if p.bootstrapper == nil {
+		return fmt.Errorf("bootstrapper not configured (cannot reload)")
+	}
+
+	res, err := p.bootstrapper.Bootstrap(ctx)
+	if err != nil {
+		return fmt.Errorf("bootstrap: %w", err)
+	}
+
+	// Build new configs + ephemeral maps from the fresh result.
+	newConfigs := make(map[string]config.ServerConfig, len(res.ActiveServers))
+	newEphemeral := make(map[string]*EphemeralMeta)
+	for _, cfg := range res.ActiveServers {
+		newConfigs[cfg.Name] = cfg
+		if cfg.IsEphemeral(res.Ephemeral) {
+			newEphemeral[cfg.Name] = &EphemeralMeta{Config: cfg}
+		}
+	}
+
+	p.mu.Lock()
+	oldChildren := p.children
+	p.children = res.Children
+	p.failed = res.Failed
+	p.configs = newConfigs
+	p.ephemeral = newEphemeral
+	p.globalEphemeral = res.Ephemeral
+	p.mu.Unlock()
+
+	// Close old children outside the lock so a slow Close doesn't block
+	// concurrent readers. Native servers Close as a no-op; subprocess
+	// children may take longer.
+	for _, c := range oldChildren {
+		_ = c.Client.Close()
+	}
+
+	// Wire notification forwarding on the new child set.
+	for _, c := range res.Children {
+		c.Client.SetOnNotification(p.ForwardNotification)
+	}
+
+	p.ProbeEphemeral(ctx)
+
+	p.notifyToolsChanged()
+	return nil
 }
 
 func (p *Proxy) HandlePavedPaths(args map[string]any) string {

@@ -342,28 +342,24 @@ func runServer(app *command.App, mode transportMode) error {
 	}
 	defer stderrlog.Rotate()
 
-	hierarchy, err := config.LoadDefaultHierarchy()
-	if err != nil {
-		return err
-	}
-
-	cfg := hierarchy.Merged
-
-	for _, srv := range cfg.Servers {
-		if srv.Name == "" {
-			return fmt.Errorf("server has no name")
-		}
-		if srv.Command.IsEmpty() && !srv.IsHTTP() {
-			return fmt.Errorf("server %q has no command or url", srv.Name)
-		}
-	}
-
-	credStore := credentials.NewStore(cfg.Credentials)
+	// Resolve a session ID for native server cache scoping.
+	// Fallback chain: CLAUDE_SESSION_ID > SPINCLASS_SESSION_ID > generated UUID.
+	sessionID, sessionSource := resolveSessionID()
+	fmt.Fprintf(os.Stderr, "moxy: session %s (from %s)\n", sessionID, sessionSource)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// connectServer handles both stdio and HTTP servers.
+	// Build the credential store from a one-shot config read so the connect
+	// closure has its dependencies resolved up front. Reload re-reads the
+	// hierarchy on each call but the credential store is stable for the
+	// process lifetime.
+	hierarchyForCreds, err := config.LoadDefaultHierarchy()
+	if err != nil {
+		return err
+	}
+	credStore := credentials.NewStore(hierarchyForCreds.Merged.Credentials)
+
 	connectServer := func(ctx context.Context, srvCfg config.ServerConfig) (proxy.ServerBackend, *protocol.InitializeResultV1, error) {
 		if srvCfg.IsHTTP() {
 			return connectHTTPServer(ctx, srvCfg, credStore)
@@ -372,134 +368,23 @@ func runServer(app *command.App, mode transportMode) error {
 		return mcpclient.SpawnAndInitialize(ctx, srvCfg.Name, exe, args)
 	}
 
-	// Filter out disabled [[servers]] entries before spawning. Disabled
-	// servers stay in cfg.Servers for collision-set purposes (a disabled
-	// server name still blocks a same-named moxin from squatting), but
-	// activeServers is what the proxy actually drives — ephemeral and
-	// non-ephemeral both.
-	disableServers := cfg.BuildDisableServerSet()
-	var activeServers []config.ServerConfig
-	for _, srvCfg := range cfg.Servers {
-		if disableServers.ServerDisabled(srvCfg.Name) {
-			fmt.Fprintf(os.Stderr, "moxy: skipping server %q (disabled by moxyfile)\n", srvCfg.Name)
-			continue
-		}
-		activeServers = append(activeServers, srvCfg)
-	}
-
-	var children []proxy.ChildEntry
-	var failed []proxy.FailedServer
-	for _, srvCfg := range activeServers {
-		if srvCfg.IsEphemeral(cfg.Ephemeral) {
-			fmt.Fprintf(os.Stderr, "moxy: %s configured as ephemeral (on-demand)\n", srvCfg.Name)
-			continue
-		}
-
-		client, result, err := connectServer(ctx, srvCfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "moxy: failed to start %s: %v\n", srvCfg.Name, err)
-			failed = append(failed, proxy.FailedServer{
-				Name:  srvCfg.Name,
-				Error: err.Error(),
-			})
-			continue
-		}
-
-		children = append(children, proxy.ChildEntry{
-			Client:       client,
-			Config:       srvCfg,
-			Capabilities: result.Capabilities,
-			ServerInfo:   result.ServerInfo,
-			Instructions: result.Instructions,
-		})
-
-		fmt.Fprintf(os.Stderr, "moxy: connected to %s (%s %s)\n",
-			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
-	}
-
-	// Discover moxins from MOXIN_PATH.
-	// Moxin configs are additive — moxyfile servers win on name collision.
-	var systemDir string
-	if cfg.BuiltinNative == nil || *cfg.BuiltinNative {
-		systemDir = native.SystemMoxinDir()
-		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native enabled, systemDir=%q\n", systemDir)
-	} else {
-		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native DISABLED (cfg.BuiltinNative=%v)\n", *cfg.BuiltinNative)
-	}
-
 	moxinPath := os.Getenv("MOXIN_PATH")
-	fmt.Fprintf(os.Stderr, "moxy: bootstrap: MOXIN_PATH=%q\n", moxinPath)
-	nativeConfigs, err := native.DiscoverConfigs(moxinPath, systemDir)
+
+	bootInputs := bootstrapInputs{
+		moxinPath: moxinPath,
+		sessionID: sessionID,
+		connect:   connectServer,
+	}
+
+	bootRes, err := bootstrap(ctx, bootInputs)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: warning: moxin discovery: %v\n", err)
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "moxy: bootstrap: discovered %d moxin configs\n", len(nativeConfigs))
-	for i, nc := range nativeConfigs {
-		fmt.Fprintf(os.Stderr, "moxy: bootstrap:   [%d] name=%q tools=%d source=%q\n", i, nc.Name, len(nc.Tools), nc.SourceDir)
-		for j, t := range nc.Tools {
-			fmt.Fprintf(os.Stderr, "moxy: bootstrap:     tool[%d] %q (cmd=%q)\n", j, t.Name, t.Command)
-		}
-	}
-
-	existingNames := make(map[string]bool)
-	for _, c := range children {
-		existingNames[c.Config.Name] = true
-	}
-	for _, f := range failed {
-		existingNames[f.Name] = true
-	}
-	for _, s := range cfg.Servers {
-		existingNames[s.Name] = true
-	}
-	fmt.Fprintf(os.Stderr, "moxy: bootstrap: existing server names (collision set): %v\n", existingNames)
-
-	disableSet := cfg.BuildDisableMoxinSet()
-
-	for _, nc := range nativeConfigs {
-		if existingNames[nc.Name] {
-			fmt.Fprintf(os.Stderr, "moxy: skipping moxin %q (name collision with moxyfile server)\n", nc.Name)
-			continue
-		}
-		if disableSet.ServerDisabled(nc.Name) {
-			fmt.Fprintf(os.Stderr, "moxy: skipping moxin %q (disabled by moxyfile)\n", nc.Name)
-			continue
-		}
-
-		// Filter individual disabled tools.
-		filtered := nc.Tools[:0]
-		for _, t := range nc.Tools {
-			if disableSet.ToolDisabled(nc.Name, t.Name) {
-				fmt.Fprintf(os.Stderr, "moxy: disabling tool %s.%s (disabled by moxyfile)\n", nc.Name, t.Name)
-				continue
-			}
-			filtered = append(filtered, t)
-		}
-		nc.Tools = filtered
-
-		srv := native.NewServer(nc)
-		initResult := srv.InitializeResult()
-		hasCaps := initResult.Capabilities.Tools != nil
-		fmt.Fprintf(os.Stderr, "moxy: bootstrap: moxin %q initResult.Capabilities.Tools=%v (hasCaps=%v)\n", nc.Name, initResult.Capabilities.Tools, hasCaps)
-		children = append(children, proxy.ChildEntry{
-			Client:       srv,
-			Config:       config.ServerConfig{Name: nc.Name},
-			Capabilities: initResult.Capabilities,
-			ServerInfo:   initResult.ServerInfo,
-			Instructions: nc.Description,
-		})
-		fmt.Fprintf(os.Stderr, "moxy: registered moxin %s (%d tools)\n", nc.Name, len(nc.Tools))
-	}
-	fmt.Fprintf(os.Stderr, "moxy: bootstrap: total children after moxin registration: %d\n", len(children))
-
-	// Resolve a session ID for native server cache scoping.
-	// Fallback chain: CLAUDE_SESSION_ID > SPINCLASS_SESSION_ID > generated UUID.
-	sessionID, sessionSource := resolveSessionID()
-	for _, c := range children {
-		if ns, ok := c.Client.(*native.Server); ok {
-			ns.SetSession(sessionID)
-		}
-	}
-	fmt.Fprintf(os.Stderr, "moxy: session %s (from %s)\n", sessionID, sessionSource)
+	cfg := bootRes.cfg
+	children := bootRes.children
+	failed := bootRes.failed
+	activeServers := bootRes.activeServers
+	systemDir := bootRes.systemDir
 
 	p := proxy.New(children, failed, activeServers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
 	p.SetResultReader(native.NewResultReader())
@@ -508,6 +393,11 @@ func runServer(app *command.App, mode transportMode) error {
 		moxinPath: moxinPath,
 		systemDir: systemDir,
 	})
+	// Capture systemDir from the first bootstrap so reload uses the same
+	// resolved value (cfg.BuiltinNative may flip; we still want the same
+	// system dir until the user opts out).
+	bootInputs.systemDir = systemDir
+	p.SetBootstrapper(&bootstrapperImpl{inputs: bootInputs})
 
 	builtinRegistry := server.NewToolRegistryV1()
 	app.RegisterMCPToolsV1(builtinRegistry)
@@ -533,8 +423,8 @@ func runServer(app *command.App, mode transportMode) error {
 	builtinRegistry.Register(
 		protocol.ToolV1{
 			Name:        "restart",
-			Description: "Restart a configured child server or moxin by name. Re-reads the moxin's TOML from MOXIN_PATH; re-spawns subprocess servers. Permission-gated (destructive).",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server or moxin name to restart"}},"required":["server"]}`),
+			Description: "Restart a configured child server or moxin by name. Omit `server` to reload the moxyfile hierarchy and MOXIN_PATH and rebuild every running child. Permission-gated (destructive). Note: Claude Code does not refresh the active conversation's tool list on notifications/tools/list_changed; follow with /mcp -> Reconnect to update the system prompt. See moxy-restart(7).",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server or moxin name. Omit to reload everything."}}}`),
 			Annotations: &protocol.ToolAnnotations{
 				ReadOnlyHint:    boolPtr(false),
 				DestructiveHint: boolPtr(true),

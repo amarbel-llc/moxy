@@ -11,9 +11,10 @@ meta tool, and the Claude Code system-prompt limitation
 injects a
 .Li restart
 meta tool into the unified MCP server.
-Calling
-.Li restart{server: "<name>"}
-restarts a configured child by name:
+The tool has two forms:
+.Bl -tag -width "restart{}"
+.It Li "restart{server: \"<name>\"}"
+Restart one configured child by name:
 .Bl -bullet -offset indent -compact
 .It
 For persistent subprocess servers, closes and re-spawns the process.
@@ -25,6 +26,19 @@ For
 (native) servers, re-discovers the moxin's TOML from
 .Ev MOXIN_PATH
 and rebuilds the in-process server.
+.El
+.It Li "restart{}"
+Reload everything.
+Re-reads the moxyfile hierarchy and
+.Ev MOXIN_PATH ,
+closes every running child, re-spawns every subprocess server, rebuilds
+every moxin server, re-probes ephemeral metadata, and emits one
+.Li tools/list_changed .
+Picks up
+.Li disable-moxins
+edits, new
+.Li [[servers]]
+entries, and removed entries.
 .El
 .Pp
 After every successful restart,
@@ -86,7 +100,9 @@ This is an upstream Claude Code bug, not a moxy bug.
 .It
 Call
 .Li restart{server: "<name>"}
-to reload the moxin or re-spawn the subprocess child.
+to reload one moxin / subprocess child, or
+.Li restart{}
+to reload everything.
 .It
 Run
 .Li /mcp
@@ -122,10 +138,21 @@ Stdio MCP process recycling regression in
 which is a separate issue moxy users may also encounter.
 .El
 .Sh MOXY-SIDE VERIFICATION
-The notification is exercised in
+Per-server restart is exercised in
 .Li internal/proxy/proxy_test.go
 .Pq TestRestartMoxinSwapsChildAndNotifies
+and the bats tests in
+.Pa zz-tests_bats/restart.bats .
+Full-reload
+.Li restart{}
+is exercised by
+.Pq TestReloadSwapsAllChildrenAndNotifies ,
+.Pq TestHandleRestartEmptyServerCallsReload ,
+and bats tests
+.Pq restart_no_server_reloads_all
 and
+.Pq restart_no_server_then_tool_call_works .
+SSE-side propagation is covered by
 .Li zz-tests_bats/streamable_http.bats
 .Pq sse_receives_list_changed_after_restart .
 A standalone POC
