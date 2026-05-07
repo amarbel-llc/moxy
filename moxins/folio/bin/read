@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-file="$1"
-awk '{printf "%6d\t%s\n", NR, $0}' "$file"

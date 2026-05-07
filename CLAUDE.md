@@ -160,19 +160,21 @@ via `buildBunBinaries`. See `moxins/chix/src/flake-*.ts`, `flake-show.ts`,
 
 ### Folio (File I/O Tools)
 
-Native server (`.moxy/servers/folio.toml`) providing file read/write operations
-via inline shell commands. No separate binary.
+Folio moxin providing filesystem orientation and mutation tools via wrapped
+shell commands. File reading and writing are deliberately delegated to the
+host harness (Claude Code's built-in `Read`/`Write`); folio fills the
+orientation gap.
 
 **Tools:**
 
-- `read` -- read an entire file with line numbers. Large files (>2000 lines)
-  return a head+tail summary; use `read_range` for specific sections.
-- `read_range` -- read an inclusive line range from a file.
-- `read_excluding` -- read a file with an inclusive line range omitted.
+- `tree` -- recursive directory listing in tree(1) format (ASCII or JSON).
+  Depth-limited and pre-excludes common noise (`.git`, `node_modules`, etc.)
+  so the common case is useful without flags.
+- `ls` -- single-level directory listing with type and size metadata.
 - `glob` -- find files matching a glob pattern. Supports `**` for recursive
   matching. Results sorted by modification time (newest first).
-- `write` -- create or overwrite a file (atomic write via tempfile+rename,
-  creates parent directories, preserves permissions of existing files).
+- `mkdir`, `mv`, `cp`, `rm`, `chmod`, `du`, `file-type`, `mktemp`,
+  `tar-list`, `tar-cat` -- standard fs ops, each gated by `bin/folio-perms`.
 
 ### Plugin Assets (Monitors, Skills, Hooks)
 

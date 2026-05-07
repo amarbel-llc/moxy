@@ -321,8 +321,8 @@ func evalDynamicForHook(spec *native.DynamicPermsSpec, toolInput map[string]any)
 // parseNativeToolName strips the given prefix and converts the remainder
 // to "server.tool" form. For example:
 //
-//	"mcp__moxy__folio_read"                → "folio.read"
-//	"mcp__plugin_moxy_moxy__folio_read"    → "folio.read"
+//	"mcp__moxy__folio_ls"                → "folio.ls"
+//	"mcp__plugin_moxy_moxy__folio_ls"    → "folio.ls"
 //
 // Server names may contain hyphens but not underscores or dots, so the first
 // underscore after the prefix separates server name from tool name.

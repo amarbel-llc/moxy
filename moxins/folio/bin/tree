@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="${1:-.}"
+depth="${2:-3}"
+show_hidden="${3:-false}"
+dirs_only="${4:-false}"
+exclude_extra="${5:-}"
+follow_symlinks="${6:-false}"
+json="${7:-false}"
+
+if [ ! -d "$path" ]; then
+  echo "not a directory: $path" >&2
+  exit 1
+fi
+
+# Sensible defaults so the common case is useful without flags.
+default_exclude='.git|node_modules|target|dist|.venv|build|.direnv|vendor'
+if [ -n "$exclude_extra" ]; then
+  exclude="${default_exclude}|${exclude_extra}"
+else
+  exclude="$default_exclude"
+fi
+
+args=()
+# 0 = unlimited; tree treats absence of -L as unlimited.
+if [ "$depth" != "0" ]; then
+  args+=("-L" "$depth")
+fi
+[ "$show_hidden"     = "true" ] && args+=("-a")
+[ "$dirs_only"       = "true" ] && args+=("-d")
+[ "$follow_symlinks" = "true" ] && args+=("-l")
+[ "$json"            = "true" ] && args+=("-J")
+args+=("-I" "$exclude")
+
+text=$(tree "${args[@]}" -- "$path")
+if [ "$json" = "true" ]; then
+  mime="application/json"
+else
+  mime="text/plain"
+fi
+
+jq -cn --arg text "$text" --arg mime "$mime" \
+  '{content:[{type:"text",text:$text,mimeType:$mime}]}'

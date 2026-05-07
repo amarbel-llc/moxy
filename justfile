@@ -68,7 +68,7 @@ test-smoke-claude-p: build-nix
   moxin_path="{{justfile_directory()}}/result/share/moxy/moxins"
   workdir=$(mktemp -d)
   trap 'rm -rf "$workdir"' EXIT
-  echo "SMOKE_TEST_CANARY_7f3a" > "$workdir/canary.txt"
+  touch "$workdir/SMOKE_TEST_CANARY_7f3a.txt"
   cat >"$workdir/mcp.json" <<MCPEOF
   {
     "mcpServers": {
@@ -86,14 +86,14 @@ test-smoke-claude-p: build-nix
   disallowed+=",CronCreate,CronDelete,CronList,Skill"
   disallowed+=",TaskCreate,TaskUpdate,TaskGet,TaskList,TaskOutput,TaskStop"
   cd "$workdir"
-  result=$(echo "Read the file canary.txt using the folio.read MCP tool. Print its exact contents. You have NO builtin tools — only MCP tools from moxy." | \
+  result=$(echo "List the current directory using the folio.tree MCP tool. Print the resulting tree exactly. You have NO builtin tools — only MCP tools from moxy." | \
     timeout 60s claude -p \
       --dangerously-skip-permissions \
       --mcp-config "$workdir/mcp.json" \
       --disallowedTools "$disallowed" \
       2>/dev/null) || true
   if echo "$result" | grep -q "SMOKE_TEST_CANARY_7f3a"; then
-    echo "ok: claude -p read canary file via moxy MCP tool"
+    echo "ok: claude -p found canary file via moxy MCP tool"
   else
     echo "FAIL: canary content not found in claude -p output" >&2
     echo "--- output ---" >&2

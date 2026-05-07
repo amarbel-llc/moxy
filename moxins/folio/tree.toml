@@ -1,0 +1,49 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+description = """Recursive directory listing in tree(1) format. Returns an ASCII tree (default) \
+or JSON. Depth-limited to keep output bounded; defaults exclude common noise dirs \
+(.git, node_modules, target, dist, .venv, build, .direnv, vendor)."""
+command = "@BIN@/tree"
+arg-order = ["path", "depth", "show_hidden", "dirs_only", "exclude", "follow_symlinks", "json"]
+
+[input]
+type = "object"
+
+[input.properties.path]
+type = "string"
+description = "Directory to walk. Defaults to current working directory. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+
+[input.properties.depth]
+type = "integer"
+description = "Maximum recursion depth (tree -L). Defaults to 3. 0 means unlimited."
+
+[input.properties.show_hidden]
+type = "boolean"
+description = "Include dotfiles (tree -a). Defaults to false."
+
+[input.properties.dirs_only]
+type = "boolean"
+description = "Only list directories (tree -d). Defaults to false."
+
+[input.properties.exclude]
+type = "string"
+description = "Pipe-separated glob patterns to prune (tree -I). Appended to the default exclude list (.git|node_modules|target|dist|.venv|build|.direnv|vendor)."
+
+[input.properties.follow_symlinks]
+type = "boolean"
+description = "Follow symlinked directories (tree -l). Defaults to false."
+
+[input.properties.json]
+type = "boolean"
+description = "Emit JSON (tree -J) instead of ASCII. Defaults to false."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 1000

@@ -31,10 +31,10 @@ the context window on a 10,000-line `git log`. Truncation warnings are explicit
 so agents never mistake partial output for complete output.
 
 **Composable result URIs.** The `moxy.native://` URIs are first-class across
-moxin tools. A `folio.read` call can take the URI from a previous `rg.search`
-result as its file path; a `jq.jq` call can take one as stdin. Moxy rewrites
-these to file descriptors at invocation time, so tools chain without the agent
-needing to copy data between calls.
+moxin tools. A `jq.jq` call can take one as stdin; tools that accept a path
+argument can be pointed at the URI directly. Moxy rewrites these to file
+descriptors at invocation time, so tools chain without the agent needing to
+copy data between calls.
 
 **Declarative tool authoring.** Moxins are TOML files — a manifest plus one file
 per tool. Each tool file declares its name, description, input schema, command,
@@ -45,7 +45,7 @@ code.
 **Permission control.** Each moxin tool can declare a `perms-request` field:
 `always-allow` (skip confirmation), `each-use` (always prompt), or
 `delegate-to-client` (let the client decide). This lets read-only tools like
-`folio.read` run without interrupting the agent, while destructive tools like
+`folio.tree` run without interrupting the agent, while destructive tools like
 `grit.push` require explicit approval.
 
 **Unified discovery.** Agents see all tools from all servers through a single MCP
