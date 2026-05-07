@@ -1,0 +1,143 @@
+.Dd May 7, 2026
+.Dt MOXY-RESTART 7
+.Os
+.Sh NAME
+.Nm moxy-restart
+.Nd the
+.Li restart
+meta tool, and the Claude Code system-prompt limitation
+.Sh DESCRIPTION
+.Xr moxy 1
+injects a
+.Li restart
+meta tool into the unified MCP server.
+Calling
+.Li restart{server: "<name>"}
+restarts a configured child by name:
+.Bl -bullet -offset indent -compact
+.It
+For persistent subprocess servers, closes and re-spawns the process.
+.It
+For ephemeral servers, re-probes capabilities.
+.It
+For
+.Xr moxin 7
+(native) servers, re-discovers the moxin's TOML from
+.Ev MOXIN_PATH
+and rebuilds the in-process server.
+.El
+.Pp
+After every successful restart,
+.Nm moxy
+emits a JSON-RPC
+.Li notifications/tools/list_changed
+notification on every open SSE stream, per the MCP spec
+.Pq 2025-11-25 .
+.Pp
+The tool is annotated with
+.Li destructiveHint: true
+so MCP clients that surface annotations
+.Pq Claude Code does
+prompt the user before each invocation.
+.Sh CLAUDE CODE LIMITATION
+.Ss Symptom
+After a successful
+.Li restart ,
+moxy's runtime tool registry reflects the new tool surface and
+.Li tools/call
+dispatches correctly.
+The Claude Code session's system-prompt tool list, however,
+.Em does not change ,
+even across new user turns within the same session.
+Tool descriptions, additions, and removals are invisible to the model
+until the user takes one of the workarounds below.
+.Ss What does refresh
+.Bl -tag -width "/mcp \(-> Reconnect"
+.It Restart the Claude Code session entirely
+Boot reads
+.Li tools/list
+fresh and rebuilds the system prompt.
+.It Li /mcp \(-> Reconnect
+The
+.Li /mcp
+slash command exposes a per-server reconnect action that tears down and
+re-establishes the MCP client connection.
+This triggers a fresh
+.Li initialize
+plus
+.Li tools/list ,
+and propagates the result into the active conversation's tool surface
+.Em and
+system prompt.
+This is the recommended workflow after calling moxy's
+.Li restart .
+.El
+.Ss What does not refresh
+.Bl -tag -width "list_changed"
+.It Li notifications/tools/list_changed
+Claude Code's MCP SDK layer parses the notification and refreshes its
+internal cache, but the active conversation's tool surface is captured
+in a closure at session start and is not propagated when the cache
+updates.
+This is an upstream Claude Code bug, not a moxy bug.
+.El
+.Ss Recommended workflow
+.Bl -enum -compact
+.It
+Call
+.Li restart{server: "<name>"}
+to reload the moxin or re-spawn the subprocess child.
+.It
+Run
+.Li /mcp
+in the Claude Code TUI.
+.It
+Select the moxy entry, then choose
+.Em Reconnect .
+.El
+.Pp
+After this, the model's tool surface reflects the post-restart state.
+.Sh UPSTREAM REFERENCES
+.Bl -tag -width "anthropics/claude-code#XXXXX" -compact
+.It anthropics/claude-code#4118
+Original feature request
+.Pq open since 2025-07 ;
+partial fix in 2.1.0 advertised in CHANGELOG; community follow-up
+confirms the active-conversation propagation is still missing.
+.It anthropics/claude-code#50515
+Same-server A/B confirming
+.Li resources/list_changed
+works while
+.Li tools/list_changed
+is dropped on stdio MCP, with
+.Li v2.1.113
+repro.
+.It anthropics/claude-code#50339
+Bytecode-level walkthrough of the gated SDK handler in Claude Desktop
+.Pq directMcpHost.js
+showing why the notification never propagates.
+.It anthropics/claude-code#51507
+Stdio MCP process recycling regression in
+.Li v2.1.107+ ,
+which is a separate issue moxy users may also encounter.
+.El
+.Sh MOXY-SIDE VERIFICATION
+The notification is exercised in
+.Li internal/proxy/proxy_test.go
+.Pq TestRestartMoxinSwapsChildAndNotifies
+and
+.Li zz-tests_bats/streamable_http.bats
+.Pq sse_receives_list_changed_after_restart .
+A standalone POC
+.Pa zz-pocs/list-changed/serve.ts
+isolates the wire-level behavior from moxy.
+.Sh SEE ALSO
+.Xr moxy 1 ,
+.Xr moxin 7 ,
+.Xr moxyfile 5
+.Sh AUTHORS
+.An -nosplit
+This page documents Claude Code behavior observed by moxy maintainers in
+2026-05.
+File issues at
+.Lk https://github.com/amarbel-llc/moxy/issues .

@@ -64,9 +64,24 @@ Resources and resource templates use a slash separator:
 injects two built-in tools into the unified server:
 .Bl -tag -width "exec-mcp"
 .It restart
-Restart a configured child server by name.
+Restart a configured child server or moxin by name.
 For persistent servers, closes and re-spawns the process.
 For ephemeral servers, re-probes capabilities.
+For moxins, re-discovers the moxin's TOML from
+.Ev MOXIN_PATH
+and rebuilds the in-process server.
+Annotated with
+.Li destructiveHint: true ;
+clients prompt the user before each invocation.
+After
+.Li restart ,
+moxy emits
+.Li notifications/tools/list_changed ,
+but Claude Code does not propagate it to the active conversation's
+system prompt \(em see
+.Xr moxy-restart 7
+for the workaround
+.Pq /mcp \(-> Reconnect .
 .It exec-mcp
 Invoke a tool on a named child server directly, bypassing the
 normal namespaced dispatch.
@@ -136,4 +151,5 @@ See
 .Sh SEE ALSO
 .Xr moxin 7 ,
 .Xr moxy-hooks 5 ,
+.Xr moxy-restart 7 ,
 .Xr moxyfile 5

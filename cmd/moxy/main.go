@@ -503,6 +503,11 @@ func runServer(app *command.App, mode transportMode) error {
 
 	p := proxy.New(children, failed, activeServers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
 	p.SetResultReader(native.NewResultReader())
+	p.SetSessionID(sessionID)
+	p.SetMoxinReloader(&moxinReloaderImpl{
+		moxinPath: moxinPath,
+		systemDir: systemDir,
+	})
 
 	builtinRegistry := server.NewToolRegistryV1()
 	app.RegisterMCPToolsV1(builtinRegistry)
@@ -524,6 +529,18 @@ func runServer(app *command.App, mode transportMode) error {
 				Content: []protocol.ContentBlockV1{{Type: "text", Text: text}},
 			}, nil
 		},
+	)
+	builtinRegistry.Register(
+		protocol.ToolV1{
+			Name:        "restart",
+			Description: "Restart a configured child server or moxin by name. Re-reads the moxin's TOML from MOXIN_PATH; re-spawns subprocess servers. Permission-gated (destructive).",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server or moxin name to restart"}},"required":["server"]}`),
+			Annotations: &protocol.ToolAnnotations{
+				ReadOnlyHint:    boolPtr(false),
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		p.HandleRestart,
 	)
 	p.SetBuiltinTools(builtinRegistry)
 
@@ -750,6 +767,56 @@ func sanitizeSessionSegment(s string) string {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// moxinReloaderImpl implements proxy.MoxinReloader. It re-reads the
+// moxyfile hierarchy on each call so manual `disable-moxins` edits and
+// `[[servers]]` collisions made between proxy boot and the restart call
+// are honored.
+type moxinReloaderImpl struct {
+	moxinPath string
+	systemDir string
+}
+
+func (r *moxinReloaderImpl) ReloadMoxin(name string) (*native.NativeConfig, error) {
+	hierarchy, err := config.LoadDefaultHierarchy()
+	if err != nil {
+		return nil, fmt.Errorf("re-loading moxyfile hierarchy: %w", err)
+	}
+	cfg := hierarchy.Merged
+
+	for _, srv := range cfg.Servers {
+		if srv.Name == name {
+			return nil, fmt.Errorf("name %q is owned by a [[servers]] entry, not a moxin", name)
+		}
+	}
+
+	disable := cfg.BuildDisableMoxinSet()
+	if disable.ServerDisabled(name) {
+		return nil, fmt.Errorf("moxin %q is disabled by moxyfile", name)
+	}
+
+	configs, err := native.DiscoverConfigs(r.moxinPath, r.systemDir)
+	if err != nil {
+		return nil, fmt.Errorf("discovering moxins: %w", err)
+	}
+
+	for _, nc := range configs {
+		if nc.Name != name {
+			continue
+		}
+		filtered := nc.Tools[:0]
+		for _, t := range nc.Tools {
+			if disable.ToolDisabled(nc.Name, t.Name) {
+				continue
+			}
+			filtered = append(filtered, t)
+		}
+		nc.Tools = filtered
+		return nc, nil
+	}
+
+	return nil, fmt.Errorf("moxin %q not found in MOXIN_PATH or system moxin dir", name)
+}
 
 var (
 	_ server.ToolProviderV1     = (*proxy.Proxy)(nil)

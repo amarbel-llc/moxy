@@ -15,8 +15,16 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
 	"github.com/amarbel-llc/moxy/internal/config"
+	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/paginate"
 )
+
+// MoxinReloader re-discovers a single moxin's config by name from the
+// configured MOXIN_PATH / system moxin dir. Implementations live in
+// cmd/moxy.
+type MoxinReloader interface {
+	ReloadMoxin(name string) (*native.NativeConfig, error)
+}
 
 var debugLogger *log.Logger
 
@@ -100,6 +108,8 @@ type Proxy struct {
 	pavedPaths                  []config.PavedPathConfig
 	pavedPathState              *pavedPathState
 	notifier                    func(*jsonrpc.Message) error
+	sessionID                   string
+	moxinReloader               MoxinReloader
 	mu                          sync.RWMutex
 }
 
@@ -122,6 +132,14 @@ func (p *Proxy) SetResultReader(rr ResultReader) {
 
 func (p *Proxy) SetBuiltinTools(registry *server.ToolRegistryV1) {
 	p.builtinTools = registry
+}
+
+func (p *Proxy) SetSessionID(id string) {
+	p.sessionID = id
+}
+
+func (p *Proxy) SetMoxinReloader(r MoxinReloader) {
+	p.moxinReloader = r
 }
 
 func (p *Proxy) SetPavedPaths(paths []config.PavedPathConfig) {
@@ -687,10 +705,6 @@ func (p *Proxy) ListToolsV1(
 		}
 	}
 
-	// NOTE: restart tool disabled — kept in code but not listed.
-	// The handleRestart path in CallToolV1 is still reachable if called
-	// directly, but agents won't discover it via tools/list.
-
 	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
@@ -703,10 +717,6 @@ func (p *Proxy) CallToolV1(
 	debugLog("CallToolV1 path hit for tool %q", name)
 	if p.builtinTools != nil && p.hasBuiltinTool(name) {
 		return p.builtinTools.CallToolV1(ctx, name, args)
-	}
-
-	if name == "restart" {
-		return p.handleRestart(ctx, args)
 	}
 
 	p.mu.RLock()
@@ -1163,7 +1173,9 @@ func (p *Proxy) GetPromptV1(
 
 // --- helpers ---
 
-func (p *Proxy) handleRestart(
+// HandleRestart is the dispatch entrypoint for the `restart` builtin tool.
+// Exported so cmd/moxy can register it via the builtin tool registry.
+func (p *Proxy) HandleRestart(
 	ctx context.Context,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
@@ -1284,6 +1296,13 @@ func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]pro
 
 func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 	debugLog("restartServer %s", serverName)
+
+	// Moxin (native) servers: live in p.children but not in p.configs.
+	// Detect by ChildEntry.Client type and re-discover via MoxinReloader.
+	if p.isMoxinChild(serverName) {
+		return p.restartMoxin(serverName)
+	}
+
 	cfg, ok := p.configs[serverName]
 	if !ok {
 		return fmt.Errorf("unknown server %q", serverName)
@@ -1336,6 +1355,67 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 
 	p.notifyToolsChanged()
 
+	return nil
+}
+
+func (p *Proxy) isMoxinChild(serverName string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for _, c := range p.children {
+		if c.Client.Name() != serverName {
+			continue
+		}
+		if _, ok := c.Client.(*native.Server); ok {
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+func (p *Proxy) restartMoxin(serverName string) error {
+	if p.moxinReloader == nil {
+		return fmt.Errorf("moxin reloader not configured (cannot restart %q)", serverName)
+	}
+
+	nc, err := p.moxinReloader.ReloadMoxin(serverName)
+	if err != nil {
+		p.markFailed(serverName, err)
+		return fmt.Errorf("re-discovering moxin %s: %w", serverName, err)
+	}
+
+	srv := native.NewServer(nc)
+	if p.sessionID != "" {
+		srv.SetSession(p.sessionID)
+	}
+	srv.SetOnNotification(p.ForwardNotification)
+	initResult := srv.InitializeResult()
+
+	p.mu.Lock()
+	for i, c := range p.children {
+		if c.Client.Name() == serverName {
+			debugLog("restartMoxin closing old %s", serverName)
+			c.Client.Close()
+			p.children = append(p.children[:i], p.children[i+1:]...)
+			break
+		}
+	}
+	for i, f := range p.failed {
+		if f.Name == serverName {
+			p.failed = append(p.failed[:i], p.failed[i+1:]...)
+			break
+		}
+	}
+	p.children = append(p.children, ChildEntry{
+		Client:       srv,
+		Config:       config.ServerConfig{Name: nc.Name},
+		Capabilities: initResult.Capabilities,
+		ServerInfo:   initResult.ServerInfo,
+		Instructions: nc.Description,
+	})
+	p.mu.Unlock()
+
+	p.notifyToolsChanged()
 	return nil
 }
 

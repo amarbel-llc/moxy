@@ -11,7 +11,7 @@ teardown() {
   teardown_test_home
 }
 
-function restart_tool_not_listed { # @test
+function restart_tool_listed_with_destructive_hint { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF
 [[servers]]
@@ -20,11 +20,14 @@ command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
 EOF
 
   cd "$HOME/repo"
-  run_moxy_mcp tools/list
+  # V1 protocol (2025-11-25) preserves tool annotations; V0 strips them.
+  run_moxy_mcp_v1 tools/list
   assert_success
-  # restart tool is disabled — should not appear in tools/list
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"restart\")'"
-  assert_failure
+  # restart tool is now listed, gated by destructiveHint annotation so
+  # MCP clients prompt the user before each invocation.
+  echo "$output" | jq -e '.tools[] | select(.name == "restart")'
+  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .annotations.destructiveHint == true'
+  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .annotations.readOnlyHint == false'
 }
 
 function restart_running_server_succeeds { # @test
@@ -105,4 +108,50 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   echo "$output" | jq -e '.tools[] | select(.name == "broken.status")'
+}
+
+function restart_moxin_succeeds { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
+name = "greeter"
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
+description = "Say hello"
+command = "echo"
+args = ["-n", "hello world"]
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  run_moxy_mcp tools/call '{"name":"restart","arguments":{"server":"greeter"}}'
+  assert_success
+  echo "$output" | jq -e '.content[0].text | test("restarted successfully")'
+}
+
+function restart_moxin_then_tool_call_works { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/greeter"
+  cat >"$moxin_dir/greeter/_moxin.toml" <<'EOF'
+schema = 1
+name = "greeter"
+EOF
+  cat >"$moxin_dir/greeter/hello.toml" <<'EOF'
+schema = 1
+description = "Say hello"
+command = "echo"
+args = ["-n", "hello world"]
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  run_moxy_mcp_two \
+    tools/call '{"name":"restart","arguments":{"server":"greeter"}}' \
+    tools/call '{"name":"greeter.hello"}'
+  assert_success
+  assert_output --partial "hello world"
 }

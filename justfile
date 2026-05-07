@@ -5,10 +5,20 @@ default: build test test-status-clean-env
 dev: build-go
   zx bin/dev.mjs
 
-# Start moxy over Streamable HTTP, wait for /healthz, then launch interactive claude.
-# Moxy is killed when claude exits.
-serve-http port="8080": build-go
-  zx bin/serve-http.mjs --port {{port}}
+# Start moxy over streamable-HTTP on an OS-assigned ephemeral port via the
+# clown-plugin-protocol handshake (man clown-plugin-protocol(7)), generate
+# `.tmp/.mcp.json` pointing at it, and drop into $SHELL. Moxy is killed
+# when the shell exits.
+serve-http: build-go
+  zx bin/serve-http.mjs
+
+# POC: launch the list-changed POC MCP server (zz-pocs/list-changed/serve.ts)
+# on an ephemeral port via the clown-plugin-protocol handshake, generate
+# `.tmp/.mcp.json` pointing at it, and drop into $SHELL. Use to validate
+# whether Claude Code refreshes its tool registry on
+# `notifications/tools/list_changed`. POC is killed on shell exit.
+serve-poc-list-changed:
+  zx bin/serve-poc-list-changed.mjs
 
 build: build-go build-nix
 

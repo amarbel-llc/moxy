@@ -1,12 +1,113 @@
 package proxy
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/amarbel-llc/moxy/internal/config"
+	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 )
+
+type fakeMoxinReloader struct {
+	cfg *native.NativeConfig
+	err error
+}
+
+func (f *fakeMoxinReloader) ReloadMoxin(name string) (*native.NativeConfig, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.cfg, nil
+}
+
+func TestRestartMoxinSwapsChildAndNotifies(t *testing.T) {
+	original := native.NewServer(&native.NativeConfig{
+		Name:        "fixture",
+		Description: "fixture moxin (original)",
+		Tools:       []native.ToolSpec{{Name: "v1", Description: "first version"}},
+	})
+
+	var notified int
+	p := &Proxy{
+		children: []ChildEntry{{Client: original, Config: config.ServerConfig{Name: "fixture"}}},
+		notifier: func(msg *jsonrpc.Message) error {
+			notified++
+			return nil
+		},
+	}
+	p.SetSessionID("test-session")
+	p.SetMoxinReloader(&fakeMoxinReloader{
+		cfg: &native.NativeConfig{
+			Name:        "fixture",
+			Description: "fixture moxin (reloaded)",
+			Tools: []native.ToolSpec{
+				{Name: "v1", Description: "first version"},
+				{Name: "v2", Description: "added by reload"},
+			},
+		},
+	})
+
+	if err := p.restartServer(context.Background(), "fixture"); err != nil {
+		t.Fatalf("restartServer: %v", err)
+	}
+
+	if notified != 1 {
+		t.Errorf("expected 1 tools/listChanged notification, got %d", notified)
+	}
+
+	if len(p.children) != 1 {
+		t.Fatalf("expected 1 child after restart, got %d", len(p.children))
+	}
+	swapped, ok := p.children[0].Client.(*native.Server)
+	if !ok {
+		t.Fatalf("expected swapped child to be *native.Server, got %T", p.children[0].Client)
+	}
+	if swapped == original {
+		t.Error("expected restartServer to install a fresh *native.Server, not reuse the original")
+	}
+	if swapped.Name() != "fixture" {
+		t.Errorf("expected swapped server name fixture, got %q", swapped.Name())
+	}
+	if got := p.children[0].Instructions; got != "fixture moxin (reloaded)" {
+		t.Errorf("expected instructions to come from reloaded config, got %q", got)
+	}
+}
+
+func TestRestartMoxinReloaderError(t *testing.T) {
+	original := native.NewServer(&native.NativeConfig{Name: "fixture"})
+
+	p := &Proxy{
+		children: []ChildEntry{{Client: original, Config: config.ServerConfig{Name: "fixture"}}},
+	}
+	p.SetMoxinReloader(&fakeMoxinReloader{err: errors.New("disk on fire")})
+
+	err := p.restartServer(context.Background(), "fixture")
+	if err == nil {
+		t.Fatal("expected error from restartServer when reloader fails")
+	}
+	if !strings.Contains(err.Error(), "disk on fire") {
+		t.Errorf("expected error to wrap reloader error, got %v", err)
+	}
+}
+
+func TestRestartMoxinNoReloaderConfigured(t *testing.T) {
+	original := native.NewServer(&native.NativeConfig{Name: "fixture"})
+
+	p := &Proxy{
+		children: []ChildEntry{{Client: original, Config: config.ServerConfig{Name: "fixture"}}},
+	}
+
+	err := p.restartServer(context.Background(), "fixture")
+	if err == nil {
+		t.Fatal("expected error when no MoxinReloader is configured")
+	}
+	if !strings.Contains(err.Error(), "moxin reloader") {
+		t.Errorf("expected error to mention moxin reloader, got %v", err)
+	}
+}
 
 func TestNotifyToolsChangedCallsNotifier(t *testing.T) {
 	var called int

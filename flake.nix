@@ -142,6 +142,7 @@
           cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
           cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
           cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
+          cp ${./cmd/moxy/moxy-restart.7} $out/share/man/man7/moxy-restart.7
           MANPATH=$out/share/man mandb --no-purge --create $out/share/man
         '';
 
@@ -745,6 +746,7 @@
           cp ${./cmd/moxy/moxyfile.5} $staging/share/man/man5/moxyfile.5
           cp ${./cmd/moxy/moxy-hooks.5} $staging/share/man/man5/moxy-hooks.5
           cp ${./cmd/moxy/moxin.7} $staging/share/man/man7/moxin.7
+          cp ${./cmd/moxy/moxy-restart.7} $staging/share/man/man7/moxy-restart.7
 
           mkdir -p $out
           tar -czf $out/moxy-${os}-${arch}.tar.gz -C $TMPDIR moxy
