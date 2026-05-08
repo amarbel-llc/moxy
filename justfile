@@ -42,15 +42,23 @@ build-nix: build-gomod2nix
 
 dir_build := "build"
 
-test: test-go test-bats test-validate-mcp test-status test-flake-check
+test: test-go test-bats test-bats-net_cap test-validate-mcp test-status test-flake-check
 
 # Run the bats integration suite inside the nix build sandbox via
 # `nix build .#bats-default`. The default lane filters
-# `!net_cap,!host_only` — tests that need loopback binding or host-only
-# paths get their own targets (test-bats-tag net_cap, etc.). See #249
-# for why we don't run bats through batman/sandcastle anymore.
+# `!net_cap,!host_only` — tests that need loopback binding (net_cap)
+# get covered by `test-bats-net_cap`; host_only is reserved for
+# tests that need host paths and runs only via `test-bats-tag
+# host_only`. See #249 for why we don't run bats through
+# batman/sandcastle anymore.
 test-bats:
   nix build .#bats-default --no-link --print-build-logs
+
+# Run the loopback-binding lane (streamable_http.bats). Verifies that
+# moxy serve-http binding to 127.0.0.1 still works inside the nix build
+# sandbox.
+test-bats-net_cap:
+  nix build .#bats-net_cap --no-link --print-build-logs
 
 # Validates the flake's structural outputs (packages.* are derivations,
 # devShells eval, etc). Runs last so the nix store cache is already warm
