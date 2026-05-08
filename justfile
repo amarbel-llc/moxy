@@ -145,6 +145,9 @@ test-validate-mcp: build-go
   name = "test"
   command = ["bash", "{{justfile_directory()}}/zz-tests_bats/test-fixtures/tool-server.bash"]
   EOF
+  # Moxy fails startup if the .default madder store is missing; init one
+  # at $HOME so walking up from $HOME/repo finds it.
+  (cd "$HOME" && madder init .default >/dev/null 2>&1)
   cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
