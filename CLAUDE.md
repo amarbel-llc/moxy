@@ -19,13 +19,17 @@ just build-go         # go build only -> build/{moxy,maneater}
 just build-nix        # nix build (runs gomod2nix first)
 just test             # all tests (go + bats + validate-mcp + status)
 just test-go          # go vet + go test
-just test-bats        # bats integration tests (builds first)
+just test-bats        # bats integration tests (default lane: nix sandbox)
+just test-bats-net_cap  # loopback-binding lane (streamable_http.bats)
 
 # Single Go test
 go test ./internal/config/... -v -run TestParse
 
-# Single bats test file
-just test-bats-file moxyfile_hierarchy.bats
+# Single bats test file (raw bats against ./build/moxy, no nix-sandbox rebuild)
+just test-bats-dev moxyfile_hierarchy.bats
+
+# Single tag's lane via the nix sandbox (e.g. grit, folio, host_only)
+just test-bats-tag grit
 ```
 
 After changing Go dependencies: `just build-gomod2nix` to regenerate
@@ -228,12 +232,17 @@ embedding generation.
 - `run_moxy_mcp_two` sends two method calls in one session (for testing restart,
   etc.)
 - **Bats tests for moxin scripts must invoke the nix-built binary**, not the raw
-  source. Point `BIN` at `$BATS_TEST_DIRNAME/../result/share/moxy/moxins/<name>/bin/`,
-  not `$BATS_TEST_DIRNAME/../moxins/<name>/bin/`. Source scripts are committed
-  mode `100644` and assume deps come from ambient PATH — only the nix wrapper
-  has `+x` and the correct dep PATH. The wrapper appends (does not replace)
-  PATH, so tests can still prepend shadow binaries like a `gh` stub. Built via
-  the `test-bats` recipe's `build-go` → `build-moxins` dependency chain.
+  source. Inside the nix sandbox lanes, the binary is supplied via env vars
+  (`MOXY_BIN`, `MADDER_BIN`, `GRIT_BIN`, `FREUD_BIN`, …) populated by
+  `mkBatsLane`'s `binaries` map. For devshell ad-hoc runs (`just test-bats-dev`),
+  point at `$BATS_TEST_DIRNAME/../result/share/moxy/moxins/<name>/bin/`. Source
+  scripts are committed mode `100644` and assume deps come from ambient PATH —
+  only the nix wrapper has `+x` and the correct dep PATH. The wrapper appends
+  (does not replace) PATH, so tests can still prepend shadow binaries like a
+  `gh` stub. Tests run inside the nix build sandbox via
+  `pkgs.testers.batsLane`; per-tag flake outputs (`bats-folio`, `bats-grit`,
+  `bats-default`, …) are auto-discovered from `# bats file_tags=` directives
+  in each `.bats` file. See `flake.nix`'s `mkBatsLane`.
 - The justfile sets `output-format = "tap"` for TAP output from just itself
 - Embedding tests in `internal/embedding/` require `MANPAGE_MODEL_PATH` env var
   pointing to the nomic GGUF model; they are skipped otherwise
