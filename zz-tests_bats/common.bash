@@ -17,18 +17,42 @@ fi
 
 run_moxy() {
   _ensure_madder_default_store
-  run timeout --preserve-status "5s" moxy "$@"
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
+  run timeout --preserve-status "5s" bash -c 'cd "$1"; shift; moxy "$@"' \
+    -- "$moxy_cwd" "$@"
 }
 
-# Ensure a `.default` madder blob store exists in the current working
-# directory (or an ancestor — madder walks up to find `.madder/`). Moxy
-# fails startup if the store is missing, so every helper that spawns
-# `moxy serve mcp` calls this first. Idempotent: skipped when the store
-# already resolves.
+# Ensure a `.default` madder blob store exists at the per-test $HOME
+# (set up by setup_test_home). Each bats test gets its own $HOME, so
+# initializing the store there gives every test its own store — no
+# cross-test sharing or init races even with `bats --jobs N`.
+#
+# Madder walks up from CWD looking for `.madder/`, so any cd inside
+# $HOME (e.g. `cd "$HOME/repo"`, `cd "$HOME/project"`) still resolves
+# the same store. Moxy aborts startup if the store is missing, so
+# every helper that spawns `moxy serve mcp` calls this first.
 _ensure_madder_default_store() {
-  if ! madder info-repo .default >/dev/null 2>&1; then
-    madder init .default >/dev/null 2>&1
+  [[ -d ${HOME:-} ]] || return 0
+  local store_dir="$HOME/.madder/local/share/blob_stores/default"
+  [[ -d $store_dir ]] && return 0
+  (cd "$HOME" && madder init .default >/dev/null 2>&1) || true
+  return 0
+}
+
+# Resolve the directory to spawn moxy from. Prefers the caller's CWD
+# when it's inside $HOME (so tests that cd into $HOME/repo for
+# moxyfile lookups still work), else falls back to $HOME so madder's
+# walk-up finds the per-test .default store there.
+_moxy_spawn_dir() {
+  if [[ -z ${HOME:-} ]]; then
+    echo "$PWD"
+    return
   fi
+  case "$PWD" in
+    "$HOME"|"$HOME"/*) echo "$PWD" ;;
+    *) echo "$HOME" ;;
+  esac
 }
 
 # Send a JSON-RPC initialize handshake followed by a method call, capture the
@@ -48,9 +72,11 @@ run_moxy_mcp() {
     method_req=$(jq -cn --arg m "$method" '{"jsonrpc":"2.0","id":2,"method":$m}')
   fi
 
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
-    -- "$init" "$initialized" "$method_req"
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
+    -- "$moxy_cwd" "$init" "$initialized" "$method_req"
 }
 
 # Send two method calls in one session, capture the second result in $output.
@@ -77,9 +103,11 @@ run_moxy_mcp_two() {
     req2=$(jq -cn --arg m "$method2" '{"jsonrpc":"2.0","id":3,"method":$m}')
   fi
 
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 1; echo "$4"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
-    -- "$init" "$initialized" "$req1" "$req2"
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 1; echo "$5"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
+    -- "$moxy_cwd" "$init" "$initialized" "$req1" "$req2"
 }
 
 # Like run_moxy but captures stderr separately for checking log messages.
@@ -101,9 +129,11 @@ run_moxy_mcp_with_stderr() {
   local stderr_file
   stderr_file=$(mktemp)
 
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>"$4" | jq -c "select(.id == 2) | .result" | head -1' \
-    -- "$init" "$initialized" "$method_req" "$stderr_file"
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 2) | moxy serve mcp 2>"$5" | jq -c "select(.id == 2) | .result" | head -1' \
+    -- "$moxy_cwd" "$init" "$initialized" "$method_req" "$stderr_file"
 
   MOXY_STDERR=$(cat "$stderr_file")
   rm -f "$stderr_file"
@@ -131,7 +161,10 @@ run_moxy_mcp_v1() {
   gate=$(mktemp -u)
   mkfifo "$gate"
 
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c '
+    cd "$5"
     gate="$4"
     {
       echo "$1"
@@ -148,7 +181,7 @@ run_moxy_mcp_v1() {
         echo "$line" | jq -c ".result"
       fi
     done
-  ' -- "$init" "$initialized" "$method_req" "$gate"
+  ' -- "$init" "$initialized" "$method_req" "$gate" "$moxy_cwd"
 
   rm -f "$gate"
 }
@@ -160,9 +193,11 @@ run_moxy_mcp_init() {
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
 
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    '(echo "$1"; echo "$2"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 1) | .result" | head -1' \
-    -- "$init" "$initialized"
+    'cd "$1"; (echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 1) | .result" | head -1' \
+    -- "$moxy_cwd" "$init" "$initialized"
 }
 
 # --- Streamable HTTP helpers ----------------------------------------------
@@ -177,7 +212,9 @@ start_moxy_http() {
   MOXY_HTTP_STDOUT=$(mktemp)
   MOXY_HTTP_STDERR=$(mktemp)
 
-  moxy serve-http >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
+  (cd "$moxy_cwd" && moxy serve-http) >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
   MOXY_HTTP_PID=$!
 
   local line addr i

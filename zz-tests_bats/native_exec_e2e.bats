@@ -28,10 +28,6 @@ EOF
 
   export MOXIN_PATH="$moxin_dir"
   cd "$HOME/project"
-  # Per-test madder default store. run_moxy_mcp also auto-inits one,
-  # but pinning CWD here keeps both moxy invocations on the same store
-  # so a digest written in one resolves in the next.
-  madder init .default >/dev/null 2>&1 || true
 }
 
 teardown() {

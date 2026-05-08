@@ -134,6 +134,8 @@ EOF
   # Select the path first, then call the stage tool, then list tools — three calls
   # run_moxy_mcp_two only sends two method calls. Use a three-message pipeline directly.
   _ensure_madder_default_store
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
   local select_req
@@ -144,8 +146,8 @@ EOF
   list_req=$(jq -cn '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}')
 
   run timeout --preserve-status "15s" bash -c \
-    '(echo "$1"; echo "$2"; echo "$3"; sleep 1; echo "$4"; sleep 1; echo "$5"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 4) | .result" | head -1' \
-    -- "$init" "$initialized" "$select_req" "$stage_tool_req" "$list_req"
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 1; echo "$5"; sleep 1; echo "$6"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 4) | .result" | head -1' \
+    -- "$moxy_cwd" "$init" "$initialized" "$select_req" "$stage_tool_req" "$list_req"
 
   assert_success
   # After completing the only stage, path is complete — all tools should be visible
