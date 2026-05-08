@@ -31,10 +31,13 @@
       inputs.utils.follows = "utils";
     };
 
-    # amarbel-llc/bats provides batman (the bats wrapper, used in the
-    # devshell) and bats-libs (the bundled library tree consumed by
-    # mkBatsLane's batsLibPath). Used to come via amarbel-llc/bob, but
-    # bob was dropped — moxy doesn't depend on anything else it ships.
+    # amarbel-llc/bats provides bats-libs (the bundled library tree
+    # consumed by mkBatsLane's batsLibPath). It used to also provide
+    # batman (the sandcastle-wrapping bats wrapper) for the devshell,
+    # but #249 moved bats execution into the nix sandbox — the devshell
+    # uses pkgs.bats directly now. Used to come via amarbel-llc/bob,
+    # but bob was dropped — moxy doesn't depend on anything else it
+    # shipped.
     bats = {
       url = "github:amarbel-llc/bats";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -672,16 +675,14 @@
             # into a separate `man` output.
             pkgs.coreutils-full
             pkgs.jq
-            bats.packages.${system}.batman
+            # Vanilla bats — we used to pull bats.packages.${system}.batman
+            # (the sandcastle-wrapping wrapper), but #249 moved the suite
+            # to pkgs.testers.batsLane (`just test-bats`). Devshell needs
+            # only the raw bats binary now, for `just test-bats-dev`.
+            pkgs.bats
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default
           ];
-          # sandcastle needs macOS system binaries (sandbox-exec, which) that
-          # live in /usr/bin. Nix devshells don't include /usr/bin on PATH by
-          # default. See bob#98.
-          shellHook = ''
-            export PATH="$PATH:/usr/bin"
-          '';
         };
       }
     ));

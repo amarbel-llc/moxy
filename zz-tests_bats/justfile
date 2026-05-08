@@ -4,26 +4,21 @@ bats_timeout := "30"
 # Halve job count vs. num_cpus() so child-server startup contention doesn't
 # starve individual tests past their per-test timeout.
 bats_jobs := `n=$(nproc 2>/dev/null || sysctl -n hw.ncpu); echo $((n / 2 > 0 ? n / 2 : 1))`
-bin_dir := ""
 
-# --allow-local-binding is required for streamable_http.bats (moxy
-# serve-http binds an ephemeral port on 127.0.0.1). The relaxation is
-# local-only and does not weaken sandcastle's external-network denial.
-#
-# --allow-unix-sockets is required for any bun-based moxin under test —
-# Bun's async spawn (and therefore zx's `await $`) uses socketpair(AF_UNIX)
-# internally for child IPC, which sandcastle's seccomp filter otherwise
-# blocks (EPERM "failed to spawn process"). See #223.
-_bats_args := "--allow-local-binding --allow-unix-sockets" + if bin_dir != "" { " --bin-dir " + bin_dir } else { "" }
+# This justfile is the in-tree iteration entrypoint for raw bats. The
+# nix-sandbox lanes (`just test-bats`, `just test-bats-tag <tag>` at
+# the repo root) are the canonical CI path; this exists for ad-hoc
+# devshell runs against ./build/moxy. See top-level justfile's
+# `test-bats-dev` recipe for the env-var setup the lane mirrors.
 
 test-targets *targets="*.bats":
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
   PARALLEL_HOME="$(mktemp -d)" \
-    bats {{_bats_args}} --jobs {{bats_jobs}} {{targets}}
+    bats --jobs {{bats_jobs}} {{targets}}
 
 test-tags *tags:
   BATS_TEST_TIMEOUT="{{bats_timeout}}" \
   PARALLEL_HOME="$(mktemp -d)" \
-    bats {{_bats_args}} --jobs {{bats_jobs}} --filter-tags {{tags}} *.bats
+    bats --jobs {{bats_jobs}} --filter-tags {{tags}} *.bats
 
 test: (test-targets "*.bats")
