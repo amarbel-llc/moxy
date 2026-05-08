@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source="$1"
+target="$2"
+symbolic="${3:-true}"
+force="${4:-false}"
+
+flags=()
+[[ "$symbolic" == "true" ]] && flags+=(-s)
+[[ "$force" == "true" ]] && flags+=(-f)
+
+mkdir -p "$(dirname "$target")"
+ln "${flags[@]}" -- "$source" "$target"
+echo "Linked $target -> $source"

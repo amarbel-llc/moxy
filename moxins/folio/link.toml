@@ -1,0 +1,36 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+description = """Create a symbolic or hard link. Source is read-policy-gated; target is write-policy-gated. \
+Defaults to symbolic (matches `ln -s`)."""
+command = "@BIN@/link"
+arg-order = ["source", "target", "symbolic", "force"]
+
+[input]
+type = "object"
+required = ["source", "target"]
+
+[input.properties.source]
+type = "string"
+description = "Path the link points at. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+
+[input.properties.target]
+type = "string"
+description = "Path to create. Auto-allowed inside CWD and Claude write-allow dirs ($CLAUDE_CODE_TMPDIR, /tmp/claude-*, ~/.claude/plans/, ~/.claude/projects/); refuses /nix/store; prompts elsewhere."
+
+[input.properties.symbolic]
+type = "boolean"
+description = "Create a symbolic link (default true). Set false for a hard link."
+
+[input.properties.force]
+type = "boolean"
+description = "Replace target if it already exists (-f). Default false."
+
+[annotations]
+destructive-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["link"]
+arg-order = ["source", "target"]
+timeout-ms = 1000

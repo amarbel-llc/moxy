@@ -6,6 +6,7 @@
 #   read         — apply read policy to all paths
 #   write        — apply write policy to all paths
 #   copy|move    — apply read policy to $2 (source), write policy to $3 (dest)
+#   link         — apply read policy to $2 (source), write policy to $3 (target)
 #
 # Policy:
 #   - Path inside CWD                              → allow (read or write)
@@ -26,7 +27,7 @@ set -euo pipefail
 op="${1:-}"
 shift || true
 if [ -z "$op" ]; then
-  echo "folio-perms: op (read|write|copy|move) required" >&2
+  echo "folio-perms: op (read|write|copy|move|link) required" >&2
   exit 2
 fi
 
@@ -145,14 +146,14 @@ case "$op" in
     echo "all paths inside write-allowed dirs — auto-allowed"
     exit 0
     ;;
-  copy|move)
+  copy|move|link)
     [ -n "${1:-}" ] && check_read "$1"
     [ -n "${2:-}" ] && check_write "$2"
     echo "$op auto-allowed: source readable, dest writable"
     exit 0
     ;;
   *)
-    echo "folio-perms: unknown op '$op' (want read|write|copy|move)" >&2
+    echo "folio-perms: unknown op '$op' (want read|write|copy|move|link)" >&2
     exit 2
     ;;
 esac
