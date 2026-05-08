@@ -31,11 +31,29 @@ if [ -z "$op" ]; then
   exit 2
 fi
 
-cwd_real=$(realpath -m "${PWD}")
-home_real=$(realpath -m "${HOME:-/}")
+# Capture every invocation so we can investigate odd reasons (e.g. paths
+# that resolve to '//' or empty strings) after the fact. Best-effort: any
+# error here is swallowed via `|| true`. Disable with FOLIO_PERMS_TRACE=0.
+if [ "${FOLIO_PERMS_TRACE:-1}" != "0" ]; then
+  trace_dir="${HOME:-/tmp}/.local/log/moxy"
+  mkdir -p "$trace_dir" 2>/dev/null || true
+  trace_file="$trace_dir/folio-perms.trace"
+  {
+    printf 'ts=%s pid=%s op=%s pwd=%s argc=%s\n' \
+      "$(date -u +%FT%TZ)" "$$" "$op" "${PWD:-?}" "$#"
+    i=1
+    for a in "$@"; do
+      printf '  argv[%d]=<%s>\n' "$i" "$a"
+      i=$((i + 1))
+    done
+  } >>"$trace_file" 2>/dev/null || true
+fi
+
+cwd_real=$(realpath -m -- "${PWD}")
+home_real=$(realpath -m -- "${HOME:-/}")
 uid="${UID:-$(id -u)}"
 session_tmp="${CLAUDE_CODE_TMPDIR:-}"
-[ -n "$session_tmp" ] && session_tmp=$(realpath -m "$session_tmp")
+[ -n "$session_tmp" ] && session_tmp=$(realpath -m -- "$session_tmp")
 
 # Read-allowed: any read inside any of these passes without prompting.
 # Includes the umbrella ~/.claude tree so historical sessions, config,
@@ -89,7 +107,7 @@ resolve() {
   case "$p" in
     /dev/fd/*|madder://blobs/*) echo "$p"; return ;;
   esac
-  realpath -m "$p"
+  realpath -m -- "$p"
 }
 
 check_read() {
