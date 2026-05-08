@@ -47,9 +47,14 @@ function folio_read_allows_file_within_cwd { # @test
   local params
   params=$(jq -cn --arg n "folio.read" \
     '{name: $n, arguments: {file_path: "test.txt"}}')
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  assert_output --partial "hello world"
+
+  # Small inline content lands in .content[0].text; large content blob
+  # cache lands in .content[0].resource.text. Read both and grep.
+  echo "$output" \
+    | jq -r '.content[0].text // .content[0].resource.text // empty' \
+    | grep -q "hello world"
 }
 
 function folio_read_allows_dev_fd_path { # @test
@@ -59,7 +64,7 @@ function folio_read_allows_dev_fd_path { # @test
   local params
   params=$(jq -cn --arg n "folio.read" \
     '{name: $n, arguments: {file_path: "/dev/fd/0"}}')
-  run_moxy_mcp "tools/call" "$params" <<< "stdin line"
+  run_moxy_mcp_v1 "tools/call" "$params" <<< "stdin line"
   assert_success
 }
 
@@ -75,10 +80,13 @@ function folio_read_now_succeeds_outside_cwd { # @test
   local params
   params=$(jq -cn --arg n "folio.read" --arg p "$HOME/other/file.txt" \
     '{name: $n, arguments: {file_path: $p}}')
-  run_moxy_mcp "tools/call" "$params"
+  run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  assert_output --partial "accessible"
-  refute_output --partial "outside CWD"
+
+  local text
+  text=$(echo "$output" | jq -r '.content[0].text // .content[0].resource.text // empty')
+  echo "$text" | grep -q "accessible"
+  ! echo "$text" | grep -q "outside CWD"
 }
 
 # ----- folio-perms predicate exits as expected -----

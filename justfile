@@ -44,7 +44,14 @@ dir_build := "build"
 
 test: test-go test-bats test-validate-mcp test-status test-flake-check
 
+# TMPDIR is forced to /tmp here because batman's bats wrapper hardcodes
+# allowWrite = ["/tmp", "/private/tmp"] in its sandcastle config. With
+# spinclass setting TMPDIR to a worktree-local .tmp/ dir, bats's per-test
+# tmpdirs land outside that allowlist and madder cache writes fail
+# silently — moxy then aborts startup, every helper times out at status
+# 143, and we get blanket-empty test output. See #249.
 test-bats: build-go
+  export TMPDIR=/tmp && \
   export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
 
@@ -55,7 +62,10 @@ test-bats: build-go
 test-flake-check:
   nix flake check
 
+# Force TMPDIR=/tmp to keep bats's per-test tmpdirs inside batman's
+# sandcastle allowWrite list. See test-bats above and #249.
 test-bats-file file: build-go
+  export TMPDIR=/tmp && \
   export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
 
