@@ -130,6 +130,33 @@ func TestEmptyMoxinPathNoSystemDir(t *testing.T) {
 	}
 }
 
+// A stale `result` symlink (e.g. from a `nix build` whose output isn't a
+// directory anymore) used to make DiscoverConfigs return an error and abort
+// — which silently disabled hook permission lookups for every other moxin.
+// The function should now skip the bad entry and still load the rest.
+func TestDiscoverConfigsUnreadableMoxinPathEntry(t *testing.T) {
+	good := filepath.Join(t.TempDir(), "good-moxins")
+	writeDiscoveryMoxin(t, good, "good-tool", "valid")
+
+	// A path that exists but isn't a directory (mimics `result` pointing
+	// at a regular file).
+	notADir := filepath.Join(t.TempDir(), "result-stale")
+	os.WriteFile(notADir, []byte("not a moxin dir"), 0o644)
+
+	moxinPath := notADir + string(os.PathListSeparator) + good
+	configs, err := DiscoverConfigs(moxinPath, "")
+	if err != nil {
+		t.Fatalf("unreadable MOXIN_PATH entry caused discovery to fail: %v", err)
+	}
+	if len(configs) != 1 || configs[0].Name != "good-tool" {
+		names := make([]string, len(configs))
+		for i, c := range configs {
+			names[i] = c.Name
+		}
+		t.Fatalf("got configs=%v; want [good-tool]", names)
+	}
+}
+
 func TestDiscoverConfigsBrokenSymlink(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "moxins")
 	writeDiscoveryMoxin(t, dir, "valid-tool", "valid")

@@ -254,8 +254,14 @@ func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error
 			continue
 		}
 		if err != nil {
-			debugMoxin("DiscoverConfigs: ReadDir error %s: %v", moxyDir, err)
-			return nil, fmt.Errorf("reading %s: %w", moxyDir, err)
+			// Stale MOXIN_PATH (e.g. a `result` symlink that now points
+			// at a regular file from a partial `nix build`) shouldn't
+			// take down discovery for the other dirs in the path —
+			// otherwise hook permission lookups silently fall through
+			// for every moxin tool. Log and skip the dir.
+			debugMoxin("DiscoverConfigs: ReadDir error %s: %v (skipping)", moxyDir, err)
+			fmt.Fprintf(os.Stderr, "moxy: skipping unreadable moxin dir %s: %v\n", moxyDir, err)
+			continue
 		}
 
 		for _, e := range entries {
