@@ -71,7 +71,7 @@ function native_exec_blob_lands_in_madder_store { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  local store_dir="$HOME/project/.madder/local/share/blob_stores/default"
+  local store_dir="$HOME/.madder/local/share/blob_stores/default"
   [[ -d $store_dir ]]
   # madder lays out blobs in hash-bucketed subdirectories — count any
   # regular file under the store root.
