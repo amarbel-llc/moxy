@@ -44,15 +44,13 @@ dir_build := "build"
 
 test: test-go test-bats test-validate-mcp test-status test-flake-check
 
-# TMPDIR is forced to /tmp here because batman's bats wrapper hardcodes
-# allowWrite = ["/tmp", "/private/tmp"] in its sandcastle config. With
-# spinclass setting TMPDIR to a worktree-local .tmp/ dir, bats's per-test
-# tmpdirs land outside that allowlist and madder cache writes fail
-# silently — moxy then aborts startup, every helper times out at status
-# 143, and we get blanket-empty test output. See #249.
-test-bats: build-go
-  export TMPDIR=/tmp && \
-  just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
+# Run the bats integration suite inside the nix build sandbox via
+# `nix build .#bats-default`. The default lane filters
+# `!net_cap,!host_only` — tests that need loopback binding or host-only
+# paths get their own targets (test-bats-tag net_cap, etc.). See #249
+# for why we don't run bats through batman/sandcastle anymore.
+test-bats:
+  nix build .#bats-default --no-link --print-build-logs
 
 # Validates the flake's structural outputs (packages.* are derivations,
 # devShells eval, etc). Runs last so the nix store cache is already warm
@@ -60,30 +58,18 @@ test-bats: build-go
 test-flake-check:
   nix flake check
 
-# Force TMPDIR=/tmp to keep bats's per-test tmpdirs inside batman's
-# sandcastle allowWrite list. See test-bats above and #249.
-test-bats-file file: build-go
-  export TMPDIR=/tmp && \
-  just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
-
-# Run the bats suite via the nix-driven lane (sandbox-isolated). The
-# default lane filters !net_cap,!host_only — tests that need loopback
-# binding or host-only paths are excluded by tag and run via the
-# devshell (test-bats / test-bats-file) for now. Phase B of the
-# migration retires the devshell-batman path entirely; see #249.
-test-bats-nix:
-  nix build .#bats-default --no-link --print-build-logs
-
 # Run a single tag's bats lane (e.g. test-bats-tag grit, test-bats-tag
-# folio). See `nix flake show` for available tags — auto-discovered
-# from `# bats file_tags=` directives in zz-tests_bats/*.bats.
+# folio, test-bats-tag net_cap). See `nix flake show` for the full list
+# — auto-discovered from `# bats file_tags=` directives in
+# zz-tests_bats/*.bats.
 test-bats-tag tag:
   nix build .#bats-{{tag}} --no-link --print-build-logs
 
 # Fast iteration: raw bats against ./build/moxy with env-var lookup,
-# no batman/sandcastle wrapping. Mirrors what mkBatsLane does inside
-# the nix sandbox, but in the devshell. Use this for single-file
-# debugging where rebuilding the nix lane is too slow.
+# no batman/sandcastle wrapping, no nix-sandbox rebuild. Mirrors what
+# mkBatsLane does inside the nix sandbox, but in the devshell. Use
+# this for single-file debugging when the nix-sandbox round-trip is
+# too slow.
 test-bats-dev *args: build-go
   cd zz-tests_bats && \
     MOXY_BIN={{justfile_directory()}}/build/moxy \
