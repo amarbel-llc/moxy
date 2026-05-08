@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,16 +52,39 @@ func resolveBinPlaceholder(command, sourceDir string) string {
 	return strings.ReplaceAll(command, "@BIN@", filepath.Join(sourceDir, "bin"))
 }
 
+// MadderBackend is the subset of *MadderClient that the proxy and
+// native Server depend on. Defined as an interface so tests can stub
+// the blob store without touching a real `madder` binary or
+// initializing a store on disk.
+//
+// *MadderClient is the canonical implementation; a stub is in
+// substitute_test.go for unit tests.
+type MadderBackend interface {
+	// Write streams content into the default blob store and returns
+	// the resulting digest (markl-id).
+	Write(ctx context.Context, content io.Reader) (string, error)
+	// OpenBlob opens a pipe and prepares a writer that fills it with
+	// the named blob's bytes. Used by substitution to stream into a
+	// child process's fd without buffering the full payload.
+	OpenBlob(ctx context.Context, digest string) (*os.File, BlobWriter, error)
+	// CatBytes returns the raw bytes of a single blob synchronously.
+	// Used by the resource provider for client reads.
+	CatBytes(ctx context.Context, digest string) ([]byte, error)
+}
+
 // Server implements proxy.ServerBackend for native (config-declared) tools.
 // It dispatches MCP method calls locally without spawning a child MCP server.
 type Server struct {
 	config  *NativeConfig
 	toolIdx map[string]*ToolSpec
-	cache   *resultCache
+	madder  MadderBackend
 	session string
 }
 
-// NewServer constructs a Server from a parsed NativeConfig.
+// NewServer constructs a Server from a parsed NativeConfig. The madder
+// backend may be nil for tests that don't exercise large-output
+// caching; tools that produce >tokenThreshold output will then return
+// inline content without a cache URI.
 func NewServer(cfg *NativeConfig) *Server {
 	idx := make(map[string]*ToolSpec, len(cfg.Tools))
 	for i := range cfg.Tools {
@@ -75,12 +99,17 @@ func NewServer(cfg *NativeConfig) *Server {
 	return &Server{
 		config:  cfg,
 		toolIdx: idx,
-		cache:   newResultCache(""),
 		session: session,
 	}
 }
 
-// SetSession overrides the session identifier used in cached result URIs.
+// SetMadder wires the madder blob store into this Server. Tools that
+// produce large outputs use it to stash content and return a
+// madder://blobs/<digest> URI to the caller. Substitution
+// (madder://blobs/... → /dev/fd/N) also goes through this backend.
+func (s *Server) SetMadder(m MadderBackend) { s.madder = m }
+
+// SetSession overrides the session identifier used for diagnostics.
 func (s *Server) SetSession(id string) { s.session = id }
 
 // Name returns the server's configured name.
@@ -164,107 +193,184 @@ func (s *Server) handleToolsList() (json.RawMessage, error) {
 }
 
 func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessage, error) {
-	// params may arrive as a struct, map, or json.RawMessage — normalize via JSON round-trip.
-	raw, err := json.Marshal(params)
+	callParams, err := parseToolCallParams(params)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling tool call params: %w", err)
-	}
-
-	var callParams protocol.ToolCallParams
-	if err := json.Unmarshal(raw, &callParams); err != nil {
-		return nil, fmt.Errorf("unmarshaling tool call params: %w", err)
+		return nil, err
 	}
 
 	spec, ok := s.toolIdx[callParams.Name]
 	if !ok {
 		debugMoxin("toolCall %s.%s: unknown tool", s.config.Name, callParams.Name)
-		return marshalResult(protocol.ErrorResultV1(
-			fmt.Sprintf("unknown tool %q", callParams.Name),
-		))
+		return errResult("unknown tool %q", callParams.Name)
 	}
 	debugMoxin("toolCall %s.%s: command=%s args=%v", s.config.Name, spec.Name, spec.Command, spec.Args)
 
-	// If stdin_param is configured, extract that key from the arguments
-	// before positional arg building.  The framework will pipe its value
-	// (literal or resolved from a result-cache URI) to the child's stdin.
-	var stdinContent string
-	arguments := callParams.Arguments
-	if spec.StdinParam != "" {
-		var argMap map[string]json.RawMessage
-		if len(arguments) > 0 {
-			if err := json.Unmarshal(arguments, &argMap); err == nil {
-				if raw, ok := argMap[spec.StdinParam]; ok {
-					var val string
-					if err := json.Unmarshal(raw, &val); err == nil {
-						stdinContent = val
-					}
-					delete(argMap, spec.StdinParam)
-					arguments, _ = json.Marshal(argMap)
-				}
-			}
-		}
-		if stdinContent != "" && spec.ShouldSubstituteURIs() {
-			if session, id, ok := parseResultURI(stdinContent); ok {
-				cached, loadErr := s.cache.load(session, id)
-				if loadErr != nil {
-					return marshalResult(protocol.ErrorResultV1(
-						fmt.Sprintf("resolving stdin result URI: %v", loadErr),
-					))
-				}
-				stdinContent = cached.Output
-			}
-		}
+	stdinContent, arguments, err := s.prepareStdin(ctx, spec, callParams.Arguments)
+	if err != nil {
+		return errResult("%v", err)
 	}
 
 	if err := validateEnumConstraints(arguments, spec.InputParsed); err != nil {
-		return marshalResult(protocol.ErrorResultV1(err.Error()))
+		return errResult("%v", err)
 	}
 
-	// Extract caller-supplied arguments and append them (as strings) after
-	// spec.Args.  Ordering follows the input schema's "required" array so
-	// positional semantics are deterministic; any remaining keys are appended
-	// in sorted order.
 	extraArgs, err := buildExtraArgs(arguments, spec.Input, spec.ArgOrder)
 	if err != nil {
-		return marshalResult(protocol.ErrorResultV1(
-			fmt.Sprintf("parsing arguments: %v", err),
-		))
+		return errResult("parsing arguments: %v", err)
 	}
 
-	allArgs := make([]string, 0, len(spec.Args)+len(extraArgs))
-	allArgs = append(allArgs, spec.Args...)
-	allArgs = append(allArgs, extraArgs...)
+	allArgs := append(append(make([]string, 0, len(spec.Args)+len(extraArgs)), spec.Args...), extraArgs...)
+
+	allArgs, sub, err := s.substituteArgvBlobURIs(ctx, spec, allArgs)
+	if err != nil {
+		return errResult("resolving blob references: %v", err)
+	}
+	defer sub.Cleanup()
+
+	output, runErr := s.runMoxinProcess(ctx, spec, allArgs, stdinContent, sub)
+	if runErr != nil {
+		if output == "" {
+			output = runErr.Error()
+		}
+		debugMoxin("toolCall %s.%s: exec error: %v args=%v", s.config.Name, spec.Name, runErr, allArgs)
+		return marshalResult(&protocol.ToolCallResultV1{
+			Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
+			IsError: true,
+		})
+	}
+
+	if spec.ResultType == ResultTypeMCPResult {
+		return s.buildMCPResult(ctx, spec, output)
+	}
+	return s.buildTextResult(ctx, spec, output)
+}
+
+// errResult marshals an MCP isError text result with a printf-formatted
+// message. Most error paths in handleToolsCall use this shape.
+func errResult(format string, args ...any) (json.RawMessage, error) {
+	return marshalResult(protocol.ErrorResultV1(fmt.Sprintf(format, args...)))
+}
+
+// parseToolCallParams normalizes the params payload (which may arrive
+// as a struct, map, or json.RawMessage) into a typed ToolCallParams.
+func parseToolCallParams(params any) (protocol.ToolCallParams, error) {
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return protocol.ToolCallParams{}, fmt.Errorf("marshaling tool call params: %w", err)
+	}
+	var callParams protocol.ToolCallParams
+	if err := json.Unmarshal(raw, &callParams); err != nil {
+		return protocol.ToolCallParams{}, fmt.Errorf("unmarshaling tool call params: %w", err)
+	}
+	return callParams, nil
+}
+
+// prepareStdin pulls spec.StdinParam out of arguments (if configured),
+// resolves any madder://blobs/<digest> reference into bytes, and
+// returns the stdin content plus arguments with the stdin key removed.
+func (s *Server) prepareStdin(
+	ctx context.Context,
+	spec *ToolSpec,
+	arguments json.RawMessage,
+) (string, json.RawMessage, error) {
+	if spec.StdinParam == "" {
+		return "", arguments, nil
+	}
+
+	stdinContent, remaining := extractStdinParam(arguments, spec.StdinParam)
+	if stdinContent == "" || !spec.ShouldSubstituteURIs() {
+		return stdinContent, remaining, nil
+	}
+
+	digest, ok := parseBlobURI(stdinContent)
+	if !ok {
+		return stdinContent, remaining, nil
+	}
+	if s.madder == nil {
+		return "", remaining, fmt.Errorf("resolving stdin blob URI: no madder backend configured")
+	}
+	body, err := openBlobBuffered(ctx, s.madder, digest)
+	if err != nil {
+		return "", remaining, fmt.Errorf("resolving stdin blob URI: %w", err)
+	}
+	return string(body), remaining, nil
+}
+
+// extractStdinParam pops the named string field out of arguments and
+// returns it alongside arguments with that field removed. Missing or
+// non-string values yield an empty stdin and pass arguments through
+// unchanged.
+func extractStdinParam(arguments json.RawMessage, name string) (string, json.RawMessage) {
+	if len(arguments) == 0 {
+		return "", arguments
+	}
+	var argMap map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &argMap); err != nil {
+		return "", arguments
+	}
+	raw, ok := argMap[name]
+	if !ok {
+		return "", arguments
+	}
+	var val string
+	_ = json.Unmarshal(raw, &val)
+	delete(argMap, name)
+	remaining, _ := json.Marshal(argMap)
+	return val, remaining
+}
+
+// substituteArgvBlobURIs rewrites madder://blobs/<digest> URIs in
+// caller-supplied positional arguments to /dev/fd/N references. The
+// returned resultSubstitution owns the pipes and writer subprocesses;
+// callers must defer its Cleanup. When substitution is disabled or no
+// madder backend is wired, an empty substitution is returned and
+// argv passes through unchanged.
+func (s *Server) substituteArgvBlobURIs(
+	ctx context.Context,
+	spec *ToolSpec,
+	allArgs []string,
+) ([]string, *resultSubstitution, error) {
+	if !spec.ShouldSubstituteURIs() || s.madder == nil {
+		return allArgs, &resultSubstitution{}, nil
+	}
 
 	var sub *resultSubstitution
-	if spec.ShouldSubstituteURIs() {
-		specArgCount := len(spec.Args)
-		for i, arg := range allArgs[specArgCount:] {
-			argSub, subErr := substituteResultURIs(arg, s.cache)
-			if subErr != nil {
-				if sub != nil {
-					sub.Cleanup()
-				}
-				return marshalResult(protocol.ErrorResultV1(
-					fmt.Sprintf("resolving result references: %v", subErr),
-				))
+	specArgCount := len(spec.Args)
+	for i, arg := range allArgs[specArgCount:] {
+		argSub, err := substituteMadderURIs(ctx, arg, s.madder)
+		if err != nil {
+			if sub != nil {
+				sub.Cleanup()
 			}
-			allArgs[specArgCount+i] = argSub.Command
-			if sub == nil {
-				sub = argSub
-			} else {
-				// Merge extra files and pipe bookkeeping from this arg into
-				// the aggregate substitution.
-				sub.ExtraFiles = append(sub.ExtraFiles, argSub.ExtraFiles...)
-				sub.pipeReads = append(sub.pipeReads, argSub.pipeReads...)
-				sub.pipeWrites = append(sub.pipeWrites, argSub.pipeWrites...)
-			}
+			return nil, nil, err
 		}
+		allArgs[specArgCount+i] = argSub.Command
+		if sub == nil {
+			sub = argSub
+			continue
+		}
+		// Merge bookkeeping from this arg into the aggregate substitution.
+		sub.ExtraFiles = append(sub.ExtraFiles, argSub.ExtraFiles...)
+		sub.pipeReads = append(sub.pipeReads, argSub.pipeReads...)
+		sub.writers = append(sub.writers, argSub.writers...)
 	}
 	if sub == nil {
 		sub = &resultSubstitution{}
 	}
-	defer sub.Cleanup()
+	return allArgs, sub, nil
+}
 
+// runMoxinProcess starts the moxin tool's subprocess, kicks off any
+// blob-streaming writers, waits for both, and returns the combined
+// stdout+stderr plus any error. Lifecycle and debug logging happen
+// here.
+func (s *Server) runMoxinProcess(
+	ctx context.Context,
+	spec *ToolSpec,
+	allArgs []string,
+	stdinContent string,
+	sub *resultSubstitution,
+) (string, error) {
 	command := resolveBinPlaceholder(spec.Command, s.config.SourceDir)
 	if !filepath.IsAbs(command) && s.config.SourceDir != "" && strings.Contains(command, string(filepath.Separator)) {
 		command = filepath.Join(s.config.SourceDir, command)
@@ -279,12 +385,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	cmd.Stderr = &stderr
 
 	moxinStart := time.Now()
-	if startErr := cmd.Start(); startErr != nil {
-		debugMoxin("toolCall %s.%s: start error: %v (command=%s args=%v)", s.config.Name, spec.Name, startErr, spec.Command, allArgs)
-		lifecyclelog.Log("moxin START_FAIL %s.%s err=%v", s.config.Name, spec.Name, startErr)
-		return marshalResult(protocol.ErrorResultV1(
-			fmt.Sprintf("starting command: %v", startErr),
-		))
+	if err := cmd.Start(); err != nil {
+		debugMoxin("toolCall %s.%s: start error: %v (command=%s args=%v)", s.config.Name, spec.Name, err, spec.Command, allArgs)
+		lifecyclelog.Log("moxin START_FAIL %s.%s err=%v", s.config.Name, spec.Name, err)
+		return "", fmt.Errorf("starting command: %w", err)
 	}
 	moxinPid := cmd.Process.Pid
 	lifecyclelog.Log(
@@ -292,23 +396,28 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		s.config.Name, spec.Name, moxinPid,
 		moxinArgvPreview(append([]string{command}, allArgs...), 120),
 	)
-	sub.StartWriters()
+
+	if err := sub.StartWriters(); err != nil {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = cmd.Wait()
+		return "", fmt.Errorf("starting blob streaming: %w", err)
+	}
 	// Close the parent's read-end copies now that the child has them, so
-	// the child sees EOF when the writer goroutines finish.
+	// the child sees EOF when the writer subprocesses finish.
 	for _, r := range sub.pipeReads {
 		_ = r.Close()
 	}
 	sub.pipeReads = nil
 
-	err = cmd.Wait()
-	moxinDur := time.Since(moxinStart)
-	moxinExit := -1
-	if cmd.ProcessState != nil {
-		moxinExit = cmd.ProcessState.ExitCode()
+	waitErr := cmd.Wait()
+	if writerErr := sub.WaitWriters(); writerErr != nil && waitErr == nil {
+		waitErr = writerErr
 	}
 	lifecyclelog.Log(
 		"moxin DONE %s.%s pid=%d dur=%s exit=%d signal=%s stdout=%d stderr=%d",
-		s.config.Name, spec.Name, moxinPid, moxinDur, moxinExit,
+		s.config.Name, spec.Name, moxinPid, time.Since(moxinStart), exitCode(cmd.ProcessState),
 		moxinSignalName(cmd.ProcessState), stdout.Len(), stderr.Len(),
 	)
 
@@ -319,27 +428,17 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		}
 		output += stderr.String()
 	}
-
-	if err != nil {
-		if output == "" {
-			output = err.Error()
-		}
-		debugMoxin("toolCall %s.%s: exec error: %v args=%v stderr=%q", s.config.Name, spec.Name, err, allArgs, stderr.String())
-		result := &protocol.ToolCallResultV1{
-			Content: []protocol.ContentBlockV1{protocol.TextContentV1(output)},
-			IsError: true,
-		}
-		return marshalResult(result)
-	}
-
-	if spec.ResultType == ResultTypeMCPResult {
-		return s.buildMCPResult(spec, output)
-	}
-
-	return s.buildTextResult(spec, output)
+	return output, waitErr
 }
 
-func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage, error) {
+func exitCode(ps *os.ProcessState) int {
+	if ps == nil {
+		return -1
+	}
+	return ps.ExitCode()
+}
+
+func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output string) (json.RawMessage, error) {
 	if output == "" {
 		return marshalResult(&protocol.ToolCallResultV1{})
 	}
@@ -358,8 +457,8 @@ func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage,
 	cleaned := result.Content[:0]
 	for _, block := range result.Content {
 		if block.Type == "text" && block.MimeType != "" {
-			if block.Text != "" {
-				uri, cacheErr := s.cacheAndGetURI(block.Text)
+			if block.Text != "" && s.madder != nil {
+				uri, cacheErr := s.cacheAndGetURI(ctx, block.Text)
 				if cacheErr == nil {
 					cleaned = append(cleaned, protocol.ContentBlockV1{
 						Type: "resource",
@@ -388,40 +487,33 @@ func (s *Server) buildMCPResult(spec *ToolSpec, output string) (json.RawMessage,
 	return marshalResult(&result)
 }
 
-func (s *Server) buildTextResult(spec *ToolSpec, output string) (json.RawMessage, error) {
+func (s *Server) buildTextResult(ctx context.Context, spec *ToolSpec, output string) (json.RawMessage, error) {
 	if output == "" {
 		return marshalResult(&protocol.ToolCallResultV1{})
 	}
 
 	tokens := estimateTokens(output)
-	if tokens > tokenThreshold {
-		id, idErr := newResultID()
-		if idErr == nil {
-			cached := cachedResult{
-				ID:         id,
-				Session:    s.session,
-				Output:     output,
-				LineCount:  countLines(output),
-				TokenCount: tokens,
-			}
-			if storeErr := s.cache.store(cached); storeErr == nil {
-				if spec.NoTruncate {
-					uri := fmt.Sprintf("moxy.native://results/%s/%s", cached.Session, cached.ID)
-					inline := fmt.Sprintf("Full output: %s\nLines: %d\n\n%s", uri, cached.LineCount, output)
-					return marshalResult(&protocol.ToolCallResultV1{
-						Content: []protocol.ContentBlockV1{protocol.TextContentV1(inline)},
-					})
-				}
-				summary := formatSummary(cached)
+	if tokens > tokenThreshold && s.madder != nil {
+		digest, storeErr := s.madder.Write(ctx, strings.NewReader(output))
+		if storeErr == nil {
+			if spec.NoTruncate {
+				inline := fmt.Sprintf(
+					"Full output: %s\nLines: %d\n\n%s",
+					blobURI(digest), countLines(output), output,
+				)
 				return marshalResult(&protocol.ToolCallResultV1{
-					Content: []protocol.ContentBlockV1{protocol.TextContentV1(summary)},
+					Content: []protocol.ContentBlockV1{protocol.TextContentV1(inline)},
 				})
 			}
+			summary := formatSummary(output, digest)
+			return marshalResult(&protocol.ToolCallResultV1{
+				Content: []protocol.ContentBlockV1{protocol.TextContentV1(summary)},
+			})
 		}
 	}
 
-	if spec.ContentType != "" {
-		uri, cacheErr := s.cacheAndGetURI(output)
+	if spec.ContentType != "" && s.madder != nil {
+		uri, cacheErr := s.cacheAndGetURI(ctx, output)
 		if cacheErr == nil {
 			block := protocol.ContentBlockV1{
 				Type: "resource",
@@ -442,22 +534,15 @@ func (s *Server) buildTextResult(spec *ToolSpec, output string) (json.RawMessage
 	})
 }
 
-func (s *Server) cacheAndGetURI(output string) (string, error) {
-	id, err := newResultID()
+func (s *Server) cacheAndGetURI(ctx context.Context, output string) (string, error) {
+	if s.madder == nil {
+		return "", fmt.Errorf("no madder backend configured")
+	}
+	digest, err := s.madder.Write(ctx, strings.NewReader(output))
 	if err != nil {
 		return "", err
 	}
-	cached := cachedResult{
-		ID:         id,
-		Session:    s.session,
-		Output:     output,
-		LineCount:  countLines(output),
-		TokenCount: estimateTokens(output),
-	}
-	if err := s.cache.store(cached); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("moxy.native://results/%s/%s", s.session, id), nil
+	return blobURI(digest), nil
 }
 
 // validateEnumConstraints checks that any argument with an enum constraint

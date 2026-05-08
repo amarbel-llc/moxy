@@ -132,13 +132,9 @@ Colon-separated list of directories to search for moxin configs.
 See
 .Xr moxin 7
 for discovery details.
-.It Ev XDG_CACHE_HOME
-Base directory for native server result caches.
-Defaults to
-.Pa ~/.cache .
 .El
 .Sh FILES
-.Bl -tag -width "$XDG_CACHE_HOME/moxy/native-results/"
+.Bl -tag -width "./.madder/local/share/blob_stores/default/"
 .It Pa ~/.config/moxy/moxyfile
 Global moxyfile.
 .It Pa ./moxyfile
@@ -147,8 +143,15 @@ Project-local moxyfile.
 Global moxin configs.
 .It Pa ./.moxy/moxins/
 Project-local moxin configs.
-.It Pa $XDG_CACHE_HOME/moxy/native-results/
-Cached tool outputs from moxins.
+.It Pa ./.madder/local/share/blob_stores/default/
+Per-repo
+.Xr madder 1
+blob store backing cached tool outputs from moxins.
+Required at startup;
+.Xr spinclass 1
+auto-initializes one per worktree, otherwise run
+.Sy madder init .default
+from the repo root.
 .It Pa $XDG_LOG_HOME/moxy/hooks/
 Per-session hook event logs.
 See

@@ -170,13 +170,11 @@ when
 ends with
 .Dq _ .
 .Sh RESULT CACHING
-Tool outputs exceeding 50 tokens are cached to disk at
-.Pa $XDG_CACHE_HOME/moxy/native-results/
-(or
-.Pa ~/.cache/moxy/native-results/ )
-and replaced with a summary:
+Tool outputs exceeding the inline-token threshold are streamed into
+.Xr madder 1 ,
+a content-addressable blob store, and replaced with a summary:
 .Bd -literal -offset indent
-Full output: moxy.native://results/{session}/{id}
+Full output: madder://blobs/<digest>
 Lines: 393
 
 --- First 10 lines ---
@@ -185,6 +183,19 @@ Lines: 393
 --- Last 10 lines ---
 \&...
 .Ed
+.Pp
+Read the full blob with
+.Sy madder cat \\<digest\\>
+or via the
+.Sy madder://blobs/{digest}
+MCP resource.
+Moxy verifies that a
+.Sy .default
+store exists at startup and refuses to serve if it does not \(em
+.Xr spinclass 1
+auto-initializes one per worktree; otherwise run
+.Sy madder init .default
+from your repo root.
 .Pp
 Caching is transparent and server-level \(em no per-tool configuration.
 When output exceeds the threshold, the summary includes prominent
@@ -243,18 +254,28 @@ then
 then a generated UUID.
 .Sh RESOURCE-AS-FD COMPOSITION
 When a tool argument contains a
-.Sy moxy.native://results/{session}/{id}
+.Sy madder://blobs/{digest}
 URI, the native server:
 .Pp
 .Bl -enum -compact
 .It
-Loads the cached output from disk.
+Opens an OS pipe.
 .It
-Creates an OS pipe and streams the content through it.
+Spawns
+.Sy madder cat \\<digest\\>
+with its stdout connected to the pipe's write end.
 .It
 Rewrites the URI to
 .Pa /dev/fd/N
-in the argument string.
+in the argument string and passes the pipe's read end to the child
+via
+.Sy ExtraFiles .
+.It
+Repeated references to the same digest in the same argument share a
+single fd \(em
+.Sy diff X X
+on the same blob does not double-spawn
+.Xr madder 1 .
 .El
 .Pp
 This allows tool outputs to be composed as inputs to subsequent tools
@@ -262,7 +283,7 @@ without the agent needing to manage temporary files.
 For example, a cached transcript can be piped through
 .Xr tail 1 :
 .Bd -literal -offset indent
-tail -5 moxy.native://results/no-session/019d7262-e6b3
+tail -5 madder://blobs/blake2b256-aZ09…
 .Ed
 .Pp
 becomes:

@@ -50,7 +50,7 @@ function folio_ls_shows_entry_types { # @test
   # Verify resource block with mimeType and cache URI
   echo "$output" | jq -e '.content[0].type == "resource"'
   echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"'
-  echo "$output" | jq -e '.content[0].resource.uri | startswith("moxy.native://results/")'
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")'
 
   local entries
   entries=$(echo "$output" | jq -r '.content[0].resource.text')

@@ -10,6 +10,7 @@
 # Policy:
 #   - Path inside CWD                              → allow (read or write)
 #   - /dev/fd/* (result-URI substitution pipe)     → allow
+#   - madder://blobs/<digest> (cached tool result) → allow
 #   - Path inside /nix/store                       → allow read; deny write
 #   - Path inside Claude-native read dirs          → allow read
 #   - Path inside Claude-native write-allow dirs   → allow write
@@ -85,14 +86,16 @@ within_any() {
 resolve() {
   local p="$1"
   case "$p" in
-    /dev/fd/*) echo "$p"; return ;;
+    /dev/fd/*|madder://blobs/*) echo "$p"; return ;;
   esac
   realpath -m "$p"
 }
 
 check_read() {
   local p="$1"
-  case "$p" in /dev/fd/*) return 0 ;; esac
+  case "$p" in
+    /dev/fd/*|madder://blobs/*) return 0 ;;
+  esac
   local resolved
   resolved=$(resolve "$p")
   if within_any "$resolved" "${read_dirs[@]}"; then
@@ -104,7 +107,9 @@ check_read() {
 
 check_write() {
   local p="$1"
-  case "$p" in /dev/fd/*) return 0 ;; esac
+  case "$p" in
+    /dev/fd/*|madder://blobs/*) return 0 ;;
+  esac
   local resolved
   resolved=$(resolve "$p")
   if within_any "$resolved" "${deny_write_dirs[@]}"; then

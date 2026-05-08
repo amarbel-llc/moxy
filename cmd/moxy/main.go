@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
@@ -38,6 +39,53 @@ var (
 	version = "dev"
 	commit  = "unknown"
 )
+
+// printVersionTable renders the COMPONENT/VERSION/REV table used by
+// `moxy version`. Mirrors `spinclass version`'s output so the audit
+// trail is consistent across our toolchain. Each row reports a
+// build-time-pinned external dep (currently: madder); rows beyond the
+// first probe the pinned binary at runtime, so a missing or broken
+// pin produces a "(error: …)" cell rather than aborting the whole
+// command.
+func printVersionTable(ctx context.Context, moxyVersion string) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "COMPONENT\tVERSION\tREV")
+	fmt.Fprintf(w, "moxy/moxy\t%s\t%s\n", moxyVersion, commit)
+
+	// madder pin row. NewMadderClient resolves the build-time path
+	// first, falling back to PATH; either way we report the resolved
+	// binary's `madder version` output.
+	madderClient, err := native.NewMadderClient()
+	if err != nil {
+		fmt.Fprintf(w, "madder/madder\t(error: %v)\t-\n", err)
+	} else {
+		madderVer, err := madderVersion(ctx, madderClient.Bin())
+		if err != nil {
+			fmt.Fprintf(w, "madder/madder\t(error: %v)\t%s\n", err, madderClient.Bin())
+		} else {
+			fmt.Fprintf(w, "madder/madder\t%s\t%s\n", madderVer, madderClient.Bin())
+		}
+	}
+
+	return w.Flush()
+}
+
+// madderVersion runs `<bin> version` and returns the trimmed first
+// non-empty line of stdout.
+func madderVersion(ctx context.Context, bin string) (string, error) {
+	cmd := exec.CommandContext(ctx, bin, "version")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			return line, nil
+		}
+	}
+	return "", fmt.Errorf("empty version output")
+}
 
 func newApp() *command.App {
 	app := command.NewApp("moxy", "MCP proxy that aggregates child MCP servers")
@@ -152,15 +200,17 @@ func newApp() *command.App {
 	app.AddCommand(&command.Command{
 		Name: "version",
 		Description: command.Description{
-			Short: "Print moxy build version and commit",
-			Long:  "Prints the version and commit SHA burnt in via -ldflags at build time.",
+			Short: "Print moxy build version and any build-time-pinned tools",
+			Long: "Prints the moxy version+commit burnt in via -ldflags at " +
+				"build time, plus a row for each external tool that was " +
+				"pinned alongside (currently: madder). Mirrors `spinclass " +
+				"version` so the audit trail is consistent.",
 		},
 		Annotations: &protocol.ToolAnnotations{
 			ReadOnlyHint: boolPtr(true),
 		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			fmt.Println(app.Version)
-			return nil
+		RunCLI: func(ctx context.Context, _ json.RawMessage) error {
+			return printVersionTable(ctx, app.Version)
 		},
 	})
 
@@ -370,10 +420,19 @@ func runServer(app *command.App, mode transportMode) error {
 
 	moxinPath := os.Getenv("MOXIN_PATH")
 
+	madderClient, err := native.NewMadderClient()
+	if err != nil {
+		return fmt.Errorf("madder runtime: %w", err)
+	}
+	if err := madderClient.VerifyDefaultStore(ctx); err != nil {
+		return fmt.Errorf("madder default store: %w", err)
+	}
+
 	bootInputs := bootstrapInputs{
 		moxinPath: moxinPath,
 		sessionID: sessionID,
 		connect:   connectServer,
+		madder:    madderClient,
 	}
 
 	bootRes, err := bootstrap(ctx, bootInputs)
@@ -387,7 +446,7 @@ func runServer(app *command.App, mode transportMode) error {
 	systemDir := bootRes.systemDir
 
 	p := proxy.New(children, failed, activeServers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
-	p.SetResultReader(native.NewResultReader())
+	p.SetMadderClient(madderClient)
 	p.SetSessionID(sessionID)
 	p.SetMoxinReloader(&moxinReloaderImpl{
 		moxinPath: moxinPath,

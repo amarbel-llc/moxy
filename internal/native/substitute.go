@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -8,91 +9,118 @@ import (
 	"strings"
 )
 
-// resultURIPattern matches moxy.native://results/{session}/{id} substrings
-// inside a command string. The session segment allows underscores, dots, and
-// hyphens; the id is a UUIDv7-style string.
-var resultURIPattern = regexp.MustCompile(`moxy\.native://results/[A-Za-z0-9._-]+/[A-Za-z0-9-]+`)
+// blobURIPattern matches madder://blobs/<digest> substrings inside a
+// command string. Markl IDs are of the form `<algo>-<encoding>`
+// (e.g. `blake2b256-aZ09…`); we accept any safe URI character set.
+var blobURIPattern = regexp.MustCompile(`madder://blobs/[A-Za-z0-9._-]+`)
 
-// resultSubstitution is the result of rewriting moxy.native://results/{session}/{id}
+// BlobWriter pumps bytes for a single blob into its pipe write end.
+// Real implementation runs `madder cat <digest>` as a subprocess;
+// tests can swap in an in-memory implementation. Lifecycle:
+// Start once, Wait once, Cleanup is idempotent and best-effort.
+type BlobWriter interface {
+	Start() error
+	Wait() error
+	Cleanup()
+}
+
+// blobSource opens a pipe and prepares a writer that fills it with the
+// named blob's bytes. The pipe's read end is returned for the moxin
+// child's ExtraFiles; the writer is returned for parent-side
+// lifecycle (Start after the child is wired up, Wait after the moxin
+// tool exits). MadderBackend is a superset; substitution takes the
+// narrower interface so tests can stub more cheaply.
+type blobSource interface {
+	OpenBlob(ctx context.Context, digest string) (readEnd *os.File, writer BlobWriter, err error)
+}
+
+// resultSubstitution is the result of rewriting madder://blobs/<digest>
 // references inside a command string. The caller must:
 //
 //  1. Set cmd.ExtraFiles = sub.ExtraFiles before cmd.Start().
-//  2. Call sub.StartWriters() after cmd.Start() (so cached payloads stream
-//     into the pipes once the child can read from them).
-//  3. defer sub.Cleanup() to release pipe ends on every path.
+//  2. Call sub.StartWriters() after cmd.Start() (so blob bytes start
+//     streaming into the pipes once the child can read from them).
+//  3. defer sub.Cleanup() to release pipe ends + reap subprocesses.
 //
-// The first ExtraFiles entry becomes file descriptor 3 in the child, the
-// second fd 4, and so on (the standard Go os/exec convention).
+// The first ExtraFiles entry becomes file descriptor 3 in the child,
+// the second fd 4, and so on (the standard Go os/exec convention).
 type resultSubstitution struct {
 	Command    string
 	ExtraFiles []*os.File
 
-	// pipeWrites are the parent-side write ends paired with the cached
-	// payload to stream into them. StartWriters consumes them.
-	pipeWrites []pipeWrite
-	// pipeReads are the parent's copies of the read ends. They are passed
-	// to the child via ExtraFiles; the parent's copies must be closed
-	// after Start (so the child sees EOF when the writer finishes).
+	// writers fill each pipe with the corresponding blob's bytes.
+	// StartWriters / Cleanup own them.
+	writers []BlobWriter
+	// pipeReads are the parent's copies of the read ends. They are
+	// passed to the child via ExtraFiles; the parent's copies must
+	// be closed after Start (so the child sees EOF when the writer
+	// finishes).
 	pipeReads []*os.File
-	// started is set by StartWriters. Cleanup uses it to know whether the
-	// goroutines own pipeWrites or it must close them itself.
+	// started is set by StartWriters. Cleanup uses it to decide
+	// whether to drain or close.
 	started bool
 }
 
-type pipeWrite struct {
-	w       *os.File
-	payload string
-}
-
-// StartWriters launches a goroutine for each cached payload that pushes the
-// content into its pipe and closes the write end. Must be called after
-// cmd.Start() so the child is already wired to the read end.
-func (s *resultSubstitution) StartWriters() {
+// StartWriters launches each writer (e.g. spawns a `madder cat`
+// subprocess). Must be called after cmd.Start() so the child is
+// already wired to the read end.
+func (s *resultSubstitution) StartWriters() error {
 	s.started = true
-	for _, pw := range s.pipeWrites {
-		pw := pw
-		go func() {
-			defer pw.w.Close()
-			_, _ = io.WriteString(pw.w, pw.payload)
-		}()
+	for _, w := range s.writers {
+		if err := w.Start(); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-// Cleanup closes pipe handles still owned by the parent. Safe to call
-// multiple times. After cmd.Start the parent must close its copy of the read
-// ends; if StartWriters was never called (early error path) the write ends
-// are also closed here.
+// WaitWriters blocks until every writer has finished pushing bytes.
+// Call after the moxin tool's cmd.Wait so we surface any madder cat
+// errors instead of dropping them.
+func (s *resultSubstitution) WaitWriters() error {
+	if !s.started {
+		return nil
+	}
+	var firstErr error
+	for _, w := range s.writers {
+		if err := w.Wait(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// Cleanup closes pipe handles still owned by the parent and best-effort
+// reaps any background writers. Safe to call multiple times.
 func (s *resultSubstitution) Cleanup() {
 	for _, r := range s.pipeReads {
 		_ = r.Close()
 	}
 	s.pipeReads = nil
-	if !s.started {
-		for _, pw := range s.pipeWrites {
-			_ = pw.w.Close()
-		}
-		s.pipeWrites = nil
+	for _, w := range s.writers {
+		w.Cleanup()
 	}
+	s.writers = nil
 }
 
-// substituteResultURIs scans command for moxy.native://results/{session}/{id}
-// substrings, loads each unique URI from cache, and rewrites every reference
-// to /dev/fd/N. Repeated references to the same URI share a single pipe and
-// fd so commands like `diff X X` work without deadlocking or duplicating
-// work. On error no pipe resources are leaked.
-func substituteResultURIs(
+// substituteMadderURIs scans command for madder://blobs/<digest>
+// substrings, opens a pipe per unique digest, and rewrites every
+// reference to /dev/fd/N. Repeated references to the same digest
+// share a single pipe and fd so commands like `diff X X` work
+// without deadlocking or duplicating work. On error no pipe
+// resources are leaked.
+func substituteMadderURIs(
+	ctx context.Context,
 	command string,
-	cache *resultCache,
+	src blobSource,
 ) (*resultSubstitution, error) {
-	matches := resultURIPattern.FindAllStringIndex(command, -1)
+	matches := blobURIPattern.FindAllStringIndex(command, -1)
 	if len(matches) == 0 {
 		return &resultSubstitution{Command: command}, nil
 	}
 
 	sub := &resultSubstitution{}
-	// Dedupe key is "session/id" so two distinct sessions with the same
-	// uuid stay separate.
-	fdByKey := make(map[string]int)
+	fdByDigest := make(map[string]int)
 
 	failf := func(format string, args ...any) (*resultSubstitution, error) {
 		sub.Cleanup()
@@ -104,32 +132,23 @@ func substituteResultURIs(
 	for _, m := range matches {
 		start, end := m[0], m[1]
 		uri := command[start:end]
-		session, id, ok := parseResultURI(uri)
+		digest, ok := parseBlobURI(uri)
 		if !ok {
-			return failf("invalid result URI: %s", uri)
+			return failf("invalid blob URI: %s", uri)
 		}
 
-		key := session + "/" + id
-		fd, seen := fdByKey[key]
+		fd, seen := fdByDigest[digest]
 		if !seen {
-			cached, err := cache.load(session, id)
+			pr, writer, err := src.OpenBlob(ctx, digest)
 			if err != nil {
-				return failf("loading %s: %w", uri, err)
-			}
-
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				return failf("creating pipe for %s: %w", uri, err)
+				return failf("opening %s: %w", uri, err)
 			}
 
 			fd = 3 + len(sub.ExtraFiles)
-			fdByKey[key] = fd
+			fdByDigest[digest] = fd
 			sub.ExtraFiles = append(sub.ExtraFiles, pr)
 			sub.pipeReads = append(sub.pipeReads, pr)
-			sub.pipeWrites = append(sub.pipeWrites, pipeWrite{
-				w:       pw,
-				payload: cached.Output,
-			})
+			sub.writers = append(sub.writers, writer)
 		}
 
 		b.WriteString(command[cursor:start])
@@ -142,21 +161,46 @@ func substituteResultURIs(
 	return sub, nil
 }
 
-// parseResultURI extracts the session and id segments from a
-// moxy.native://results/{session}/{id} URI. Returns ok=false for any URI
-// that does not match the two-segment form.
-func parseResultURI(uri string) (session, id string, ok bool) {
-	const prefix = "moxy.native://results/"
+// openBlobBuffered reads the entire blob into memory via the source's
+// OpenBlob/Start/Wait dance. Suitable for short blobs (e.g. stdin
+// payloads); large outputs should be streamed via substituteMadderURIs
+// instead so they never fully materialize in moxy's memory.
+func openBlobBuffered(ctx context.Context, src blobSource, digest string) ([]byte, error) {
+	pr, writer, err := src.OpenBlob(ctx, digest)
+	if err != nil {
+		return nil, err
+	}
+	defer pr.Close()
+	if err := writer.Start(); err != nil {
+		writer.Cleanup()
+		return nil, err
+	}
+	defer writer.Cleanup()
+	body, readErr := io.ReadAll(pr)
+	waitErr := writer.Wait()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if waitErr != nil {
+		return nil, waitErr
+	}
+	return body, nil
+}
+
+// parseBlobURI extracts the digest segment from a
+// madder://blobs/<digest> URI. Returns ok=false for any URI that does
+// not match.
+func parseBlobURI(uri string) (digest string, ok bool) {
+	const prefix = "madder://blobs/"
 	if !strings.HasPrefix(uri, prefix) {
-		return "", "", false
+		return "", false
 	}
 	rest := uri[len(prefix):]
 	if idx := strings.Index(rest, "?"); idx >= 0 {
 		rest = rest[:idx]
 	}
-	slash := strings.Index(rest, "/")
-	if slash <= 0 || slash == len(rest)-1 {
-		return "", "", false
+	if rest == "" || strings.Contains(rest, "/") {
+		return "", false
 	}
-	return rest[:slash], rest[slash+1:], true
+	return rest, true
 }

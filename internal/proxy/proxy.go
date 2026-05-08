@@ -99,10 +99,6 @@ type EphemeralMeta struct {
 // transport details (stdio vs HTTP, credentials, etc.).
 type ConnectFunc func(ctx context.Context, cfg config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error)
 
-// ResultReader reads cached native server tool output by URI.
-type ResultReader interface {
-	ReadResult(uri string) (string, error)
-}
 
 type pavedPathState struct {
 	SelectedPath string
@@ -119,7 +115,7 @@ type Proxy struct {
 	globalEphemeral             *bool
 	globalProgressiveDisclosure *bool
 	connectFunc                 ConnectFunc
-	resultReader                ResultReader
+	madder                      native.MadderBackend
 	moxyProvider                *moxyResourceProvider
 	resourceProviders           []resourceProviderEntry
 	builtinTools                *server.ToolRegistryV1
@@ -141,11 +137,15 @@ func (p *Proxy) SetNotifier(fn func(*jsonrpc.Message) error) {
 	p.notifier = fn
 }
 
-func (p *Proxy) SetResultReader(rr ResultReader) {
-	p.resultReader = rr
+// SetMadderClient wires the madder backend into the proxy. The
+// backend powers the madder://blobs/{digest} resource provider and
+// is also threaded into freshly-spawned native servers (see
+// ReloadMoxin).
+func (p *Proxy) SetMadderClient(m native.MadderBackend) {
+	p.madder = m
 	p.resourceProviders = append(p.resourceProviders, resourceProviderEntry{
-		prefix:   "moxy.native://results/",
-		provider: &nativeResultProvider{reader: rr},
+		prefix:   "madder://blobs/",
+		provider: &madderBlobProvider{madder: m},
 	})
 }
 
@@ -978,7 +978,7 @@ func (p *Proxy) ListResourcesV1(
 		}
 	}
 
-	// Synthetic resource providers (moxy://, moxy.native://, etc.)
+	// Synthetic resource providers (moxy://, madder://blobs/, etc.)
 	for _, entry := range p.resourceProviders {
 		allResources = append(allResources, entry.provider.ListResources(ctx)...)
 	}
@@ -1036,7 +1036,7 @@ func (p *Proxy) ListResourceTemplatesV1(
 		}
 	}
 
-	// Synthetic resource providers (moxy://, moxy.native://, etc.)
+	// Synthetic resource providers (moxy://, madder://blobs/, etc.)
 	for _, entry := range p.resourceProviders {
 		allTemplates = append(allTemplates, entry.provider.ListResourceTemplates(ctx)...)
 	}
@@ -1480,6 +1480,9 @@ func (p *Proxy) restartMoxin(serverName string) error {
 	srv := native.NewServer(nc)
 	if p.sessionID != "" {
 		srv.SetSession(p.sessionID)
+	}
+	if p.madder != nil {
+		srv.SetMadder(p.madder)
 	}
 	srv.SetOnNotification(p.ForwardNotification)
 	initResult := srv.InitializeResult()

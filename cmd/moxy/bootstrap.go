@@ -18,6 +18,7 @@ type bootstrapInputs struct {
 	systemDir string
 	sessionID string
 	connect   proxy.ConnectFunc
+	madder    native.MadderBackend
 }
 
 // bootstrapResult is the full picture bootstrap produces: the merged config,
@@ -149,6 +150,9 @@ func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, e
 		srv := native.NewServer(nc)
 		if inputs.sessionID != "" {
 			srv.SetSession(inputs.sessionID)
+		}
+		if inputs.madder != nil {
+			srv.SetMadder(inputs.madder)
 		}
 		initResult := srv.InitializeResult()
 		children = append(children, proxy.ChildEntry{

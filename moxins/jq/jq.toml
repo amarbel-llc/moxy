@@ -1,6 +1,6 @@
 schema = 3
 perms-request = "always-allow"
-description = "Execute a jq filter. Only jq is invoked — no shell evaluation. Cached result URIs (moxy.native://results/{session}/{id}) in args are rewritten to /dev/fd/N for streaming."
+description = "Execute a jq filter. Only jq is invoked — no shell evaluation. madder://blobs/<digest> URIs in args are rewritten to /dev/fd/N (streaming via `madder cat`)."
 command = "@BIN@/jq"
 arg-order = ["filter", "flags", "files", "cwd"]
 stdin-param = "stdin"
@@ -22,14 +22,14 @@ type = "string"
 
 [input.properties.files]
 type = "array"
-description = "Input file paths, passed after the filter. Result URIs are rewritten to /dev/fd/N."
+description = "Input file paths, passed after the filter. madder://blobs/<digest> URIs are rewritten to /dev/fd/N."
 
 [input.properties.files.items]
 type = "string"
 
 [input.properties.stdin]
 type = "string"
-description = "Content written to jq's stdin. Either literal JSON text, or a moxy.native://results/{session}/{id} URI to feed cached output."
+description = "Content written to jq's stdin. Either literal JSON text, or a madder://blobs/<digest> URI to feed a cached blob."
 
 [input.properties.cwd]
 type = "string"

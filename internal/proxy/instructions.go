@@ -20,9 +20,9 @@ type ServerSummary struct {
 func FormatInstructions(servers []ServerSummary) string {
 	var b strings.Builder
 	b.WriteString("MCP proxy aggregating tools, resources, and prompts from child servers.\n\n")
-	b.WriteString("Tool results include `moxy.native://results/{session}/{id}` URIs pointing to cached full output. ")
-	b.WriteString("These URIs can be used anywhere a file path is accepted (e.g. jq input) — ")
-	b.WriteString("moxy rewrites them to file descriptors at invocation time.\n\n")
+	b.WriteString("Tool outputs above the inline-token threshold are streamed into a content-addressable blob store and replaced with a `madder://blobs/<digest>` URI. ")
+	b.WriteString("These URIs can be used anywhere a file path is accepted (e.g. jq input) — moxy rewrites them to file descriptors at invocation time. ")
+	b.WriteString("Read directly with `madder cat <digest>` if needed.\n\n")
 	b.WriteString("Prefer tools marked [perms: always-allow] over those requiring permission prompts, unless the task specifically needs a permissioned tool.")
 
 	if len(servers) == 0 {

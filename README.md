@@ -23,18 +23,23 @@ protocol negotiation, process lifecycle, and output management. Moxy replaces
 that per-server boilerplate with a shared runtime that provides several features
 out of the box:
 
-**Result caching and progressive disclosure.** Tool outputs exceeding 50 tokens
-are cached to disk and replaced with a `moxy.native://results/{session}/{id}`
+**Result caching and progressive disclosure.** Tool outputs exceeding the
+inline-token threshold are streamed into [madder](https://github.com/amarbel-llc/madder)
+(a content-addressable blob store) and replaced with a `madder://blobs/<digest>`
 URI plus a head/tail summary. Agents see enough to decide whether the full output
-matters, and can read the cached URI for the complete result — without blowing up
-the context window on a 10,000-line `git log`. Truncation warnings are explicit
-so agents never mistake partial output for complete output.
+matters, and can read the full blob with `madder cat <digest>` (or via the
+`madder://blobs/{digest}` resource) — without blowing up the context window on a
+10,000-line `git log`. Truncation warnings are explicit so agents never mistake
+partial output for complete output. Moxy expects a `.default` store at startup;
+spinclass auto-initializes one per worktree, otherwise run `madder init .default`
+from your repo root.
 
-**Composable result URIs.** The `moxy.native://` URIs are first-class across
-moxin tools. A `jq.jq` call can take one as stdin; tools that accept a path
-argument can be pointed at the URI directly. Moxy rewrites these to file
-descriptors at invocation time, so tools chain without the agent needing to
-copy data between calls.
+**Composable result URIs.** The `madder://blobs/<digest>` URIs are first-class
+across moxin tools. A `jq.jq` call can take one as stdin; tools that accept a
+path argument can be pointed at the URI directly. Moxy rewrites these to file
+descriptors at invocation time (piping `madder cat <digest>` stdout through to
+the child process), so tools chain without the agent needing to copy data
+between calls.
 
 **Declarative tool authoring.** Moxins are TOML files — a manifest plus one file
 per tool. Each tool file declares its name, description, input schema, command,

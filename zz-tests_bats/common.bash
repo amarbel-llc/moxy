@@ -19,6 +19,17 @@ run_moxy() {
   run timeout --preserve-status "5s" moxy "$@"
 }
 
+# Ensure a `.default` madder blob store exists in the current working
+# directory (or an ancestor — madder walks up to find `.madder/`). Moxy
+# fails startup if the store is missing, so every helper that spawns
+# `moxy serve mcp` calls this first. Idempotent: skipped when the store
+# already resolves.
+_ensure_madder_default_store() {
+  if ! madder info-repo .default >/dev/null 2>&1; then
+    madder init .default >/dev/null 2>&1
+  fi
+}
+
 # Send a JSON-RPC initialize handshake followed by a method call, capture the
 # method's result as JSON in $output.
 run_moxy_mcp() {
@@ -26,6 +37,7 @@ run_moxy_mcp() {
   shift
   local params="${1:-}"
 
+  _ensure_madder_default_store
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
   local method_req
@@ -46,6 +58,7 @@ run_moxy_mcp_two() {
   local method1="$1" params1="$2" method2="$3"
   local params2="${4:-}"
 
+  _ensure_madder_default_store
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
 
@@ -74,6 +87,7 @@ run_moxy_mcp_with_stderr() {
   shift
   local params="${1:-}"
 
+  _ensure_madder_default_store
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
   local method_req
@@ -102,6 +116,7 @@ run_moxy_mcp_v1() {
   shift
   local params="${1:-}"
 
+  _ensure_madder_default_store
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
   local method_req
@@ -140,6 +155,7 @@ run_moxy_mcp_v1() {
 # Send a V1 JSON-RPC initialize handshake, capture the initialize result in
 # $output. Uses V1 protocol to get instructions field.
 run_moxy_mcp_init() {
+  _ensure_madder_default_store
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
 
@@ -156,6 +172,7 @@ run_moxy_mcp_init() {
 # Exports: MOXY_HTTP_PID, MOXY_HTTP_URL, MOXY_HTTP_STDOUT, MOXY_HTTP_STDERR.
 # Caller should invoke stop_moxy_http in teardown.
 start_moxy_http() {
+  _ensure_madder_default_store
   MOXY_HTTP_STDOUT=$(mktemp)
   MOXY_HTTP_STDERR=$(mktemp)
 

@@ -40,10 +40,19 @@ func runMoxinServer(name string) error {
 	sessionID, _ := resolveSessionID()
 	srv.SetSession(sessionID)
 
-	adapter := &native.ToolAdapter{Srv: srv}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	madderClient, err := native.NewMadderClient()
+	if err != nil {
+		return fmt.Errorf("madder runtime: %w", err)
+	}
+	if err := madderClient.VerifyDefaultStore(ctx); err != nil {
+		return fmt.Errorf("madder default store: %w", err)
+	}
+	srv.SetMadder(madderClient)
+
+	adapter := &native.ToolAdapter{Srv: srv}
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 	mcpSrv, err := server.New(t, server.Options{

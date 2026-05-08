@@ -142,7 +142,7 @@ EOF
   echo "$output" | jq -e '.content[0].type == "resource"'
   echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"'
   echo "$output" | jq -e '.content[0].resource.text == "{\"ok\":true}"'
-  echo "$output" | jq -e '.content[0].resource.uri | startswith("moxy.native://results/")'
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")'
 }
 
 function native_server_schema2_mcp_result_passthrough { # @test

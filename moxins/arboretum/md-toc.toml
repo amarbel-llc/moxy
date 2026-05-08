@@ -11,7 +11,7 @@ required = ["markdown"]
 
 [input.properties.markdown]
 type = "string"
-description = "Markdown content to parse. Pass literal text or a moxy.native://results/{session}/{id} URI."
+description = "Markdown content to parse. Pass literal text or a madder://blobs/<digest> URI to feed a cached tool result."
 
 [annotations]
 read-only-hint = true

@@ -42,6 +42,17 @@
       url = "github:amarbel-llc/bun";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # madder is the content-addressable blob store backing the moxin
+    # result cache. Pinned at build time so `moxy version` reports an
+    # auditable revision; users can override with
+    # `nix build .#moxy --override-input madder github:amarbel-llc/madder/<rev>`.
+    madder = {
+      url = "github:amarbel-llc/madder";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+    };
   };
 
   outputs =
@@ -56,6 +67,7 @@
       maneater,
       bob,
       bun,
+      madder,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -461,6 +473,8 @@
           ln -s ${gws-moxin} $out/share/moxy/moxins/gws
         '';
 
+        madder-bin = madder.packages.${system}.default;
+
         moxy = pkgs.buildGoApplication {
           pname = "moxy";
           version = moxyVersion;
@@ -477,6 +491,7 @@
           # need to live here.
           ldflags = [
             "-X" "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
+            "-X" "github.com/amarbel-llc/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"
           ];
           postInstall = ''
             MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
@@ -527,6 +542,9 @@
 
         # Static Go binary for non-nix distribution (no wrapProgram, no
         # system moxin ldflags). Moxin discovery uses exe-relative path resolution.
+        # Madder pin is also dropped here so the static binary stays
+        # self-contained — users on the static path are expected to
+        # supply their own `madder` on $PATH.
         moxy-static = pkgs.buildGoApplication {
           pname = "moxy";
           version = moxyVersion;

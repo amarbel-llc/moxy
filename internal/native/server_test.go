@@ -130,7 +130,6 @@ func TestServerToolsCallUnknown(t *testing.T) {
 // schema=2 tool outputs a text block with mimeType, buildMCPResult rewrites
 // it into a valid resource block. Regression test for #92.
 func TestBuildMCPResultRewritesMimeTypeToResourceBlock(t *testing.T) {
-	cacheDir := t.TempDir()
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
@@ -143,7 +142,7 @@ func TestBuildMCPResultRewritesMimeTypeToResourceBlock(t *testing.T) {
 		},
 	}
 	srv := NewServer(cfg)
-	srv.cache = newResultCache(cacheDir)
+	srv.SetMadder(newFakeMadder())
 	srv.SetSession("test-session")
 
 	params := protocol.ToolCallParams{
@@ -185,8 +184,8 @@ func TestBuildMCPResultRewritesMimeTypeToResourceBlock(t *testing.T) {
 	if block.Resource.MimeType != "text/x-diff" {
 		t.Errorf("resource.mimeType = %q, want %q", block.Resource.MimeType, "text/x-diff")
 	}
-	if !strings.HasPrefix(block.Resource.URI, "moxy.native://results/") {
-		t.Errorf("resource.uri = %q, want moxy.native:// prefix", block.Resource.URI)
+	if !strings.HasPrefix(block.Resource.URI, "madder://blobs/") {
+		t.Errorf("resource.uri = %q, want madder://blobs/ prefix", block.Resource.URI)
 	}
 }
 
@@ -204,6 +203,7 @@ func TestServerToolsCallContentTypeResourceBlock(t *testing.T) {
 		},
 	}
 	srv := NewServer(cfg)
+	srv.SetMadder(newFakeMadder())
 
 	params := protocol.ToolCallParams{
 		Name: "json-tool",
@@ -245,8 +245,8 @@ func TestServerToolsCallContentTypeResourceBlock(t *testing.T) {
 	if block.Resource.Text != `{"ok":true}` {
 		t.Errorf("resource.text = %q, want %q", block.Resource.Text, `{"ok":true}`)
 	}
-	if !strings.HasPrefix(block.Resource.URI, "moxy.native://results/") {
-		t.Errorf("resource.uri = %q, want moxy.native:// prefix", block.Resource.URI)
+	if !strings.HasPrefix(block.Resource.URI, "madder://blobs/") {
+		t.Errorf("resource.uri = %q, want madder://blobs/ prefix", block.Resource.URI)
 	}
 }
 
@@ -290,7 +290,6 @@ func TestServerToolsCallWithArguments(t *testing.T) {
 }
 
 func TestServerToolsCallCachesLargeOutput(t *testing.T) {
-	cacheDir := t.TempDir()
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
@@ -303,7 +302,7 @@ func TestServerToolsCallCachesLargeOutput(t *testing.T) {
 		},
 	}
 	srv := NewServer(cfg)
-	srv.cache = newResultCache(cacheDir)
+	srv.SetMadder(newFakeMadder())
 	srv.SetSession("test-session")
 
 	params := protocol.ToolCallParams{
@@ -327,7 +326,7 @@ func TestServerToolsCallCachesLargeOutput(t *testing.T) {
 		t.Fatalf("expected 1 content block, got %d", len(result.Content))
 	}
 	text := result.Content[0].Text
-	if !strings.Contains(text, "moxy.native://results/test-session/") {
+	if !strings.Contains(text, "madder://blobs/") {
 		t.Errorf("expected cached result URI in output, got:\n%s", text)
 	}
 	if !strings.Contains(text, "First 10 lines") {
@@ -339,7 +338,6 @@ func TestServerToolsCallCachesLargeOutput(t *testing.T) {
 }
 
 func TestServerToolsCallNoTruncateReturnsFullOutput(t *testing.T) {
-	cacheDir := t.TempDir()
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
@@ -353,7 +351,7 @@ func TestServerToolsCallNoTruncateReturnsFullOutput(t *testing.T) {
 		},
 	}
 	srv := NewServer(cfg)
-	srv.cache = newResultCache(cacheDir)
+	srv.SetMadder(newFakeMadder())
 	srv.SetSession("test-session")
 
 	params := protocol.ToolCallParams{
@@ -378,7 +376,7 @@ func TestServerToolsCallNoTruncateReturnsFullOutput(t *testing.T) {
 	}
 	text := result.Content[0].Text
 	// URI pointer must be present.
-	if !strings.Contains(text, "moxy.native://results/test-session/") {
+	if !strings.Contains(text, "madder://blobs/") {
 		t.Errorf("expected cached result URI in output, got:\n%s", text)
 	}
 	// Head/tail truncation markers must NOT be present.
@@ -395,7 +393,6 @@ func TestServerToolsCallNoTruncateReturnsFullOutput(t *testing.T) {
 }
 
 func TestServerToolsCallURISubstitution(t *testing.T) {
-	cacheDir := t.TempDir()
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
@@ -408,22 +405,17 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 		},
 	}
 	srv := NewServer(cfg)
-	srv.cache = newResultCache(cacheDir)
+	madder := newFakeMadder()
+	srv.SetMadder(madder)
 	srv.SetSession("test-session")
 
-	// Pre-populate the cache with known content.
-	if err := srv.cache.store(cachedResult{
-		ID:      "test-abc",
-		Session: "test-session",
-		Output:  "1\n2\n3\n4\n5\n",
-	}); err != nil {
-		t.Fatalf("store: %v", err)
-	}
+	// Pre-populate the store with known content.
+	const digest = "blake2b256-test-abc"
+	madder.put(digest, "1\n2\n3\n4\n5\n")
 
-	// Use the cached URI in a grep command.
 	params := protocol.ToolCallParams{
 		Name:      "exec",
-		Arguments: json.RawMessage(`{"command":"grep -x 3 moxy.native://results/test-session/test-abc"}`),
+		Arguments: json.RawMessage(`{"command":"grep -x 3 madder://blobs/blake2b256-test-abc"}`),
 	}
 	raw, err := srv.Call(context.Background(), "tools/call", params)
 	if err != nil {
@@ -447,7 +439,6 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 }
 
 func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
-	cacheDir := t.TempDir()
 	falseVal := false
 	cfg := &NativeConfig{
 		Name: "test-server",
@@ -461,21 +452,14 @@ func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
 		},
 	}
 	srv := NewServer(cfg)
-	srv.cache = newResultCache(cacheDir)
+	madder := newFakeMadder()
+	srv.SetMadder(madder)
 	srv.SetSession("test-session")
+	madder.put("blake2b256-test-abc", "cached-content\n")
 
-	// Pre-populate the cache.
-	if err := srv.cache.store(cachedResult{
-		ID:      "test-abc",
-		Session: "test-session",
-		Output:  "cached-content\n",
-	}); err != nil {
-		t.Fatalf("store: %v", err)
-	}
-
-	// Pass a result URI as an argument — with opt-out, it should pass through
-	// as a literal string, not be rewritten to /dev/fd/N.
-	uri := "moxy.native://results/test-session/test-abc"
+	// Pass a blob URI as an argument — with opt-out, it should pass
+	// through as a literal string, not be rewritten to /dev/fd/N.
+	uri := "madder://blobs/blake2b256-test-abc"
 	params := protocol.ToolCallParams{
 		Name:      "echo-raw",
 		Arguments: json.RawMessage(fmt.Sprintf(`{"text":"%s"}`, uri)),
@@ -501,7 +485,6 @@ func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
 }
 
 func TestServerToolsCallStdinURISubstitutionOptOut(t *testing.T) {
-	cacheDir := t.TempDir()
 	falseVal := false
 	cfg := &NativeConfig{
 		Name: "test-server",
@@ -517,20 +500,14 @@ func TestServerToolsCallStdinURISubstitutionOptOut(t *testing.T) {
 		},
 	}
 	srv := NewServer(cfg)
-	srv.cache = newResultCache(cacheDir)
+	madder := newFakeMadder()
+	srv.SetMadder(madder)
 	srv.SetSession("test-session")
+	madder.put("blake2b256-test-abc", "cached-content\n")
 
-	if err := srv.cache.store(cachedResult{
-		ID:      "test-abc",
-		Session: "test-session",
-		Output:  "cached-content\n",
-	}); err != nil {
-		t.Fatalf("store: %v", err)
-	}
-
-	// With opt-out, the URI should be passed as literal stdin text to cat,
-	// not resolved to the cached content.
-	uri := "moxy.native://results/test-session/test-abc"
+	// With opt-out, the URI should be passed as literal stdin text to
+	// cat, not resolved to the cached content.
+	uri := "madder://blobs/blake2b256-test-abc"
 	params := protocol.ToolCallParams{
 		Name:      "cat-raw",
 		Arguments: json.RawMessage(fmt.Sprintf(`{"data":"%s"}`, uri)),

@@ -1,5 +1,15 @@
 # Config-as-Server Implementation Plan
 
+> **Historical (2026-05-08):** the result-caching + resource-as-fd
+> sections of this plan describe the original `moxy.native://results/{session}/{id}`
+> scheme, which has been superseded by content-addressable storage via
+> [madder](https://github.com/amarbel-llc/madder). The cache layer now
+> streams outputs into `madder write .default` and emits
+> `madder://blobs/<digest>` URIs; substitution pipes `madder cat <digest>`
+> stdout into a child fd. See `internal/native/madder.go`,
+> `internal/native/substitute.go`, and the corresponding plan at
+> `~/.claude/plans/concurrent-humming-bachman.md`.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task.
 
 **Goal:** Enable declaring MCP tools as TOML configs in `.moxy/` directories, with moxy handling process invocation, result caching, and resource-as-fd composition.

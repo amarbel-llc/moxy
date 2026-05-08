@@ -110,8 +110,8 @@ type ToolSpec struct {
 	InputParsed          *InputSchema
 }
 
-// ShouldSubstituteURIs reports whether moxy.native:// result URIs in this
-// tool's arguments should be rewritten to /dev/fd/N pipes.
+// ShouldSubstituteURIs reports whether madder://blobs/<digest> URIs in
+// this tool's arguments should be rewritten to /dev/fd/N pipes.
 func (s *ToolSpec) ShouldSubstituteURIs() bool {
 	return s.SubstituteResultURIs == nil || *s.SubstituteResultURIs
 }

@@ -5,9 +5,6 @@ setup() {
   setup_test_home
   export output
 
-  # Isolate cache inside the test home so sessions share the same disk cache.
-  export XDG_CACHE_HOME="$HOME/.cache"
-
   # Set up a native shell exec tool via MOXIN_PATH.
   local moxin_dir="$HOME/project/.moxy/moxins"
   mkdir -p "$moxin_dir/shell"
@@ -31,6 +28,10 @@ EOF
 
   export MOXIN_PATH="$moxin_dir"
   cd "$HOME/project"
+  # Per-test madder default store. run_moxy_mcp also auto-inits one,
+  # but pinning CWD here keeps both moxy invocations on the same store
+  # so a digest written in one resolves in the next.
+  madder init .default >/dev/null 2>&1 || true
 }
 
 teardown() {
@@ -59,27 +60,28 @@ function native_exec_caches_large_output { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  # Summary should contain the resource URI.
-  echo "$output" | jq -er '.content[0].text' | grep -q 'moxy\.native://results/'
+  # Summary should contain the madder blob URI.
+  echo "$output" | jq -er '.content[0].text' | grep -q 'madder://blobs/'
 
   # Summary should contain head/tail markers.
   echo "$output" | jq -er '.content[0].text' | grep -q 'First 10 lines'
   echo "$output" | jq -er '.content[0].text' | grep -q 'Last 10 lines'
 }
 
-function native_exec_cache_layout_includes_session_directory { # @test
+function native_exec_blob_lands_in_madder_store { # @test
+  # The .default store is at ./.madder/local/share/blob_stores/default/.
+  # After a large-output call, at least one blob file must exist there.
   local params='{"name":"shell.exec","arguments":{"command":"seq 1 1000"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  # Session ID is resolved at startup (UUID fallback when no env var is set).
-  # Verify that a session subdirectory was created (not "no-session").
-  local session_dir
-  session_dir=$(find "$XDG_CACHE_HOME/moxy/native-results" -mindepth 1 -maxdepth 1 -type d | head -1)
-  [[ -n $session_dir ]]
-  [[ $(basename "$session_dir") != "no-session" ]]
-  ls "$session_dir"/*.json >/dev/null
-  ls "$session_dir"/*.txt >/dev/null
+  local store_dir="$HOME/project/.madder/local/share/blob_stores/default"
+  [[ -d $store_dir ]]
+  # madder lays out blobs in hash-bucketed subdirectories — count any
+  # regular file under the store root.
+  local count
+  count=$(find "$store_dir" -type f -not -name 'blob_store-config' | wc -l)
+  [[ $count -gt 0 ]]
 }
 
 function native_exec_resource_as_fd_substitution { # @test
@@ -89,11 +91,12 @@ function native_exec_resource_as_fd_substitution { # @test
   assert_success
 
   local uri
-  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'moxy\.native://results/[A-Za-z0-9._-]+/[a-f0-9-]+')
+  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'madder://blobs/[A-Za-z0-9._-]+')
   [[ -n $uri ]]
 
-  # Step 2: Use the cached URI in a grep command via a second moxy session.
-  # Both sessions share XDG_CACHE_HOME so the disk cache is visible.
+  # Step 2: Use the cached URI in a grep command via a second moxy
+  # session. The second session walks up to the same `.default` store
+  # so the digest resolves.
   local cmd="grep -x 42 $uri"
   local call_params
   call_params=$(jq -cn --arg c "$cmd" '{"name":"shell.exec","arguments":{"command":$c}}')
@@ -109,10 +112,10 @@ function native_exec_resource_as_fd_repeated_uri_shares_fd { # @test
   assert_success
 
   local uri
-  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'moxy\.native://results/[A-Za-z0-9._-]+/[a-f0-9-]+')
+  uri=$(echo "$output" | jq -er '.content[0].text' | grep -oP 'madder://blobs/[A-Za-z0-9._-]+')
   [[ -n $uri ]]
 
-  # Step 2: Diff the same cached result against itself -- must produce no
+  # Step 2: Diff the same cached blob against itself — must produce no
   # output and must not deadlock (both references share the same fd).
   local cmd="diff $uri $uri"
   local call_params
@@ -127,7 +130,7 @@ function native_exec_resource_as_fd_repeated_uri_shares_fd { # @test
 }
 
 function native_exec_resource_missing_cached_id_errors { # @test
-  local params='{"name":"shell.exec","arguments":{"command":"cat moxy.native://results/nonexistent-session/does-not-exist"}}'
+  local params='{"name":"shell.exec","arguments":{"command":"cat madder://blobs/blake2b256-deadbeefdeadbeefdeadbeefdeadbeef"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
   echo "$output" | jq -e '.isError == true'
