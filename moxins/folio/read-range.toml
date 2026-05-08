@@ -1,0 +1,35 @@
+schema = 3
+result-type = "text"
+no-truncate = true
+perms-request = "dynamic"
+description = """Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. \
+Output format: `     N\\tcontent` per line. Replaces `head`/`tail` piping — use on moxy.native:// result URIs \
+to read specific line ranges from cached command output."""
+command = "@BIN@/read-range"
+arg-order = ["file_path", "start", "end"]
+
+[input]
+type = "object"
+required = ["file_path", "start", "end"]
+
+[input.properties.file_path]
+type = "string"
+description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts moxy.native:// result URIs."
+
+[input.properties.start]
+type = "integer"
+description = "Inclusive start line (1-indexed)"
+
+[input.properties.end]
+type = "integer"
+description = "Inclusive end line (1-indexed)"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["file_path"]
+timeout-ms = 1000

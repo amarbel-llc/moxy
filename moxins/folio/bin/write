@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+file="$1"
+content="$2"
+
+# Create parent directories
+mkdir -p "$(dirname "$file")"
+
+# Atomic write via tempfile + rename
+tmp=$(mktemp "$(dirname "$file")/.folio-write-XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+printf '%s' "$content" > "$tmp"
+
+# Preserve permissions of existing file
+if [ -f "$file" ]; then
+  chmod --reference="$file" "$tmp" 2>/dev/null || true
+else
+  chmod 644 "$tmp"
+fi
+
+mv "$tmp" "$file"
+trap - EXIT
+echo "Wrote $(printf '%s' "$content" | wc -c) bytes to $file"

@@ -3,8 +3,9 @@
 # folio's CWD guard was removed in favor of dynamic-perms (see
 # bin/folio-perms). The native tools no longer reject paths outside CWD —
 # in tests where Claude Code's hook layer doesn't fire, paths anywhere on
-# the filesystem are accessible. This file invokes the bin/folio-perms
-# predicate directly to verify its decision policy.
+# the filesystem are accessible. This file now exercises the still-valid
+# in-cwd path and the /dev/fd handling, plus invokes the predicate
+# directly to verify its decision policy.
 
 setup_file() {
   # Extract the release tarball once so the predicate test can invoke
@@ -33,6 +34,51 @@ setup() {
 
 teardown() {
   teardown_test_home
+}
+
+# ----- folio.read still works for in-CWD paths and /dev/fd -----
+
+function folio_read_allows_file_within_cwd { # @test
+  mkdir -p "$HOME/project"
+  echo "hello world" > "$HOME/project/test.txt"
+
+  cd "$HOME/project"
+
+  local params
+  params=$(jq -cn --arg n "folio.read" \
+    '{name: $n, arguments: {file_path: "test.txt"}}')
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_output --partial "hello world"
+}
+
+function folio_read_allows_dev_fd_path { # @test
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  local params
+  params=$(jq -cn --arg n "folio.read" \
+    '{name: $n, arguments: {file_path: "/dev/fd/0"}}')
+  run_moxy_mcp "tools/call" "$params" <<< "stdin line"
+  assert_success
+}
+
+function folio_read_now_succeeds_outside_cwd { # @test
+  # Native layer no longer rejects outside-CWD paths. Real-world prompting
+  # happens at the Claude Code hook layer (dynamic-perms predicate).
+  mkdir -p "$HOME/project"
+  mkdir -p "$HOME/other"
+  echo "accessible" > "$HOME/other/file.txt"
+
+  cd "$HOME/project"
+
+  local params
+  params=$(jq -cn --arg n "folio.read" --arg p "$HOME/other/file.txt" \
+    '{name: $n, arguments: {file_path: $p}}')
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_output --partial "accessible"
+  refute_output --partial "outside CWD"
 }
 
 # ----- folio-perms predicate exits as expected -----

@@ -20,16 +20,16 @@ func TestParseNativeToolName(t *testing.T) {
 	}{
 		{
 			name:   "simple tool (direct)",
-			input:  "mcp__moxy__folio_ls",
+			input:  "mcp__moxy__folio_read",
 			prefix: "mcp__moxy__",
-			want:   "folio.ls",
+			want:   "folio.read",
 			wantOK: true,
 		},
 		{
 			name:   "simple tool (plugin)",
-			input:  "mcp__plugin_moxy_moxy__folio_ls",
+			input:  "mcp__plugin_moxy_moxy__folio_read",
 			prefix: "mcp__plugin_moxy_moxy__",
-			want:   "folio.ls",
+			want:   "folio.read",
 			wantOK: true,
 		},
 		{
@@ -48,7 +48,7 @@ func TestParseNativeToolName(t *testing.T) {
 		},
 		{
 			name:   "wrong prefix",
-			input:  "mcp__moxy__folio_ls",
+			input:  "mcp__moxy__folio_read",
 			prefix: "mcp__plugin_moxy_moxy__",
 			want:   "",
 			wantOK: false,
@@ -81,8 +81,8 @@ func TestMatchMoxyPrefix(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"direct", "mcp__moxy__folio_ls", "mcp__moxy__"},
-		{"plugin", "mcp__plugin_moxy_moxy__folio_ls", "mcp__plugin_moxy_moxy__"},
+		{"direct", "mcp__moxy__folio_read", "mcp__moxy__"},
+		{"plugin", "mcp__plugin_moxy_moxy__folio_read", "mcp__plugin_moxy_moxy__"},
 		{"builtin tool", "Bash", ""},
 		{"other mcp server", "mcp__other__foo_bar", ""},
 	}

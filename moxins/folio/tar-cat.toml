@@ -15,7 +15,7 @@ description = "Path to the tarball. Auto-allowed inside CWD, /nix/store, and Cla
 
 [input.properties.member]
 type = "string"
-description = "Path of the member to extract (e.g. 'moxy/bin/moxy', 'moxy/share/moxy/moxins/folio/ls.toml')."
+description = "Path of the member to extract (e.g. 'moxy/bin/moxy', 'moxy/share/moxy/moxins/folio/read.toml')."
 
 [annotations]
 read-only-hint = true

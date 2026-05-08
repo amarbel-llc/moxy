@@ -35,11 +35,11 @@ spinclass auto-initializes one per worktree, otherwise run `madder init .default
 from your repo root.
 
 **Composable result URIs.** The `madder://blobs/<digest>` URIs are first-class
-across moxin tools. A `jq.jq` call can take one as stdin; tools that accept a
-path argument can be pointed at the URI directly. Moxy rewrites these to file
-descriptors at invocation time (piping `madder cat <digest>` stdout through to
-the child process), so tools chain without the agent needing to copy data
-between calls.
+across moxin tools. A `folio.read` call can take the URI from a previous
+`rg.search` result as its file path; a `jq.jq` call can take one as stdin.
+Moxy rewrites these to file descriptors at invocation time (piping
+`madder cat <digest>` stdout through to the child process), so tools chain
+without the agent needing to copy data between calls.
 
 **Declarative tool authoring.** Moxins are TOML files — a manifest plus one file
 per tool. Each tool file declares its name, description, input schema, command,
@@ -50,7 +50,7 @@ code.
 **Permission control.** Each moxin tool can declare a `perms-request` field:
 `always-allow` (skip confirmation), `each-use` (always prompt), or
 `delegate-to-client` (let the client decide). This lets read-only tools like
-`folio.tree` run without interrupting the agent, while destructive tools like
+`folio.read` run without interrupting the agent, while destructive tools like
 `grit.push` require explicit approval.
 
 **Unified discovery.** Agents see all tools from all servers through a single MCP

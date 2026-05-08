@@ -311,7 +311,7 @@
         } { pathMode = "suffix"; };
         conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
-        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq pkgs.tree ] {};
+        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq ] {};
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] {};
         # pathMode = "suffix" so user PATH wins (and can shadow gh with a
         # stub in tests).
