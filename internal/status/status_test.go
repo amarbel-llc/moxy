@@ -2,7 +2,9 @@ package status
 
 import (
 	"bytes"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -297,20 +299,29 @@ command = "grit"
 }
 
 func TestRunHierarchyMerge(t *testing.T) {
+	// Validation rejects servers whose command isn't found via
+	// exec.LookPath, so use a real absolute path. Prior versions of this
+	// test used bare names like "grit"/"lux" which only happened to
+	// resolve when the devshell put a matching binary on $PATH.
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		t.Fatalf("locating true(1): %v", err)
+	}
+
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
 
-	writeFile(t, filepath.Join(home, ".config", "moxy", "moxyfile"), `
+	writeFile(t, filepath.Join(home, ".config", "moxy", "moxyfile"), fmt.Sprintf(`
 [[servers]]
-name = "grit"
-command = "grit"
-`)
-	writeFile(t, filepath.Join(dir, "moxyfile"), `
+name = "alpha"
+command = %q
+`, trueBin))
+	writeFile(t, filepath.Join(dir, "moxyfile"), fmt.Sprintf(`
 [[servers]]
-name = "lux"
-command = "lux"
-`)
+name = "beta"
+command = %q
+`, trueBin))
 
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
