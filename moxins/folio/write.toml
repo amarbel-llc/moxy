@@ -26,4 +26,4 @@ idempotent-hint = true
 command = "@BIN@/folio-perms"
 args = ["write"]
 arg-order = ["file_path"]
-timeout-ms = 1000
+timeout-ms = 5000

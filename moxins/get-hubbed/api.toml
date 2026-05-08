@@ -57,4 +57,4 @@ open-world-hint = true
 [dynamic-perms]
 command = "@BIN@/api-perms"
 arg-order = ["method"]
-timeout-ms = 1000
+timeout-ms = 5000

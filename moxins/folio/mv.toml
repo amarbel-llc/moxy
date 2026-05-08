@@ -24,4 +24,4 @@ destructive-hint = true
 command = "@BIN@/folio-perms"
 args = ["move"]
 arg-order = ["source", "destination"]
-timeout-ms = 1000
+timeout-ms = 5000

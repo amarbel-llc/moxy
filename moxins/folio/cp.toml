@@ -29,4 +29,4 @@ destructive-hint = true
 command = "@BIN@/folio-perms"
 args = ["copy"]
 arg-order = ["source", "destination"]
-timeout-ms = 1000
+timeout-ms = 5000

@@ -33,4 +33,4 @@ destructive-hint = true
 command = "@BIN@/folio-perms"
 args = ["link"]
 arg-order = ["source", "target"]
-timeout-ms = 1000
+timeout-ms = 5000
