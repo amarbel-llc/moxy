@@ -1,0 +1,25 @@
+schema = 3
+result-type = "mcp-result"
+perms-request = "always-allow"
+description = """Run a bash command inside a fence(1) sandbox with strict policy: \
+no outbound network, reads/writes denied outside $PWD (plus /tmp and the session \
+tmpdir), credential paths denied, dangerous commands denied. Commands that try to \
+escape the policy fail outright. Use for safe agent self-serve shell work; do not \
+use for operations that need network or out-of-tree filesystem access."""
+command = "@BIN@/bash"
+arg-order = ["command", "timeout_seconds"]
+
+[input]
+type = "object"
+required = ["command"]
+
+[input.properties.command]
+type = "string"
+description = "Bash command to run. Executed via `bash -c`. The fence policy denies writes outside $PWD/tmp/session-tmpdir, denies all outbound network, and denies dangerous commands (sudo, git push, etc.)."
+
+[input.properties.timeout_seconds]
+type = "integer"
+description = "Wall-clock timeout in seconds. Default 60, max 600. The wrapped command is killed and isError=true is returned if the timeout is exceeded."
+
+[annotations]
+open-world-hint = true

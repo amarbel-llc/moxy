@@ -297,7 +297,13 @@
           "flake-update" = "moxins/chix/src/flake-update.ts";
           "store-ls" = "moxins/chix/src/store-ls.ts";
         } { pathMode = "suffix"; };
-        conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
+        # pathMode = "suffix" so the wrapped PATH appends to the user's
+        # PATH instead of replacing it. fence shells out to macOS's
+        # /usr/bin/sandbox-exec via PATH search, so /usr/bin must remain
+        # reachable.
+        conch-moxin = mkBunMoxin "conch" [ pkgs.bash pkgs.coreutils pkgs.fence ] {
+          "bash" = "moxins/conch/src/bash.ts";
+        } { pathMode = "suffix"; };
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
         folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq pkgs.tree ] {};
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] {};
