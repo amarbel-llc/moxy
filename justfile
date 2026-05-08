@@ -28,9 +28,6 @@ build-go: generate build-moxins
 build-moxins:
   nix build .#moxy-moxins
 
-build-release-tarball:
-  nix build .#release-tarball --no-link --print-out-paths
-
 generate:
   go generate ./internal/config/
 
@@ -52,13 +49,10 @@ test: test-go test-bats test-validate-mcp test-status test-flake-check
 # 143, and we get blanket-empty test output. See #249.
 test-bats: build-go
   export TMPDIR=/tmp && \
-  export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test
 
 # Validates the flake's structural outputs (packages.* are derivations,
-# devShells eval, etc). Runs last so the nix store cache is already warm
-# from prior build steps; incremental cost is eval + moxy-static +
-# release-tarball, both small rebuilds that hit the store cache on reruns.
+# devShells eval, etc).
 test-flake-check:
   nix flake check
 
@@ -66,7 +60,6 @@ test-flake-check:
 # sandcastle allowWrite list. See test-bats above and #249.
 test-bats-file file: build-go
   export TMPDIR=/tmp && \
-  export RELEASE_TARBALL_DIR=$(nix build .#release-tarball --no-link --print-out-paths) && \
   just --set bin_dir {{justfile_directory()}}/{{dir_build}} zz-tests_bats/test-targets {{file}}
 
 # End-to-end: verify claude -p can see and call moxy MCP tools.
@@ -206,72 +199,6 @@ test-mcp: build-go
   set -euo pipefail
   tools=$({{mcp-inspect}} --method tools/list {{justfile_directory()}}/{{dir_build}}/moxy serve mcp)
   echo "$tools" | jq .
-
-test-tarball-grit:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  cd "{{justfile_directory()}}"
-
-  # Build the grit moxin tarball
-  echo "=== Building grit standalone tarball ==="
-  result=$(nix build .#standalone-moxin-tarballs.grit --print-out-paths 2>/dev/null)
-  tarball=$(ls "$result"/grit-moxin-*.tar.gz | head -1)
-  echo "Tarball: $tarball"
-  echo ""
-
-  # Step 1: Extract tarball
-  echo "=== STEP 1: Extract tarball ==="
-  tmpdir=$(mktemp -d)
-  tar -xzf "$tarball" -C "$tmpdir"
-  echo "Extracted to: $tmpdir"
-  echo "ls $tmpdir/grit/:"
-  ls "$tmpdir/grit/"
-  echo ""
-  echo "TMPDIR=$tmpdir"
-  echo ""
-
-  # Step 2: Test serve-moxin
-  echo "=== STEP 2: Test serve-moxin ==="
-  moxy="{{justfile_directory()}}/build/moxy"
-
-  output=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test"}}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \
-    | MOXIN_PATH="$tmpdir" "$moxy" serve-moxin grit 2>/dev/null)
-
-  echo "First 2 JSON-RPC responses:"
-  echo "$output" | head -2
-  echo ""
-
-  # Verification with jq
-  echo "=== VERIFICATION ==="
-  line1=$(echo "$output" | head -1)
-  line2=$(echo "$output" | tail -1)
-
-  # Check initialize response
-  server_name=$(echo "$line1" | jq -r '.result.serverInfo.name' 2>/dev/null || echo "ERROR")
-  server_version=$(echo "$line1" | jq -r '.result.serverInfo.version' 2>/dev/null || echo "ERROR")
-
-  if [[ "$server_name" == "grit" ]]; then
-    echo "✓ Initialize response: serverInfo.name = \"$server_name\""
-    echo "  serverInfo.version = \"$server_version\""
-  else
-    echo "✗ Initialize response: serverInfo.name = \"$server_name\" (expected 'grit')"
-    exit 1
-  fi
-
-  # Check tools/list response
-  tool_count=$(echo "$line2" | jq '.result.tools | length' 2>/dev/null || echo "ERROR")
-  if [[ "$tool_count" != "ERROR" ]] && [[ "$tool_count" -gt 0 ]]; then
-    echo "✓ Tools/list response: $tool_count tools found"
-    echo "$line2" | jq '.result.tools[0:3] | map(.name)' 2>/dev/null | sed 's/^/  - /'
-  else
-    echo "✗ Tools/list response: could not parse tools"
-    exit 1
-  fi
-
-  # Cleanup
-  rm -rf "$tmpdir"
-  echo ""
-  echo "✓ All checks passed!"
 
 run-nix *ARGS:
   nix run . -- {{ARGS}}
@@ -436,90 +363,6 @@ release new_version:
   git push origin master
   just tag
 
-# Open a PR against amarbel-llc/homebrew-moxy setting Formula/moxy.rb to v$version (run after `just release` — v$version assets must exist on the GitHub release; HOMEBREW_TAP_DIR overrides the default .tmp/homebrew-moxy checkout)
-bump-formula version:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  version="{{version}}"
-  template="scripts/moxy.rb.template"
-  tap_dir="${HOMEBREW_TAP_DIR:-.tmp/homebrew-moxy}"
-  branch="bump-moxy-v${version}"
-
-  [ -f "$template" ] || { echo "template not found: $template" >&2; exit 1; }
-
-  # Verify both release assets are published (not just the release tag).
-  for platform in darwin-arm64 linux-amd64; do
-    if ! gh release view "v${version}" --repo amarbel-llc/moxy \
-        --json assets --jq ".assets[].name" \
-        | grep -qx "moxy-${platform}.tar.gz"; then
-      echo "asset moxy-${platform}.tar.gz not published on v${version} — wait for CI?" >&2
-      exit 1
-    fi
-  done
-
-  # Fresh tap checkout on origin/master.
-  if [ -d "$tap_dir/.git" ]; then
-    git -C "$tap_dir" fetch origin
-    git -C "$tap_dir" checkout master
-    git -C "$tap_dir" reset --hard origin/master
-  else
-    mkdir -p "$(dirname "$tap_dir")"
-    gh repo clone amarbel-llc/homebrew-moxy "$tap_dir"
-  fi
-
-  if git -C "$tap_dir" show-ref --quiet "refs/heads/${branch}"; then
-    echo "branch ${branch} already exists in ${tap_dir} — delete it or pick a different version" >&2
-    exit 1
-  fi
-
-  # Download tarballs and compute sha256s.
-  workdir=$(mktemp -d)
-  trap 'rm -rf "$workdir"' EXIT
-  declare -A sha
-  for platform in darwin-arm64 linux-amd64; do
-    asset="moxy-${platform}.tar.gz"
-    echo "downloading ${asset}..."
-    gh release download "v${version}" \
-      --repo amarbel-llc/moxy \
-      --pattern "${asset}" \
-      --dir "$workdir"
-    sha["$platform"]=$(sha256sum "${workdir}/${asset}" | awk '{print $1}')
-    echo "  sha256[${platform}]: ${sha[$platform]}"
-  done
-
-  formula="$tap_dir/Formula/moxy.rb"
-  git -C "$tap_dir" checkout -b "$branch"
-
-  # Render the template over the formula. Every run regenerates the full
-  # file — no in-place edits, no structural drift.
-  sed -e "s|@VERSION@|${version}|g" \
-      -e "s|@SHA_DARWIN@|${sha[darwin-arm64]}|g" \
-      -e "s|@SHA_LINUX@|${sha[linux-amd64]}|g" \
-      "$template" > "$formula"
-
-  if git -C "$tap_dir" diff --quiet Formula/moxy.rb; then
-    echo "formula already matches v${version}; nothing to do." >&2
-    exit 0
-  fi
-
-  echo
-  echo "=== diff ==="
-  git -C "$tap_dir" --no-pager diff Formula/moxy.rb
-  echo "==========="
-
-  git -C "$tap_dir" add Formula/moxy.rb
-  git -C "$tap_dir" commit -m "moxy ${version}"
-  git -C "$tap_dir" push -u origin "$branch"
-  body=$(printf '%s\n\n%s\n' \
-    "Bumps to [amarbel-llc/moxy@v${version}](https://github.com/amarbel-llc/moxy/releases/tag/v${version})." \
-    "Regenerated from scripts/moxy.rb.template. Sha256s computed from the GitHub release assets. Opened by \`just bump-formula\`.")
-  gh pr create \
-    --repo amarbel-llc/homebrew-moxy \
-    --title "moxy ${version}" \
-    --body "$body" \
-    --head "$branch" \
-    --base master
-
 clean: clean-build
 
 clean-build:
@@ -670,74 +513,6 @@ explore-nix-tools-list: build-nix
   count=$(echo "$init_result" | tail -1 | jq '.result.tools | length' 2>/dev/null || echo "PARSE_ERROR")
   echo "Tool count: $count"
 
-# Test install-moxin.bash extraction logic against local nix build artifacts.
-# Replicates the script's extract steps without hitting GitHub or brew.
-# Usage: just debug-install-moxin piers
-[group('debug')]
-debug-install-moxin name:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  release_path=$(nix build .#release-tarball --no-link --print-out-paths)
-  moxin_path=$(nix build ".#standalone-moxin-tarballs.{{name}}" --no-link --print-out-paths)
-
-  os=$(uname -s | tr '[:upper:]' '[:lower:]')
-  arch=$(uname -m)
-  case "$arch" in arm64|aarch64) arch="arm64" ;; x86_64) arch="amd64" ;; esac
-  platform="${os}-${arch}"
-
-  dest=$(mktemp -d)
-  INSTALL_BIN="$dest/bin"
-  INSTALL_SHARE="$dest/share/moxy/moxins"
-
-  echo "=== Extracting moxy binary (same logic as install-moxin.bash) ==="
-  mkdir -p "$INSTALL_BIN"
-  tmp=$(mktemp -d)
-  tar -xz -C "$tmp" < "$release_path/moxy-$platform.tar.gz"
-  install -m 755 "$tmp/moxy/bin/moxy" "$INSTALL_BIN/moxy"
-  rm -rf "$tmp"
-
-  echo "=== Extracting {{name}} moxin ==="
-  tmp=$(mktemp -d)
-  tar -xz -C "$tmp" < "$moxin_path/{{name}}-moxin-$platform.tar.gz"
-  mkdir -p "$INSTALL_SHARE"
-  cp -r "$tmp"/* "$INSTALL_SHARE"/
-  rm -rf "$tmp"
-
-  echo ""
-  echo "=== Installed tree ==="
-  find "$dest" -type f | head -40
-  echo ""
-
-  if [[ -f "$INSTALL_BIN/moxy" && -x "$INSTALL_BIN/moxy" ]]; then
-    echo "PASS: $INSTALL_BIN/moxy is an executable file"
-    file "$INSTALL_BIN/moxy"
-  else
-    echo "FAIL: $INSTALL_BIN/moxy missing or not executable"
-    ls -laR "$INSTALL_BIN/" 2>/dev/null || echo "(bin/ does not exist)"
-    exit 1
-  fi
-
-  echo ""
-  echo "=== Testing serve-moxin discovery ==="
-  MOXIN_PATH="$INSTALL_SHARE" "$INSTALL_BIN/moxy" list-moxins 2>/dev/null \
-    | grep -q "{{name}}" \
-    && echo "PASS: {{name}} discovered via list-moxins" \
-    || { echo "FAIL: {{name}} not found in list-moxins"; exit 1; }
-
-  echo ""
-  echo "=== Validating MCP protocol (purse-first validate-mcp) ==="
-  start_ts=$(date +%s)
-  MOXIN_PATH="$INSTALL_SHARE" purse-first validate-mcp \
-    -- "$INSTALL_BIN/moxy" serve-moxin --name "{{name}}" \
-    >/tmp/validate-mcp-stdout.log 2>/tmp/validate-mcp-stderr.log \
-    && echo "PASS: MCP protocol validation" \
-    || { end_ts=$(date +%s); elapsed=$((end_ts - start_ts)); \
-         echo "FAIL: MCP protocol validation (${elapsed}s elapsed)"; \
-         echo "--- stdout ---"; cat /tmp/validate-mcp-stdout.log; \
-         echo "--- stderr ---"; cat /tmp/validate-mcp-stderr.log; \
-         exit 1; }
-
-  rm -rf "$dest"
 
 # Test validate-mcp against serve-moxin with devshell-built binary.
 # Usage: just debug-validate-serve-moxin piers

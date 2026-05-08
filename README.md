@@ -59,30 +59,6 @@ tool counts, and full JSON schemas at runtime without additional configuration.
 
 ## Install
 
-### Homebrew (macOS)
-
-Installs the `moxy` binary and all shipped moxins.
-
-```sh
-brew tap oven-sh/bun       # required for bun dependency
-brew tap amarbel-llc/moxy
-brew install moxy
-```
-
-### Ad-hoc (single moxin)
-
-Installs just the `moxy` binary and one moxin of your choice to
-`~/.local/bin` and `~/.local/share/moxy/moxins`. Automatically registers the
-moxin with Claude Code if `claude` is on PATH.
-
-```sh
-# Interactive menu
-curl -fsSL https://github.com/amarbel-llc/moxy/releases/latest/download/install-moxin.bash | bash
-
-# Direct install (e.g. grit)
-curl -fsSL https://github.com/amarbel-llc/moxy/releases/latest/download/install-moxin.bash | bash -s -- grit
-```
-
 ### Nix
 
 ```sh

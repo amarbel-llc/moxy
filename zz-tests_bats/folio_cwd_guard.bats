@@ -7,25 +7,6 @@
 # in-cwd path and the /dev/fd handling, plus invokes the predicate
 # directly to verify its decision policy.
 
-setup_file() {
-  # Extract the release tarball once so the predicate test can invoke
-  # bin/folio-perms via the wrapped script (with PATH baked in).
-  if [ -n "${RELEASE_TARBALL_DIR:-}" ] && [ -d "$RELEASE_TARBALL_DIR" ]; then
-    for candidate in "$RELEASE_TARBALL_DIR"/moxy-*.tar.gz; do
-      [ -f "$candidate" ] && RELEASE_TARBALL="$candidate" && break
-    done
-    if [ -f "${RELEASE_TARBALL:-}" ]; then
-      export RELEASE_EXTRACT
-      RELEASE_EXTRACT=$(mktemp -d)
-      tar -xzf "$RELEASE_TARBALL" -C "$RELEASE_EXTRACT"
-    fi
-  fi
-}
-
-teardown_file() {
-  [ -n "${RELEASE_EXTRACT:-}" ] && rm -rf "$RELEASE_EXTRACT"
-}
-
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
@@ -95,9 +76,8 @@ function folio_read_now_succeeds_outside_cwd { # @test
 # decision policy. The script lives inside the nix-built moxin tree.
 
 setup_perms() {
-  [ -n "${RELEASE_EXTRACT:-}" ] || skip "release tarball not extracted"
-  PERMS="$RELEASE_EXTRACT/moxy/share/moxy/moxins/folio/bin/folio-perms"
-  [ -x "$PERMS" ] || skip "folio-perms not in extracted tree"
+  PERMS="$BATS_TEST_DIRNAME/../result/share/moxy/moxins/folio/bin/folio-perms"
+  [ -x "$PERMS" ] || skip "folio-perms not in nix-built moxin tree (run just build-moxins)"
 }
 
 function folio_perms_allows_read_in_cwd { # @test
