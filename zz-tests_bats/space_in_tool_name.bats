@@ -1,5 +1,7 @@
 #! /usr/bin/env bats
 
+# bats file_tags=mcp_proto
+
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home

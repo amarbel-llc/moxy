@@ -1,5 +1,7 @@
 #! /usr/bin/env bats
 
+# bats file_tags=net_cap
+
 # End-to-end tests for the streamable-http transport. Verifies session
 # lifecycle (initialize, DELETE, re-init), SSE notification delivery on
 # `restart`, and reconnect behavior after an SSE stream drop. See

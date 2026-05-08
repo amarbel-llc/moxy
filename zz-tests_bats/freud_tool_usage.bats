@@ -1,5 +1,7 @@
 #! /usr/bin/env bats
 
+# bats file_tags=freud
+
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
@@ -23,11 +25,20 @@ setup() {
 {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu-3","content":[{"type":"text","text":"Goodbye!"}]}]}}
 JSONL
 
-  TOOL_USAGE="$BATS_TEST_DIRNAME/../moxins/freud/bin/tool-usage"
+  # Inside the nix bats lane, FREUD_BIN points at the wrapped tool-usage
+  # binary (which already has python3 baked into its PATH). In the
+  # devshell, fall back to invoking the unwrapped script via python3.
+  if [[ -n ${FREUD_BIN:-} ]]; then
+    TOOL_USAGE="$FREUD_BIN"
+    PYTHON_PREFIX=()
+  else
+    TOOL_USAGE="$BATS_TEST_DIRNAME/../moxins/freud/bin/tool-usage"
+    PYTHON_PREFIX=(python3)
+  fi
 }
 
 function default_output_shows_msg_index { # @test
-  run python3 "$TOOL_USAGE" "$SESSION_ID"
+  run "${PYTHON_PREFIX[@]}" "$TOOL_USAGE" "$SESSION_ID"
   assert_success
   # Should show message index (msg:N) for cross-referencing with messages tool
   assert_output --partial "msg:"
@@ -42,7 +53,7 @@ function default_output_shows_msg_index { # @test
 }
 
 function include_results_shows_result_text { # @test
-  run python3 "$TOOL_USAGE" "$SESSION_ID" "" "0" "true"
+  run "${PYTHON_PREFIX[@]}" "$TOOL_USAGE" "$SESSION_ID" "" "0" "true"
   assert_success
   assert_output --partial "greeter.hello"
   # Result text should appear
@@ -51,7 +62,7 @@ function include_results_shows_result_text { # @test
 }
 
 function include_results_shows_error_prefix { # @test
-  run python3 "$TOOL_USAGE" "$SESSION_ID" "" "0" "true"
+  run "${PYTHON_PREFIX[@]}" "$TOOL_USAGE" "$SESSION_ID" "" "0" "true"
   assert_success
   # Error results should be marked
   assert_output --partial "ERROR"
@@ -59,7 +70,7 @@ function include_results_shows_error_prefix { # @test
 }
 
 function tool_name_filter_works_with_include_results { # @test
-  run python3 "$TOOL_USAGE" "$SESSION_ID" "broken" "0" "true"
+  run "${PYTHON_PREFIX[@]}" "$TOOL_USAGE" "$SESSION_ID" "broken" "0" "true"
   assert_success
   assert_output --partial "broken.tool"
   assert_output --partial "ERROR"

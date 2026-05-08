@@ -1,4 +1,6 @@
 #! /usr/bin/env bats
+
+# bats file_tags=folio
 #
 # folio's CWD guard was removed in favor of dynamic-perms (see
 # bin/folio-perms). The native tools no longer reject paths outside CWD —
@@ -76,8 +78,12 @@ function folio_read_now_succeeds_outside_cwd { # @test
 # decision policy. The script lives inside the nix-built moxin tree.
 
 setup_perms() {
-  PERMS="$BATS_TEST_DIRNAME/../result/share/moxy/moxins/folio/bin/folio-perms"
-  [ -x "$PERMS" ] || skip "folio-perms not in nix-built moxin tree (run just build-moxins)"
+  # In the nix bats lane MOXIN_PATH points at moxy-moxins/share/moxy/moxins;
+  # in the devshell it points at result/share/moxy/moxins. Either way,
+  # folio-perms lives at $MOXIN_PATH/folio/bin/folio-perms.
+  [ -n "${MOXIN_PATH:-}" ] || skip "MOXIN_PATH not set"
+  PERMS="$MOXIN_PATH/folio/bin/folio-perms"
+  [ -x "$PERMS" ] || skip "folio-perms not at $PERMS"
 }
 
 function folio_perms_allows_read_in_cwd { # @test

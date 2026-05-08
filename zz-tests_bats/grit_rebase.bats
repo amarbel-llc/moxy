@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
+# bats file_tags=grit
+
 load 'common'
 
-BIN="$BATS_TEST_DIRNAME/../result/share/moxy/moxins/grit/bin"
+BIN="${GRIT_BIN:-$BATS_TEST_DIRNAME/../result/share/moxy/moxins/grit/bin}"
 
 setup() {
   setup_test_home

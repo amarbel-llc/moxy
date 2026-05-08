@@ -4,22 +4,16 @@ bats_load_library bats-assert-additions
 bats_load_library bats-island
 bats_load_library bats-emo
 
-# When running inside the moxy devshell, flake.nix pins explicit nix store
-# man page paths in MANEATER_TEST_MANPATH. Re-export it as MANPATH (with no
-# trailing colon) so `manpath(1)` — which maneater's locateSource() calls —
-# returns exactly those paths and nothing else. This is the only way to
-# make man-page tests reproducible across hosts; otherwise we pick up
-# whatever jq/coreutils the host's $MANPATH happens to expose, and the CI
-# runner's Ubuntu man pages diverge from what's on a developer's machine.
-if [[ -n ${MANEATER_TEST_MANPATH:-} ]]; then
-  export MANPATH="$MANEATER_TEST_MANPATH"
-fi
-
+# Helpers below resolve `moxy` and `madder` via env-var fallbacks so the
+# same suite runs both inside `pkgs.testers.batsLane` (which exports
+# `MOXY_BIN`/`MADDER_BIN` as absolute store paths via the binaries map)
+# and in the devshell (where `MOXY_BIN` may be unset and the binary is
+# expected on PATH). See flake.nix's `mkBatsLane` and #249.
 run_moxy() {
   _ensure_madder_default_store
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
-  run timeout --preserve-status "5s" bash -c 'cd "$1"; shift; moxy "$@"' \
+  run timeout --preserve-status "5s" bash -c 'cd "$1"; shift; "${MOXY_BIN:-moxy}" "$@"' \
     -- "$moxy_cwd" "$@"
 }
 
@@ -36,7 +30,7 @@ _ensure_madder_default_store() {
   [[ -d ${HOME:-} ]] || return 0
   local store_dir="$HOME/.madder/local/share/blob_stores/default"
   [[ -d $store_dir ]] && return 0
-  (cd "$HOME" && madder init .default >/dev/null 2>&1) || true
+  (cd "$HOME" && "${MADDER_BIN:-madder}" init .default >/dev/null 2>&1) || true
   return 0
 }
 
@@ -75,7 +69,7 @@ run_moxy_mcp() {
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 2) | "${MOXY_BIN:-moxy}" serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
     -- "$moxy_cwd" "$init" "$initialized" "$method_req"
 }
 
@@ -106,7 +100,7 @@ run_moxy_mcp_two() {
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 1; echo "$5"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 1; echo "$5"; sleep 2) | "${MOXY_BIN:-moxy}" serve mcp 2>/dev/null | jq -c "select(.id == 3) | .result" | head -1' \
     -- "$moxy_cwd" "$init" "$initialized" "$req1" "$req2"
 }
 
@@ -132,7 +126,7 @@ run_moxy_mcp_with_stderr() {
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 2) | moxy serve mcp 2>"$5" | jq -c "select(.id == 2) | .result" | head -1' \
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 2) | "${MOXY_BIN:-moxy}" serve mcp 2>"$5" | jq -c "select(.id == 2) | .result" | head -1' \
     -- "$moxy_cwd" "$init" "$initialized" "$method_req" "$stderr_file"
 
   MOXY_STDERR=$(cat "$stderr_file")
@@ -173,7 +167,7 @@ run_moxy_mcp_v1() {
       read -r < "$gate"
       echo "$3"
       sleep 2
-    } | moxy serve mcp 2>/dev/null | while IFS= read -r line; do
+    } | "${MOXY_BIN:-moxy}" serve mcp 2>/dev/null | while IFS= read -r line; do
       id=$(echo "$line" | jq -r ".id // empty")
       if [[ "$id" == "1" ]]; then
         echo ready > "$gate"
@@ -196,7 +190,7 @@ run_moxy_mcp_init() {
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    'cd "$1"; (echo "$2"; echo "$3"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 1) | .result" | head -1' \
+    'cd "$1"; (echo "$2"; echo "$3"; sleep 2) | "${MOXY_BIN:-moxy}" serve mcp 2>/dev/null | jq -c "select(.id == 1) | .result" | head -1' \
     -- "$moxy_cwd" "$init" "$initialized"
 }
 
@@ -214,7 +208,7 @@ start_moxy_http() {
 
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
-  (cd "$moxy_cwd" && moxy serve-http) >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
+  (cd "$moxy_cwd" && "${MOXY_BIN:-moxy}" serve-http) >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
   MOXY_HTTP_PID=$!
 
   local line addr i

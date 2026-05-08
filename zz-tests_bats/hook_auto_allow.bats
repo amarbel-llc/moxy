@@ -1,5 +1,7 @@
 #! /usr/bin/env bats
 
+# bats file_tags=hooks
+
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
@@ -20,7 +22,7 @@ run_moxy_hook() {
     tool_input: {}
   }')
   run timeout --preserve-status "5s" bash -c \
-    'echo "$1" | moxy hook' -- "$hook_input"
+    'echo "$1" | "${MOXY_BIN:-moxy}" hook' -- "$hook_input"
 }
 
 function hook_allows_auto_allow_tool { # @test

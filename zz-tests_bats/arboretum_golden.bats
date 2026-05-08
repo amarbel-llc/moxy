@@ -1,5 +1,7 @@
 #! /usr/bin/env bats
 
+# bats file_tags=arboretum
+
 # Diff each fixture's outline against its captured golden output. Goldens are
 # committed under zz-tests_bats/test-fixtures/arboretum/ and re-captured via
 # `just debug-arboretum-regen-goldens` when grammar drift is intentional.

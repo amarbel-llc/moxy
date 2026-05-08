@@ -1,5 +1,7 @@
 #! /usr/bin/env bats
 
+# bats file_tags=config
+
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
@@ -146,7 +148,7 @@ EOF
   list_req=$(jq -cn '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}')
 
   run timeout --preserve-status "15s" bash -c \
-    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 1; echo "$5"; sleep 1; echo "$6"; sleep 2) | moxy serve mcp 2>/dev/null | jq -c "select(.id == 4) | .result" | head -1' \
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 1; echo "$5"; sleep 1; echo "$6"; sleep 2) | "${MOXY_BIN:-moxy}" serve mcp 2>/dev/null | jq -c "select(.id == 4) | .result" | head -1' \
     -- "$moxy_cwd" "$init" "$initialized" "$select_req" "$stage_tool_req" "$list_req"
 
   assert_success

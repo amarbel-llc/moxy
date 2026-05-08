@@ -31,10 +31,13 @@
       inputs.utils.follows = "utils";
     };
 
-    bob = {
-      url = "github:amarbel-llc/bob";
+    # amarbel-llc/bats provides batman (the bats wrapper, used in the
+    # devshell) and bats-libs (the bundled library tree consumed by
+    # mkBatsLane's batsLibPath). Used to come via amarbel-llc/bob, but
+    # bob was dropped — moxy doesn't depend on anything else it ships.
+    bats = {
+      url = "github:amarbel-llc/bats";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
@@ -65,7 +68,7 @@
       purse-first,
       tommy,
       maneater,
-      bob,
+      bats,
       bun,
       madder,
     }:
@@ -532,15 +535,111 @@
 
         combined = pkgs.symlinkJoin {
           name = "moxy";
+          # pname is consulted by `pkgs.testers.batsLane` for lane derivation
+          # naming; symlinkJoin doesn't set it by default, so spell it out.
+          pname = "moxy";
           paths = [
             moxy
             moxy-moxins
           ];
         };
 
+        # Bats integration test source tree, fed to `pkgs.testers.batsLane`
+        # to run the suite inside the nix build sandbox. See #249 for the
+        # batman/sandcastle interaction this replaces.
+        batsSrc = pkgs.lib.fileset.toSource {
+          root = ./zz-tests_bats;
+          fileset = with pkgs.lib.fileset; unions [
+            ./zz-tests_bats/common.bash
+            ./zz-tests_bats/justfile
+            ./zz-tests_bats/test-fixtures
+            ./zz-tests_bats/test-permission-request-hook.mjs
+            (fileFilter (f: f.hasExt "bats") ./zz-tests_bats)
+          ];
+        };
+
+        # Helper for building a single bats lane against the combined
+        # moxy + moxy-moxins symlinkJoin (so the binary's baked-in
+        # defaultSystemMoxinDir resolves and madder/MOXIN_PATH wiring
+        # is consistent with what real users see). Mirrors madder's
+        # go/default.nix:40-54 pattern.
+        mkBatsLane = { filter ? "!net_cap,!host_only", base ? combined }:
+          pkgs.testers.batsLane {
+            inherit base filter batsSrc;
+            binaries = {
+              MOXY_BIN   = { inherit base; name = "moxy"; };
+              MADDER_BIN = { base = madder-bin; name = "madder"; };
+            };
+            batsLibPath = [ bats.packages.${system}.bats-libs.batsLibPath ];
+            extraEnv = {
+              BATS_TEST_TIMEOUT = "30";
+              MOXIN_PATH        = "${moxy-moxins}/share/moxy/moxins";
+              # grit_*.bats invoke wrapped scripts at $BIN by default
+              # ($BATS_TEST_DIRNAME/../result/share/moxy/moxins/grit/bin),
+              # which doesn't exist inside the nix sandbox. Tests fall
+              # back to GRIT_BIN via ${GRIT_BIN:-$BIN}.
+              GRIT_BIN  = "${grit-moxin}/bin";
+              # freud_tool_usage.bats falls back to FREUD_BIN (wrapped
+              # python script) when set; otherwise invokes python3
+              # directly against the source tree (devshell path).
+              FREUD_BIN = "${freud-moxin}/bin/tool-usage";
+            };
+            nativeBuildInputs = [
+              pkgs.bash
+              pkgs.coreutils-full
+              pkgs.curl
+              pkgs.findutils
+              pkgs.git
+              pkgs.gnugrep
+              pkgs.gnused
+              pkgs.gnutar
+              pkgs.gzip
+              pkgs.jq
+              # python3 needed by freud_tool_usage.bats's bare
+              # `python3 ../moxins/freud/bin/tool-usage` invocation,
+              # until the test rewrite uses ${FREUD_BIN} exclusively.
+              pkgs.python3
+            ];
+          };
+
+        # Per-tag bats lane outputs — auto-discovered from
+        # `# bats file_tags=<tag>` directives in zz-tests_bats/*.bats.
+        # Walk the bats source tree at flake-eval time, collect unique
+        # tags, and produce one `bats-${tag}` derivation per tag plus
+        # special `bats-default` (filters !net_cap,!host_only),
+        # `bats-net_cap`, and `bats-host_only` lanes.
+        batsTags =
+          let
+            dir = ./zz-tests_bats;
+            files = builtins.attrNames
+              (pkgs.lib.filterAttrs
+                (n: t: t == "regular" && pkgs.lib.hasSuffix ".bats" n)
+                (builtins.readDir dir));
+            extract = name:
+              let
+                m = builtins.match
+                  ".*# bats file_tags=([a-zA-Z0-9_,.-]+).*"
+                  (builtins.readFile (dir + "/${name}"));
+              in
+                if m == null then [ ]
+                else pkgs.lib.splitString ","
+                  (builtins.head m);
+          in
+            pkgs.lib.unique (pkgs.lib.flatten (map extract files));
+
+        batsLaneOutputs =
+          pkgs.lib.listToAttrs (map
+            (t: pkgs.lib.nameValuePair "bats-${t}"
+              (mkBatsLane { filter = t; }))
+            batsTags) // {
+            bats-default   = mkBatsLane { };
+            bats-net_cap   = mkBatsLane { filter = "net_cap"; };
+            bats-host_only = mkBatsLane { filter = "host_only"; };
+          };
+
       in
       {
-        packages = {
+        packages = batsLaneOutputs // {
           inherit moxy moxy-moxins;
           default = combined;
         };
@@ -573,9 +672,7 @@
             # into a separate `man` output.
             pkgs.coreutils-full
             pkgs.jq
-            bob.packages.${system}.batman
-            bob.packages.${system}.grit
-            bob.packages.${system}.lux
+            bats.packages.${system}.batman
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default
           ];

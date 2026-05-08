@@ -1,4 +1,7 @@
 #! /usr/bin/env bats
+
+# bats file_tags=mcp_proto
+
 #
 # Tests that V0 and V1 clients receive valid content blocks.
 # Reproduces: invalid_union Zod failures in Claude Code when moxy

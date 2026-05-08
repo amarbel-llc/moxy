@@ -1,5 +1,7 @@
 #! /usr/bin/env bats
 
+# bats file_tags=restart
+
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
