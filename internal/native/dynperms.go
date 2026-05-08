@@ -45,6 +45,21 @@ func EvalDynamicPerms(
 	mainInputSchema json.RawMessage,
 	arguments json.RawMessage,
 ) (DynamicPermsDecision, string) {
+	return EvalDynamicPermsInDir(ctx, spec, mainInputSchema, arguments, "")
+}
+
+// EvalDynamicPermsInDir is EvalDynamicPerms with an explicit working
+// directory for the spawned predicate. When cwd is non-empty it becomes
+// cmd.Dir, so the script's $PWD matches the agent's CWD at tool-call time —
+// this is what lets perms scripts realpath relative paths correctly. Pass
+// "" to inherit the moxy process's CWD.
+func EvalDynamicPermsInDir(
+	ctx context.Context,
+	spec *DynamicPermsSpec,
+	mainInputSchema json.RawMessage,
+	arguments json.RawMessage,
+	cwd string,
+) (DynamicPermsDecision, string) {
 	if spec == nil {
 		return DynPermsFallThrough, "no dynamic-perms spec configured"
 	}
@@ -67,6 +82,9 @@ func EvalDynamicPerms(
 	defer cancel()
 
 	cmd := exec.CommandContext(runCtx, spec.Command, allArgs...)
+	if cwd != "" {
+		cmd.Dir = cwd
+	}
 	if stdinContent != "" {
 		cmd.Stdin = strings.NewReader(stdinContent)
 	}

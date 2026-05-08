@@ -96,6 +96,10 @@ type hookInput struct {
 	ToolInput     map[string]any `json:"tool_input"`
 	AgentID       string         `json:"agent_id,omitempty"`
 	AgentType     string         `json:"agent_type,omitempty"`
+	// Cwd is the agent's working directory at tool-call time, supplied by
+	// Claude Code on every PreToolUse hook. Dynamic-perms scripts run with
+	// this as their CWD so relative paths resolve correctly.
+	Cwd string `json:"cwd,omitempty"`
 }
 
 type hookOutput struct {
@@ -191,7 +195,7 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 			debugHook("  decision: builtin auto-allowed")
 			return nil
 		}
-		if tryPermsDecision(hi.ToolName, prefix, hi.ToolInput, w) {
+		if tryPermsDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
 			debugHook("  decision: allowed")
 			return nil
 		}
@@ -234,7 +238,7 @@ func tryBuiltinAutoAllow(toolName, prefix string, w io.Writer) bool {
 // tryPermsDecision checks the tool's perms-request in moxin configs and writes
 // the corresponding hook decision. Returns true if it wrote a decision, false
 // to fall through to the client.
-func tryPermsDecision(toolName, prefix string, toolInput map[string]any, w io.Writer) bool {
+func tryPermsDecision(toolName, prefix string, toolInput map[string]any, cwd string, w io.Writer) bool {
 	serverTool, ok := parseNativeToolName(toolName, prefix)
 	if !ok {
 		return false
@@ -264,7 +268,7 @@ func tryPermsDecision(toolName, prefix string, toolInput map[string]any, w io.Wr
 		decision = "ask"
 		reason = "each-use: requires explicit approval"
 	case native.PermsDynamic:
-		decision, reason = evalDynamicForHook(info.DynamicPerms, toolInput)
+		decision, reason = evalDynamicForHook(info.DynamicPerms, toolInput, cwd)
 		debugHook("  dynamic eval: decision=%q reason=%q", decision, reason)
 		if decision == "" {
 			return false // fall-through (script returned an unmapped exit)
@@ -292,7 +296,7 @@ func tryPermsDecision(toolName, prefix string, toolInput map[string]any, w io.Wr
 // evalDynamicForHook runs the per-tool dynamic-perms predicate and maps its
 // decision into the (decision, reason) shape Claude Code expects on the
 // PreToolUse hook. Returns ("", reason) for fall-through (unmapped exit).
-func evalDynamicForHook(spec *native.DynamicPermsSpec, toolInput map[string]any) (string, string) {
+func evalDynamicForHook(spec *native.DynamicPermsSpec, toolInput map[string]any, cwd string) (string, string) {
 	if spec == nil {
 		// Validator should have caught this at config-load time, but be
 		// defensive: if a tool somehow declared `dynamic` without a
@@ -305,7 +309,7 @@ func evalDynamicForHook(spec *native.DynamicPermsSpec, toolInput map[string]any)
 		return "ask", fmt.Sprintf("dynamic-perms: failed to re-marshal tool input: %v", err)
 	}
 
-	dec, reason := native.EvalDynamicPerms(context.Background(), spec, nil, args)
+	dec, reason := native.EvalDynamicPermsInDir(context.Background(), spec, nil, args, cwd)
 	switch dec {
 	case native.DynPermsAllow:
 		return "allow", reason

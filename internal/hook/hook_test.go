@@ -196,7 +196,7 @@ func TestEvalDynamicForHook(t *testing.T) {
 			}
 			input := map[string]any{"verb": "GET"}
 
-			gotDec, gotReason := evalDynamicForHook(spec, input)
+			gotDec, gotReason := evalDynamicForHook(spec, input, "")
 			if gotDec != tt.wantDec {
 				t.Errorf("decision: got %q, want %q (reason=%q)", gotDec, tt.wantDec, gotReason)
 			}
@@ -204,9 +204,27 @@ func TestEvalDynamicForHook(t *testing.T) {
 	}
 
 	t.Run("nil spec returns fall-through", func(t *testing.T) {
-		gotDec, _ := evalDynamicForHook(nil, nil)
+		gotDec, _ := evalDynamicForHook(nil, nil, "")
 		if gotDec != "" {
 			t.Errorf("expected fall-through for nil spec, got %q", gotDec)
+		}
+	})
+
+	// cwd is the agent's working directory at tool-call time. The script
+	// must observe it as $PWD so realpath of relative paths matches the
+	// agent's view of the filesystem.
+	t.Run("cwd becomes script PWD", func(t *testing.T) {
+		dir := t.TempDir()
+		spec := &native.DynamicPermsSpec{
+			// Exit 0 only when $PWD matches the directory we passed in.
+			// Otherwise exit 1 so the test fails loudly with the diff.
+			Command:   "bash",
+			Args:      []string{"-c", `[ "$PWD" = "$1" ] && exit 0 || { echo "PWD=$PWD want=$1"; exit 1; }`, "_", dir},
+			TimeoutMS: 1000,
+		}
+		gotDec, gotReason := evalDynamicForHook(spec, map[string]any{}, dir)
+		if gotDec != "allow" {
+			t.Errorf("expected allow when cwd matches script PWD; got %q reason=%q", gotDec, gotReason)
 		}
 	})
 }
