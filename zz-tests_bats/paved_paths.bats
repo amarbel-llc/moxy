@@ -133,6 +133,7 @@ EOF
 
   # Select the path first, then call the stage tool, then list tools — three calls
   # run_moxy_mcp_two only sends two method calls. Use a three-message pipeline directly.
+  _ensure_madder_default_store
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
   local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
   local select_req

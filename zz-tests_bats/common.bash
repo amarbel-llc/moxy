@@ -16,6 +16,7 @@ if [[ -n ${MANEATER_TEST_MANPATH:-} ]]; then
 fi
 
 run_moxy() {
+  _ensure_madder_default_store
   run timeout --preserve-status "5s" moxy "$@"
 }
 
