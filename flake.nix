@@ -171,11 +171,18 @@
         # baked into the scripts at build time — same convention as `@BIN@`
         # and as mkBunMoxin's extraSubstitutions.
         mkMoxin = name: deps: { pathMode ? "set", extraWrapArgs ? [], extraSubstitutions ? {} }: pkgs.runCommand "${name}-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
         } (''
           cp -r ${./moxins/${name}} $out
           chmod -R u+w $out
           chmod +x $out/bin/*
+          # Rewrite each script's `#!/usr/bin/env <prog>` shebang to an
+          # absolute /nix/store path. The strict bats sandbox does not
+          # expose /usr/bin/env, so env-resolved shebangs would fail with
+          # "bad interpreter: No such file or directory". patchShebangs
+          # uses interpreters from nativeBuildInputs, so deps are added
+          # there above.
+          patchShebangs $out/bin
           ${if pathMode == "inherit" && extraWrapArgs == [] then ''
           # pathMode=inherit with no extra args: skip wrapProgram entirely so
           # scripts run with the host's unmodified environment.
@@ -229,13 +236,21 @@
             runtimeInputs = deps;
           };
         in pkgs.runCommand "${name}-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
         } ''
           cp -r ${./moxins/${name}} $out
           chmod -R u+w $out
           rm -rf $out/src
           mkdir -p $out/bin
           for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
+          # Rewrite `#!/usr/bin/env <prog>` shebangs in cp'd source scripts to
+          # absolute /nix/store paths, same as mkMoxin. The bats sandbox lacks
+          # /usr/bin/env, so env-resolved shebangs would fail. The bun wrappers
+          # written below already use an absolute bash path; this catches the
+          # source scripts that came in via `cp -r`.
+          if [ -n "$(ls -A $out/bin 2>/dev/null)" ]; then
+            patchShebangs $out/bin
+          fi
           # Create wrapper scripts that locate the bundled JS files.
           # buildBunBinaries wrappers assume flat output, but bun >=9
           # entrypoints may nest them. We extract the bundle store path
@@ -259,7 +274,7 @@
             fi
             bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
             cat > "$out/bin/$binname" <<WRAPPER
-          #!/usr/bin/env bash
+          #!${pkgs.bash}/bin/bash
           exec $bun_bin $js_path "\$@"
           WRAPPER
             chmod +x "$out/bin/$binname"
