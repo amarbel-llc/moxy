@@ -101,6 +101,7 @@ func postJSON(srv http.Handler, body any, sessionID string) *httptest.ResponseRe
 }
 
 func TestInitializeAndToolsList(t *testing.T) {
+	t.Setenv("MOXY_HEARTBEAT_INTERVAL", "0")
 	srv := newTestServer()
 
 	initMsg := jsonrpc.Message{

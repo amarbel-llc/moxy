@@ -37,15 +37,20 @@ func writeMoxinDir(t *testing.T, parentDir, name string, moxinToml string, tools
 }
 
 func TestRunValidConfig(t *testing.T) {
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		t.Fatalf("locating true(1): %v", err)
+	}
+
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
 
-	writeFile(t, filepath.Join(dir, "moxyfile"), `
+	writeFile(t, filepath.Join(dir, "moxyfile"), fmt.Sprintf(`
 [[servers]]
-name = "grit"
-command = "grit mcp"
-`)
+name = "alpha"
+command = %q
+`, trueBin))
 
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
@@ -98,16 +103,21 @@ func TestRunInvalidToml(t *testing.T) {
 }
 
 func TestRunUnknownFieldsIgnored(t *testing.T) {
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		t.Fatalf("locating true(1): %v", err)
+	}
+
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
 
-	writeFile(t, filepath.Join(dir, "moxyfile"), `
+	writeFile(t, filepath.Join(dir, "moxyfile"), fmt.Sprintf(`
 [[servers]]
-name = "grit"
-command = "grit"
+name = "alpha"
+command = %q
 bogus_field = "oops"
-`)
+`, trueBin))
 
 	var buf bytes.Buffer
 	code := Run(&buf, home, dir)
@@ -164,15 +174,20 @@ command = "grit"
 }
 
 func TestRunMoxinValid(t *testing.T) {
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		t.Fatalf("locating true(1): %v", err)
+	}
+
 	home := t.TempDir()
 	dir := filepath.Join(home, "repo")
 	os.MkdirAll(dir, 0o755)
 
-	writeFile(t, filepath.Join(dir, "moxyfile"), `
+	writeFile(t, filepath.Join(dir, "moxyfile"), fmt.Sprintf(`
 [[servers]]
-name = "grit"
-command = "grit"
-`)
+name = "alpha"
+command = %q
+`, trueBin))
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
 	writeMoxinDir(t, moxinDir, "test-server",

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
@@ -93,6 +94,15 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request) {
 	if msg.IsNotification() {
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = s.dispatcher.dispatch(r.Context(), &msg)
+		return
+	}
+
+	if interval := heartbeatInterval(); interval > 0 {
+		started := time.Now()
+		hasToken := len(extractProgressToken(msg.Params)) > 0
+		streamhttpLog("post start id=%s method=%q has_progressToken=%t body_size=%d",
+			idKey(&msg), msg.Method, hasToken, len(body))
+		s.handlePostStreaming(w, r, &msg, interval, started)
 		return
 	}
 

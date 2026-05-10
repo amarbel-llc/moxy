@@ -208,7 +208,11 @@ start_moxy_http() {
 
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
-  (cd "$moxy_cwd" && "${MOXY_BIN:-moxy}" serve-http) >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
+  # Bats tests assert on application/json POST responses. The default
+  # MOXY_HEARTBEAT_INTERVAL=30s wraps every POST in text/event-stream,
+  # which breaks unrelated tests that jq-decode the body. Tests that
+  # exercise heartbeat behavior should override this explicitly.
+  (cd "$moxy_cwd" && MOXY_HEARTBEAT_INTERVAL=0 "${MOXY_BIN:-moxy}" serve-http) >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
   MOXY_HTTP_PID=$!
 
   local line addr i
