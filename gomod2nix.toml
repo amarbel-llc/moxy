@@ -5,6 +5,10 @@ schema = 3
     version = 'v1.6.0'
     hash = 'sha256-ptdUJvuc21ixeLt+M5way/na3aCnCO4MYHWulWp8NEY='
 
+  [mod.'github.com/amarbel-llc/madder']
+    version = 'v0.0.0-20260511192840-a2c01c63618e'
+    hash = 'sha256-mRL+nByzKWr2tPGmfqf050xKGg+pjx3a3XNydHbCc6Y='
+
   [mod.'github.com/amarbel-llc/purse-first/libs/go-mcp']
     version = 'v0.0.11'
     hash = 'sha256-y21uhTGSVtxOtpq+XE3/GtQXPhhrPl8kRqGvfQ5Wlpg='
