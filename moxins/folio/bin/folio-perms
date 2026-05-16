@@ -3,8 +3,11 @@
 # Usage: folio-perms <op> <path1> [<path2>...]
 #
 # Op values:
-#   read         — apply read policy to all paths
-#   write        — apply write policy to all paths
+#   read         — apply read policy to every positional (one path per slot)
+#   write        — apply write policy to every positional (one path per slot)
+#   rm           — like write, but each positional is a possibly-space-
+#                  separated path list that is split before checking
+#                  (mirrors folio.rm's `paths` input shape)
 #   copy|move    — apply read policy to $2 (source), write policy to $3 (dest)
 #   link         — apply read policy to $2 (source), write policy to $3 (target)
 #
@@ -27,7 +30,7 @@ set -euo pipefail
 op="${1:-}"
 shift || true
 if [ -z "$op" ]; then
-  echo "folio-perms: op (read|write|copy|move|link) required" >&2
+  echo "folio-perms: op (read|write|rm|copy|move|link) required" >&2
   exit 2
 fi
 
@@ -151,8 +154,19 @@ case "$op" in
     exit 0
     ;;
   write)
-    # `paths` arg in folio.rm is a single space-separated string. Split on
-    # whitespace so each path gets independently checked.
+    # Each positional is exactly one path. Do NOT whitespace-split — that
+    # behavior belongs to the `rm` op below. This keeps file content that
+    # may leak through as a trailing positional from being treated as a
+    # list of paths.
+    for p in "$@"; do
+      [ -n "$p" ] && check_write "$p"
+    done
+    echo "all paths inside write-allowed dirs — auto-allowed"
+    exit 0
+    ;;
+  rm)
+    # `paths` arg in folio.rm is a single space-separated string. Split
+    # on whitespace so each path gets independently checked.
     for blob in "$@"; do
       [ -z "$blob" ] && continue
       # shellcheck disable=SC2206
@@ -171,7 +185,7 @@ case "$op" in
     exit 0
     ;;
   *)
-    echo "folio-perms: unknown op '$op' (want read|write|copy|move|link)" >&2
+    echo "folio-perms: unknown op '$op' (want read|write|rm|copy|move|link)" >&2
     exit 2
     ;;
 esac

@@ -721,3 +721,58 @@ func TestBuildExtraArgs(t *testing.T) {
 		}
 	})
 }
+
+// TestBuildPermsArgs covers the strict cousin of BuildExtraArgs used by
+// the dynamic-perms pipeline. When arg-order is explicit on a
+// [dynamic-perms] block, the perms script must see only the listed
+// keys — never trailing unlisted ones, since those may contain caller
+// payload like file content that has no business in a path check.
+func TestBuildPermsArgs(t *testing.T) {
+	t.Run("strict drops unlisted keys when arg-order set", func(t *testing.T) {
+		args, err := BuildPermsArgs(
+			json.RawMessage(`{"file_path":"/x","content":"//! foo"}`),
+			nil,
+			[]string{"file_path"},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 1 || args[0] != "/x" {
+			t.Errorf("args = %v, want [\"/x\"] — content must not leak", args)
+		}
+	})
+
+	t.Run("trims trailing empty slots", func(t *testing.T) {
+		args, err := BuildPermsArgs(
+			json.RawMessage(`{"a":"1"}`),
+			nil,
+			[]string{"a", "b", "c"},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(args) != 1 || args[0] != "1" {
+			t.Errorf("args = %v, want [\"1\"]", args)
+		}
+	})
+
+	t.Run("empty arg-order matches BuildExtraArgs", func(t *testing.T) {
+		argsJSON := json.RawMessage(`{"file_path":"/x","content":"//! foo"}`)
+		got, err := BuildPermsArgs(argsJSON, nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want, err := BuildExtraArgs(argsJSON, nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error from BuildExtraArgs: %v", err)
+		}
+		if len(got) != len(want) {
+			t.Fatalf("len differs: got %v, want %v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("args[%d] = %q, want %q", i, got[i], want[i])
+			}
+		}
+	})
+}

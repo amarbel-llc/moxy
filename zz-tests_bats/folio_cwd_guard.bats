@@ -167,6 +167,51 @@ function folio_perms_allows_write_in_plans { # @test
   [ "$status" -eq 0 ]
 }
 
+# Regression: each positional to `write` is exactly one path. Whitespace
+# inside a positional must NOT be split — that behavior is reserved for
+# the `rm` op (which is called with a single space-separated paths
+# string). Bug symptom before this guard: folio.write of a file whose
+# content started with `//!` (a Rust doc comment) leaked through moxy's
+# arg builder as argv[2], then `write` whitespace-split the leaked
+# content and treated `//!` as a path.
+function folio_perms_write_does_not_whitespace_split_positional { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  # Single positional, spaces inside. The whole string is a path that
+  # resolves outside CWD — exit 1 is expected. The message must name
+  # the whole positional, not the first whitespace-split token.
+  HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" \
+    run "$PERMS" write "//! some doc"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"//! some doc"* ]]
+}
+
+# Regression: the `rm` op is the only one that splits a positional on
+# whitespace (because `folio.rm`'s `paths` input is a single string
+# containing space-separated paths).
+function folio_perms_rm_splits_path_list { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  touch a.txt b.txt
+
+  PWD="$HOME/project" run "$PERMS" rm "a.txt b.txt"
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_rm_rejects_outside_path_in_list { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  touch a.txt
+
+  HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" \
+    run "$PERMS" rm "a.txt /var/empty/x"
+  [ "$status" -eq 1 ]
+}
+
 function folio_perms_copy_source_read_dest_write { # @test
   setup_perms
   mkdir -p "$HOME/project"

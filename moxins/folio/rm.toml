@@ -27,6 +27,6 @@ destructive-hint = true
 
 [dynamic-perms]
 command = "@BIN@/folio-perms"
-args = ["write"]
+args = ["rm"]
 arg-order = ["paths"]
 timeout-ms = 5000

@@ -129,7 +129,7 @@ func shapeDynamicPermsInput(spec *DynamicPermsSpec, arguments json.RawMessage) (
 		}
 	}
 
-	extra, err := BuildExtraArgs(args, nil, spec.ArgOrder)
+	extra, err := BuildPermsArgs(args, nil, spec.ArgOrder)
 	if err != nil {
 		return "", nil, err
 	}

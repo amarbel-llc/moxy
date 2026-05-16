@@ -591,6 +591,54 @@ func BuildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage, argO
 	return buildExtraArgs(arguments, inputSchema, argOrder)
 }
 
+// BuildPermsArgs is BuildExtraArgs's strict cousin. When argOrder is
+// non-empty, only the listed keys are emitted as positional argv;
+// unlisted JSON keys are silently dropped. When argOrder is empty, the
+// behavior is identical to BuildExtraArgs (schema-required + sorted
+// remainder).
+//
+// This is the right shape for the dynamic-perms gate: the perms script
+// declares which inputs it actually wants to see via its own
+// [dynamic-perms].arg-order. Trailing keys like a file's content have
+// no business in a path check and may even contain path-shaped tokens
+// that trigger spurious permission prompts.
+func BuildPermsArgs(arguments json.RawMessage, inputSchema json.RawMessage, argOrder []string) ([]string, error) {
+	if len(argOrder) == 0 {
+		return buildExtraArgs(arguments, inputSchema, nil)
+	}
+
+	if len(arguments) == 0 {
+		return nil, nil
+	}
+	var argMap map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &argMap); err != nil {
+		return nil, fmt.Errorf("unmarshaling arguments: %w", err)
+	}
+	if len(argMap) == 0 {
+		return nil, nil
+	}
+
+	extra := make([]string, len(argOrder))
+	for i, key := range argOrder {
+		val, ok := argMap[key]
+		if !ok {
+			extra[i] = ""
+			continue
+		}
+		var s string
+		if err := json.Unmarshal(val, &s); err == nil {
+			extra[i] = s
+		} else {
+			extra[i] = string(val)
+		}
+	}
+	// Trim trailing empty slots so scripts can detect argc.
+	for len(extra) > 0 && extra[len(extra)-1] == "" {
+		extra = extra[:len(extra)-1]
+	}
+	return extra, nil
+}
+
 // buildExtraArgs extracts string argument values from the caller's JSON
 // arguments and returns them in a deterministic order: first the keys listed
 // in the input schema's "required" array, then any remaining keys sorted
