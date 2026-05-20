@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/amarbel-llc/moxy/internal/native"
 )
 
 func TestParseNativeToolName(t *testing.T) {
@@ -167,131 +165,9 @@ func TestTryBuiltinAutoAllow(t *testing.T) {
 	})
 }
 
-// TestEvalDynamicForHook drives the dynamic-perms predicate through a series
-// of fixture scripts that exit with each contract code (0=allow, 1=ask,
-// 2=deny, other=fall-through). The script reads the tool input from argv via
-// arg-order so we can also confirm the input plumbing reaches the script.
-func TestEvalDynamicForHook(t *testing.T) {
-	tests := []struct {
-		name       string
-		exitCode   int
-		wantDec    string
-		wantReason string
-	}{
-		{name: "allow", exitCode: 0, wantDec: "allow"},
-		{name: "ask", exitCode: 1, wantDec: "ask"},
-		{name: "deny", exitCode: 2, wantDec: "deny"},
-		// EvalDynamicPerms maps unmapped non-zero codes to "ask" with a
-		// reason describing the unexpected exit — the cautious default.
-		{name: "ask (unmapped exit 7)", exitCode: 7, wantDec: "ask"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			spec := &native.DynamicPermsSpec{
-				Command:   "bash",
-				Args:      []string{"-c", "exit " + itoa(tt.exitCode)},
-				ArgOrder:  []string{"verb"},
-				TimeoutMS: 1000,
-			}
-			input := map[string]any{"verb": "GET"}
-
-			gotDec, gotReason := evalDynamicForHook(spec, input, "")
-			if gotDec != tt.wantDec {
-				t.Errorf("decision: got %q, want %q (reason=%q)", gotDec, tt.wantDec, gotReason)
-			}
-		})
-	}
-
-	t.Run("nil spec returns fall-through", func(t *testing.T) {
-		gotDec, _ := evalDynamicForHook(nil, nil, "")
-		if gotDec != "" {
-			t.Errorf("expected fall-through for nil spec, got %q", gotDec)
-		}
-	})
-
-	// cwd is the agent's working directory at tool-call time. The script
-	// must observe it as $PWD so realpath of relative paths matches the
-	// agent's view of the filesystem.
-	t.Run("cwd becomes script PWD", func(t *testing.T) {
-		dir := t.TempDir()
-		spec := &native.DynamicPermsSpec{
-			// Exit 0 only when $PWD matches the directory we passed in.
-			// Otherwise exit 1 so the test fails loudly with the diff.
-			Command:   "bash",
-			Args:      []string{"-c", `[ "$PWD" = "$1" ] && exit 0 || { echo "PWD=$PWD want=$1"; exit 1; }`, "_", dir},
-			TimeoutMS: 1000,
-		}
-		gotDec, gotReason := evalDynamicForHook(spec, map[string]any{}, dir)
-		if gotDec != "allow" {
-			t.Errorf("expected allow when cwd matches script PWD; got %q reason=%q", gotDec, gotReason)
-		}
-	})
-}
-
-func TestDiscoverPermissions_EmptyMoxinPath(t *testing.T) {
-	// Use a non-existent MOXIN_PATH (not "") so resolveMoxinDirs skips the
-	// CWD-hierarchy fallback that would otherwise pick up ambient
-	// .moxy/moxins directories.
-	t.Setenv("MOXIN_PATH", t.TempDir()+"/nonexistent")
-	perms := discoverPermissions()
-	if len(perms) != 0 {
-		t.Fatalf("expected empty perms, got %d entries: %v", len(perms), perms)
-	}
-}
-
-func TestDiscoverPermissions_SingleMoxin(t *testing.T) {
-	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
-	perms := discoverPermissions()
-	info, ok := perms["allow-srv.echo"]
-	if !ok {
-		t.Fatalf("expected allow-srv.echo, got keys: %v", keysOf(perms))
-	}
-	if info.Perm != native.PermsAlwaysAllow {
-		t.Fatalf("perm = %q, want %q", info.Perm, native.PermsAlwaysAllow)
-	}
-}
-
-func TestDiscoverPermissions_MultipleMoxinDirs(t *testing.T) {
-	t.Setenv("MOXIN_PATH", "testdata/moxins-allow:testdata/moxins-each")
-	perms := discoverPermissions()
-	if _, ok := perms["allow-srv.echo"]; !ok {
-		t.Fatalf("missing allow-srv.echo; have keys: %v", keysOf(perms))
-	}
-	if _, ok := perms["each-srv.echo"]; !ok {
-		t.Fatalf("missing each-srv.echo; have keys: %v", keysOf(perms))
-	}
-}
-
-func TestDiscoverPermissions_DynamicCarriesSpec(t *testing.T) {
-	t.Setenv("MOXIN_PATH", "testdata/moxins-dynamic")
-	perms := discoverPermissions()
-	info, ok := perms["dyn-srv.echo"]
-	if !ok {
-		t.Fatalf("expected dyn-srv.echo, got keys: %v", keysOf(perms))
-	}
-	if info.Perm != native.PermsDynamic {
-		t.Fatalf("perm = %q, want %q", info.Perm, native.PermsDynamic)
-	}
-	if info.DynamicPerms == nil {
-		t.Fatal("expected DynamicPerms spec, got nil")
-	}
-	if info.DynamicPerms.Command != "true" {
-		t.Fatalf("dynamic-perms command = %q, want %q", info.DynamicPerms.Command, "true")
-	}
-}
-
-// keysOf returns the keys of a string-keyed map. Test-only helper.
-func keysOf[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 func TestTryPermsDecision_AlwaysAllow(t *testing.T) {
 	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
 	var buf bytes.Buffer
 	wrote := tryPermsDecision(
 		"mcp__moxy__allow-srv_echo",
@@ -317,6 +193,7 @@ func TestTryPermsDecision_AlwaysAllow(t *testing.T) {
 
 func TestTryPermsDecision_EachUse(t *testing.T) {
 	t.Setenv("MOXIN_PATH", "testdata/moxins-each")
+	resetResolverForTest()
 	var buf bytes.Buffer
 	wrote := tryPermsDecision(
 		"mcp__moxy__each-srv_echo",
@@ -342,6 +219,7 @@ func TestTryPermsDecision_EachUse(t *testing.T) {
 
 func TestTryPermsDecision_UnknownTool(t *testing.T) {
 	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
 	var buf bytes.Buffer
 	wrote := tryPermsDecision(
 		"mcp__moxy__unknown-srv_tool",
@@ -363,6 +241,7 @@ func TestTryPermsDecision_NonMoxyPrefix(t *testing.T) {
 	// CWD-hierarchy fallback that would otherwise pick up ambient
 	// .moxy/moxins directories.
 	t.Setenv("MOXIN_PATH", t.TempDir()+"/nonexistent")
+	resetResolverForTest()
 	var buf bytes.Buffer
 	wrote := tryPermsDecision(
 		"Read",
@@ -374,28 +253,6 @@ func TestTryPermsDecision_NonMoxyPrefix(t *testing.T) {
 	if wrote {
 		t.Fatal("expected fall-through for non-prefixed tool name")
 	}
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		buf[i] = '-'
-	}
-	return string(buf[i:])
 }
 
 func TestInstallSettingsHook(t *testing.T) {

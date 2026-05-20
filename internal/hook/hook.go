@@ -10,11 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 
-	"github.com/amarbel-llc/moxy/internal/native"
+	"github.com/amarbel-llc/moxy/internal/permcheck"
 	"github.com/amarbel-llc/moxy/internal/stderrlog"
 )
 
@@ -22,6 +23,28 @@ var (
 	hookLog     *log.Logger
 	hooksLogDir string
 )
+
+var (
+	permResolver     *permcheck.Resolver
+	permResolverOnce sync.Once
+	permResolverErr  error
+)
+
+// getResolver lazily constructs a shared permcheck.Resolver. Resolvers
+// walk MOXIN_PATH at construction; doing it on first hook invocation
+// instead of package init means tests that need a different MOXIN_PATH
+// can set it via t.Setenv before the first call.
+//
+// NOTE: the cached resolver is NOT invalidated when moxins are reloaded
+// via the `restart` builtin / Proxy.Reload. Tasks 8+ should wire a reset
+// hook so the production binary sees fresh perms after restart. The
+// resetResolverForTest helper in export_test.go is the test-only path.
+func getResolver() (*permcheck.Resolver, error) {
+	permResolverOnce.Do(func() {
+		permResolver, permResolverErr = permcheck.NewResolver()
+	})
+	return permResolver, permResolverErr
+}
 
 func init() {
 	logHome := os.Getenv("XDG_LOG_HOME")
@@ -244,82 +267,45 @@ func tryPermsDecision(toolName, prefix string, toolInput map[string]any, cwd str
 		return false
 	}
 
-	perms := discoverPermissions()
-	debugHook("  perms map has %d entries, looking up %q", len(perms), serverTool)
-	if len(perms) > 0 {
-		keys := make([]string, 0, len(perms))
-		for k := range perms {
-			keys = append(keys, k)
-		}
-		debugHook("  perms keys: %v", keys)
-	}
-	info, exists := perms[serverTool]
-	debugHook("  lookup %q: exists=%v perm=%q", serverTool, exists, info.Perm)
-	if !exists {
-		return false // delegate-to-client: fall through
+	resolver, err := getResolver()
+	if err != nil {
+		debugHook("  getResolver error: %v", err)
+		return false
 	}
 
-	var decision, reason string
-	switch info.Perm {
-	case native.PermsAlwaysAllow:
-		decision = "allow"
-		reason = "always-allow by moxin config"
-	case native.PermsEachUse:
-		decision = "ask"
-		reason = "each-use: requires explicit approval"
-	case native.PermsDynamic:
-		decision, reason = evalDynamicForHook(info.DynamicPerms, toolInput, cwd)
-		debugHook("  dynamic eval: decision=%q reason=%q", decision, reason)
-		if decision == "" {
-			return false // fall-through (script returned an unmapped exit)
-		}
+	args, err := json.Marshal(toolInput)
+	if err != nil {
+		debugHook("  re-marshal toolInput error: %v", err)
+		return false
+	}
+
+	decision, reason := resolver.Resolve(context.Background(), serverTool, args, cwd)
+	debugHook("  resolver decision=%q reason=%q", decision, reason)
+
+	var decStr string
+	switch decision {
+	case permcheck.Allow:
+		decStr = "allow"
+	case permcheck.Ask:
+		decStr = "ask"
+	case permcheck.Deny:
+		decStr = "deny"
 	default:
-		return false // delegate-to-client or unrecognized: fall through
+		return false // Unknown → fall through to client
 	}
 
 	out := hookOutput{
 		HookSpecificOutput: hookDecision{
 			HookEventName:            "PreToolUse",
-			PermissionDecision:       decision,
+			PermissionDecision:       decStr,
 			PermissionDecisionReason: reason,
 		},
 	}
-
 	if err := json.NewEncoder(w).Encode(out); err != nil {
 		log.Printf("hook: ignoring encode error (fail-open): %v", err)
 		return false
 	}
-
 	return true
-}
-
-// evalDynamicForHook runs the per-tool dynamic-perms predicate and maps its
-// decision into the (decision, reason) shape Claude Code expects on the
-// PreToolUse hook. Returns ("", reason) for fall-through (unmapped exit).
-func evalDynamicForHook(spec *native.DynamicPermsSpec, toolInput map[string]any, cwd string) (string, string) {
-	if spec == nil {
-		// Validator should have caught this at config-load time, but be
-		// defensive: if a tool somehow declared `dynamic` without a
-		// `[dynamic-perms]` block, fall through to the client.
-		return "", "dynamic-perms: no [dynamic-perms] spec on tool"
-	}
-
-	args, err := json.Marshal(toolInput)
-	if err != nil {
-		return "ask", fmt.Sprintf("dynamic-perms: failed to re-marshal tool input: %v", err)
-	}
-
-	dec, reason := native.EvalDynamicPermsInDir(context.Background(), spec, nil, args, cwd)
-	switch dec {
-	case native.DynPermsAllow:
-		return "allow", reason
-	case native.DynPermsAsk:
-		return "ask", reason
-	case native.DynPermsDeny:
-		return "deny", reason
-	default:
-		return "", reason
-	}
 }
 
 // parseNativeToolName strips the given prefix and converts the remainder
@@ -350,43 +336,6 @@ func parseNativeToolName(toolName, prefix string) (string, bool) {
 	}
 
 	return server + "." + tool, true
-}
-
-// toolPermInfo carries everything tryPermsDecision needs to make a hook-time
-// decision for one tool. For non-dynamic perms the Perm field is enough; for
-// `dynamic` the DynamicPerms spec is required so we can spawn the predicate.
-type toolPermInfo struct {
-	Perm         native.PermsRequest
-	DynamicPerms *native.DynamicPermsSpec
-}
-
-// discoverPermissions loads moxin configs and returns a map of
-// "server.tool" names to their perm info. Only tools with an explicit
-// perms-request are included.
-func discoverPermissions() map[string]toolPermInfo {
-	moxinPath := os.Getenv("MOXIN_PATH")
-	systemDir := native.SystemMoxinDir()
-	debugHook("  discoverPermissions: MOXIN_PATH=%q systemDir=%q", moxinPath, systemDir)
-	configs, err := native.DiscoverConfigs(moxinPath, systemDir)
-	if err != nil {
-		debugHook("  discoverPermissions error: %v", err)
-		return nil
-	}
-	debugHook("  discoverPermissions: found %d configs", len(configs))
-
-	perms := make(map[string]toolPermInfo)
-	for _, cfg := range configs {
-		for _, tool := range cfg.Tools {
-			if tool.PermsRequest != "" {
-				perms[cfg.Name+"."+tool.Name] = toolPermInfo{
-					Perm:         tool.PermsRequest,
-					DynamicPerms: tool.DynamicPerms,
-				}
-			}
-		}
-	}
-
-	return perms
 }
 
 // PluginDir returns the plugin directory path derived from the running binary.
