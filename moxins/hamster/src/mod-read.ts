@@ -5,31 +5,26 @@ import { resolveMod } from "./resolve-mod.ts";
 const [module, file, startStr, endStr] = process.argv.slice(2);
 
 if (!module || !file) {
-  process.stderr.write(
-    "usage: mod-read <module[@version]> <file> [start] [end]\n",
-  );
-  process.exit(1);
+  throw new Error("usage: mod-read <module[@version]> <file> [start] [end]");
 }
 
 let modDir: string;
 try {
   ({ modDir } = await resolveMod(module));
 } catch (err) {
-  process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
-  process.exit(1);
+  throw new Error(`${err instanceof Error ? err.message : err}`);
 }
 
 const fullPath = `${modDir}/${file}`;
 if (!existsSync(fullPath)) {
-  process.stderr.write(`file not found: ${fullPath}\n`);
   const parent = dirname(fullPath);
+  let detail = "";
   if (existsSync(parent)) {
-    process.stderr.write(`\navailable files in ${basename(parent)}:\n`);
-    for (const entry of readdirSync(parent)) {
-      process.stderr.write(`${entry}\n`);
-    }
+    detail =
+      `\n\navailable files in ${basename(parent)}:\n` +
+      readdirSync(parent).join("\n");
   }
-  process.exit(1);
+  throw new Error(`file not found: ${fullPath}${detail}`);
 }
 
 const content = readFileSync(fullPath, "utf-8");

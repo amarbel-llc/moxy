@@ -248,8 +248,7 @@ function* walk(root: string): Generator<string> {
 
 const target = process.argv[2];
 if (!target) {
-  console.error("usage: outline <file-or-dir>");
-  process.exit(2);
+  throw new Error("usage: outline <file-or-dir>");
 }
 
 // web-tree-sitter loads its own runtime wasm (tree-sitter.wasm) at init time.
@@ -274,6 +273,5 @@ try {
     console.log(await outlineFile(target));
   }
 } catch (err) {
-  console.error(`outline: ${target}: ${(err as Error).message}`);
-  process.exit(2);
+  throw new Error(`outline: ${target}: ${(err as Error).message}`);
 }

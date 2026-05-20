@@ -4,14 +4,12 @@ $.verbose = false;
 
 const anchorName = process.argv[2];
 if (!anchorName) {
-  process.stderr.write("usage: anchor <anchor-name>\n");
-  process.exit(1);
+  throw new Error("usage: anchor <anchor-name>");
 }
 
 const markdown = await Bun.stdin.text();
 if (!markdown.trim()) {
-  process.stderr.write("no markdown input on stdin\n");
-  process.exit(1);
+  throw new Error("no markdown input on stdin");
 }
 
 // gfm reader keeps a Header following an inline `<a name="X">` as a real
@@ -77,8 +75,7 @@ const startIdx = blocks.findIndex((b: any) =>
 );
 
 if (startIdx === -1) {
-  process.stderr.write(`Anchor "${anchorName}" not found.\n`);
-  process.exit(1);
+  throw new Error(`Anchor "${anchorName}" not found.`);
 }
 
 let endIdx = blocks.length;

@@ -8,8 +8,7 @@ const [base, head, perPage = "30", page = "1", repoOwnerName] =
 async function resolveRepo(): Promise<string> {
   if (repoOwnerName) {
     if (!repoOwnerName.includes("/")) {
-      console.error("ERROR: repo_owner_name must be in OWNER/NAME format");
-      process.exit(2);
+      throw new Error("repo_owner_name must be in OWNER/NAME format");
     }
     return repoOwnerName;
   }

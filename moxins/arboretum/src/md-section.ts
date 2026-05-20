@@ -4,14 +4,12 @@ $.verbose = false;
 
 const sectionName = process.argv[2];
 if (!sectionName) {
-  process.stderr.write("usage: section <heading-name>\n");
-  process.exit(1);
+  throw new Error("usage: section <heading-name>");
 }
 
 const markdown = await Bun.stdin.text();
 if (!markdown.trim()) {
-  process.stderr.write("no markdown input on stdin\n");
-  process.exit(1);
+  throw new Error("no markdown input on stdin");
 }
 
 const { stdout } = await $({ input: markdown })`pandoc -f markdown -t json`;
@@ -39,18 +37,16 @@ const startIdx = blocks.findIndex(
 );
 
 if (startIdx === -1) {
-  process.stderr.write(
-    `Section "${sectionName}" not found. Available sections:\n`,
-  );
-  for (const b of blocks) {
-    if (b.t === "Header") {
+  const available = blocks
+    .filter((b: any) => b.t === "Header")
+    .map((b: any) => {
       const [level, , inlines] = b.c;
-      process.stderr.write(
-        "#".repeat(level) + " " + inlineText(inlines) + "\n",
-      );
-    }
-  }
-  process.exit(1);
+      return "#".repeat(level) + " " + inlineText(inlines);
+    })
+    .join("\n");
+  throw new Error(
+    `Section "${sectionName}" not found. Available sections:\n${available}`,
+  );
 }
 
 const level = blocks[startIdx].c[0];

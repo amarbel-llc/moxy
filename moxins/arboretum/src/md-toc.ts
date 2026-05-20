@@ -4,8 +4,7 @@ $.verbose = false;
 
 const markdown = await Bun.stdin.text();
 if (!markdown.trim()) {
-  process.stderr.write("no markdown input on stdin\n");
-  process.exit(1);
+  throw new Error("no markdown input on stdin");
 }
 
 // gfm reader keeps headings adjacent to inline `<a name="X">` HTML anchors

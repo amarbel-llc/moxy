@@ -7,16 +7,12 @@ const [path, long = "false"] = process.argv.slice(2);
 
 const resolved = realpathSync(path);
 if (!resolved.startsWith("/nix/store/")) {
-  process.stderr.write(
-    `Error: path must be under /nix/store/, got: ${resolved}\n`,
-  );
-  process.exit(1);
+  throw new Error(`path must be under /nix/store/, got: ${resolved}`);
 }
 
 const stat = statSync(resolved);
 if (!stat.isDirectory()) {
-  process.stderr.write(`Error: not a directory: ${resolved}\n`);
-  process.exit(1);
+  throw new Error(`not a directory: ${resolved}`);
 }
 
 interface Entry {
