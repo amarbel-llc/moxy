@@ -26,7 +26,7 @@ build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
 build-moxins:
-  nix build .#moxy-moxins
+  nix build --keep-going .#moxy-moxins
 
 generate:
   go generate ./internal/config/
@@ -35,7 +35,7 @@ build-gomod2nix:
   gomod2nix
 
 build-nix: build-gomod2nix
-  nix build --show-trace
+  nix build --keep-going --show-trace
 
 dir_build := "build"
 
@@ -49,13 +49,13 @@ test: test-go test-bats test-bats-net_cap test-validate-mcp test-status test-fla
 # host_only`. See #249 for why we don't run bats through
 # batman/sandcastle anymore.
 test-bats:
-  nix build .#bats-default --no-link --print-build-logs
+  nix build --keep-going .#bats-default --no-link --print-build-logs
 
 # Run the loopback-binding lane (streamable_http.bats). Verifies that
 # moxy serve-http binding to 127.0.0.1 still works inside the nix build
 # sandbox.
 test-bats-net_cap:
-  nix build .#bats-net_cap --no-link --print-build-logs
+  nix build --keep-going .#bats-net_cap --no-link --print-build-logs
 
 # Validates the flake's structural outputs (packages.* are derivations,
 # devShells eval, etc). Runs last so the nix store cache is already warm
@@ -68,7 +68,7 @@ test-flake-check:
 # — auto-discovered from `# bats file_tags=` directives in
 # zz-tests_bats/*.bats.
 test-bats-tag tag:
-  nix build .#bats-{{tag}} --no-link --print-build-logs
+  nix build --keep-going .#bats-{{tag}} --no-link --print-build-logs
 
 # Fast iteration: raw bats against ./build/moxy with env-var lookup,
 # no batman/sandcastle wrapping, no nix-sandbox rebuild. Mirrors what
