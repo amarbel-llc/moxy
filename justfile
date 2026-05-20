@@ -341,34 +341,43 @@ man-search-download-model:
   fi
 
 # Bump MOXY_VERSION in version.env to the given semver
+[group('maint')]
 bump-version new_version:
   #!/usr/bin/env bash
   set -euo pipefail
-  current=$(sed -n 's/^MOXY_VERSION=//p' version.env)
+  . version.env
+  current="$MOXY_VERSION"
   if [[ "$current" == "{{new_version}}" ]]; then
     echo "already at {{new_version}}" >&2
     exit 0
   fi
-  sed -i.bak 's/^MOXY_VERSION=.*/MOXY_VERSION={{new_version}}/' version.env && rm version.env.bak
+  sed -i.bak 's/^export MOXY_VERSION=.*/export MOXY_VERSION={{new_version}}/' version.env && rm version.env.bak
   echo "$current → {{new_version}}"
 
-# Create a signed git tag for the current MOXY_VERSION and push it to origin
-tag:
+# Create a signed git tag for the current MOXY_VERSION, verify the signature, then push to origin. Message defaults to "Release v<ver>"; pass a multi-line changelog as the arg for richer notes.
+[group('maint')]
+tag message="":
   #!/usr/bin/env bash
   set -euo pipefail
-  version=$(sed -n 's/^MOXY_VERSION=//p' version.env)
-  tag="v${version}"
+  . version.env
+  tag="v${MOXY_VERSION}"
   if git rev-parse "$tag" >/dev/null 2>&1; then
     echo "tag $tag already exists" >&2
     exit 1
   fi
-  git tag -s "$tag" -m "Release $tag"
-  echo "created tag $tag"
+  message="{{message}}"
+  if [[ -z "$message" ]]; then
+    message="Release $tag"
+  fi
+  git tag -s "$tag" -m "$message"
+  git tag -v "$tag"
+  echo "created and verified tag $tag"
   git push origin "$tag"
   echo "pushed tag $tag"
 
-# Bump MOXY_VERSION on master, commit, push master, signed tag + push (CI handles release artifacts on tag push). Must be run from the master branch.
-release new_version:
+# Bump MOXY_VERSION on master, commit, push master, generate auto-changelog, create signed tag, and publish GitHub release with the same changelog. Pass notes_file to override auto-changelog with hand-written notes. Must be run from the master branch.
+[group('maint')]
+release new_version notes_file="":
   #!/usr/bin/env bash
   set -euo pipefail
   current_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -382,7 +391,18 @@ release new_version:
     git commit -m "chore: release v{{new_version}}"
   fi
   git push origin master
-  just tag
+  if [[ -n "{{notes_file}}" ]]; then
+    notes=$(cat "{{notes_file}}")
+  else
+    last_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+    if [[ -n "$last_tag" ]]; then
+      notes=$(git log --format='- %s' "${last_tag}..HEAD")
+    else
+      notes=$(git log --format='- %s' HEAD)
+    fi
+  fi
+  just tag "$notes"
+  gh release create "v{{new_version}}" --title "v{{new_version}}" --notes "$notes"
 
 # Open a PR against amarbel-llc/homebrew-moxy setting Formula/moxy.rb to v$version (run after `just release` — v$version assets must exist on the GitHub release; HOMEBREW_TAP_DIR overrides the default .tmp/homebrew-moxy checkout)
 bump-formula version:

@@ -40,30 +40,27 @@ var (
 	commit  = "unknown"
 )
 
-// printVersionTable renders the COMPONENT/VERSION/REV table used by
-// `moxy version`. Mirrors `spinclass version`'s output so the audit
-// trail is consistent across our toolchain. Each row reports a
-// build-time-pinned external dep (currently: madder); rows beyond the
-// first probe the pinned binary at runtime, so a missing or broken
-// pin produces a "(error: …)" cell rather than aborting the whole
-// command.
+// printVersionTable renders the hybrid version output specified by
+// eng-versioning(7): a self-identification line, a blank line, then a
+// COMPONENT/VERSION/REV table listing every build-time-pinned external
+// dep (currently: madder). Pin rows probe the pinned binary at runtime,
+// so a missing or broken pin produces an "(error: …)" cell rather than
+// aborting the whole command. Per the spec the table header is always
+// emitted even when no pins exist.
 func printVersionTable(ctx context.Context, moxyVersion string) error {
+	fmt.Fprintf(os.Stdout, "moxy %s\n\n", moxyVersion)
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "COMPONENT\tVERSION\tREV")
-	fmt.Fprintf(w, "moxy/moxy\t%s\t%s\n", moxyVersion, commit)
 
-	// madder pin row. NewMadderClient resolves the build-time path
-	// first, falling back to PATH; either way we report the resolved
-	// binary's `madder version` output.
 	madderClient, err := native.NewMadderClient()
 	if err != nil {
-		fmt.Fprintf(w, "madder/madder\t(error: %v)\t-\n", err)
+		fmt.Fprintf(w, "madder\t(error: %v)\t-\n", err)
 	} else {
 		madderVer, err := madderVersion(ctx, madderClient.Bin())
 		if err != nil {
-			fmt.Fprintf(w, "madder/madder\t(error: %v)\t%s\n", err, madderClient.Bin())
+			fmt.Fprintf(w, "madder\t(error: %v)\t%s\n", err, madderClient.Bin())
 		} else {
-			fmt.Fprintf(w, "madder/madder\t%s\t%s\n", madderVer, madderClient.Bin())
+			fmt.Fprintf(w, "madder\t%s\t%s\n", madderVer, madderClient.Bin())
 		}
 	}
 
