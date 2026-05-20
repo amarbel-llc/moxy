@@ -1,0 +1,8 @@
+schema = 1
+command = "sh"
+args = ["-c", "exit 1"]
+perms-request = "dynamic"
+
+[dynamic-perms]
+command = "sh"
+args = ["-c", "exit 1"]
