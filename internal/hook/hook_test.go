@@ -229,6 +229,68 @@ func TestEvalDynamicForHook(t *testing.T) {
 	})
 }
 
+func TestDiscoverPermissions_EmptyMoxinPath(t *testing.T) {
+	// With MOXIN_PATH unset, DiscoverConfigs falls back to a
+	// home/CWD hierarchy walk. Isolate HOME to a temp dir so the
+	// test doesn't pick up an ambient ~/.config/moxy/moxins.
+	t.Setenv("MOXIN_PATH", "")
+	t.Setenv("HOME", t.TempDir())
+	perms := discoverPermissions()
+	if len(perms) != 0 {
+		t.Fatalf("expected empty perms, got %d entries: %v", len(perms), perms)
+	}
+}
+
+func TestDiscoverPermissions_SingleMoxin(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	perms := discoverPermissions()
+	info, ok := perms["allow-srv.echo"]
+	if !ok {
+		t.Fatalf("expected allow-srv.echo, got keys: %v", keysOf(perms))
+	}
+	if info.Perm != native.PermsAlwaysAllow {
+		t.Fatalf("perm = %q, want %q", info.Perm, native.PermsAlwaysAllow)
+	}
+}
+
+func TestDiscoverPermissions_MultipleMoxinDirs(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow:testdata/moxins-each")
+	perms := discoverPermissions()
+	if _, ok := perms["allow-srv.echo"]; !ok {
+		t.Fatalf("missing allow-srv.echo; have keys: %v", keysOf(perms))
+	}
+	if _, ok := perms["each-srv.echo"]; !ok {
+		t.Fatalf("missing each-srv.echo; have keys: %v", keysOf(perms))
+	}
+}
+
+func TestDiscoverPermissions_DynamicCarriesSpec(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-dynamic")
+	perms := discoverPermissions()
+	info, ok := perms["dyn-srv.echo"]
+	if !ok {
+		t.Fatalf("expected dyn-srv.echo, got keys: %v", keysOf(perms))
+	}
+	if info.Perm != native.PermsDynamic {
+		t.Fatalf("perm = %q, want %q", info.Perm, native.PermsDynamic)
+	}
+	if info.DynamicPerms == nil {
+		t.Fatal("expected DynamicPerms spec, got nil")
+	}
+	if info.DynamicPerms.Command != "true" {
+		t.Fatalf("dynamic-perms command = %q, want %q", info.DynamicPerms.Command, "true")
+	}
+}
+
+// keysOf returns the keys of a string-keyed map. Test-only helper.
+func keysOf[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

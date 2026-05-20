@@ -1,0 +1,6 @@
+schema = 1
+command = "echo"
+perms-request = "dynamic"
+
+[dynamic-perms]
+command = "true"
