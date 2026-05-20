@@ -230,11 +230,10 @@ func TestEvalDynamicForHook(t *testing.T) {
 }
 
 func TestDiscoverPermissions_EmptyMoxinPath(t *testing.T) {
-	// With MOXIN_PATH unset, DiscoverConfigs falls back to a
-	// home/CWD hierarchy walk. Isolate HOME to a temp dir so the
-	// test doesn't pick up an ambient ~/.config/moxy/moxins.
-	t.Setenv("MOXIN_PATH", "")
-	t.Setenv("HOME", t.TempDir())
+	// Use a non-existent MOXIN_PATH (not "") so resolveMoxinDirs skips the
+	// CWD-hierarchy fallback that would otherwise pick up ambient
+	// .moxy/moxins directories.
+	t.Setenv("MOXIN_PATH", t.TempDir()+"/nonexistent")
 	perms := discoverPermissions()
 	if len(perms) != 0 {
 		t.Fatalf("expected empty perms, got %d entries: %v", len(perms), perms)
@@ -360,12 +359,10 @@ func TestTryPermsDecision_UnknownTool(t *testing.T) {
 }
 
 func TestTryPermsDecision_NonMoxyPrefix(t *testing.T) {
-	// No MOXIN_PATH/HOME isolation needed at the moment because
-	// parseNativeToolName short-circuits before discoverPermissions
-	// runs. But Task 6 (extract to permcheck) may re-order the
-	// checks — guard against ambient state regardless.
-	t.Setenv("MOXIN_PATH", "")
-	t.Setenv("HOME", t.TempDir())
+	// Use a non-existent MOXIN_PATH (not "") so resolveMoxinDirs skips the
+	// CWD-hierarchy fallback that would otherwise pick up ambient
+	// .moxy/moxins directories.
+	t.Setenv("MOXIN_PATH", t.TempDir()+"/nonexistent")
 	var buf bytes.Buffer
 	wrote := tryPermsDecision(
 		"Read",
