@@ -27,6 +27,26 @@
 
 ## Phase 1 — Baseline coverage on the resolver
 
+<!-- Captured 2026-05-20 by Task 1, against commit a8aa059
+just cover-go ./internal/hook/...
+
+  internal/hook total:                          43.4%
+  internal/hook/hook.go:26  init                80.0%
+  internal/hook/hook.go:49  logHookEvent         0.0%
+  internal/hook/hook.go:85  debugHook            0.0%
+  internal/hook/hook.go:125 matchMoxyPrefix    100.0%
+  internal/hook/hook.go:151 Handle               0.0%
+  internal/hook/hook.go:218 tryBuiltinAutoAllow 75.0%
+  internal/hook/hook.go:241 tryPermsDecision     0.0%   ← extracts to permcheck
+  internal/hook/hook.go:299 evalDynamicForHook  81.8%   ← extracts to permcheck
+  internal/hook/hook.go:333 parseNativeToolName 90.9%
+  internal/hook/hook.go:366 discoverPermissions  0.0%   ← extracts to permcheck
+  internal/hook/hook.go:394 PluginDir            0.0%
+  internal/hook/hook.go:415 InstallSettingsHook 84.6%
+
+Phase 4 must keep internal/hook ≥ 43.4% combined with permcheck ≥ 85%.
+-->
+
 ### Task 1: Capture pre-refactor coverage baseline
 
 **Promotion criteria:** N/A — informational only.
