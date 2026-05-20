@@ -151,6 +151,47 @@ cover-go pkg=".":
   echo "--- per-function coverage ---"
   go tool cover -func="$out"
 
+# Drive a freshly-built moxy from `claude -p`, exercising the `batch` builtin
+# end-to-end (MCP handshake, tool registration, dispatch, NDJSON output).
+# Why a recipe: clown's mkCircus pins moxy at build time, so the moxy
+# inside an interactive Claude Code session can't see new builtins. This
+# recipe launches a fresh `claude -p` process configured to use the
+# worktree's just-built moxy via --mcp-config, so the new builtin is
+# visible. Mirrors test-smoke-claude-p's shape.
+[group: 'debug']
+test-batch-via-claude-p: build-nix
+  #!/usr/bin/env bash
+  set -euo pipefail
+  moxy="{{justfile_directory()}}/result/bin/moxy"
+  moxin_path="{{justfile_directory()}}/result/share/moxy/moxins"
+  workdir=$(mktemp -d)
+  trap 'rm -rf "$workdir"' EXIT
+  cat >"$workdir/mcp.json" <<MCPEOF
+  {
+    "mcpServers": {
+      "moxy": {
+        "command": "$moxy",
+        "args": ["serve", "mcp"],
+        "env": { "MOXIN_PATH": "$moxin_path" }
+      }
+    }
+  }
+  MCPEOF
+  disallowed="Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,Bash,Agent"
+  disallowed+=",NotebookEdit,EnterPlanMode,ExitPlanMode,AskUserQuestion"
+  disallowed+=",TodoWrite,EnterWorktree,ExitWorktree"
+  disallowed+=",CronCreate,CronDelete,CronList,Skill"
+  disallowed+=",TaskCreate,TaskUpdate,TaskGet,TaskList,TaskOutput,TaskStop"
+  cd "$workdir"
+  prompt='Call the `batch` MCP tool with this exact JSON arguments object:
+  {"calls":[{"tool":"folio.glob","args":{"pattern":"*.md"}},{"tool":"folio.glob","args":{"pattern":"*.toml"}}]}
+  Print only the raw NDJSON output. You have NO builtin tools — only MCP tools from moxy.'
+  echo "$prompt" | timeout 90s claude -p \
+    --dangerously-skip-permissions \
+    --mcp-config "$workdir/mcp.json" \
+    --allowedTools "mcp__moxy__batch,mcp__moxy__folio.glob" \
+    --disallowedTools "$disallowed"
+
 test-status: build-go
   {{justfile_directory()}}/{{dir_build}}/moxy status
 
