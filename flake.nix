@@ -1,7 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:amarbel-llc/nixpkgs";
-    nixpkgs-master.url = "github:NixOS/nixpkgs/e2dde111aea2c0699531dc616112a96cd55ab8b5";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/ae921939fcbd44874664477bd1d22543c10a8306";
     # Pinned to the last upstream nixpkgs commit where pkgs.gomarkdoc still
     # builds. A regression after 2026-03-23 (still present on master as of
     # 2026-05-04) breaks gomarkdoc's checkPhase — used only as the source of
