@@ -77,7 +77,6 @@ func (p *Proxy) HandleBatch(
 			fmt.Sprintf(`invalid on_error %q (want "stop" or "continue")`, onError),
 		), nil
 	}
-	_ = onError // Task 10 wires this into the dispatch loop (stop vs. continue + skip directives)
 
 	if p.resolver == nil {
 		return protocol.ErrorResultV1(
@@ -110,8 +109,26 @@ func (p *Proxy) HandleBatch(
 		dispatch = p.CallToolV1
 	}
 	records := make([]ndjsonTestRecord, 0, len(params.Calls))
-	passed, failed := 0, 0
+	passed, failed, skipped := 0, 0, 0
+	stopped := false
+	stoppedAtN := 0 // 1-indexed position of the failing call; only meaningful when stopped=true
+
 	for i, c := range params.Calls {
+		if stopped {
+			skipReason := fmt.Sprintf("batch aborted: stopped at #%d", stoppedAtN)
+			records = append(records, ndjsonTestRecord{
+				Type:        "test",
+				N:           i + 1,
+				Description: c.Tool,
+				OK:          false,
+				Directive:   &ndjsonDirective{Kind: "skip", Reason: skipReason},
+				Diagnostic:  nil,
+				Subtest:     []ndjsonTestRecord{},
+				Line:        i + 1,
+			})
+			skipped++
+			continue
+		}
 		result, err := dispatch(ctx, c.Tool, c.Args)
 		rec := buildTestRecord(i+1, c, result, err)
 		records = append(records, rec)
@@ -122,18 +139,25 @@ func (p *Proxy) HandleBatch(
 			}
 		} else {
 			failed++
+			if onError == "stop" {
+				stopped = true
+				stoppedAtN = i + 1
+			}
 		}
 	}
+
 	summary := ndjsonSummaryRecord{
 		Type:        "summary",
 		Passed:      passed,
 		Failed:      failed,
+		Skipped:     skipped,
 		Total:       len(records),
 		PlanCount:   len(params.Calls),
+		Bailed:      stopped,
 		Valid:       true,
 		Diagnostics: []ndjsonSummaryDiagnostic{},
 	}
-	return formatNDJSON(records, nil, summary, failed > 0), nil
+	return formatNDJSON(records, nil, summary, failed > 0 || stopped), nil
 }
 
 func buildTestRecord(n int, c batchCall, result *protocol.ToolCallResultV1, err error) ndjsonTestRecord {
