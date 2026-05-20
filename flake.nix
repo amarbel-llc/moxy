@@ -553,8 +553,8 @@
 
         combined = pkgs.symlinkJoin {
           name = "moxy";
-          # pname is consulted by `pkgs.testers.batsLane` for lane derivation
-          # naming; symlinkJoin doesn't set it by default, so spell it out.
+          # pname is consulted by `batsLane` for lane derivation naming;
+          # symlinkJoin doesn't set it by default, so spell it out.
           pname = "moxy";
           paths = [
             moxy
@@ -562,8 +562,8 @@
           ];
         };
 
-        # Bats integration test source tree, fed to `pkgs.testers.batsLane`
-        # to run the suite inside the nix build sandbox. See #249 for the
+        # Bats integration test source tree, fed to `batsLane` to run the
+        # suite inside the nix build sandbox. See #249 for the
         # batman/sandcastle interaction this replaces.
         batsSrc = pkgs.lib.fileset.toSource {
           root = ./zz-tests_bats;
@@ -576,13 +576,19 @@
           ];
         };
 
+        # batsLane was formerly `pkgs.testers.batsLane`, shipped by the
+        # amarbel-llc/nixpkgs fork overlay. The builder moved into the
+        # amarbel-llc/bats flake so it tracks bats releases rather than
+        # nixpkgs rebases (see amarbel-llc/bats — `lib.${system}.batsLane`).
+        batsLane = bats.lib.${system}.batsLane;
+
         # Helper for building a single bats lane against the combined
         # moxy + moxy-moxins symlinkJoin (so the binary's baked-in
         # defaultSystemMoxinDir resolves and madder/MOXIN_PATH wiring
         # is consistent with what real users see). Mirrors madder's
         # go/default.nix:40-54 pattern.
         mkBatsLane = { filter ? "!net_cap,!host_only", base ? combined }:
-          pkgs.testers.batsLane {
+          batsLane {
             inherit base filter batsSrc;
             binaries = {
               MOXY_BIN   = { inherit base; name = "moxy"; };
@@ -692,8 +698,8 @@
             pkgs.jq
             # Vanilla bats — we used to pull bats.packages.${system}.batman
             # (the sandcastle-wrapping wrapper), but #249 moved the suite
-            # to pkgs.testers.batsLane (`just test-bats`). Devshell needs
-            # only the raw bats binary now, for `just test-bats-dev`.
+            # to batsLane (`just test-bats`). Devshell needs only the raw
+            # bats binary now, for `just test-bats-dev`.
             pkgs.bats
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default
