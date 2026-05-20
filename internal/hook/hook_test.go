@@ -291,6 +291,94 @@ func keysOf[V any](m map[string]V) []string {
 	return keys
 }
 
+func TestTryPermsDecision_AlwaysAllow(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	var buf bytes.Buffer
+	wrote := tryPermsDecision(
+		"mcp__moxy__allow-srv_echo",
+		"mcp__moxy__",
+		map[string]any{},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryPermsDecision to write a decision, got false")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v; raw: %s", err, buf.String())
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "allow" {
+		t.Fatalf("decision = %q, want %q", got, "allow")
+	}
+	if out.HookSpecificOutput.PermissionDecisionReason == "" {
+		t.Error("PermissionDecisionReason must be non-empty")
+	}
+}
+
+func TestTryPermsDecision_EachUse(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-each")
+	var buf bytes.Buffer
+	wrote := tryPermsDecision(
+		"mcp__moxy__each-srv_echo",
+		"mcp__moxy__",
+		map[string]any{},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected wrote=true")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "ask" {
+		t.Fatalf("decision = %q, want %q", got, "ask")
+	}
+	if out.HookSpecificOutput.PermissionDecisionReason == "" {
+		t.Error("PermissionDecisionReason must be non-empty")
+	}
+}
+
+func TestTryPermsDecision_UnknownTool(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	var buf bytes.Buffer
+	wrote := tryPermsDecision(
+		"mcp__moxy__unknown-srv_tool",
+		"mcp__moxy__",
+		map[string]any{},
+		".",
+		&buf,
+	)
+	if wrote {
+		t.Fatalf("expected fall-through (wrote=false), got wrote=true, buf=%q", buf.String())
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("expected empty buf on fall-through, got %q", buf.String())
+	}
+}
+
+func TestTryPermsDecision_NonMoxyPrefix(t *testing.T) {
+	// No MOXIN_PATH/HOME isolation needed at the moment because
+	// parseNativeToolName short-circuits before discoverPermissions
+	// runs. But Task 6 (extract to permcheck) may re-order the
+	// checks — guard against ambient state regardless.
+	t.Setenv("MOXIN_PATH", "")
+	t.Setenv("HOME", t.TempDir())
+	var buf bytes.Buffer
+	wrote := tryPermsDecision(
+		"Read",
+		"mcp__moxy__",
+		map[string]any{},
+		".",
+		&buf,
+	)
+	if wrote {
+		t.Fatal("expected fall-through for non-prefixed tool name")
+	}
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"
