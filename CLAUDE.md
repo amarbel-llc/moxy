@@ -81,6 +81,22 @@ Moxy injects a `restart` meta tool. `restart` restarts any configured child
 server by name. For persistent children, restart closes and re-spawns the
 process. For ephemeral children, it re-probes capabilities.
 
+Moxy also injects a `batch` meta tool that runs a sequence of moxin
+sub-calls under a single permission prompt. Reach for it when an agent
+needs to invoke a known list of similar destructive operations (e.g.
+deleting 25 tags via `grit.tag`) — without `batch`, each sub-call burns a
+separate approval prompt. Each sub-call's permission is resolved through
+moxy's own `perms-request` machinery (in `internal/permcheck`); `deny` or
+unknown (any tool without an explicit moxin perm-request, including
+builtins and child MCP servers) aborts the whole batch with a single
+bailout record, so one wrong tool name nukes the batch — by design.
+Output is TAP-NDJSON mirroring the `amarbel-llc/tap` `pkgs/ndjson`
+schema, with one `test` record per sub-call plus a final `summary`.
+`on_error` controls whether mid-batch failure stops (default) or
+continues — both modes are valid; stop produces `skip` directive records
+for the remainder. Sequential execution only in v1. See
+`docs/plans/2026-05-20-batch-tool.md`.
+
 ### Synthetic Resource Tools
 
 When `generate-resource-tools = true` on a server config, moxy generates
