@@ -495,6 +495,36 @@ func runServer(app *command.App, mode transportMode) error {
 	} else {
 		p.SetResolver(resolver)
 	}
+	builtinRegistry.Register(
+		protocol.ToolV1{
+			Name:        "batch",
+			Description: "Run a sequence of moxin sub-calls under a single permission prompt. Each sub-call must resolve to allow or ask via moxy's perms-request system; deny or unknown aborts the batch. Output is TAP-NDJSON. See moxy-batch(7).",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"required":["calls"],
+				"properties":{
+					"calls":{
+						"type":"array",
+						"minItems":1,
+						"items":{
+							"type":"object",
+							"required":["tool"],
+							"properties":{
+								"tool":{"type":"string","description":"Namespaced tool name (e.g. grit.tag)"},
+								"args":{"type":"object","description":"Sub-call arguments"}
+							}
+						}
+					},
+					"on_error":{"type":"string","enum":["stop","continue"],"default":"stop"}
+				}
+			}`),
+			Annotations: &protocol.ToolAnnotations{
+				ReadOnlyHint:    boolPtr(false),
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		p.HandleBatch,
+	)
 	p.SetBuiltinTools(builtinRegistry)
 
 	if cwd, err := os.Getwd(); err != nil {
