@@ -127,6 +127,7 @@ type Proxy struct {
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
 	resolver                    *permcheck.Resolver
+	dispatchSubCall             subCallDispatcher // test seam; nil → use CallToolV1
 	mu                          sync.RWMutex
 }
 

@@ -95,6 +95,13 @@ func evalDynamic(
 	}
 }
 
+// NewResolverWithPerms constructs a resolver from a pre-built perms
+// map. Intended for tests that need to inject decisions without a
+// MOXIN_PATH walk.
+func NewResolverWithPerms(perms map[string]ToolPermInfo) *Resolver {
+	return &Resolver{perms: perms}
+}
+
 // discoverPermissions walks MOXIN_PATH and the system moxin dir, then
 // returns a map of "server.tool" names to their perm info.
 func discoverPermissions() (map[string]ToolPermInfo, error) {
