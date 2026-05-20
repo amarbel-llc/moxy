@@ -17,6 +17,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/paginate"
+	"github.com/amarbel-llc/moxy/internal/permcheck"
 )
 
 // MoxinReloader re-discovers a single moxin's config by name from the
@@ -125,6 +126,7 @@ type Proxy struct {
 	sessionID                   string
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
+	resolver                    *permcheck.Resolver
 	mu                          sync.RWMutex
 }
 
@@ -163,6 +165,15 @@ func (p *Proxy) SetMoxinReloader(r MoxinReloader) {
 
 func (p *Proxy) SetBootstrapper(b Bootstrapper) {
 	p.bootstrapper = b
+}
+
+// SetResolver wires the permcheck.Resolver used by the batch builtin
+// (and any other consumer that needs to resolve a moxin tool's perm
+// decision). Resolvers are constructed at startup in cmd/moxy and
+// passed in via this setter so the proxy can be tested without doing
+// a MOXIN_PATH walk.
+func (p *Proxy) SetResolver(r *permcheck.Resolver) {
+	p.resolver = r
 }
 
 func (p *Proxy) SetPavedPaths(paths []config.PavedPathConfig) {

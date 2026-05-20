@@ -28,6 +28,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/oauth"
+	"github.com/amarbel-llc/moxy/internal/permcheck"
 	"github.com/amarbel-llc/moxy/internal/proxy"
 	"github.com/amarbel-llc/moxy/internal/status"
 	"github.com/amarbel-llc/moxy/internal/stderrlog"
@@ -488,6 +489,12 @@ func runServer(app *command.App, mode transportMode) error {
 		},
 		p.HandleRestart,
 	)
+	resolver, resolverErr := permcheck.NewResolver()
+	if resolverErr != nil {
+		fmt.Fprintf(os.Stderr, "moxy: building permission resolver: %v\n", resolverErr)
+	} else {
+		p.SetResolver(resolver)
+	}
 	p.SetBuiltinTools(builtinRegistry)
 
 	if cwd, err := os.Getwd(); err != nil {
