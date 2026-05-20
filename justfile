@@ -375,7 +375,13 @@ tag message="":
   git push origin "$tag"
   echo "pushed tag $tag"
 
-# Bump MOXY_VERSION on master, commit, push master, generate auto-changelog, create signed tag, and publish GitHub release with the same changelog. Pass notes_file to override auto-changelog with hand-written notes. Must be run from the master branch.
+# Generate auto-changelog (last tag → HEAD, before bumping so the
+# release commit doesn't appear in its own notes), bump MOXY_VERSION
+# on master, commit, push master, create signed tag with the
+# changelog as the tag message, and publish the GitHub release with
+# the same changelog as the release body. Pass notes_file to
+# override the auto-changelog with hand-written notes. Must be run
+# from the master branch.
 [group('maint')]
 release new_version notes_file="":
   #!/usr/bin/env bash
@@ -385,12 +391,6 @@ release new_version notes_file="":
     echo "just release must be run on master (currently on $current_branch)" >&2
     exit 1
   fi
-  just bump-version {{new_version}}
-  if ! git diff --quiet version.env; then
-    git add version.env
-    git commit -m "chore: release v{{new_version}}"
-  fi
-  git push origin master
   if [[ -n "{{notes_file}}" ]]; then
     notes=$(cat "{{notes_file}}")
   else
@@ -401,6 +401,12 @@ release new_version notes_file="":
       notes=$(git log --format='- %s' HEAD)
     fi
   fi
+  just bump-version {{new_version}}
+  if ! git diff --quiet version.env; then
+    git add version.env
+    git commit -m "chore: release v{{new_version}}"
+  fi
+  git push origin master
   just tag "$notes"
   gh release create "v{{new_version}}" --title "v{{new_version}}" --notes "$notes"
 
