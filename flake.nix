@@ -161,6 +161,7 @@
           cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
           cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
           cp ${./cmd/moxy/moxy-restart.7} $out/share/man/man7/moxy-restart.7
+          cp ${./cmd/moxy/moxy-batch.7} $out/share/man/man7/moxy-batch.7
           MANPATH=$out/share/man mandb --no-purge --create $out/share/man
         '';
 

@@ -1,0 +1,245 @@
+.Dd May 20, 2026
+.Dt MOXY-BATCH 7
+.Os
+.Sh NAME
+.Nm moxy-batch
+.Nd the
+.Li batch
+meta tool: one approval, many moxin sub-calls
+.Sh DESCRIPTION
+.Xr moxy 1
+injects a
+.Li batch
+meta tool into the unified MCP server.
+The tool accepts an array of moxin sub-calls and dispatches them
+sequentially under a single outer permission prompt, instead of
+demanding one prompt per sub-call.
+.Pp
+The motivating case is fan-out over a small, known list where the
+per-item cost of approval dwarfs the per-item work: delete 25 tags via
+.Li grit.tag ,
+close a stack of stale PRs, apply a known-good set of edits via
+.Li folio.write .
+.Sh SYNOPSIS
+.Bd -literal -offset indent
+{
+  "calls": [
+    {"tool": "<server>.<tool>", "args": { ... }},
+    ...
+  ],
+  "on_error": "stop" | "continue"
+}
+.Ed
+.Pp
+.Bl -tag -width "on_error" -compact
+.It Li calls
+Required.
+Non-empty array of sub-calls.
+Each entry's
+.Li tool
+field is a namespaced tool name
+.Pq e.g. Li grit.tag ,
+.Li folio.glob ;
+.Li args
+is the sub-call's argument object.
+.It Li on_error
+Optional.
+.Li "stop"
+.Pq default
+halts the batch on the first sub-call failure and emits
+.Li skip
+directives for the remainder.
+.Li "continue"
+runs every sub-call regardless of intermediate failures.
+.El
+.Sh PERMISSION MODEL
+Moxy resolves every sub-call's permission decision through its own
+.Li perms-request
+machinery
+.Pq the same code path the PreToolUse hook uses .
+Resolution table:
+.Pp
+.Bl -tag -width "perms-request" -compact
+.It Li always-allow
+Sub-call proceeds.
+.It Li each-use
+Sub-call proceeds without re-prompting
+.Pq this is the whole value proposition .
+.It Li dynamic
+Resolved per call by running the
+.Li [dynamic-perms]
+script with the sub-call's args; the script's exit code drives the
+decision
+.Pq Li 0 = allow ,
+.Li 1 = ask ,
+.Li 2 = deny .
+.It Li delegate-to-client
+Resolved to
+.Em unknown .
+.It Li (missing)
+Resolved to
+.Em unknown .
+This covers builtins, child MCP servers, and any tool without an
+explicit moxin
+.Li perms-request .
+.El
+.Pp
+.Em Any
+sub-call resolving to
+.Li deny
+or
+.Li unknown
+aborts the entire batch with a single
+.Li bailout
+record before any sub-call runs.
+The
+.Em unknown
+deny-by-default boundary is intentional: a single mis-typed tool name
+or a non-moxin tool reference nukes the batch instead of silently
+falling through to per-tool prompts.
+.Pp
+The
+.Li batch
+tool itself is annotated
+.Li destructiveHint: true
+so MCP clients
+.Pq Claude Code does
+prompt the user once when
+.Li batch
+is invoked.
+That single prompt covers every sub-call inside.
+.Sh OUTPUT FORMAT
+A single text-block result containing newline-delimited JSON
+.Pq NDJSON
+mirroring the
+.Xr amarbel-llc/tap 7
+.Li pkgs/ndjson
+schema.
+The stream is:
+.Bl -bullet -offset indent -compact
+.It
+Zero or one
+.Li bailout
+record
+.Pq present only on pre-flight rejection or context-cancellation .
+.It
+Zero or more
+.Li test
+records, one per sub-call attempted, in input order.
+Skipped sub-calls
+.Pq Li on_error == "stop"
+after a failure
+appear with
+.Li ok: false
+and
+.Li directive: {"kind": "skip", "reason": "batch aborted: stopped at #N"} .
+.It
+Exactly one
+.Li summary
+record with aggregate counts
+.Pq Li passed , failed , skipped , total
+plus
+.Li bailed
+.Pq true on pre-flight rejection or
+.Li on_error == "stop"
+after a failure
+and
+.Li valid
+.Pq true if execution started, false if pre-flight aborted .
+.El
+.Pp
+The
+.Li ToolCallResultV1.isError
+flag is true iff
+.Li failed > 0
+or
+.Li bailed .
+.Sh EXAMPLES
+.Ss Delete 25 upstream tags under one approval
+.Bd -literal -offset indent
+{
+  "calls": [
+    {"tool": "grit.tag", "args": {"subcommand": "delete", "name": "v1.13.0"}},
+    {"tool": "grit.tag", "args": {"subcommand": "delete", "name": "v1.12.0"}},
+    {"tool": "grit.tag", "args": {"subcommand": "delete", "name": "v1.11.0"}}
+    /* ... 22 more ... */
+  ]
+}
+.Ed
+.Ss Bail out before doing anything when one sub-call would deny
+A batch containing a single
+.Li slack.send_message
+call
+.Pq no moxin perm-request
+aborts the whole batch with a bailout record;
+.Li slack.send_message
+is never invoked.
+.Ss Keep going past failures
+.Bd -literal -offset indent
+{
+  "on_error": "continue",
+  "calls": [
+    {"tool": "folio.rm", "args": {"path": "a.tmp"}},
+    {"tool": "folio.rm", "args": {"path": "b.tmp"}},
+    {"tool": "folio.rm", "args": {"path": "c.tmp"}}
+  ]
+}
+.Ed
+A missing
+.Pa b.tmp
+returns a tool error, the summary records
+.Li failed: 1 ,
+and
+.Pa c.tmp
+is still attempted.
+.Sh NON-GOALS (v1)
+.Bl -bullet -offset indent -compact
+.It
+Parallel execution.
+Sequential only.
+.It
+Nested batches.
+.It
+Streaming partial results.
+The whole NDJSON document returns in one
+.Li ToolCallResultV1 .
+.It
+Cross-client permission introspection.
+.Nm moxy
+does not read Claude Code's
+.Pa settings.json ;
+moxy decides on the basis of moxin
+.Li perms-request
+only.
+.El
+.Sh MOXY-SIDE VERIFICATION
+The
+.Li HandleBatch
+dispatch is exercised in
+.Pa internal/proxy/batch_test.go
+.Pq TestBatch_AllAllow_Sequential ,
+.Pq TestBatch_OnErrorStop_DefaultsToStop ,
+.Pq TestBatch_OnErrorStop_MultipleSkipsCorrectIndex ,
+.Pq TestBatch_OnErrorContinue ,
+.Pq TestBatch_PreflightDeny ,
+.Pq TestBatch_TransportError ,
+.Pq TestBatch_NonTextContent ,
+and bats integration tests in
+.Pa zz-tests_bats/batch.bats .
+The NDJSON record types are defined in
+.Pa internal/proxy/batch_ndjson.go .
+The permission resolver lives in
+.Pa internal/permcheck/ .
+.Sh SEE ALSO
+.Xr moxy 1 ,
+.Xr moxy-restart 7 ,
+.Xr moxin 7 ,
+.Xr moxyfile 5
+.Sh AUTHORS
+.An -nosplit
+This page documents the
+.Li batch
+meta tool added in
+.Lk https://github.com/amarbel-llc/moxy/issues/258 .
+File issues at
+.Lk https://github.com/amarbel-llc/moxy/issues .
