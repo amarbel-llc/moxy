@@ -137,6 +137,20 @@ test-go:
   MOXIN_PATH="" go vet ./...
   MOXIN_PATH="" go test ./... -v
 
+# Per-function coverage report for a Go package.
+# Used during refactors to identify untested branches before moving code.
+# Example: just cover-go ./internal/hook/...
+[group: 'debug']
+cover-go pkg=".":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  mkdir -p .tmp
+  out=.tmp/cover-$(echo "{{pkg}}" | tr '/.' '__').out
+  MOXIN_PATH="" go test "{{pkg}}" -coverprofile="$out" -covermode=atomic
+  echo
+  echo "--- per-function coverage ---"
+  go tool cover -func="$out"
+
 test-status: build-go
   {{justfile_directory()}}/{{dir_build}}/moxy status
 
