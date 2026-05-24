@@ -44,11 +44,6 @@
       inputs.utils.follows = "utils";
     };
 
-    bun = {
-      url = "github:amarbel-llc/bun";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # madder is the content-addressable blob store backing the moxin
     # result cache. Pinned at build time so `moxy version` reports an
     # auditable revision; users can override with
@@ -72,7 +67,6 @@
       tommy,
       maneater,
       bats,
-      bun,
       madder,
     }:
     (utils.lib.eachDefaultSystem (
@@ -110,8 +104,6 @@
             ./internal
           ];
         };
-
-        bunLib = bun.lib.mkBunLib { inherit pkgs; };
 
         gwsVersion = "0.22.5";
         gwsPlatform = {
@@ -228,7 +220,7 @@
                 substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
               done
             '') (builtins.attrNames extraSubstitutions));
-          bunBinaries = bunLib.buildBunBinaries {
+          bunBinaries = pkgs.buildBunBinaries {
             pname = "${name}-moxin-scripts";
             version = moxyVersion;
             inherit src;
@@ -387,7 +379,7 @@
         };
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
         just-us-agents-moxin = let
-          listRecipes = bunLib.buildZxScript {
+          listRecipes = pkgs.buildZxScript {
             pname = "just-list-recipes";
             version = moxyVersion;
             src = ./moxins/just-us-agents/src;
