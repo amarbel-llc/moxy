@@ -294,6 +294,26 @@ def _marklas_to_adf_or_skip(md: str):
         return None
 
 
+def test_marklas_pipe_in_inline_code_passes():
+    """#239: inline code containing pipes — marklas emits a plain code span, not a table."""
+    md = "The matched node is `$parent instanceof Foo|Bar|Baz|Quux`, reachable.\n"
+    adf = _marklas_to_adf_or_skip(md)
+    if adf is None:
+        return
+    # Validator must not raise — pipe-bearing inline code is valid ADF.
+    _expect_clean(adf)
+
+
+def test_marklas_diff_codeblock_passes():
+    """#239: fenced ```diff codeblock — marklas emits a codeBlock with language=diff, no marks."""
+    md = "```diff\n-old_call();\n+new_call();\n```\n"
+    adf = _marklas_to_adf_or_skip(md)
+    if adf is None:
+        return
+    # Validator must not raise — diff codeBlock with no marks is valid ADF.
+    _expect_clean(adf)
+
+
 def test_marklas_bold_around_code_is_rejected():
     """Fixture 06a: **bold `inline code`** → marklas emits code+strong → validator rejects."""
     md = "A line with **bold around `inline code` here**.\n"

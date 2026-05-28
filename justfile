@@ -737,6 +737,18 @@ debug-sisyphus-py-tests: build-moxins
   py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
   "$py_bin" "{{justfile_directory()}}/moxins/sisyphus/lib/test_validate.py"
 
+# Probe what marklas produces for the #239 pipe-prose and diff-codeblock cases.
+# Agent dev-loop: run to inspect ADF output before writing validator/tests.
+[group('debug')]
+debug-sisyphus-239-probe: build-moxins
+  #!/usr/bin/env bash
+  set -euo pipefail
+  root="{{justfile_directory()}}"
+  moxin_dir="$root/result/share/moxy/moxins/sisyphus"
+  py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
+  VENDOR="$root/moxins/sisyphus/lib/_vendor" \
+    "$py_bin" "$root/moxins/sisyphus/lib/probe_239.py"
+
 # Reproduce tools-not-appearing via claude -p with the nix-built moxy.
 [group('explore')]
 explore-claude-p: build-nix
