@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Shared repo-resolution helper for get-hubbed bin scripts.
+# Source this file; it provides resolve_repo_from_origin().
+#
+# resolve_repo_from_origin: print OWNER/NAME derived from the git `origin`
+# remote URL in the current working directory. Handles:
+#   - SSH:   git@github.com:OWNER/NAME.git  →  OWNER/NAME
+#   - HTTPS: https://github.com/OWNER/NAME  →  OWNER/NAME  (with or without .git)
+#
+# Falls back to `gh api /user` + `gh repo view` when no origin remote exists
+# (non-git or remotes-free repos, e.g. gist checkouts).
+#
+# This is intentionally NOT set -e so callers control error handling.
+
+resolve_repo_from_origin() {
+  local origin_url
+  origin_url=$(git remote get-url origin 2>/dev/null || true)
+
+  if [ -n "$origin_url" ]; then
+    local owner_name
+    # SSH: git@github.com:OWNER/NAME.git
+    if [[ "$origin_url" =~ ^git@[^:]+:(.+/[^/]+)(\.git)?$ ]]; then
+      owner_name="${BASH_REMATCH[1]}"
+      owner_name="${owner_name%.git}"
+      printf '%s' "$owner_name"
+      return 0
+    fi
+    # HTTPS: https://github.com/OWNER/NAME[.git]
+    if [[ "$origin_url" =~ ^https?://[^/]+/(.+/[^/]+)(\.git)?$ ]]; then
+      owner_name="${BASH_REMATCH[1]}"
+      owner_name="${owner_name%.git}"
+      printf '%s' "$owner_name"
+      return 0
+    fi
+  fi
+
+  # Fallback: no parseable origin remote — use gh's resolution.
+  local user name
+  user=$(gh api /user --jq '.login')
+  name=$(gh repo view --json name --jq '.name')
+  printf '%s/%s' "$user" "$name"
+}

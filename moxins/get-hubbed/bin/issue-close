@@ -5,6 +5,9 @@ comment="${2:-}"
 reason="${3:-}"
 repo_owner_name="${4:-}"
 
+# shellcheck source=bin/resolve-repo
+. "$(dirname "$0")/resolve-repo"
+
 if [ -n "$repo_owner_name" ]; then
   if [[ "$repo_owner_name" != */* ]]; then
     echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
@@ -12,9 +15,7 @@ if [ -n "$repo_owner_name" ]; then
   fi
   repo="$repo_owner_name"
 else
-  user=$(gh api /user --jq '.login')
-  name=$(gh repo view --json name --jq '.name')
-  repo="$user/$name"
+  repo=$(resolve_repo_from_origin)
 fi
 
 gh_args=(issue close "$number" -R "$repo")

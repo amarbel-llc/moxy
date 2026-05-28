@@ -1,25 +1,12 @@
 import { $ } from "zx";
+import { resolveRepo } from "./resolve-repo.ts";
 
 $.verbose = false;
 
 const [base, head, perPage = "30", page = "1", repoOwnerName] =
   process.argv.slice(2);
 
-async function resolveRepo(): Promise<string> {
-  if (repoOwnerName) {
-    if (!repoOwnerName.includes("/")) {
-      throw new Error("repo_owner_name must be in OWNER/NAME format");
-    }
-    return repoOwnerName;
-  }
-  const user = (await $`gh api /user --jq ${".login"}`).stdout.trim();
-  const name = (
-    await $`gh repo view --json name --jq ${".name"}`
-  ).stdout.trim();
-  return `${user}/${name}`;
-}
-
-const repo = await resolveRepo();
+const repo = await resolveRepo(repoOwnerName);
 
 const raw = JSON.parse(
   (
