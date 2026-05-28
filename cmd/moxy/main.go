@@ -46,8 +46,10 @@ var (
 // COMPONENT/VERSION/REV table listing every build-time-pinned external
 // dep (currently: madder). Pin rows probe the pinned binary at runtime,
 // so a missing or broken pin produces an "(error: …)" cell rather than
-// aborting the whole command. Per the spec the table header is always
-// emitted even when no pins exist.
+// aborting the whole command. moxy always pins madder, so it is a
+// with-components binary per eng-versioning(7) and always emits the
+// table; the spec's self-line-only shape is for binaries that pin
+// nothing downstream.
 func printVersionTable(ctx context.Context, moxyVersion string) error {
 	fmt.Fprintf(os.Stdout, "moxy %s\n\n", moxyVersion)
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
