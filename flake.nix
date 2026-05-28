@@ -105,6 +105,23 @@
           ];
         };
 
+        # flake-input-go_mod bridge (amarbel-llc/nixpkgs RFC 0001). Routes the
+        # two amarbel-llc Go modules moxy directly imports onto their producer
+        # flakes' `go-pkgs` source trees, so a tommy/go-mcp bump is a flake.lock
+        # change alone — no go.mod pseudo-version + gomod2nix.toml hash lockstep.
+        # The bridge synthesizes `replace` directives at eval time and strips
+        # these keys from the merged gomod2nix.toml, so go.mod/gomod2nix.toml are
+        # left untouched (their real require versions still drive out-of-nix
+        # `go build`). madder is NOT bridged: it's a binary input, not imported
+        # Go code. Consumed by both buildGoApplication and the devshell mkGoEnv.
+        goFlakeInputs = {
+          "github.com/amarbel-llc/tommy" = tommy.packages.${system}.go-pkgs;
+          "github.com/amarbel-llc/purse-first/libs/go-mcp" = {
+            src = purse-first.packages.${system}.go-pkgs;
+            subPath = "libs/go-mcp";
+          };
+        };
+
         gwsVersion = "0.22.5";
         gwsPlatform = {
           "aarch64-darwin" = { name = "aarch64-apple-darwin"; hash = "sha256-HSqf/VvJssLEtIYw2vCC+tE9nlfXQZiKLCSO7VYvfaw="; };
@@ -492,6 +509,10 @@
           version = moxyVersion;
           commit = moxyCommit;
           src = moxySrc;
+          # pwd lets the goFlakeInputs merge read the consumer go.mod (mirrors
+          # madder's src+pwd pairing).
+          pwd = moxySrc;
+          inherit goFlakeInputs;
           subPackages = [ "cmd/moxy" ];
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
@@ -663,7 +684,14 @@
 
         devShells.default = pkgs-master.mkShell {
           packages = [
-            pkgs-master.go_1_26
+            # mkGoEnv (RFC 0001 consumer parity) puts the gomod2nix-regen `go`
+            # wrapper + gomod2nix CLI on PATH and gives `nix develop` the same
+            # goFlakeInputs-merged module graph as `nix build` for nix-driven
+            # go work. Replaces the bare go_1_26 + gomod2nix entries.
+            (pkgs.mkGoEnv {
+              pwd = ./.;
+              inherit goFlakeInputs;
+            })
             pkgs-master.delve
             pkgs-master.gofumpt
             pkgs-master.golangci-lint
@@ -671,7 +699,6 @@
             pkgs-master.gopls
             pkgs-master.gotools
             pkgs-master.govulncheck
-            pkgs.gomod2nix
             pkgs.just
             pkgs.manix
             pkgs.man-db

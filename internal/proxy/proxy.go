@@ -2008,9 +2008,13 @@ func downgradeContentBlocks(
 	for i, b := range blocks {
 		// V1 resource blocks have no V0 equivalent — flatten to text.
 		if b.Type == "resource" && b.Resource != nil {
+			text := ""
+			if b.Resource.Text != nil {
+				text = *b.Resource.Text
+			}
 			out[i] = protocol.ContentBlock{
 				Type: "text",
-				Text: b.Resource.Text,
+				Text: text,
 			}
 			continue
 		}

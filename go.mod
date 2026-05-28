@@ -4,15 +4,14 @@ go 1.26
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.11
-	github.com/amarbel-llc/tommy v0.0.0-20260416172442-0769146d4d1e
+	github.com/amarbel-llc/purse-first/libs/go-mcp v0.0.14-0.20260527094812-f9b9b60436fb
+	github.com/amarbel-llc/tommy v0.2.9-0.20260527102325-1f54b963b9d4
 	github.com/charmbracelet/huh v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/zalando/go-keyring v0.2.8
 )
 
 require (
-	github.com/amarbel-llc/madder v0.0.0-20260511192840-a2c01c63618e // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
@@ -39,7 +38,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	mvdan.cc/sh/v3 v3.12.0 // indirect
+	mvdan.cc/sh/v3 v3.13.1 // indirect
 )

@@ -460,11 +460,12 @@ func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output stri
 			if block.Text != "" && s.madder != nil {
 				uri, cacheErr := s.cacheAndGetURI(ctx, block.Text)
 				if cacheErr == nil {
+					text := block.Text
 					cleaned = append(cleaned, protocol.ContentBlockV1{
 						Type: "resource",
 						Resource: &protocol.EmbeddedResourceContents{
 							URI:      uri,
-							Text:     block.Text,
+							Text:     &text,
 							MimeType: block.MimeType,
 						},
 					})
@@ -519,7 +520,7 @@ func (s *Server) buildTextResult(ctx context.Context, spec *ToolSpec, output str
 				Type: "resource",
 				Resource: &protocol.EmbeddedResourceContents{
 					URI:      uri,
-					Text:     output,
+					Text:     &output,
 					MimeType: spec.ContentType,
 				},
 			}

@@ -178,8 +178,12 @@ func TestBuildMCPResultRewritesMimeTypeToResourceBlock(t *testing.T) {
 	if block.Resource == nil {
 		t.Fatalf("Resource is nil — rewrite produced malformed block: %s", rawStr)
 	}
-	if block.Resource.Text != "--- a/f\n+++ b/f" {
-		t.Errorf("resource.text = %q, want diff content", block.Resource.Text)
+	gotText := ""
+	if block.Resource.Text != nil {
+		gotText = *block.Resource.Text
+	}
+	if gotText != "--- a/f\n+++ b/f" {
+		t.Errorf("resource.text = %q, want diff content", gotText)
 	}
 	if block.Resource.MimeType != "text/x-diff" {
 		t.Errorf("resource.mimeType = %q, want %q", block.Resource.MimeType, "text/x-diff")
@@ -242,8 +246,12 @@ func TestServerToolsCallContentTypeResourceBlock(t *testing.T) {
 	if block.Resource.MimeType != "application/json" {
 		t.Errorf("resource.mimeType = %q, want %q", block.Resource.MimeType, "application/json")
 	}
-	if block.Resource.Text != `{"ok":true}` {
-		t.Errorf("resource.text = %q, want %q", block.Resource.Text, `{"ok":true}`)
+	gotText := ""
+	if block.Resource.Text != nil {
+		gotText = *block.Resource.Text
+	}
+	if gotText != `{"ok":true}` {
+		t.Errorf("resource.text = %q, want %q", gotText, `{"ok":true}`)
 	}
 	if !strings.HasPrefix(block.Resource.URI, "madder://blobs/") {
 		t.Errorf("resource.uri = %q, want madder://blobs/ prefix", block.Resource.URI)
