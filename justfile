@@ -1,4 +1,4 @@
-export MOXIN_PATH := justfile_directory() / "result" / "share" / "moxy" / "moxins"
+export MOXIN_PATH := justfile_directory() / "result-moxins" / "share" / "moxy" / "moxins"
 
 default: build test test-status-clean-env
 
@@ -26,7 +26,7 @@ build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
 build-moxins:
-  nix build --keep-going .#moxy-moxins
+  nix build --keep-going --out-link result-moxins .#moxy-moxins
 
 generate:
   go generate ./internal/config/
@@ -34,7 +34,7 @@ generate:
 build-gomod2nix:
   gomod2nix
 
-build-nix: build-gomod2nix build-moxins
+build-nix: build-gomod2nix
   nix build --keep-going --show-trace
 
 dir_build := "build"
@@ -78,7 +78,7 @@ test-bats-tag tag:
 test-bats-dev *args: build-go
   cd zz-tests_bats && \
     MOXY_BIN={{justfile_directory()}}/build/moxy \
-    MOXIN_PATH={{justfile_directory()}}/result/share/moxy/moxins \
+    MOXIN_PATH={{justfile_directory()}}/result-moxins/share/moxy/moxins \
     PARALLEL_HOME=$(mktemp -d) \
     BATS_TEST_TIMEOUT=30 \
     bats --jobs $(($(nproc 2>/dev/null || sysctl -n hw.ncpu) / 2)) {{args}}
@@ -240,7 +240,7 @@ bisect-validate: build-go
   trap 'rm -rf "$tmpdir"' EXIT
   export HOME="$tmpdir/home"
   mkdir -p "$HOME/repo"
-  export MOXIN_PATH="{{justfile_directory()}}/result/share/moxy/moxins"
+  export MOXIN_PATH="{{justfile_directory()}}/result-moxins/share/moxy/moxins"
   cat >"$HOME/repo/moxyfile" <<EOF
   [[servers]]
   name = "test"
@@ -567,47 +567,47 @@ debug-bun2nix:
 # Smoke-test arboretum-moxin outline against POC sample
 [group('debug')]
 debug-arboretum-smoke:
-  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
+  {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
 
 # Smoke-test arboretum-moxin search against a small fixture
 [group('debug')]
 debug-arboretum-search-smoke:
-  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/search 'console.log($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke
+  {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/search 'console.log($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke
 
 # Smoke-test arboretum-moxin search against a small Go fixture (lang=go)
 [group('debug')]
 debug-arboretum-search-go-smoke:
-  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/search 'fmt.Println($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go
+  {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/search 'fmt.Println($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go
 
 # Smoke-test arboretum-moxin rewrite (apply) against a small Go fixture
 [group('debug')]
 debug-arboretum-rewrite-go-smoke:
-  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'fmt.Println($X)' 'log.Info($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go '' false
+  {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'fmt.Println($X)' 'log.Info($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go '' false
 
 # Smoke-test arboretum md-toc against a tiny markdown blob on stdin
 [group('debug')]
 debug-arboretum-md-toc-smoke:
-  printf '# Hello\n\n## World\n\nbody\n\n## Again\n' | {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/md-toc
+  printf '# Hello\n\n## World\n\nbody\n\n## Again\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-toc
 
 # Smoke-test arboretum md-section against a tiny markdown blob on stdin
 [group('debug')]
 debug-arboretum-md-section-smoke:
-  printf '# Hello\n\n## World\n\nbody\n\n## Again\nmore\n' | {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/md-section World
+  printf '# Hello\n\n## World\n\nbody\n\n## Again\nmore\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-section World
 
 # Smoke-test arboretum md-anchor against a tiny markdown blob on stdin
 [group('debug')]
 debug-arboretum-md-anchor-smoke:
-  printf '<a name="x"></a>\n# X\nbody\n\n<a name="y"></a>\n# Y\nmore\n' | {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/md-anchor x
+  printf '<a name="x"></a>\n# X\nbody\n\n<a name="y"></a>\n# Y\nmore\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-anchor x
 
 # Smoke-test arboretum-moxin rewrite (dry-run) against a small fixture
 [group('debug')]
 debug-arboretum-rewrite-smoke:
-  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' true
+  {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' true
 
 # Smoke-test arboretum-moxin rewrite (apply) against a small fixture
 [group('debug')]
 debug-arboretum-rewrite-apply-smoke:
-  {{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' false
+  {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' false
 
 # Probe ast-grep's --update-all output streams independently
 [group('debug')]
@@ -634,7 +634,7 @@ debug-astgrep-streams:
 debug-arboretum-regen-goldens:
   #!/usr/bin/env bash
   set -euo pipefail
-  bin={{justfile_directory()}}/result/share/moxy/moxins/arboretum/bin/outline
+  bin={{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/outline
   fixtures={{justfile_directory()}}/zz-tests_bats/test-fixtures/arboretum
   for f in "$fixtures"/sample.*; do
     case "$f" in *.golden) continue;; esac
@@ -732,7 +732,7 @@ debug-validate-serve-moxin name: build-go
 debug-sisyphus-py-tests: build-moxins
   #!/usr/bin/env bash
   set -euo pipefail
-  moxin_dir="{{justfile_directory()}}/result/share/moxy/moxins/sisyphus"
+  moxin_dir="{{justfile_directory()}}/result-moxins/share/moxy/moxins/sisyphus"
   # The nix wrapper burns in the python path; extract it from the create-issue wrapper.
   py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
   "$py_bin" "{{justfile_directory()}}/moxins/sisyphus/lib/test_validate.py"
@@ -744,7 +744,7 @@ debug-sisyphus-239-probe: build-moxins
   #!/usr/bin/env bash
   set -euo pipefail
   root="{{justfile_directory()}}"
-  moxin_dir="$root/result/share/moxy/moxins/sisyphus"
+  moxin_dir="$root/result-moxins/share/moxy/moxins/sisyphus"
   py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
   VENDOR="$root/moxins/sisyphus/lib/_vendor" \
     "$py_bin" "$root/moxins/sisyphus/lib/probe_239.py"
