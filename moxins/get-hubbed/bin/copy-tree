@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+src_path="$1"
+dest_dir="$2"
+ref="${3:-}"
+repo_owner_name="${4:-}"
+
+# shellcheck source=bin/.resolve-repo
+. "$(dirname "$0")/.resolve-repo"
+
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  repo=$(resolve_repo_from_origin)
+fi
+
+# Resolve ref to a commit SHA so all files come from the same snapshot
+if [ -z "$ref" ]; then
+  ref=$(gh api "repos/$repo" --jq '.default_branch')
+fi
+commit_sha=$(gh api "repos/$repo/commits/$ref" --jq '.sha')
+tree_sha=$(gh api "repos/$repo/commits/$ref" --jq '.commit.tree.sha')
+
+# Fetch recursive tree and filter to blobs under src_path
+tree_json=$(gh api "repos/$repo/git/trees/$tree_sha?recursive=1")
+
+# Normalise src_path: strip trailing slash, handle root ("")
+src_prefix="${src_path%/}"
+
+# Build list of blob entries whose path starts with src_prefix
+if [ -z "$src_prefix" ]; then
+  # root copy: all blobs
+  entries=$(printf '%s' "$tree_json" | jq -r '.tree[] | select(.type == "blob") | .path')
+else
+  entries=$(printf '%s' "$tree_json" | \
+    jq -r --arg prefix "$src_prefix/" \
+    '.tree[] | select(.type == "blob") | select(.path | startswith($prefix)) | .path')
+fi
+
+if [ -z "$entries" ]; then
+  echo "ERROR: no files found under '$src_path' at ref '$ref' in $repo" >&2
+  exit 1
+fi
+
+copied_paths=()
+while IFS= read -r blob_path; do
+  # Destination: strip the src_prefix from the path, mirror under dest_dir
+  if [ -z "$src_prefix" ]; then
+    rel_path="$blob_path"
+  else
+    rel_path="${blob_path#"${src_prefix}/"}"
+  fi
+  dest_file="${dest_dir}/${rel_path}"
+
+  raw=$(gh api "repos/$repo/contents/$blob_path" -f ref="$commit_sha")
+  mkdir -p "$(dirname "$dest_file")"
+  printf '%s' "$raw" | jq -r '.content' | tr -d '\n' | base64 -d > "$dest_file"
+  copied_paths+=("$rel_path")
+done <<< "$entries"
+
+count="${#copied_paths[@]}"
+# Emit JSON: count + paths array
+paths_json=$(printf '%s\n' "${copied_paths[@]}" | jq -R . | jq -s .)
+printf '{"files_copied":%d,"source_ref":"%s","source_sha":"%s","dest_dir":"%s","paths":%s}\n' \
+  "$count" "$ref" "$commit_sha" "$dest_dir" "$paths_json"

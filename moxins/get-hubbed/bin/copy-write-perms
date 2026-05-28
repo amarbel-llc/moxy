@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for get-hubbed copy-file and copy-tree.
+# Checks that the local destination path is inside CWD or Claude write-allow dirs.
+#
+# $1 = destination path (file for copy-file, directory for copy-tree)
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+set -euo pipefail
+
+dest="${1:-}"
+if [ -z "$dest" ]; then
+  echo "copy-write-perms: destination path required" >&2
+  exit 2
+fi
+
+cwd_real=$(realpath -m -- "${PWD}")
+home_real=$(realpath -m -- "${HOME:-/}")
+uid="${UID:-$(id -u)}"
+session_tmp="${CLAUDE_CODE_TMPDIR:-}"
+[ -n "$session_tmp" ] && session_tmp=$(realpath -m -- "$session_tmp")
+
+write_dirs=(
+  "$cwd_real"
+  "${home_real}/.claude/plans"
+  "${home_real}/.claude/projects"
+  "/tmp/claude-${uid}"
+)
+[ -n "$session_tmp" ] && write_dirs+=("$session_tmp")
+
+# Resolve parent directory canonically, preserve leaf name
+parent=$(dirname -- "$dest")
+leaf=$(basename -- "$dest")
+resolved_parent=$(realpath -m -- "$parent")
+resolved="${resolved_parent}/${leaf}"
+
+# Deny writes into /nix/store
+case "$resolved" in
+  /nix/store|/nix/store/*) echo "$dest is in /nix/store (immutable) — refusing write"; exit 2 ;;
+esac
+
+for dir in "${write_dirs[@]}"; do
+  [ -z "$dir" ] && continue
+  case "$resolved" in
+    "$dir"|"$dir"/*) echo "destination inside write-allowed dir ($dir) — auto-allowed"; exit 0 ;;
+  esac
+done
+
+echo "$dest resolves outside CWD/Claude write-allow dirs — confirmation required"
+exit 1

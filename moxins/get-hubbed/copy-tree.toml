@@ -1,0 +1,38 @@
+schema = 3
+result-type = "text"
+content-type = "application/json"
+perms-request = "dynamic"
+description = """Fetch a directory recursively from {repo_owner_name}/{src_path}@{ref} and mirror it \
+into a local destination directory. Preserves source path layout, decodes base64 content before \
+writing each file. Returns count of files copied, source commit sha, and list of relative paths. \
+Write-policy-gated like folio.write."""
+command = "@BIN@/copy-tree"
+arg-order = ["src_path", "dest_dir", "ref", "repo_owner_name"]
+
+[input]
+type = "object"
+required = ["src_path", "dest_dir"]
+
+[input.properties.src_path]
+type = "string"
+description = "Source directory path within the repo (e.g. 'moxins/chix'). Use empty string for root."
+
+[input.properties.dest_dir]
+type = "string"
+description = "Local destination directory. Source path layout is mirrored here. Auto-allowed inside CWD and Claude write-allow dirs; refuses /nix/store; prompts elsewhere."
+
+[input.properties.ref]
+type = "string"
+description = "Branch, tag, or commit SHA (default: repo's default branch)"
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
+
+[annotations]
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/copy-write-perms"
+arg-order = ["dest_dir"]
+timeout-ms = 3000

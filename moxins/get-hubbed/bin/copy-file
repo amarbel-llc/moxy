@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+src_path="$1"
+dest_path="$2"
+ref="${3:-}"
+repo_owner_name="${4:-}"
+
+# shellcheck source=bin/.resolve-repo
+. "$(dirname "$0")/.resolve-repo"
+
+if [ -n "$repo_owner_name" ]; then
+  if [[ "$repo_owner_name" != */* ]]; then
+    echo "ERROR: repo_owner_name must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+  repo="$repo_owner_name"
+else
+  repo=$(resolve_repo_from_origin)
+fi
+
+gh_args=(api "repos/$repo/contents/$src_path")
+[ -n "$ref" ] && gh_args+=(-f ref="$ref")
+
+raw=$(gh "${gh_args[@]}")
+
+# Verify it's a file (not a directory)
+kind=$(printf '%s' "$raw" | jq -r 'if type == "array" then "dir" else .type // "file" end')
+if [ "$kind" = "dir" ]; then
+  echo "ERROR: $src_path is a directory; use copy-tree for directories" >&2
+  exit 1
+fi
+
+file_sha=$(printf '%s' "$raw" | jq -r '.sha')
+source_ref="${ref:-$(printf '%s' "$raw" | jq -r '.url | split("?ref=") | .[1] // "HEAD"')}"
+
+# Decode base64 content and write to destination
+mkdir -p "$(dirname "$dest_path")"
+printf '%s' "$raw" | jq -r '.content' | tr -d '\n' | base64 -d > "$dest_path"
+
+bytes=$(wc -c < "$dest_path")
+printf '{"bytes_written":%d,"source_sha":"%s","source_ref":"%s","dest_path":"%s"}\n' \
+  "$bytes" "$file_sha" "$source_ref" "$dest_path"

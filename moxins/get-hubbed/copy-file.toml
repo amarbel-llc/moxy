@@ -1,0 +1,37 @@
+schema = 3
+result-type = "text"
+content-type = "application/json"
+perms-request = "dynamic"
+description = """Fetch one file from {repo_owner_name}/{src_path}@{ref} and write it byte-identical \
+to a local destination path. Decodes base64 content from the GitHub API before writing. \
+Returns bytes written, source sha, and source ref. Write-policy-gated like folio.write."""
+command = "@BIN@/copy-file"
+arg-order = ["src_path", "dest_path", "ref", "repo_owner_name"]
+
+[input]
+type = "object"
+required = ["src_path", "dest_path"]
+
+[input.properties.src_path]
+type = "string"
+description = "File path within the source repo (e.g. 'Formula/moxy.rb', 'go.sum')"
+
+[input.properties.dest_path]
+type = "string"
+description = "Local destination path to write to. Auto-allowed inside CWD and Claude write-allow dirs; refuses /nix/store; prompts elsewhere."
+
+[input.properties.ref]
+type = "string"
+description = "Branch, tag, or commit SHA (default: repo's default branch)"
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
+
+[annotations]
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/copy-write-perms"
+arg-order = ["dest_path"]
+timeout-ms = 3000
