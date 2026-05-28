@@ -136,6 +136,30 @@ teardown() {
   refute_output --partial "description rejected"
 }
 
+# ── #280: api tool must not double-prefix /rest/api/3/ when given a full URL ──
+
+@test "api: full URL is used verbatim, not double-prefixed (closes #280)" {
+  # Pass a full URL whose path is NOT under /rest/api/3/. If the bug is
+  # present, the tool prepends /rest/api/3/ → .../rest/api/3/rest/agile/...
+  # and the "url" in the output reveals the mangled path.
+  FULL_URL="http://127.0.0.1:$MOCK_PORT/rest/agile/1.0/sprint/42/issue"
+  run "$BIN/api" "GET" "$FULL_URL" "" "" "json"
+  # Tool exits 0 even on 4xx (it reports HTTP status in JSON).
+  # The inner JSON is embedded in the moxy envelope; slashes are plain (not
+  # backslash-escaped) in the raw output stream, so match accordingly.
+  assert_output --partial "rest/agile/1.0/sprint/42/issue"
+  refute_output --partial "rest/api/3/rest"
+}
+
+@test "api: /rest/agile/ path is not double-prefixed with /rest/api/3/ (closes #280)" {
+  # Pass a root-relative agile path. If the prefix check is too narrow
+  # (only guards rest/api/), it incorrectly prepends /rest/api/3/ onto
+  # the agile path → /rest/api/3/rest/agile/1.0/...
+  run "$BIN/api" "GET" "/rest/agile/1.0/sprint/42/issue" "" "" "json"
+  assert_output --partial "rest/agile/1.0/sprint/42/issue"
+  refute_output --partial "rest/api/3/rest"
+}
+
 # ── #238: update-issue accepts @me for assignee ────────────────────────────
 
 @test "update-issue: @me assignee resolves via /myself and reaches Jira" {

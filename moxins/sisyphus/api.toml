@@ -7,6 +7,7 @@ JIRA_URL/JIRA_USERNAME/JIRA_API_TOKEN.
 `path` accepts any of:
 - a full URL,
 - '/rest/api/3/issue/KEY-1',
+- '/rest/agile/1.0/sprint/42/issue' (any /rest/ base path — kept verbatim),
 - 'rest/api/3/issue/KEY-1',
 - 'issue/KEY-1' (auto-prefixed with /rest/api/3/).
 
@@ -28,7 +29,7 @@ enum = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
 
 [input.properties.path]
 type = "string"
-description = "Endpoint path. Bare resource paths are auto-prefixed with /rest/api/3/."
+description = "Endpoint path. Paths already starting with /rest/ (including /rest/agile/) are used verbatim; bare resource paths are auto-prefixed with /rest/api/3/."
 
 [input.properties.body]
 type = "string"

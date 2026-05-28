@@ -29,6 +29,7 @@ def _normalize_path(p):
     """Accept any of:
       https://acme.atlassian.net/rest/api/3/issue/KEY-1   (full URL)
       /rest/api/3/issue/KEY-1                              (root-relative)
+      /rest/agile/1.0/sprint/42/issue                     (any /rest/ base)
       rest/api/3/issue/KEY-1                               (no leading slash)
       issue/KEY-1                                          (just the resource)
     Return a path that can be joined onto the base URL.
@@ -36,9 +37,9 @@ def _normalize_path(p):
     if p.startswith(("http://", "https://")):
         return p
     p = p.lstrip("/")
-    # If the caller already specified rest/api/<v>/, keep it; else prepend
-    # /rest/api/3/.
-    if not p.startswith("rest/api/"):
+    # If the caller already specified any /rest/ base path, keep it; else
+    # prepend /rest/api/3/. Covers /rest/agile/, /rest/api/2/, etc.
+    if not p.startswith("rest/"):
         p = "rest/api/3/" + p
     return "/" + p
 
