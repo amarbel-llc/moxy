@@ -110,7 +110,15 @@ resolve() {
   case "$p" in
     /dev/fd/*|madder://blobs/*) echo "$p"; return ;;
   esac
-  realpath -m -- "$p"
+  # Resolve the parent directory canonically but do NOT follow a symlink at
+  # the leaf itself. A `result -> /nix/store/...` symlink in the worktree is
+  # located *in the CWD*, so it should be treated as a CWD path for policy.
+  # Only its target is in /nix/store — the symlink entry itself is not.
+  local parent leaf resolved_parent
+  parent=$(dirname -- "$p")
+  leaf=$(basename -- "$p")
+  resolved_parent=$(realpath -m -- "$parent")
+  echo "${resolved_parent}/${leaf}"
 }
 
 check_read() {

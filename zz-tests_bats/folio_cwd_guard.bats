@@ -242,3 +242,60 @@ function folio_perms_unknown_op_denied { # @test
   run "$PERMS" yeet /tmp/x
   [ "$status" -eq 2 ]
 }
+
+# ----- Regression: result-symlink canonicalization (#253, #256) -----
+#
+# A `result` symlink at the worktree root (produced by `nix build`) points
+# into /nix/store. The old code called `realpath -m` on the target path,
+# which followed the symlink and reported the path as being inside
+# /nix/store. The fix: resolve via the parent dir + leaf name so that the
+# symlink's own location (inside CWD) governs the policy decision.
+
+function folio_perms_allows_write_of_result_symlink_in_cwd { # @test
+  # Regression: folio_rm of the `result` symlink itself must be allowed
+  # even though the symlink target resolves into /nix/store. (#253)
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  # Create a symlink that mimics `nix build` output.
+  ln -s /nix/store/fake-hash-somepkg result
+
+  PWD="$HOME/project" run "$PERMS" write result
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_allows_rm_of_result_symlink_in_cwd { # @test
+  # Regression: folio_rm of the `result` symlink itself must not be
+  # refused just because the symlink target is in /nix/store. (#253)
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  ln -s /nix/store/fake-hash-somepkg result
+
+  PWD="$HOME/project" run "$PERMS" rm "result"
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_allows_write_when_sibling_result_symlink_exists { # @test
+  # Regression: writing a new file in a directory whose sibling is a
+  # `result -> /nix/store/...` symlink must be allowed. (#256)
+  setup_perms
+  mkdir -p "$HOME/project/tests"
+  cd "$HOME/project"
+  ln -s /nix/store/fake-hash-somepkg result
+
+  # New file directly under tests/ — sibling of result at project root.
+  PWD="$HOME/project" run "$PERMS" write "$HOME/project/tests/new_file.bats"
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_still_denies_write_into_nix_store_proper { # @test
+  # Sanity: an actual path INSIDE /nix/store must still be refused. (#253)
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  PWD="$HOME/project" run "$PERMS" write /nix/store/foo/bar
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"immutable"* ]]
+}
