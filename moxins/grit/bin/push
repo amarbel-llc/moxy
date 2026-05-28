@@ -4,7 +4,8 @@ remote="${1:-}"
 branch="${2:-}"
 set_upstream="${3:-}"
 force_with_lease="${4:-}"
-repo="${5:-.}"
+force_if_includes="${5:-}"
+repo="${6:-.}"
 cd "$repo"
 
 if [ "$force_with_lease" = "true" ]; then
@@ -25,6 +26,7 @@ fi
 git_args=(push)
 
 [ "$force_with_lease" = "true" ] && git_args+=(--force-with-lease)
+[ "$force_if_includes" = "true" ] && git_args+=(--force-if-includes)
 [ "$set_upstream" = "true" ] && git_args+=(-u)
 
 # Default remote to origin when a branch is specified, so git doesn't

@@ -31,14 +31,14 @@ teardown() {
 @test "push --force-with-lease succeeds when remote matches local" {
   cd "$WORK"
   git commit --amend --allow-empty -m c1-amended -q
-  run "$BIN/push" "origin" "feat" "" true "$WORK"
-  # arg-order: remote branch set_upstream force_with_lease repo_path
+  run "$BIN/push" "origin" "feat" "" true "" "$WORK"
+  # arg-order: remote branch set_upstream force_with_lease force_if_includes repo_path
   assert_success
 }
 
 @test "push --force-with-lease blocks main/master" {
   cd "$WORK"
-  run "$BIN/push" "origin" "main" "" true "$WORK"
+  run "$BIN/push" "origin" "main" "" true "" "$WORK"
   assert_failure
   assert_output --partial "force push to main/master is blocked"
 }
@@ -48,7 +48,7 @@ teardown() {
   # detach HEAD
   git checkout -q --detach
   # remote="origin", branch="" (empty), set_upstream="", force_with_lease=true
-  run "$BIN/push" "origin" "" "" true "$WORK"
+  run "$BIN/push" "origin" "" "" true "" "$WORK"
   assert_failure
   assert_output --partial "explicit branch argument"
 }
@@ -65,6 +65,23 @@ teardown() {
     && git push -q origin feat)
   cd "$WORK"
   git commit --amend --allow-empty -m c1-amended -q
-  run "$BIN/push" "origin" "feat" "" true "$WORK"
+  run "$BIN/push" "origin" "feat" "" true "" "$WORK"
   assert_failure
+}
+
+@test "push --force-with-lease --force-if-includes succeeds when commit includes remote tip" {
+  cd "$WORK"
+  # amend the local commit (includes the prior remote tip in its history via parent)
+  git commit --amend --allow-empty -m c1-amended -q
+  run "$BIN/push" "origin" "feat" "" true true "$WORK"
+  # arg-order: remote branch set_upstream force_with_lease force_if_includes repo_path
+  assert_success
+}
+
+@test "push --force-if-includes alone passes flag without --force-with-lease" {
+  cd "$WORK"
+  # A plain push with force_if_includes=true but force_with_lease=false
+  # git itself treats --force-if-includes as a no-op without --force, so push succeeds normally
+  run "$BIN/push" "origin" "feat" "" "" true "$WORK"
+  assert_success
 }
