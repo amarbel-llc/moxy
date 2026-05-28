@@ -25,7 +25,10 @@ if [ -n "$args_json" ] && [ "$args_json" != "null" ]; then
 fi
 
 if [ -f flake.nix ]; then
-  nix develop -c just "${just_args[@]}"
+  nix_args=(develop)
+  [ "${JUST_US_AGENTS_IMPURE:-}" = "1" ] && nix_args+=(--impure)
+  nix_args+=(-c just)
+  nix "${nix_args[@]}" "${just_args[@]}"
 else
   just "${just_args[@]}"
 fi

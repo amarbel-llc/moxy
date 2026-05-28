@@ -643,6 +643,9 @@
               # man_*.bats invoke wrapped scripts via ${MAN_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               MAN_BIN = "${man-moxin}/bin";
+              # just_us_agents_*.bats invoke wrapped scripts via ${JUST_US_AGENTS_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              JUST_US_AGENTS_BIN = "${just-us-agents-moxin}/bin";
             };
             nativeBuildInputs = [
               pkgs.bash
