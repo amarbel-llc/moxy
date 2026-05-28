@@ -14,7 +14,7 @@ teardown() {
 }
 
 # flake-show on a non-existent path must fail AND surface the underlying
-# nix error — not a raw bun/zx stack trace.
+# nix error — not a raw bun/zx stack trace. Covers #260 and #270.
 # bats's `run` merges stdout+stderr into $output, which is sufficient to
 # verify the error message is surfaced (the wrapper writes the nix stderr
 # to its own stderr, which bats captures here).
