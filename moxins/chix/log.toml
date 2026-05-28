@@ -1,0 +1,17 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Returns the build log for a derivation or installable as text. Read-only, [perms: always-allow]."
+command = "@BIN@/log"
+arg-order = ["path"]
+
+[input]
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Derivation path (/nix/store/...-foo.drv) or installable (e.g. '.#bats-default'). Accepts anything nix log accepts."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+
+# nix log accepts either a /nix/store/...drv derivation path or an installable.
+nix log "$path"
