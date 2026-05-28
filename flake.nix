@@ -637,6 +637,9 @@
               # python script) when set; otherwise invokes python3
               # directly against the source tree (devshell path).
               FREUD_BIN = "${freud-moxin}/bin/tool-usage";
+              # sisyphus_*.bats invoke wrapped scripts via ${SISYPHUS_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              SISYPHUS_BIN = "${sisyphus-moxin}/bin";
             };
             nativeBuildInputs = [
               pkgs.bash

@@ -2,8 +2,10 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import contextmanager
 
 from atlassian import Jira
+from requests.exceptions import HTTPError
 
 # Vendored marklas — see ../_vendor/VENDOR.md for source/version.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "_vendor"))
@@ -70,6 +72,43 @@ def _strip_adf_wrappers(md: str) -> str:
 
 
 _REQUIRED_ENV = ["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN"]
+
+
+def _format_http_error(exc: HTTPError) -> str:
+    """Return a multi-line string with Jira's response body appended.
+
+    Includes status code and the raw response body (or JSON-pretty when the
+    Content-Type is application/json). The caller is responsible for emitting
+    the result and exiting.
+    """
+    lines = [f"sisyphus: Jira returned HTTP {exc.response.status_code}"]
+    try:
+        body = exc.response.json()
+        body_text = json.dumps(body, indent=2)
+    except Exception:
+        body_text = exc.response.text or "(empty body)"
+    lines.append(f"  body: {body_text}")
+    return "\n".join(lines)
+
+
+@contextmanager
+def jira_call():
+    """Context manager that catches HTTPError and re-raises with Jira body.
+
+    Usage::
+
+        with jira_call():
+            result = jira.create_issue(fields=fields)
+
+    On HTTPError the context manager calls `emit` with the formatted error
+    and exits the process non-zero, matching the pattern used by
+    `md_to_adf` for validator errors.
+    """
+    try:
+        yield
+    except HTTPError as exc:
+        emit(_format_http_error(exc))
+        sys.exit(1)
 
 
 def make_client():

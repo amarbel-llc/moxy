@@ -13,7 +13,8 @@ jira = _lib.make_client()
 # v3 issue_add_comment posts {"body": comment} where comment is wiki markup on
 # v2 but ADF JSON on v3. The atlassian SDK doesn't transform it for us — we
 # must hand it pre-converted.
-result = jira.issue_add_comment(issue_key, _lib.md_to_adf(body))
+with _lib.jira_call():
+    result = jira.issue_add_comment(issue_key, _lib.md_to_adf(body))
 
 if output_format == "json":
     _lib.emit(result)
