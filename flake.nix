@@ -102,6 +102,11 @@
             ./gomod2nix.toml
             ./cmd/moxy
             ./internal
+            # Consumed by the fork's buildGoApplication version.env
+            # auto-read (nixpkgs#31): the read is at pwd (= moxySrc), so
+            # the file must survive into the filtered tree or the
+            # embedded version falls back to the gomod2nix placeholder.
+            ./version.env
           ];
         };
 
@@ -145,11 +150,14 @@
           '';
         };
 
-        # version.env at repo root is the single source of truth for
-        # the release version. Burnt into the binary via the fork's
-        # auto-injected -ldflags. `just bump-version` sed-rewrites
-        # version.env. Match expression captures everything after
-        # `MOXY_VERSION=` up to the line break.
+        # version.env at repo root is the single source of truth for the
+        # release version. The moxy Go binary gets it for free via the
+        # fork's buildGoApplication version.env auto-read (nixpkgs#31) —
+        # version.env is part of moxySrc. This eval-time binding remains
+        # for the *non-Go* consumers that have no auto-injection path:
+        # the bun binaries, the zx scripts, and the plugin.json version
+        # field. `just bump-version` sed-rewrites version.env. Match
+        # captures everything after `MOXY_VERSION=` up to the line break.
         moxyVersion = builtins.head (builtins.match
           ".*MOXY_VERSION=([^\n]+).*"
           (builtins.readFile ./version.env));
@@ -506,7 +514,6 @@
 
         moxy = pkgs.buildGoApplication {
           pname = "moxy";
-          version = moxyVersion;
           commit = moxyCommit;
           src = moxySrc;
           # pwd lets the goFlakeInputs merge read the consumer go.mod (mirrors
@@ -518,10 +525,10 @@
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
           nativeBuildInputs = [ pkgs.makeWrapper pkgs.jq ];
-          # The fork's buildGoApplication auto-injects
-          # `-X main.version` and `-X main.commit` from the `version`
-          # and `commit` attrs above. Only project-specific ldflags
-          # need to live here.
+          # The fork's buildGoApplication auto-injects `-X main.version`
+          # (read from the version.env carried in src/pwd, nixpkgs#31)
+          # and `-X main.commit` (from the `commit` attr above). Only
+          # project-specific ldflags need to live here.
           ldflags = [
             "-X" "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
             "-X" "github.com/amarbel-llc/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"

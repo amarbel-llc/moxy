@@ -773,11 +773,11 @@
         "treefmt-nix": "treefmt-nix_10"
       },
       "locked": {
-        "lastModified": 1779730058,
-        "narHash": "sha256-LsPVF0s5ezDHtRjMDBaXFTgaT4fyswRgn8JT9WWXM5M=",
+        "lastModified": 1779965239,
+        "narHash": "sha256-vw98MQyeVQLwklQ8qK87RJXAjN58+oI6bTwXzzs/C1Y=",
         "owner": "amarbel-llc",
         "repo": "nixpkgs",
-        "rev": "1de98199124f54b309f9db20b2e51935d3cfa77c",
+        "rev": "39852409ff48eee61bb6558c43c47ec0682dc484",
         "type": "github"
       },
       "original": {
