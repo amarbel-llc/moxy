@@ -11,12 +11,12 @@ raw=$(case "$src" in
   *)    cat "$src" ;;
 esac)
 # Extract a section by name from raw roff source.
-# Handles both mdoc(7) (.Sh) and man(7) (.SH) section macros.
+# Handles both mdoc(7) (.Sh/.Ss) and man(7) (.SH/.SS) macros at any heading level.
 result=$(awk -v target="$section_name" '
 BEGIN { found=0; IGNORECASE=1 }
-/^\.(Sh|SH) / {
+/^\.(Sh|SH|Ss|SS) / {
   if (found) exit
-  name = $0; sub(/^\.(Sh|SH) /, "", name)
+  name = $0; sub(/^\.(Sh|SH|Ss|SS) /, "", name)
   gsub(/^"|"$/, "", name)
   if (tolower(name) == tolower(target)) found=1
 }
@@ -24,7 +24,8 @@ found { print }
 ' <<< "$raw") || true
 if [ -z "$result" ]; then
   echo "Section \"$section_name\" not found in $page. Available sections:"
-  awk '/^\.(Sh|SH) /{sub(/^\.(Sh|SH) /,""); gsub(/^"|"$/,""); print}' <<< "$raw"
+  awk '/^\.(Sh|SH) /{sub(/^\.(Sh|SH) /,""); gsub(/^"|"$/,""); print "  "$0}
+       /^\.(Ss|SS) /{sub(/^\.(Ss|SS) /,""); gsub(/^"|"$/,""); print "    "$0}' <<< "$raw"
   exit 1
 fi
 echo "$result"

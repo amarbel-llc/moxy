@@ -640,6 +640,9 @@
               # sisyphus_*.bats invoke wrapped scripts via ${SISYPHUS_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               SISYPHUS_BIN = "${sisyphus-moxin}/bin";
+              # man_*.bats invoke wrapped scripts via ${MAN_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              MAN_BIN = "${man-moxin}/bin";
             };
             nativeBuildInputs = [
               pkgs.bash
@@ -650,8 +653,10 @@
               pkgs.gnugrep
               pkgs.gnused
               pkgs.gnutar
+              pkgs.gawk
               pkgs.gzip
               pkgs.jq
+              pkgs.man-db
               # python3 needed by freud_tool_usage.bats's bare
               # `python3 ../moxins/freud/bin/tool-usage` invocation,
               # until the test rewrite uses ${FREUD_BIN} exclusively.
