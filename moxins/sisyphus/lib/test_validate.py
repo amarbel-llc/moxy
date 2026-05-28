@@ -265,6 +265,53 @@ def test_full_kitchen_sink_clean_doc_is_allowed():
     _expect_clean(adf)
 
 
+# ── Marklas round-trip integration tests ──────────────────────────────────
+#
+# These tests run real Markdown through `marklas.to_adf` (the same path as
+# `_lib.md_to_adf`) and then through the validator, confirming that the
+# end-to-end pipeline catches the violations before they reach Jira.
+# They require the vendored marklas + mistune to be importable.
+
+
+def _marklas_to_adf_or_skip(md: str):
+    """Convert `md` via marklas; return the ADF dict.
+
+    Returns None when marklas or mistune aren't importable (e.g. running from
+    a bare system Python without the deps). Tests that call this skip
+    gracefully rather than failing.
+    """
+    import os as _os
+
+    vendor = _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "_vendor")
+    import sys as _sys
+
+    _sys.path.insert(0, vendor)
+    try:
+        from marklas import to_adf  # type: ignore
+
+        return to_adf(md)
+    except ImportError:
+        return None
+
+
+def test_marklas_bold_around_code_is_rejected():
+    """Fixture 06a: **bold `inline code`** → marklas emits code+strong → validator rejects."""
+    md = "A line with **bold around `inline code` here**.\n"
+    adf = _marklas_to_adf_or_skip(md)
+    if adf is None:
+        return  # marklas not available in this environment; skip
+    _expect_violations(adf, "Inline code", "strong")
+
+
+def test_marklas_clean_markdown_passes():
+    """Plain paragraph with no violations round-trips without error."""
+    md = "A simple paragraph with `inline code` and **bold** separately.\n"
+    adf = _marklas_to_adf_or_skip(md)
+    if adf is None:
+        return
+    _expect_clean(adf)
+
+
 # ── Test runner ────────────────────────────────────────────────────────────
 
 

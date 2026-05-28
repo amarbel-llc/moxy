@@ -34,7 +34,7 @@ generate:
 build-gomod2nix:
   gomod2nix
 
-build-nix: build-gomod2nix
+build-nix: build-gomod2nix build-moxins
   nix build --keep-going --show-trace
 
 dir_build := "build"
@@ -724,6 +724,18 @@ debug-validate-serve-moxin name: build-go
   echo "=== purse-first validate-mcp (verbose) ==="
   purse-first validate-mcp "$moxy" serve-moxin --name "{{name}}" 2>&1 \
     && echo "PASS" || echo "FAIL (exit $?)"
+
+# Run sisyphus Python unit tests (test_validate.py) using the nix-wrapped
+# python3 from the sisyphus moxin (which has marklas + mistune available).
+# Agent dev-loop: run after editing _validate.py or test_validate.py.
+[group('debug')]
+debug-sisyphus-py-tests: build-moxins
+  #!/usr/bin/env bash
+  set -euo pipefail
+  moxin_dir="{{justfile_directory()}}/result/share/moxy/moxins/sisyphus"
+  # The nix wrapper burns in the python path; extract it from the create-issue wrapper.
+  py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
+  "$py_bin" "{{justfile_directory()}}/moxins/sisyphus/lib/test_validate.py"
 
 # Reproduce tools-not-appearing via claude -p with the nix-built moxy.
 [group('explore')]
