@@ -11,6 +11,8 @@
 # (non-git or remotes-free repos, e.g. gist checkouts).
 #
 # This is intentionally NOT set -e so callers control error handling.
+# Named with a leading dot so wrapProgram's `bin/*` glob skips it —
+# wrapProgram would otherwise exec-replace the sourced process.
 
 resolve_repo_from_origin() {
   local origin_url

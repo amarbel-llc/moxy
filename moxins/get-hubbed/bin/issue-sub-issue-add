@@ -5,8 +5,8 @@ sub="$2"
 replace_parent="${3:-}"
 repo_owner_name="${4:-}"
 
-# shellcheck source=bin/resolve-repo
-. "$(dirname "$0")/resolve-repo"
+# shellcheck source=bin/.resolve-repo
+. "$(dirname "$0")/.resolve-repo"
 
 if [ -n "$repo_owner_name" ]; then
   if [[ "$repo_owner_name" != */* ]]; then

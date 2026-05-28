@@ -252,6 +252,9 @@
             bunNix = ./bun.nix;
             entrypoints = extraEntrypoints;
             runtimeInputs = deps;
+            # Emit inline sourcemaps so bun backtraces show original TS
+            # source locations instead of minified bundle offsets (#270).
+            bunBuildFlags = [ "--sourcemap=inline" ];
           };
         in pkgs.runCommand "${name}-moxin" {
           nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
@@ -624,6 +627,12 @@
               # which doesn't exist inside the nix sandbox. Tests fall
               # back to GRIT_BIN via ${GRIT_BIN:-$BIN}.
               GRIT_BIN  = "${grit-moxin}/bin";
+              # chix_*.bats invoke wrapped scripts via ${CHIX_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              CHIX_BIN  = "${chix-moxin}/bin";
+              # get_hubbed_*.bats invoke wrapped scripts via ${GET_HUBBED_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              GET_HUBBED_BIN = "${get-hubbed-moxin}/bin";
               # freud_tool_usage.bats falls back to FREUD_BIN (wrapped
               # python script) when set; otherwise invokes python3
               # directly against the source tree (devshell path).

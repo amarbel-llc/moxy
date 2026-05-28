@@ -3,8 +3,8 @@ set -euo pipefail
 ref="${1:-}"
 repo_owner_name="${2:-}"
 
-# shellcheck source=bin/resolve-repo
-. "$(dirname "$0")/resolve-repo"
+# shellcheck source=bin/.resolve-repo
+. "$(dirname "$0")/.resolve-repo"
 
 if [ -n "$repo_owner_name" ]; then
   if [[ "$repo_owner_name" != */* ]]; then
