@@ -70,19 +70,6 @@ test-flake-check:
 test-bats-tag tag:
   nix build --keep-going .#bats-{{tag}} --no-link --print-build-logs
 
-# Fast iteration: raw bats against ./build/moxy with env-var lookup,
-# no batman/sandcastle wrapping, no nix-sandbox rebuild. Mirrors what
-# mkBatsLane does inside the nix sandbox, but in the devshell. Use
-# this for single-file debugging when the nix-sandbox round-trip is
-# too slow.
-test-bats-dev *args: build-go
-  cd zz-tests_bats && \
-    MOXY_BIN={{justfile_directory()}}/build/moxy \
-    MOXIN_PATH={{justfile_directory()}}/result-moxins/share/moxy/moxins \
-    PARALLEL_HOME=$(mktemp -d) \
-    BATS_TEST_TIMEOUT=30 \
-    bats --jobs $(($(nproc 2>/dev/null || sysctl -n hw.ncpu) / 2)) {{args}}
-
 # End-to-end: verify claude -p can see and call moxy MCP tools.
 # Requires: claude CLI on PATH and authenticated.
 test-smoke-claude-p: build-nix

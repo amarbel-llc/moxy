@@ -599,7 +599,6 @@
           root = ./zz-tests_bats;
           fileset = with pkgs.lib.fileset; unions [
             ./zz-tests_bats/common.bash
-            ./zz-tests_bats/justfile
             ./zz-tests_bats/test-fixtures
             ./zz-tests_bats/test-permission-request-hook.mjs
             (fileFilter (f: f.hasExt "bats") ./zz-tests_bats)
@@ -752,7 +751,8 @@
             # Vanilla bats — we used to pull bats.packages.${system}.batman
             # (the sandcastle-wrapping wrapper), but #249 moved the suite
             # to batsLane (`just test-bats`). Devshell needs only the raw
-            # bats binary now, for `just test-bats-dev`.
+            # bats binary now, for the self-contained `poc-test-dynamic-perms`
+            # explore recipe; the test suite itself runs through nix lanes.
             pkgs.bats
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default

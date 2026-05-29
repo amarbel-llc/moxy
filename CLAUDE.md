@@ -25,10 +25,10 @@ just test-bats-net_cap  # loopback-binding lane (streamable_http.bats)
 # Single Go test
 go test ./internal/config/... -v -run TestParse
 
-# Single bats test file (raw bats against ./build/moxy, no nix-sandbox rebuild)
-just test-bats-dev moxyfile_hierarchy.bats
-
-# Single tag's lane via the nix sandbox (e.g. grit, folio, host_only)
+# Run a focused subset of bats tests through the nix sandbox: a single
+# tag's lane (tags are auto-discovered from `# bats file_tags=` directives,
+# e.g. grit, folio, chix, host_only). This is the nix-only way to run
+# specific bats tests — there is no devshell/raw-bats path.
 just test-bats-tag grit
 ```
 
@@ -250,8 +250,9 @@ embedding generation.
 - **Bats tests for moxin scripts must invoke the nix-built binary**, not the raw
   source. Inside the nix sandbox lanes, the binary is supplied via env vars
   (`MOXY_BIN`, `MADDER_BIN`, `GRIT_BIN`, `FREUD_BIN`, …) populated by
-  `mkBatsLane`'s `binaries` map. For devshell ad-hoc runs (`just test-bats-dev`),
-  point at `$BATS_TEST_DIRNAME/../result/share/moxy/moxins/<name>/bin/`. Source
+  `mkBatsLane`'s `binaries` map. The `.bats` files fall back to
+  `$BATS_TEST_DIRNAME/../result/share/moxy/moxins/<name>/bin/` only when those
+  env vars are unset. Source
   scripts are committed mode `100644` and assume deps come from ambient PATH —
   only the nix wrapper has `+x` and the correct dep PATH. The wrapper appends
   (does not replace) PATH, so tests can still prepend shadow binaries like a
