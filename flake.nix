@@ -415,13 +415,19 @@
             runtimeInputs = [];
           };
         in pkgs.runCommand "just-us-agents-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [ pkgs.makeWrapper pkgs.bash ];
         } ''
           cp -r ${./moxins/just-us-agents} $out
           chmod -R u+w $out
           rm -rf $out/src
           mkdir -p $out/bin
           for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
+          # Rewrite `#!/usr/bin/env bash` shebangs to absolute /nix/store paths
+          # before wrapping. The bats sandbox lacks /usr/bin/env, so an
+          # env-resolved shebang on the .run-recipe-wrapped script fails with
+          # "bad interpreter: No such file or directory". Same step mkMoxin and
+          # mkBunMoxin perform; this hand-rolled derivation must do it too.
+          patchShebangs $out/bin
           ln -sf ${listRecipes}/bin/just-list-recipes $out/bin/list-recipes
           for f in $out/bin/*; do
             [ -L "$f" ] && continue
