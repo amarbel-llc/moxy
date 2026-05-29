@@ -17,10 +17,18 @@ teardown() {
 }
 
 @test "restack autosquashes a fixup against an ancestor branch" {
-  # add a fixup on branch C targeting branch A's commit
+  # Add a fixup on branch C targeting branch A's commit. The fixup MUST carry a
+  # real tree change (not --allow-empty): squashing an empty fixup produces no
+  # tree change, so git's rebase reuses the original commit objects via its
+  # fast-forward optimization and the branch SHAs stay byte-identical even
+  # though --update-refs ran correctly. A non-empty payload forces a genuine
+  # rewrite of a1 (and its descendants), so the SHA-moved assertions below
+  # actually exercise --update-refs.
   a_sha=$(git rev-parse "$STACK_BRANCH_A")
   git checkout -q "$STACK_BRANCH_C"
-  git commit --allow-empty --fixup="$a_sha" -q
+  echo "fixup payload" > restack_fixup.txt
+  git add restack_fixup.txt
+  git commit --fixup="$a_sha" -q
 
   # capture pre-restack SHAs so we can verify --update-refs actually moved them
   old_a=$(git rev-parse "$STACK_BRANCH_A")
