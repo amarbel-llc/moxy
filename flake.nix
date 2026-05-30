@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:amarbel-llc/igloo";
+    igloo.url = "github:amarbel-llc/igloo";
     nixpkgs-master.url = "github:NixOS/nixpkgs/d233902339c02a9c334e7e593de68855ad26c4cb";
     # Pinned to the last upstream nixpkgs commit where pkgs.gomarkdoc still
     # builds. A regression after 2026-03-23 (still present on master as of
@@ -12,21 +12,21 @@
 
     purse-first = {
       url = "github:amarbel-llc/purse-first";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     tommy = {
       url = "github:amarbel-llc/tommy";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     maneater = {
       url = "github:amarbel-llc/maneater";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
@@ -40,7 +40,7 @@
     # shipped.
     bats = {
       url = "github:amarbel-llc/bats";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.igloo.follows = "igloo";
       inputs.utils.follows = "utils";
     };
 
@@ -50,7 +50,7 @@
     # `nix build .#moxy --override-input madder github:amarbel-llc/madder/<rev>`.
     madder = {
       url = "github:amarbel-llc/madder";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
@@ -59,7 +59,7 @@
   outputs =
     {
       self,
-      nixpkgs,
+      igloo,
       nixpkgs-master,
       nixpkgs-gomarkdoc-pin,
       utils,
@@ -78,7 +78,7 @@
         # `gomod2nix.overlays.default` from nix-community/gomod2nix
         # would shadow the patched version with the upstream one and
         # silently drop the auto-injection — see madder's go/default.nix.
-        pkgs = import nixpkgs { inherit system; };
+        pkgs = import igloo { inherit system; };
 
         pkgs-master = import nixpkgs-master {
           inherit system;
