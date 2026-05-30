@@ -1,0 +1,36 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+perms-request = "dynamic"
+description = "Transfer an issue to another repository owned by the same user/org. There is no REST endpoint for this; the tool resolves the source-issue and destination-repo node IDs and runs the GraphQL transferIssue mutation. Both repos must share the same owner and you must have write access to both. The issue keeps its comments and history but gets a NEW number and URL, which are returned as an old -> new mapping."
+command = "@BIN@/issue-transfer"
+arg-order = ["number", "destination_repo", "repo_owner_name", "output_format"]
+
+[input]
+type = "object"
+required = ["number", "destination_repo"]
+
+[input.properties.number]
+type = "integer"
+description = "Source issue number to transfer."
+
+[input.properties.destination_repo]
+type = "string"
+description = "Destination repository in OWNER/NAME format (e.g. 'amarbel-llc/eng'). Must share the same owner as the source repo — GitHub blocks cross-owner transfers."
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to resolve from the current directory's git origin remote."
+
+[input.properties.output_format]
+type = "string"
+description = "Output format: omit for text (old -> new number/URL mapping), or 'json' for the raw transferIssue issue payload."
+
+[annotations]
+destructive-hint = true
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["destination_repo"]
+timeout-ms = 5000

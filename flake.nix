@@ -360,6 +360,7 @@
         ] {
           "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
           "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
+          "issue-transfer" = "moxins/get-hubbed/src/issue-transfer.ts";
           "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
           "content-search" = "moxins/get-hubbed/src/content-search.ts";
         } { pathMode = "suffix"; };
