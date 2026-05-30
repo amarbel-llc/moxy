@@ -15,6 +15,8 @@ const result = await $`gws gmail users messages list --params ${params}`;
 
 process.stdout.write(
   JSON.stringify({
-    content: [{ type: "text", text: result.stdout, mimeType: "application/json" }],
+    content: [
+      { type: "text", text: result.stdout, mimeType: "application/json" },
+    ],
   }),
 );

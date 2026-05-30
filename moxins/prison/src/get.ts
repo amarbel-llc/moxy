@@ -14,6 +14,8 @@ const result = await $`gws sheets spreadsheets values get --params ${params}`;
 
 process.stdout.write(
   JSON.stringify({
-    content: [{ type: "text", text: result.stdout, mimeType: "application/json" }],
+    content: [
+      { type: "text", text: result.stdout, mimeType: "application/json" },
+    ],
   }),
 );

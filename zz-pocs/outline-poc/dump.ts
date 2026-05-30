@@ -5,7 +5,10 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const WASM = resolve(HERE, `node_modules/tree-sitter-wasms/out/tree-sitter-${process.argv[2]}.wasm`);
+const WASM = resolve(
+  HERE,
+  `node_modules/tree-sitter-wasms/out/tree-sitter-${process.argv[2]}.wasm`,
+);
 
 await Parser.init();
 const lang = await Language.load(readFileSync(WASM));

@@ -14,11 +14,14 @@ const tmp = join(dir, "upload.md");
 try {
   await writeFile(tmp, content);
   const params = JSON.stringify({ fileId });
-  const result = await $`gws drive files update --params ${params} --upload ${tmp} --upload-content-type text/markdown`;
+  const result =
+    await $`gws drive files update --params ${params} --upload ${tmp} --upload-content-type text/markdown`;
 
   process.stdout.write(
     JSON.stringify({
-      content: [{ type: "text", text: result.stdout, mimeType: "application/json" }],
+      content: [
+        { type: "text", text: result.stdout, mimeType: "application/json" },
+      ],
     }),
   );
 } finally {

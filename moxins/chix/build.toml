@@ -21,4 +21,3 @@ description = "Whether to print build logs (-L flag). Defaults to true."
 [annotations]
 idempotent-hint = true
 open-world-hint = true
-

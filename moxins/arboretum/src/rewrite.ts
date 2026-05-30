@@ -4,10 +4,13 @@ import { buildRewriteInvocation } from "./astgrep.ts";
 $.verbose = false;
 
 async function main(): Promise<number> {
-  const [pattern, rewrite, pathArg, lang, globs, dryRunStr] = process.argv.slice(2);
+  const [pattern, rewrite, pathArg, lang, globs, dryRunStr] =
+    process.argv.slice(2);
 
   if (!pattern || !rewrite) {
-    throw new Error("usage: rewrite <pattern> <rewrite> [path] [lang] [globs] [dry_run]");
+    throw new Error(
+      "usage: rewrite <pattern> <rewrite> [path] [lang] [globs] [dry_run]",
+    );
   }
 
   const dryRun = dryRunStr === "true";

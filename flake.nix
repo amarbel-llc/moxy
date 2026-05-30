@@ -54,6 +54,12 @@
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
+
+    # `nix fmt` / treefmt driver. Config lives in ./treefmt.nix.
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "igloo";
+    };
   };
 
   outputs =
@@ -68,6 +74,7 @@
       maneater,
       bats,
       madder,
+      treefmt-nix,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -91,23 +98,37 @@
 
         pkgs-master-unfree = import nixpkgs-master {
           inherit system;
-          config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "acli" "acli-unwrapped" ];
+          config.allowUnfreePredicate =
+            pkg:
+            builtins.elem (pkgs.lib.getName pkg) [
+              "acli"
+              "acli-unwrapped"
+            ];
+        };
+
+        # `nix fmt` entry point + read-only check derivation. The tommy TOML
+        # formatter binary is injected via _module.args.tommy (see ./treefmt.nix).
+        treefmtEval = treefmt-nix.lib.evalModule pkgs {
+          imports = [ ./treefmt.nix ];
+          _module.args.tommy = tommy.packages.${system}.default;
         };
 
         moxySrc = pkgs.lib.fileset.toSource {
           root = ./.;
-          fileset = with pkgs.lib.fileset; unions [
-            ./go.mod
-            ./go.sum
-            ./gomod2nix.toml
-            ./cmd/moxy
-            ./internal
-            # Consumed by the fork's buildGoApplication version.env
-            # auto-read (nixpkgs#31): the read is at pwd (= moxySrc), so
-            # the file must survive into the filtered tree or the
-            # embedded version falls back to the gomod2nix placeholder.
-            ./version.env
-          ];
+          fileset =
+            with pkgs.lib.fileset;
+            unions [
+              ./go.mod
+              ./go.sum
+              ./gomod2nix.toml
+              ./cmd/moxy
+              ./internal
+              # Consumed by the fork's buildGoApplication version.env
+              # auto-read (nixpkgs#31): the read is at pwd (= moxySrc), so
+              # the file must survive into the filtered tree or the
+              # embedded version falls back to the gomod2nix placeholder.
+              ./version.env
+            ];
         };
 
         # flake-input-go_mod bridge (amarbel-llc/nixpkgs RFC 0001). Routes the
@@ -128,12 +149,26 @@
         };
 
         gwsVersion = "0.22.5";
-        gwsPlatform = {
-          "aarch64-darwin" = { name = "aarch64-apple-darwin"; hash = "sha256-HSqf/VvJssLEtIYw2vCC+tE9nlfXQZiKLCSO7VYvfaw="; };
-          "x86_64-darwin"  = { name = "x86_64-apple-darwin";  hash = "sha256-Ufm9cxQE1LuibDbi4w3WjFbczR+DTAElLLCxTWplRLI="; };
-          "x86_64-linux"   = { name = "x86_64-unknown-linux-gnu";   hash = "sha256-3njs29LxqEzKAGOn7LxEAkD8FLbrzLsX9GRreSqMXB8="; };
-          "aarch64-linux"  = { name = "aarch64-unknown-linux-gnu";  hash = "sha256-lEkCldlYDh6IV05xWgoWKZF0fRLWL4x7jcyCaLbBzqA="; };
-        }.${system} or (throw "gws: unsupported system ${system}");
+        gwsPlatform =
+          {
+            "aarch64-darwin" = {
+              name = "aarch64-apple-darwin";
+              hash = "sha256-HSqf/VvJssLEtIYw2vCC+tE9nlfXQZiKLCSO7VYvfaw=";
+            };
+            "x86_64-darwin" = {
+              name = "x86_64-apple-darwin";
+              hash = "sha256-Ufm9cxQE1LuibDbi4w3WjFbczR+DTAElLLCxTWplRLI=";
+            };
+            "x86_64-linux" = {
+              name = "x86_64-unknown-linux-gnu";
+              hash = "sha256-3njs29LxqEzKAGOn7LxEAkD8FLbrzLsX9GRreSqMXB8=";
+            };
+            "aarch64-linux" = {
+              name = "aarch64-unknown-linux-gnu";
+              hash = "sha256-lEkCldlYDh6IV05xWgoWKZF0fRLWL4x7jcyCaLbBzqA=";
+            };
+          }
+          .${system} or (throw "gws: unsupported system ${system}");
 
         gws-bin = pkgs.stdenv.mkDerivation {
           pname = "gws";
@@ -158,9 +193,9 @@
         # the bun binaries, the zx scripts, and the plugin.json version
         # field. `just bump-version` sed-rewrites version.env. Match
         # captures everything after `MOXY_VERSION=` up to the line break.
-        moxyVersion = builtins.head (builtins.match
-          ".*MOXY_VERSION=([^\n]+).*"
-          (builtins.readFile ./version.env));
+        moxyVersion = builtins.head (
+          builtins.match ".*MOXY_VERSION=([^\n]+).*" (builtins.readFile ./version.env)
+        );
         # shortRev for clean builds, dirtyShortRev for dirty working
         # trees (so devshell builds show `dirty-abcdef` rather than
         # masquerading as a clean release), "unknown" as a last-resort
@@ -169,18 +204,21 @@
 
         # Man pages as a standalone derivation, referenced by both the moxy
         # binary package and the man moxin (avoids circular dependency).
-        moxy-man = pkgs.runCommand "moxy-man" {
-          nativeBuildInputs = [ pkgs.man-db ];
-        } ''
-          mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
-          cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
-          cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
-          cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
-          cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
-          cp ${./cmd/moxy/moxy-restart.7} $out/share/man/man7/moxy-restart.7
-          cp ${./cmd/moxy/moxy-batch.7} $out/share/man/man7/moxy-batch.7
-          MANPATH=$out/share/man mandb --no-purge --create $out/share/man
-        '';
+        moxy-man =
+          pkgs.runCommand "moxy-man"
+            {
+              nativeBuildInputs = [ pkgs.man-db ];
+            }
+            ''
+              mkdir -p $out/share/man/man1 $out/share/man/man5 $out/share/man/man7
+              cp ${./cmd/moxy/moxy.1} $out/share/man/man1/moxy.1
+              cp ${./cmd/moxy/moxyfile.5} $out/share/man/man5/moxyfile.5
+              cp ${./cmd/moxy/moxy-hooks.5} $out/share/man/man5/moxy-hooks.5
+              cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
+              cp ${./cmd/moxy/moxy-restart.7} $out/share/man/man7/moxy-restart.7
+              cp ${./cmd/moxy/moxy-batch.7} $out/share/man/man7/moxy-batch.7
+              MANPATH=$out/share/man mandb --no-purge --create $out/share/man
+            '';
 
         # Helper: build a moxin with bin/ scripts wrapped with PATH deps.
         # extraSubstitutions: attrset of {NAME = "/abs/path";} pairs. Each
@@ -188,38 +226,60 @@
         # the literal value via `substitute`, so resolved store paths are
         # baked into the scripts at build time — same convention as `@BIN@`
         # and as mkBunMoxin's extraSubstitutions.
-        mkMoxin = name: deps: { pathMode ? "set", extraWrapArgs ? [], extraSubstitutions ? {} }: pkgs.runCommand "${name}-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
-        } (''
-          cp -r ${./moxins/${name}} $out
-          chmod -R u+w $out
-          chmod +x $out/bin/*
-          # Rewrite each script's `#!/usr/bin/env <prog>` shebang to an
-          # absolute /nix/store path. The strict bats sandbox does not
-          # expose /usr/bin/env, so env-resolved shebangs would fail with
-          # "bad interpreter: No such file or directory". patchShebangs
-          # uses interpreters from nativeBuildInputs, so deps are added
-          # there above.
-          patchShebangs $out/bin
-          ${if pathMode == "inherit" && extraWrapArgs == [] then ''
-          # pathMode=inherit with no extra args: skip wrapProgram entirely so
-          # scripts run with the host's unmodified environment.
-          '' else ''
-          for f in $out/bin/*; do
-            wrapProgram "$f" \
-              ${if pathMode != "inherit" then "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}" else ""} \
-              --unset LD_LIBRARY_PATH \
-              ${pkgs.lib.concatStringsSep " " extraWrapArgs}
-          done
-          ''}
-          for f in $(grep -rl '@BIN@' $out); do
-            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
-          done
-        '' + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
-          for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
-            substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
-          done
-        '') (builtins.attrNames extraSubstitutions));
+        mkMoxin =
+          name: deps:
+          {
+            pathMode ? "set",
+            extraWrapArgs ? [ ],
+            extraSubstitutions ? { },
+          }:
+          pkgs.runCommand "${name}-moxin"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
+            }
+            (
+              ''
+                cp -r ${./moxins/${name}} $out
+                chmod -R u+w $out
+                chmod +x $out/bin/*
+                # Rewrite each script's `#!/usr/bin/env <prog>` shebang to an
+                # absolute /nix/store path. The strict bats sandbox does not
+                # expose /usr/bin/env, so env-resolved shebangs would fail with
+                # "bad interpreter: No such file or directory". patchShebangs
+                # uses interpreters from nativeBuildInputs, so deps are added
+                # there above.
+                patchShebangs $out/bin
+                ${
+                  if pathMode == "inherit" && extraWrapArgs == [ ] then
+                    ''
+                      # pathMode=inherit with no extra args: skip wrapProgram entirely so
+                      # scripts run with the host's unmodified environment.
+                    ''
+                  else
+                    ''
+                      for f in $out/bin/*; do
+                        wrapProgram "$f" \
+                          ${
+                            if pathMode != "inherit" then
+                              "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                            else
+                              ""
+                          } \
+                          --unset LD_LIBRARY_PATH \
+                          ${pkgs.lib.concatStringsSep " " extraWrapArgs}
+                      done
+                    ''
+                }
+                for f in $(grep -rl '@BIN@' $out); do
+                  substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+                done
+              ''
+              + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                  substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+                done
+              '') (builtins.attrNames extraSubstitutions)
+            );
 
         # Helper: build a moxin that has bun+zx compiled scripts in src/.
         # extraSubstitutions: attrset of {NAME = "/abs/path";} pairs.
@@ -227,89 +287,112 @@
         # is replaced with the literal value via `substitute`, so the bundler
         # bakes the resolved store path directly into the JS — no runtime
         # env-var or PATH indirection. Same convention as `@BIN@` elsewhere.
-        mkBunMoxin = name: deps: extraEntrypoints: { pathMode ? "set", extraWrapArgs ? [], extraSubstitutions ? {} }: let
-          rawSrc = pkgs.lib.fileset.toSource {
-            root = ./.;
-            fileset = with pkgs.lib.fileset; unions [
-              ./moxins/${name}/src
-              ./package.json
-              ./bun.lock
-            ];
-          };
-          src = if extraSubstitutions == {} then rawSrc else
-            pkgs.runCommand "${name}-moxin-src" {} (''
-              cp -rL ${rawSrc} $out
+        mkBunMoxin =
+          name: deps: extraEntrypoints:
+          {
+            pathMode ? "set",
+            extraWrapArgs ? [ ],
+            extraSubstitutions ? { },
+          }:
+          let
+            rawSrc = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset =
+                with pkgs.lib.fileset;
+                unions [
+                  ./moxins/${name}/src
+                  ./package.json
+                  ./bun.lock
+                ];
+            };
+            src =
+              if extraSubstitutions == { } then
+                rawSrc
+              else
+                pkgs.runCommand "${name}-moxin-src" { } (
+                  ''
+                    cp -rL ${rawSrc} $out
+                    chmod -R u+w $out
+                  ''
+                  + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                    for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                      substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+                    done
+                  '') (builtins.attrNames extraSubstitutions)
+                );
+            bunBinaries = pkgs.buildBunBinaries {
+              pname = "${name}-moxin-scripts";
+              version = moxyVersion;
+              inherit src;
+              bunNix = ./bun.nix;
+              entrypoints = extraEntrypoints;
+              runtimeInputs = deps;
+              # Emit inline sourcemaps so bun backtraces show original TS
+              # source locations instead of minified bundle offsets (#270).
+              bunBuildFlags = [ "--sourcemap=inline" ];
+            };
+          in
+          pkgs.runCommand "${name}-moxin"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
+            }
+            ''
+              cp -r ${./moxins/${name}} $out
               chmod -R u+w $out
-            '' + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
-              for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
-                substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+              rm -rf $out/src
+              mkdir -p $out/bin
+              for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
+              # Rewrite `#!/usr/bin/env <prog>` shebangs in cp'd source scripts to
+              # absolute /nix/store paths, same as mkMoxin. The bats sandbox lacks
+              # /usr/bin/env, so env-resolved shebangs would fail. The bun wrappers
+              # written below already use an absolute bash path; this catches the
+              # source scripts that came in via `cp -r`.
+              if [ -n "$(ls -A $out/bin 2>/dev/null)" ]; then
+                patchShebangs $out/bin
+              fi
+              # Create wrapper scripts that locate the bundled JS files.
+              # buildBunBinaries wrappers assume flat output, but bun >=9
+              # entrypoints may nest them. We extract the bundle store path
+              # and search for each JS file in both layouts.
+              bundle_dir=""
+              for f in ${bunBinaries}/bin/*; do
+                bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
+                [ -n "$bundle_dir" ] && break
               done
-            '') (builtins.attrNames extraSubstitutions));
-          bunBinaries = pkgs.buildBunBinaries {
-            pname = "${name}-moxin-scripts";
-            version = moxyVersion;
-            inherit src;
-            bunNix = ./bun.nix;
-            entrypoints = extraEntrypoints;
-            runtimeInputs = deps;
-            # Emit inline sourcemaps so bun backtraces show original TS
-            # source locations instead of minified bundle offsets (#270).
-            bunBuildFlags = [ "--sourcemap=inline" ];
-          };
-        in pkgs.runCommand "${name}-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
-        } ''
-          cp -r ${./moxins/${name}} $out
-          chmod -R u+w $out
-          rm -rf $out/src
-          mkdir -p $out/bin
-          for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
-          # Rewrite `#!/usr/bin/env <prog>` shebangs in cp'd source scripts to
-          # absolute /nix/store paths, same as mkMoxin. The bats sandbox lacks
-          # /usr/bin/env, so env-resolved shebangs would fail. The bun wrappers
-          # written below already use an absolute bash path; this catches the
-          # source scripts that came in via `cp -r`.
-          if [ -n "$(ls -A $out/bin 2>/dev/null)" ]; then
-            patchShebangs $out/bin
-          fi
-          # Create wrapper scripts that locate the bundled JS files.
-          # buildBunBinaries wrappers assume flat output, but bun >=9
-          # entrypoints may nest them. We extract the bundle store path
-          # and search for each JS file in both layouts.
-          bundle_dir=""
-          for f in ${bunBinaries}/bin/*; do
-            bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
-            [ -n "$bundle_dir" ] && break
-          done
-          for f in ${bunBinaries}/bin/*; do
-            binname=$(basename "$f")
-            jsfile="$binname.js"
-            if [ -f "$bundle_dir/$jsfile" ]; then
-              js_path="$bundle_dir/$jsfile"
-            else
-              js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
-            fi
-            if [ -z "$js_path" ]; then
-              echo "ERROR: could not find $jsfile in $bundle_dir" >&2
-              exit 1
-            fi
-            bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
-            cat > "$out/bin/$binname" <<WRAPPER
-          #!${pkgs.bash}/bin/bash
-          exec $bun_bin $js_path "\$@"
-          WRAPPER
-            chmod +x "$out/bin/$binname"
-          done
-          for f in $out/bin/*; do
-            wrapProgram "$f" \
-              ${if pathMode != "inherit" then "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}" else ""} \
-              --unset LD_LIBRARY_PATH \
-              ${pkgs.lib.concatStringsSep " " extraWrapArgs}
-          done
-          for f in $(grep -rl '@BIN@' $out); do
-            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
-          done
-        '';
+              for f in ${bunBinaries}/bin/*; do
+                binname=$(basename "$f")
+                jsfile="$binname.js"
+                if [ -f "$bundle_dir/$jsfile" ]; then
+                  js_path="$bundle_dir/$jsfile"
+                else
+                  js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
+                fi
+                if [ -z "$js_path" ]; then
+                  echo "ERROR: could not find $jsfile in $bundle_dir" >&2
+                  exit 1
+                fi
+                bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
+                cat > "$out/bin/$binname" <<WRAPPER
+              #!${pkgs.bash}/bin/bash
+              exec $bun_bin $js_path "\$@"
+              WRAPPER
+                chmod +x "$out/bin/$binname"
+              done
+              for f in $out/bin/*; do
+                wrapProgram "$f" \
+                  ${
+                    if pathMode != "inherit" then
+                      "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                    else
+                      ""
+                  } \
+                  --unset LD_LIBRARY_PATH \
+                  ${pkgs.lib.concatStringsSep " " extraWrapArgs}
+              done
+              for f in $(grep -rl '@BIN@' $out); do
+                substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+              done
+            '';
 
         # Per-moxin derivations — each moxin is self-contained with its deps.
         # @WASM_DIR@ resolves at build time to the moxin's vendored wasm dir
@@ -318,79 +401,132 @@
         # substitution bakes the absolute store path into outline.js so the
         # bundled JS can locate both web-tree-sitter's runtime wasm and the
         # language grammars without any PATH or env-var indirection.
-        arboretum-moxin = mkBunMoxin "arboretum" [
-          pkgs.bash pkgs.ast-grep pkgs.pandoc
-        ] {
-          "outline" = "moxins/arboretum/src/outline.ts";
-          "search" = "moxins/arboretum/src/search.ts";
-          "rewrite" = "moxins/arboretum/src/rewrite.ts";
-          # md-* tools shell out to pandoc for markdown AST work. Same gfm
-          # reader the (now-retired) pandoc moxin used.
-          "md-toc" = "moxins/arboretum/src/md-toc.ts";
-          "md-section" = "moxins/arboretum/src/md-section.ts";
-          "md-anchor" = "moxins/arboretum/src/md-anchor.ts";
-        } {
-          extraSubstitutions = {
-            WASM_DIR = "${./moxins/arboretum/wasm}";
-          };
-        };
+        arboretum-moxin =
+          mkBunMoxin "arboretum"
+            [
+              pkgs.bash
+              pkgs.ast-grep
+              pkgs.pandoc
+            ]
+            {
+              "outline" = "moxins/arboretum/src/outline.ts";
+              "search" = "moxins/arboretum/src/search.ts";
+              "rewrite" = "moxins/arboretum/src/rewrite.ts";
+              # md-* tools shell out to pandoc for markdown AST work. Same gfm
+              # reader the (now-retired) pandoc moxin used.
+              "md-toc" = "moxins/arboretum/src/md-toc.ts";
+              "md-section" = "moxins/arboretum/src/md-section.ts";
+              "md-anchor" = "moxins/arboretum/src/md-anchor.ts";
+            }
+            {
+              extraSubstitutions = {
+                WASM_DIR = "${./moxins/arboretum/wasm}";
+              };
+            };
         # chix uses pathMode = "suffix" so the user's nix binary wins (and
         # picks up the user's NIX_PATH / config), while manix + git + the
         # shell helpers are guaranteed to resolve from the wrapper's
         # PATH suffix when the ambient environment doesn't provide them.
         # Needed for chix.doc* (manix) and chix.flake-update / flake-lock
         # (nix shells out to git to stage the updated lock file).
-        chix-moxin = mkBunMoxin "chix" [
-          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.git pkgs.gnugrep pkgs.jq pkgs.manix
-        ] {
-          "flake-check" = "moxins/chix/src/flake-check.ts";
-          "flake-lock" = "moxins/chix/src/flake-lock.ts";
-          "flake-show" = "moxins/chix/src/flake-show.ts";
-          "flake-update" = "moxins/chix/src/flake-update.ts";
-          "store-ls" = "moxins/chix/src/store-ls.ts";
-        } { pathMode = "suffix"; };
-        conch-moxin = mkMoxin "conch" [ pkgs.bash ] {};
+        chix-moxin =
+          mkBunMoxin "chix"
+            [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.findutils
+              pkgs.git
+              pkgs.gnugrep
+              pkgs.jq
+              pkgs.manix
+            ]
+            {
+              "flake-check" = "moxins/chix/src/flake-check.ts";
+              "flake-lock" = "moxins/chix/src/flake-lock.ts";
+              "flake-show" = "moxins/chix/src/flake-show.ts";
+              "flake-update" = "moxins/chix/src/flake-update.ts";
+              "store-ls" = "moxins/chix/src/store-ls.ts";
+            }
+            { pathMode = "suffix"; };
+        conch-moxin = mkMoxin "conch" [ pkgs.bash ] { };
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
-        folio-moxin = mkMoxin "folio" [ pkgs.bash pkgs.coreutils pkgs.file pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.jq pkgs.tree ] {};
-        freud-moxin = mkMoxin "freud" [ pkgs.python3 ] {};
+        folio-moxin = mkMoxin "folio" [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.file
+          pkgs.findutils
+          pkgs.gawk
+          pkgs.gnugrep
+          pkgs.gnutar
+          pkgs.gzip
+          pkgs.jq
+          pkgs.tree
+        ] { };
+        freud-moxin = mkMoxin "freud" [ pkgs.python3 ] { };
         # pathMode = "suffix" so user PATH wins (and can shadow gh with a
         # stub in tests).
-        get-hubbed-moxin = mkBunMoxin "get-hubbed" [
-          pkgs.bash pkgs.coreutils pkgs.gawk pkgs.git pkgs-master.gh pkgs.jq pkgs.util-linux
-        ] {
-          "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
-          "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
-          "issue-transfer" = "moxins/get-hubbed/src/issue-transfer.ts";
-          "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
-          "content-search" = "moxins/get-hubbed/src/content-search.ts";
-        } { pathMode = "suffix"; };
-        grit-moxin = mkBunMoxin "grit" [
-          pkgs.bash pkgs.coreutils pkgs.git
-        ] {
-          "push-stack" = "moxins/grit/src/push-stack.ts";
-        } { pathMode = "inherit"; };
+        get-hubbed-moxin =
+          mkBunMoxin "get-hubbed"
+            [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.gawk
+              pkgs.git
+              pkgs-master.gh
+              pkgs.jq
+              pkgs.util-linux
+            ]
+            {
+              "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
+              "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
+              "issue-transfer" = "moxins/get-hubbed/src/issue-transfer.ts";
+              "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
+              "content-search" = "moxins/get-hubbed/src/content-search.ts";
+            }
+            { pathMode = "suffix"; };
+        grit-moxin =
+          mkBunMoxin "grit"
+            [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.git
+            ]
+            {
+              "push-stack" = "moxins/grit/src/push-stack.ts";
+            }
+            { pathMode = "inherit"; };
         # @GOMARKDOC@ / @PANDOC@ are baked into the bundled JS at build time
         # via mkBunMoxin's extraSubstitutions, so the markdown renderer path
         # doesn't depend on the user's PATH or any runtime env var. doc.ts
         # carries a PATH-fallback for non-nix builds (brew, devshell) where
         # the placeholders survive into the bundle unmodified.
-        hamster-moxin = mkBunMoxin "hamster" [
-          pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnused pkgs.jq pkgs-master.go_1_26
-        ] {
-          "doc" = "moxins/hamster/src/doc.ts";
-          "doc-outline" = "moxins/hamster/src/doc-outline.ts";
-          "src" = "moxins/hamster/src/src.ts";
-          "mod-read" = "moxins/hamster/src/mod-read.ts";
-        } {
-          pathMode = "inherit";
-          extraSubstitutions = {
-            # gomarkdoc pulled from a pinned older nixpkgs (see the
-            # nixpkgs-gomarkdoc-pin input) because the version in
-            # current nixpkgs has a broken checkPhase.
-            GOMARKDOC = "${pkgs-gomarkdoc-pin.gomarkdoc}/bin/gomarkdoc";
-            PANDOC = "${pkgs.pandoc}/bin/pandoc";
-          };
-        };
+        hamster-moxin =
+          mkBunMoxin "hamster"
+            [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.findutils
+              pkgs.gawk
+              pkgs.gnused
+              pkgs.jq
+              pkgs-master.go_1_26
+            ]
+            {
+              "doc" = "moxins/hamster/src/doc.ts";
+              "doc-outline" = "moxins/hamster/src/doc-outline.ts";
+              "src" = "moxins/hamster/src/src.ts";
+              "mod-read" = "moxins/hamster/src/mod-read.ts";
+            }
+            {
+              pathMode = "inherit";
+              extraSubstitutions = {
+                # gomarkdoc pulled from a pinned older nixpkgs (see the
+                # nixpkgs-gomarkdoc-pin input) because the version in
+                # current nixpkgs has a broken checkPhase.
+                GOMARKDOC = "${pkgs-gomarkdoc-pin.gomarkdoc}/bin/gomarkdoc";
+                PANDOC = "${pkgs.pandoc}/bin/pandoc";
+              };
+            };
         sisyphus-python = pkgs.python3.withPackages (ps: [
           ps.atlassian-python-api
           # Sole runtime dep of vendored marklas (moxins/sisyphus/lib/_vendor/marklas).
@@ -406,52 +542,76 @@
             PANDOC = "${pkgs.pandoc}/bin/pandoc";
           };
         };
-        jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {};
-        just-us-agents-moxin = let
-          listRecipes = pkgs.buildZxScript {
-            pname = "just-list-recipes";
-            version = moxyVersion;
-            src = ./moxins/just-us-agents/src;
-            entrypoint = "list-recipes.ts";
-            runtimeInputs = [];
-          };
-        in pkgs.runCommand "just-us-agents-moxin" {
-          nativeBuildInputs = [ pkgs.makeWrapper pkgs.bash ];
-        } ''
-          cp -r ${./moxins/just-us-agents} $out
-          chmod -R u+w $out
-          rm -rf $out/src
-          mkdir -p $out/bin
-          for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
-          # Rewrite `#!/usr/bin/env bash` shebangs to absolute /nix/store paths
-          # before wrapping. The bats sandbox lacks /usr/bin/env, so an
-          # env-resolved shebang on the .run-recipe-wrapped script fails with
-          # "bad interpreter: No such file or directory". Same step mkMoxin and
-          # mkBunMoxin perform; this hand-rolled derivation must do it too.
-          patchShebangs $out/bin
-          ln -sf ${listRecipes}/bin/just-list-recipes $out/bin/list-recipes
-          for f in $out/bin/*; do
-            [ -L "$f" ] && continue
-            wrapProgram "$f" --unset LD_LIBRARY_PATH
-          done
-          for f in $(grep -rl '@BIN@' $out); do
-            substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
-          done
-        '';
-        man-moxin = mkMoxin "man" [
-          pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnugrep pkgs.gzip
-          pkgs.man-db pkgs.mandoc pkgs.manix pkgs.pandoc
-          maneater.packages.${system}.default
-        ] {
-          extraWrapArgs = [
-            # Prefix moxy's own man pages while preserving the caller's MANPATH.
-            "--prefix" "MANPATH" ":" "${moxy-man}/share/man"
-          ];
-          pathMode = "suffix";
-        };
-        rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {};
+        jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] { };
+        just-us-agents-moxin =
+          let
+            listRecipes = pkgs.buildZxScript {
+              pname = "just-list-recipes";
+              version = moxyVersion;
+              src = ./moxins/just-us-agents/src;
+              entrypoint = "list-recipes.ts";
+              runtimeInputs = [ ];
+            };
+          in
+          pkgs.runCommand "just-us-agents-moxin"
+            {
+              nativeBuildInputs = [
+                pkgs.makeWrapper
+                pkgs.bash
+              ];
+            }
+            ''
+              cp -r ${./moxins/just-us-agents} $out
+              chmod -R u+w $out
+              rm -rf $out/src
+              mkdir -p $out/bin
+              for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
+              # Rewrite `#!/usr/bin/env bash` shebangs to absolute /nix/store paths
+              # before wrapping. The bats sandbox lacks /usr/bin/env, so an
+              # env-resolved shebang on the .run-recipe-wrapped script fails with
+              # "bad interpreter: No such file or directory". Same step mkMoxin and
+              # mkBunMoxin perform; this hand-rolled derivation must do it too.
+              patchShebangs $out/bin
+              ln -sf ${listRecipes}/bin/just-list-recipes $out/bin/list-recipes
+              for f in $out/bin/*; do
+                [ -L "$f" ] && continue
+                wrapProgram "$f" --unset LD_LIBRARY_PATH
+              done
+              for f in $(grep -rl '@BIN@' $out); do
+                substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+              done
+            '';
+        man-moxin =
+          mkMoxin "man"
+            [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.gawk
+              pkgs.gnugrep
+              pkgs.gzip
+              pkgs.man-db
+              pkgs.mandoc
+              pkgs.manix
+              pkgs.pandoc
+              maneater.packages.${system}.default
+            ]
+            {
+              extraWrapArgs = [
+                # Prefix moxy's own man pages while preserving the caller's MANPATH.
+                "--prefix"
+                "MANPATH"
+                ":"
+                "${moxy-man}/share/man"
+              ];
+              pathMode = "suffix";
+            };
+        rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] { };
 
-        gwsDeps = [ pkgs.bash pkgs.coreutils gws-bin ];
+        gwsDeps = [
+          pkgs.bash
+          pkgs.coreutils
+          gws-bin
+        ];
         piers-moxin = mkBunMoxin "piers" gwsDeps {
           "get" = "moxins/piers/src/get.ts";
           "create" = "moxins/piers/src/create.ts";
@@ -469,33 +629,33 @@
           "tab-create" = "moxins/piers/src/tab-create.ts";
           "tab-delete" = "moxins/piers/src/tab-delete.ts";
           "tab-update" = "moxins/piers/src/tab-update.ts";
-        } {};
+        } { };
         car-moxin = mkBunMoxin "car" gwsDeps {
           "search" = "moxins/car/src/search.ts";
           "get" = "moxins/car/src/get.ts";
           "list" = "moxins/car/src/list.ts";
           "export" = "moxins/car/src/export.ts";
           "doc-graph" = "moxins/car/src/doc-graph.ts";
-        } {};
-        slip-moxin = pkgs.runCommand "slip-moxin" {} ''
+        } { };
+        slip-moxin = pkgs.runCommand "slip-moxin" { } ''
           cp -r ${./moxins/slip} $out
         '';
         prison-moxin = mkBunMoxin "prison" gwsDeps {
           "get" = "moxins/prison/src/get.ts";
-        } {};
+        } { };
         gmail-moxin = mkBunMoxin "gmail" gwsDeps {
           "triage" = "moxins/gmail/src/triage.ts";
           "read" = "moxins/gmail/src/read.ts";
-        } {};
+        } { };
         calendar-moxin = mkBunMoxin "calendar" gwsDeps {
           "agenda" = "moxins/calendar/src/agenda.ts";
-        } {};
+        } { };
         gws-moxin = mkBunMoxin "gws" gwsDeps {
           "api" = "moxins/gws/src/api.ts";
-        } {};
+        } { };
 
         # Symlink-only aggregation of all per-moxin derivations.
-        moxy-moxins = pkgs.runCommand "moxy-moxins" {} ''
+        moxy-moxins = pkgs.runCommand "moxy-moxins" { } ''
           mkdir -p $out/share/moxy/moxins
           ln -s ${arboretum-moxin} $out/share/moxy/moxins/arboretum
           ln -s ${chix-moxin} $out/share/moxy/moxins/chix
@@ -534,14 +694,19 @@
           modules = ./gomod2nix.toml;
           go = pkgs-master.go_1_26;
           GOTOOLCHAIN = "local";
-          nativeBuildInputs = [ pkgs.makeWrapper pkgs.jq ];
+          nativeBuildInputs = [
+            pkgs.makeWrapper
+            pkgs.jq
+          ];
           # The fork's buildGoApplication auto-injects `-X main.version`
           # (read from the version.env carried in src/pwd, nixpkgs#31)
           # and `-X main.commit` (from the `commit` attr above). Only
           # project-specific ldflags need to live here.
           ldflags = [
-            "-X" "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
-            "-X" "github.com/amarbel-llc/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"
+            "-X"
+            "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
+            "-X"
+            "github.com/amarbel-llc/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"
           ];
           postInstall = ''
             MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
@@ -598,12 +763,14 @@
         # batman/sandcastle interaction this replaces.
         batsSrc = pkgs.lib.fileset.toSource {
           root = ./zz-tests_bats;
-          fileset = with pkgs.lib.fileset; unions [
-            ./zz-tests_bats/common.bash
-            ./zz-tests_bats/test-fixtures
-            ./zz-tests_bats/test-permission-request-hook.mjs
-            (fileFilter (f: f.hasExt "bats") ./zz-tests_bats)
-          ];
+          fileset =
+            with pkgs.lib.fileset;
+            unions [
+              ./zz-tests_bats/common.bash
+              ./zz-tests_bats/test-fixtures
+              ./zz-tests_bats/test-permission-request-hook.mjs
+              (fileFilter (f: f.hasExt "bats") ./zz-tests_bats)
+            ];
         };
 
         # batsLane was formerly `pkgs.testers.batsLane`, shipped by the
@@ -617,25 +784,35 @@
         # defaultSystemMoxinDir resolves and madder/MOXIN_PATH wiring
         # is consistent with what real users see). Mirrors madder's
         # go/default.nix:40-54 pattern.
-        mkBatsLane = { filter ? "!net_cap,!host_only", base ? combined }:
+        mkBatsLane =
+          {
+            filter ? "!net_cap,!host_only",
+            base ? combined,
+          }:
           batsLane {
             inherit base filter batsSrc;
             binaries = {
-              MOXY_BIN   = { inherit base; name = "moxy"; };
-              MADDER_BIN = { base = madder-bin; name = "madder"; };
+              MOXY_BIN = {
+                inherit base;
+                name = "moxy";
+              };
+              MADDER_BIN = {
+                base = madder-bin;
+                name = "madder";
+              };
             };
             batsLibPath = [ bats.packages.${system}.bats-libs.batsLibPath ];
             extraEnv = {
               BATS_TEST_TIMEOUT = "30";
-              MOXIN_PATH        = "${moxy-moxins}/share/moxy/moxins";
+              MOXIN_PATH = "${moxy-moxins}/share/moxy/moxins";
               # grit_*.bats invoke wrapped scripts at $BIN by default
               # ($BATS_TEST_DIRNAME/../result/share/moxy/moxins/grit/bin),
               # which doesn't exist inside the nix sandbox. Tests fall
               # back to GRIT_BIN via ${GRIT_BIN:-$BIN}.
-              GRIT_BIN  = "${grit-moxin}/bin";
+              GRIT_BIN = "${grit-moxin}/bin";
               # chix_*.bats invoke wrapped scripts via ${CHIX_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
-              CHIX_BIN  = "${chix-moxin}/bin";
+              CHIX_BIN = "${chix-moxin}/bin";
               # get_hubbed_*.bats invoke wrapped scripts via ${GET_HUBBED_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               GET_HUBBED_BIN = "${get-hubbed-moxin}/bin";
@@ -682,29 +859,30 @@
         batsTags =
           let
             dir = ./zz-tests_bats;
-            files = builtins.attrNames
-              (pkgs.lib.filterAttrs
-                (n: t: t == "regular" && pkgs.lib.hasSuffix ".bats" n)
-                (builtins.readDir dir));
-            extract = name:
+            files = builtins.attrNames (
+              pkgs.lib.filterAttrs (n: t: t == "regular" && pkgs.lib.hasSuffix ".bats" n) (builtins.readDir dir)
+            );
+            extract =
+              name:
               let
-                m = builtins.match
-                  ".*# bats file_tags=([a-zA-Z0-9_,.-]+).*"
-                  (builtins.readFile (dir + "/${name}"));
+                m = builtins.match ".*# bats file_tags=([a-zA-Z0-9_,.-]+).*" (builtins.readFile (dir + "/${name}"));
               in
-                if m == null then [ ]
-                else pkgs.lib.splitString ","
-                  (builtins.head m);
+              if m == null then [ ] else pkgs.lib.splitString "," (builtins.head m);
           in
-            pkgs.lib.unique (pkgs.lib.flatten (map extract files));
+          pkgs.lib.unique (pkgs.lib.flatten (map extract files));
 
         batsLaneOutputs =
-          pkgs.lib.listToAttrs (map
-            (t: pkgs.lib.nameValuePair "bats-${t}"
-              (mkBatsLane { filter = t; }))
-            batsTags) // {
-            bats-default   = mkBatsLane { };
-            bats-net_cap   = mkBatsLane { filter = "net_cap"; };
+          pkgs.lib.listToAttrs (
+            map (
+              t:
+              pkgs.lib.nameValuePair "bats-${t}" (mkBatsLane {
+                filter = t;
+              })
+            ) batsTags
+          )
+          // {
+            bats-default = mkBatsLane { };
+            bats-net_cap = mkBatsLane { filter = "net_cap"; };
             bats-host_only = mkBatsLane { filter = "host_only"; };
           };
 
@@ -714,6 +892,11 @@
           inherit moxy moxy-moxins;
           default = combined;
         };
+
+        # `nix fmt` writes; `checks.treefmt` is the sandboxed read-only gate
+        # (built by `just lint-fmt`, and evaluated by `nix flake check`).
+        formatter = treefmtEval.config.build.wrapper;
+        checks.treefmt = treefmtEval.config.build.check self;
 
         devShells.default = pkgs-master.mkShell {
           packages = [

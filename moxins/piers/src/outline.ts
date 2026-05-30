@@ -49,7 +49,10 @@ function extractParagraphText(paragraph: any): string {
     .trim();
 }
 
-function extractFromBody(content: any[]): { headings: Heading[]; links: Link[] } {
+function extractFromBody(content: any[]): {
+  headings: Heading[];
+  links: Link[];
+} {
   const headings: Heading[] = [];
   const links: Link[] = [];
 
@@ -128,7 +131,11 @@ const outline = {
 process.stdout.write(
   JSON.stringify({
     content: [
-      { type: "text", text: JSON.stringify(outline, null, 2), mimeType: "application/json" },
+      {
+        type: "text",
+        text: JSON.stringify(outline, null, 2),
+        mimeType: "application/json",
+      },
     ],
   }),
 );

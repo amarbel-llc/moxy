@@ -54,8 +54,16 @@ const LANGS: Record<string, LangConfig> = {
       { type: "function_declaration", kind: "func", name: { field: "name" } },
       { type: "class_declaration", kind: "class", name: { field: "name" } },
       { type: "method_definition", kind: "method", name: { field: "name" } },
-      { type: "lexical_declaration", kind: "let", name: { child: "identifier" } },
-      { type: "variable_declaration", kind: "var", name: { child: "identifier" } },
+      {
+        type: "lexical_declaration",
+        kind: "let",
+        name: { child: "identifier" },
+      },
+      {
+        type: "variable_declaration",
+        kind: "var",
+        name: { child: "identifier" },
+      },
     ],
   },
   ".ts": {
@@ -87,7 +95,11 @@ const LANGS: Record<string, LangConfig> = {
     rules: [
       { type: "function_definition", kind: "def", name: { field: "name" } },
       { type: "class_definition", kind: "class", name: { field: "name" } },
-      { type: "decorated_definition", kind: "decorated", name: { child: "identifier" } },
+      {
+        type: "decorated_definition",
+        kind: "decorated",
+        name: { child: "identifier" },
+      },
     ],
   },
   ".php": {
@@ -95,10 +107,18 @@ const LANGS: Record<string, LangConfig> = {
     rules: [
       { type: "function_definition", kind: "func", name: { field: "name" } },
       { type: "class_declaration", kind: "class", name: { field: "name" } },
-      { type: "interface_declaration", kind: "interface", name: { field: "name" } },
+      {
+        type: "interface_declaration",
+        kind: "interface",
+        name: { field: "name" },
+      },
       { type: "trait_declaration", kind: "trait", name: { field: "name" } },
       { type: "method_declaration", kind: "method", name: { field: "name" } },
-      { type: "property_declaration", kind: "field", name: { child: "variable_name" } },
+      {
+        type: "property_declaration",
+        kind: "field",
+        name: { child: "variable_name" },
+      },
       { type: "const_declaration", kind: "const", name: { child: "name" } },
     ],
   },
@@ -117,8 +137,16 @@ const LANGS: Record<string, LangConfig> = {
 };
 
 const SKIP_DIRS = new Set([
-  ".git", "node_modules", ".venv", "venv", "__pycache__",
-  "target", "dist", "build", ".tmp", "result",
+  ".git",
+  "node_modules",
+  ".venv",
+  "venv",
+  "__pycache__",
+  "target",
+  "dist",
+  "build",
+  ".tmp",
+  "result",
 ]);
 
 function findName(node: Node, rule: NodeRule): string {
@@ -189,7 +217,9 @@ function render(items: OutlineNode[], depth = 0): string {
   const lines: string[] = [];
   for (const it of items) {
     const indent = "  ".repeat(depth);
-    lines.push(`${indent}${it.kind} ${it.name} [${it.startLine}-${it.endLine}]`);
+    lines.push(
+      `${indent}${it.kind} ${it.name} [${it.startLine}-${it.endLine}]`,
+    );
     if (it.children.length > 0) lines.push(render(it.children, depth + 1));
   }
   return lines.filter(Boolean).join("\n");
@@ -197,7 +227,9 @@ function render(items: OutlineNode[], depth = 0): string {
 
 const langCache = new Map<string, { parser: Parser; rules: NodeRule[] }>();
 
-async function getLang(ext: string): Promise<{ parser: Parser; rules: NodeRule[] } | null> {
+async function getLang(
+  ext: string,
+): Promise<{ parser: Parser; rules: NodeRule[] } | null> {
   const config = LANGS[ext];
   if (!config) return null;
   let entry = langCache.get(ext);

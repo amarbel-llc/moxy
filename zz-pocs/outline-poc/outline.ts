@@ -58,8 +58,16 @@ const LANGS: Record<string, LangConfig> = {
       { type: "function_declaration", kind: "func", name: { field: "name" } },
       { type: "class_declaration", kind: "class", name: { field: "name" } },
       { type: "method_definition", kind: "method", name: { field: "name" } },
-      { type: "lexical_declaration", kind: "let", name: { child: "identifier" } },
-      { type: "variable_declaration", kind: "var", name: { child: "identifier" } },
+      {
+        type: "lexical_declaration",
+        kind: "let",
+        name: { child: "identifier" },
+      },
+      {
+        type: "variable_declaration",
+        kind: "var",
+        name: { child: "identifier" },
+      },
     ],
   },
   ".ts": {
@@ -67,14 +75,26 @@ const LANGS: Record<string, LangConfig> = {
     rules: [
       { type: "function_declaration", kind: "func", name: { field: "name" } },
       { type: "class_declaration", kind: "class", name: { field: "name" } },
-      { type: "interface_declaration", kind: "interface", name: { field: "name" } },
+      {
+        type: "interface_declaration",
+        kind: "interface",
+        name: { field: "name" },
+      },
       { type: "type_alias_declaration", kind: "type", name: { field: "name" } },
       { type: "enum_declaration", kind: "enum", name: { field: "name" } },
       { type: "method_signature", kind: "method", name: { field: "name" } },
       { type: "method_definition", kind: "method", name: { field: "name" } },
       { type: "property_signature", kind: "field", name: { field: "name" } },
-      { type: "public_field_definition", kind: "field", name: { field: "name" } },
-      { type: "lexical_declaration", kind: "let", name: { child: "identifier" } },
+      {
+        type: "public_field_definition",
+        kind: "field",
+        name: { field: "name" },
+      },
+      {
+        type: "lexical_declaration",
+        kind: "let",
+        name: { child: "identifier" },
+      },
     ],
   },
   ".tsx": {
@@ -82,11 +102,19 @@ const LANGS: Record<string, LangConfig> = {
     rules: [
       { type: "function_declaration", kind: "func", name: { field: "name" } },
       { type: "class_declaration", kind: "class", name: { field: "name" } },
-      { type: "interface_declaration", kind: "interface", name: { field: "name" } },
+      {
+        type: "interface_declaration",
+        kind: "interface",
+        name: { field: "name" },
+      },
       { type: "type_alias_declaration", kind: "type", name: { field: "name" } },
       { type: "enum_declaration", kind: "enum", name: { field: "name" } },
       { type: "method_definition", kind: "method", name: { field: "name" } },
-      { type: "lexical_declaration", kind: "let", name: { child: "identifier" } },
+      {
+        type: "lexical_declaration",
+        kind: "let",
+        name: { child: "identifier" },
+      },
     ],
   },
   ".rs": {
@@ -110,7 +138,11 @@ const LANGS: Record<string, LangConfig> = {
     rules: [
       { type: "function_definition", kind: "def", name: { field: "name" } },
       { type: "class_definition", kind: "class", name: { field: "name" } },
-      { type: "decorated_definition", kind: "decorated", name: { child: "identifier" } },
+      {
+        type: "decorated_definition",
+        kind: "decorated",
+        name: { child: "identifier" },
+      },
     ],
   },
   ".php": {
@@ -118,10 +150,18 @@ const LANGS: Record<string, LangConfig> = {
     rules: [
       { type: "function_definition", kind: "func", name: { field: "name" } },
       { type: "class_declaration", kind: "class", name: { field: "name" } },
-      { type: "interface_declaration", kind: "interface", name: { field: "name" } },
+      {
+        type: "interface_declaration",
+        kind: "interface",
+        name: { field: "name" },
+      },
       { type: "trait_declaration", kind: "trait", name: { field: "name" } },
       { type: "method_declaration", kind: "method", name: { field: "name" } },
-      { type: "property_declaration", kind: "field", name: { child: "variable_name" } },
+      {
+        type: "property_declaration",
+        kind: "field",
+        name: { child: "variable_name" },
+      },
       { type: "const_declaration", kind: "const", name: { child: "name" } },
     ],
   },

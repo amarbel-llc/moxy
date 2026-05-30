@@ -60,10 +60,7 @@ export function buildRewriteInvocation(opts: {
     if (opts.globs) args.push("--globs", opts.globs);
     return { subcommand: "scan", args };
   }
-  const args: string[] = [
-    "--pattern", opts.pattern,
-    "--rewrite", opts.rewrite,
-  ];
+  const args: string[] = ["--pattern", opts.pattern, "--rewrite", opts.rewrite];
   if (opts.lang) args.push("--lang", opts.lang);
   if (opts.globs) args.push("--globs", opts.globs);
   return { subcommand: "run", args };

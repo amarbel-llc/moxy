@@ -3,14 +3,8 @@ import { resolveRepo } from "./resolve-repo.ts";
 
 $.verbose = false;
 
-const [
-  query,
-  path,
-  extension,
-  perPage = "30",
-  page = "1",
-  repoOwnerName,
-] = process.argv.slice(2);
+const [query, path, extension, perPage = "30", page = "1", repoOwnerName] =
+  process.argv.slice(2);
 
 const repo = await resolveRepo(repoOwnerName);
 

@@ -38,12 +38,16 @@ async function resolveRepoFromOrigin(): Promise<string> {
     if (sshMatch) return sshMatch[1];
 
     // HTTPS: https://github.com/OWNER/NAME[.git]
-    const httpsMatch = originUrl.match(/^https?:\/\/[^/]+\/(.+\/[^/]+?)(?:\.git)?$/);
+    const httpsMatch = originUrl.match(
+      /^https?:\/\/[^/]+\/(.+\/[^/]+?)(?:\.git)?$/,
+    );
     if (httpsMatch) return httpsMatch[1];
   }
 
   // Fallback: no parseable origin — use gh's resolution.
   const user = (await $`gh api /user --jq ${".login"}`).stdout.trim();
-  const name = (await $`gh repo view --json name --jq ${".name"}`).stdout.trim();
+  const name = (
+    await $`gh repo view --json name --jq ${".name"}`
+  ).stdout.trim();
   return `${user}/${name}`;
 }

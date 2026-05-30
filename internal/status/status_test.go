@@ -190,7 +190,8 @@ command = %q
 `, trueBin))
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
-	writeMoxinDir(t, moxinDir, "test-server",
+	writeMoxinDir(
+		t, moxinDir, "test-server",
 		"schema = 1\nname = \"test-server\"\ndescription = \"A test server\"\n",
 		map[string]string{
 			"hello": "schema = 1\ndescription = \"says hello\"\ncommand = \"echo\"\nargs = [\"hello\"]\n\n[input]\ntype = \"object\"\n",
@@ -256,7 +257,8 @@ command = "grit"
 `)
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
-	writeMoxinDir(t, moxinDir, "bad-server",
+	writeMoxinDir(
+		t, moxinDir, "bad-server",
 		"schema = 1\nname = \"bad-server\"\n",
 		map[string]string{
 			"hello": "schema = 1\n",
@@ -289,7 +291,8 @@ command = "grit"
 `)
 
 	moxinDir := filepath.Join(t.TempDir(), "moxins")
-	writeMoxinDir(t, moxinDir, "extra-server",
+	writeMoxinDir(
+		t, moxinDir, "extra-server",
 		"schema = 1\nname = \"extra-server\"\ndescription = \"has unknown keys\"\nbogus_field = \"oops\"\n",
 		map[string]string{
 			"hello": "schema = 1\ndescription = \"says hello\"\ncommand = \"echo\"\nargs = [\"hello\"]\nunknown_tool_key = true\n\n[input]\ntype = \"object\"\n",

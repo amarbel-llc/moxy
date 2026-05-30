@@ -51,8 +51,10 @@ query($srcOwner:String!,$srcName:String!,$num:Int!,$dstOwner:String!,$dstName:St
   const idData = JSON.parse(idRes.stdout).data;
   const issue = idData?.src?.issue;
   const dst = idData?.dst;
-  if (!issue) return err(`source issue ${src}#${number} not found (or no access)`);
-  if (!dst) return err(`destination repo ${destinationRepo} not found (or no access)`);
+  if (!issue)
+    return err(`source issue ${src}#${number} not found (or no access)`);
+  if (!dst)
+    return err(`destination repo ${destinationRepo} not found (or no access)`);
 
   // Step 2: transfer. GitHub requires src and dst to share an owner.
   const mutation = `

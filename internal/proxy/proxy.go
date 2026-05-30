@@ -100,7 +100,6 @@ type EphemeralMeta struct {
 // transport details (stdio vs HTTP, credentials, etc.).
 type ConnectFunc func(ctx context.Context, cfg config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error)
 
-
 type pavedPathState struct {
 	SelectedPath string
 	CurrentStage int

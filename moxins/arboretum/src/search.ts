@@ -4,10 +4,13 @@ import { buildSearchInvocation } from "./astgrep.ts";
 $.verbose = false;
 
 async function main(): Promise<number> {
-  const [pattern, pathArg, lang, globs, contextStr, outputMode] = process.argv.slice(2);
+  const [pattern, pathArg, lang, globs, contextStr, outputMode] =
+    process.argv.slice(2);
 
   if (!pattern) {
-    throw new Error("usage: search <pattern> [path] [lang] [globs] [context] [output_mode]");
+    throw new Error(
+      "usage: search <pattern> [path] [lang] [globs] [context] [output_mode]",
+    );
   }
 
   const targetPath = pathArg && pathArg.length > 0 ? pathArg : ".";

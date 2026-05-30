@@ -25,12 +25,12 @@ type bootstrapInputs struct {
 // the spawned child servers (subprocess + moxin), the ephemeral metadata
 // (empty until ProbeEphemeral runs), and the failed-startup list.
 type bootstrapResult struct {
-	cfg            config.Config
-	activeServers  []config.ServerConfig
-	children       []proxy.ChildEntry
-	failed         []proxy.FailedServer
-	moxinPath      string
-	systemDir      string
+	cfg           config.Config
+	activeServers []config.ServerConfig
+	children      []proxy.ChildEntry
+	failed        []proxy.FailedServer
+	moxinPath     string
+	systemDir     string
 }
 
 // bootstrap loads the moxyfile hierarchy, spawns subprocess children for

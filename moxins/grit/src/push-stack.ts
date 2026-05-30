@@ -65,7 +65,10 @@ async function main(): Promise<object> {
     } catch (e: any) {
       const reason = ((e?.stderr ?? e?.message ?? "") + "").trim();
       dryRun.push({ branch, status: "rejected", reason });
-      throw new StackPushFailure({ phase: "dry-run", results: fillSkipped(dryRun) });
+      throw new StackPushFailure({
+        phase: "dry-run",
+        results: fillSkipped(dryRun),
+      });
     }
   }
 

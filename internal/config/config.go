@@ -173,8 +173,10 @@ type PavedPathConfig struct {
 	Stages      []PavedPathStage `json:"stages"`
 }
 
-const PavedPathsFile = "moxyfile.paved-paths.json"
-const PavedPathsToolName = "paved-paths"
+const (
+	PavedPathsFile     = "moxyfile.paved-paths.json"
+	PavedPathsToolName = "paved-paths"
+)
 
 // LoadPavedPaths returns nil, nil if the file is absent.
 func LoadPavedPaths(dir string) ([]PavedPathConfig, error) {

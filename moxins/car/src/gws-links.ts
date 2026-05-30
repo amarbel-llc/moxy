@@ -27,12 +27,14 @@ function unwrapGoogleRedirect(url: string): string {
 
 export function extractLinksFromHtml(html: string): string[] {
   const hrefs: string[] = [];
-  new HTMLRewriter().on("a[href]", {
-    element(el) {
-      const href = el.getAttribute("href");
-      if (href) hrefs.push(href);
-    },
-  }).transform(html);
+  new HTMLRewriter()
+    .on("a[href]", {
+      element(el) {
+        const href = el.getAttribute("href");
+        if (href) hrefs.push(href);
+      },
+    })
+    .transform(html);
   const seen = new Set<string>();
   const result: string[] = [];
   for (const raw of hrefs) {
@@ -60,9 +62,15 @@ export function classifyUrl(url: string): ClassifiedUrl {
 
 const EXTERNAL_SHORTENERS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/atlassian\.net\/browse\/([A-Z]+-\d+)/, (m) => `Jira: ${m[1]}`],
-  [/atlassian\.net\/jira\/.*?selectedIssue=([A-Z]+-\d+)/, (m) => `Jira: ${m[1]}`],
+  [
+    /atlassian\.net\/jira\/.*?selectedIssue=([A-Z]+-\d+)/,
+    (m) => `Jira: ${m[1]}`,
+  ],
   [/pagerduty\.com\/schedules[/#]([A-Z0-9]+)/, (m) => `PagerDuty: ${m[1]}`],
-  [/pagerduty\.com\/service-directory\/(P[A-Z0-9]+)/, (m) => `PagerDuty: ${m[1]}`],
+  [
+    /pagerduty\.com\/service-directory\/(P[A-Z0-9]+)/,
+    (m) => `PagerDuty: ${m[1]}`,
+  ],
   [/^mailto:(.+)/, (m) => m[1]],
   [/github\.com\/([^/]+\/[^/]+?)(?:\/|$)/, (m) => `GitHub: ${m[1]}`],
   [/miro\.com\/app\/board\/([^/?]+)/, (m) => `Miro: ${m[1]}`],
@@ -75,9 +83,10 @@ export function shortenExternalUrl(url: string): string {
   }
   try {
     const parsed = new URL(url);
-    const path = parsed.pathname.length > 30
-      ? parsed.pathname.slice(0, 27) + "..."
-      : parsed.pathname;
+    const path =
+      parsed.pathname.length > 30
+        ? parsed.pathname.slice(0, 27) + "..."
+        : parsed.pathname;
     return parsed.hostname + path;
   } catch {
     return url.length > 50 ? url.slice(0, 47) + "..." : url;
@@ -170,7 +179,14 @@ export function extractOutline(doc: any): DocTab[] {
     return doc.tabs.map(processTab);
   }
   const body = doc.body?.content || [];
-  return [{ id: "t.0", title: "", headings: extractHeadingsFromBody(body), children: [] }];
+  return [
+    {
+      id: "t.0",
+      title: "",
+      headings: extractHeadingsFromBody(body),
+      children: [],
+    },
+  ];
 }
 
 export function classifyExternalUrl(url: string): string {

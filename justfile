@@ -1,6 +1,11 @@
 export MOXIN_PATH := justfile_directory() / "result-moxins" / "share" / "moxy" / "moxins"
 
-default: build test test-status-clean-env
+default: lint build test test-status-clean-env
+
+# Pre-build gate aggregate. Currently the treefmt formatting check; a hard
+# CI gate via `default`.
+[group("pre-build")]
+lint: lint-fmt
 
 [group("operational")]
 run-dev: build-go
@@ -45,6 +50,23 @@ build-gomod2nix:
 [group("build")]
 build-nix: build-gomod2nix
   nix build --keep-going --show-trace
+
+# Format the whole tree via treefmt-nix (goimports→gofumpt, nixfmt, shfmt for
+# shell/bats, prettier for ts/mjs, tommy for toml). Config: ./treefmt.nix.
+# `nix fmt` runs the same wrapper.
+[group("codemod")]
+codemod-fmt-treefmt *args:
+  nix fmt {{args}}
+
+# Read-only formatting gate: build the sandboxed treefmt check derivation,
+# which exits non-zero on any drift with no working-tree side effects.
+# Write-mode counterpart: codemod-fmt-treefmt.
+[group("pre-build")]
+lint-fmt:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  nix build --print-build-logs --no-link ".#checks.${system}.treefmt"
 
 dir_build := "build"
 

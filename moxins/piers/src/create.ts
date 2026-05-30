@@ -17,11 +17,14 @@ try {
     name: title,
     mimeType: "application/vnd.google-apps.document",
   });
-  const result = await $`gws drive files create --json ${json} --upload ${tmp} --upload-content-type text/markdown`;
+  const result =
+    await $`gws drive files create --json ${json} --upload ${tmp} --upload-content-type text/markdown`;
 
   process.stdout.write(
     JSON.stringify({
-      content: [{ type: "text", text: result.stdout, mimeType: "application/json" }],
+      content: [
+        { type: "text", text: result.stdout, mimeType: "application/json" },
+      ],
     }),
   );
 } finally {

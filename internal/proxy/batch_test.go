@@ -34,7 +34,8 @@ func TestBatch_AllAllow_Sequential(t *testing.T) {
 		Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}},
 	}
 	var calls []string
-	p := newProxyWithResolverAndDispatch(t,
+	p := newProxyWithResolverAndDispatch(
+		t,
 		map[string]permcheck.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
@@ -79,7 +80,8 @@ func TestBatch_OnErrorStop_DefaultsToStop(t *testing.T) {
 		Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}},
 	}
 	var calls []string
-	p := newProxyWithResolverAndDispatch(t,
+	p := newProxyWithResolverAndDispatch(
+		t,
 		map[string]permcheck.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
@@ -126,7 +128,8 @@ func TestBatch_OnErrorStop_MultipleSkipsCorrectIndex(t *testing.T) {
 		Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}},
 	}
 	var calls []string
-	p := newProxyWithResolverAndDispatch(t,
+	p := newProxyWithResolverAndDispatch(
+		t,
 		map[string]permcheck.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
@@ -175,7 +178,8 @@ func TestBatch_OnErrorContinue(t *testing.T) {
 		Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}},
 	}
 	var calls []string
-	p := newProxyWithResolverAndDispatch(t,
+	p := newProxyWithResolverAndDispatch(
+		t,
 		map[string]permcheck.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
@@ -210,7 +214,8 @@ func TestBatch_OnErrorContinue(t *testing.T) {
 }
 
 func TestBatch_PreflightDeny(t *testing.T) {
-	p := newProxyWithResolverAndDispatch(t,
+	p := newProxyWithResolverAndDispatch(
+		t,
 		map[string]permcheck.ToolPermInfo{
 			// No tools registered → every sub-call resolves Unknown
 		},
@@ -258,7 +263,8 @@ func TestBatch_MalformedJSON(t *testing.T) {
 // (dispatcher returns a non-nil Go error) — surfaced as kind=transport in
 // the diagnostic.
 func TestBatch_TransportError(t *testing.T) {
-	p := newProxyWithResolverAndDispatch(t,
+	p := newProxyWithResolverAndDispatch(
+		t,
 		map[string]permcheck.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
@@ -289,7 +295,8 @@ func TestBatch_NonTextContent(t *testing.T) {
 			{Type: "resource_link"},
 		},
 	}
-	p := newProxyWithResolverAndDispatch(t,
+	p := newProxyWithResolverAndDispatch(
+		t,
 		map[string]permcheck.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},

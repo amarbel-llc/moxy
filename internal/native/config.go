@@ -242,12 +242,14 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			if len(raw.ArgOrder) == 0 && len(legacy.ArgOrder) > 0 {
 				raw.ArgOrder = legacy.ArgOrder
 				allWarnings = append(allWarnings, fmt.Sprintf(
-					"%s: arg_order is deprecated, use arg-order (schema 3)", filename))
+					"%s: arg_order is deprecated, use arg-order (schema 3)", filename,
+				))
 			}
 			if raw.StdinParam == "" && legacy.StdinParam != "" {
 				raw.StdinParam = legacy.StdinParam
 				allWarnings = append(allWarnings, fmt.Sprintf(
-					"%s: stdin_param is deprecated, use stdin-param (schema 3)", filename))
+					"%s: stdin_param is deprecated, use stdin-param (schema 3)", filename,
+				))
 			}
 		}
 

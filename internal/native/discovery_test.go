@@ -187,8 +187,8 @@ func TestParseMoxinPath(t *testing.T) {
 	}{
 		{"", nil},
 		{"/a:/b:/c", []string{"/a", "/b", "/c"}},
-		{"/a::/b", []string{"/a", "/b"}},           // empty entry skipped
-		{"  /a  : /b ", []string{"/a", "/b"}},       // whitespace trimmed
+		{"/a::/b", []string{"/a", "/b"}},      // empty entry skipped
+		{"  /a  : /b ", []string{"/a", "/b"}}, // whitespace trimmed
 		{"/single", []string{"/single"}},
 	}
 

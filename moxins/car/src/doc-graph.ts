@@ -58,9 +58,13 @@ const structureNodes = new Map<string, StructureNode>();
 const edges: Edge[] = [];
 const edgeSet = new Set<string>();
 const visited = new Set<string>();
-const queue: { fileId: string; depth: number }[] = [{ fileId: rootId, depth: 0 }];
+const queue: { fileId: string; depth: number }[] = [
+  { fileId: rootId, depth: 0 },
+];
 
-async function fetchMetadata(fileId: string): Promise<{ name: string; mimeType: string; webViewLink: string }> {
+async function fetchMetadata(
+  fileId: string,
+): Promise<{ name: string; mimeType: string; webViewLink: string }> {
   const params = JSON.stringify({
     fileId,
     fields: "id,name,mimeType,webViewLink",
@@ -79,7 +83,10 @@ async function exportHtml(fileId: string, dir: string): Promise<string> {
 const DOCS_MIME = "application/vnd.google-apps.document";
 
 async function fetchOutline(fileId: string): Promise<DocTab[]> {
-  const params = JSON.stringify({ documentId: fileId, includeTabsContent: true });
+  const params = JSON.stringify({
+    documentId: fileId,
+    includeTabsContent: true,
+  });
   const result = await $`gws docs documents get --params ${params}`;
   return extractOutline(JSON.parse(result.stdout));
 }
@@ -258,8 +265,10 @@ try {
   } else {
     const dotLines: string[] = [];
     dotLines.push("digraph doc_graph {");
-    dotLines.push('  rankdir=LR;');
-    dotLines.push('  node [shape=box, style=filled, fontname="Helvetica", fontsize=11];');
+    dotLines.push("  rankdir=LR;");
+    dotLines.push(
+      '  node [shape=box, style=filled, fontname="Helvetica", fontsize=11];',
+    );
     dotLines.push('  edge [color="#666666"];');
     dotLines.push("");
 
@@ -268,14 +277,18 @@ try {
       const color = node.inaccessible ? "#CCCCCC" : mimeColor(node.mimeType);
       const fontcolor = node.inaccessible ? "#666666" : "#FFFFFF";
       const style = node.inaccessible ? "dashed,filled" : "filled";
-      const penwidth = node.isRoot ? ', penwidth=2.5' : "";
-      dotLines.push(`  "${id}" [label="${escaped}", fillcolor="${color}", fontcolor="${fontcolor}", style="${style}"${penwidth}];`);
+      const penwidth = node.isRoot ? ", penwidth=2.5" : "";
+      dotLines.push(
+        `  "${id}" [label="${escaped}", fillcolor="${color}", fontcolor="${fontcolor}", style="${style}"${penwidth}];`,
+      );
     }
 
     dotLines.push("");
     for (const [url, ext] of externalNodes) {
       const escaped = ext.label.replace(/"/g, '\\"');
-      dotLines.push(`  "${url}" [label="${escaped}", fillcolor="#F5F5F5", fontcolor="#999999", style="dashed,filled", fontsize=9];`);
+      dotLines.push(
+        `  "${url}" [label="${escaped}", fillcolor="#F5F5F5", fontcolor="#999999", style="dashed,filled", fontsize=9];`,
+      );
     }
 
     const docStructure = new Map<string, StructureNode[]>();
@@ -286,17 +299,24 @@ try {
     }
 
     for (const [docId, nodes] of docStructure) {
-      const docLabel = gwsNodes.get(docId)?.label.replace(/"/g, '\\"') || docId.slice(0, 12);
+      const docLabel =
+        gwsNodes.get(docId)?.label.replace(/"/g, '\\"') || docId.slice(0, 12);
       dotLines.push("");
       dotLines.push(`  subgraph "cluster_${docId}" {`);
       dotLines.push(`    label="${docLabel}";`);
-      dotLines.push('    style="dashed"; color="#BBBBBB"; fontsize=9; fontcolor="#999999";');
+      dotLines.push(
+        '    style="dashed"; color="#BBBBBB"; fontsize=9; fontcolor="#999999";',
+      );
       for (const s of nodes) {
         const escaped = s.label.replace(/"/g, '\\"');
         if (s.type === "tab") {
-          dotLines.push(`    "${s.id}" [label="${escaped}", fillcolor="#E8EAF6", fontcolor="#3949AB", style="filled,rounded", shape=box];`);
+          dotLines.push(
+            `    "${s.id}" [label="${escaped}", fillcolor="#E8EAF6", fontcolor="#3949AB", style="filled,rounded", shape=box];`,
+          );
         } else {
-          dotLines.push(`    "${s.id}" [label="${escaped}", fillcolor="#FAFAFA", fontcolor="#666666", style="filled", fontsize=9];`);
+          dotLines.push(
+            `    "${s.id}" [label="${escaped}", fillcolor="#FAFAFA", fontcolor="#666666", style="filled", fontsize=9];`,
+          );
         }
       }
       dotLines.push("  }");
