@@ -12,7 +12,6 @@
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
-  export output
 }
 
 teardown() {

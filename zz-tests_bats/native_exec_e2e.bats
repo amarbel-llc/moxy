@@ -5,7 +5,6 @@
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
-  export output
 
   # Set up a native shell exec tool via MOXIN_PATH.
   local moxin_dir="$HOME/project/.moxy/moxins"
