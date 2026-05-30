@@ -35,7 +35,7 @@ EOF
   run_moxy_mcp "tools/list"
   assert_success
   # greeter.hello should NOT appear
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"greeter.hello\")'"
+  run jq -e '.tools[] | select(.name == "greeter.hello")' <<<"$output"
   assert_failure
 }
 
@@ -70,7 +70,7 @@ EOF
   assert_success
   local tools_output="$output"
   # multi.first should be omitted
-  run bash -c "echo '$tools_output' | jq -e '.tools[] | select(.name == \"multi.first\")'"
+  run jq -e '.tools[] | select(.name == "multi.first")' <<<"$tools_output"
   assert_failure
   # multi.second should still be present
   echo "$tools_output" | jq -e '.tools[] | select(.name == "multi.second")'
@@ -119,9 +119,9 @@ EOF
   run_moxy_mcp "tools/list"
   assert_success
   # Both should be omitted (additive merge)
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"alpha.tool\")'"
+  run jq -e '.tools[] | select(.name == "alpha.tool")' <<<"$output"
   assert_failure
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"beta.tool\")'"
+  run jq -e '.tools[] | select(.name == "beta.tool")' <<<"$output"
   assert_failure
 }
 

@@ -28,7 +28,7 @@ EOF
   run_moxy_mcp "tools/list"
   assert_success
   # myecho.execute-command should NOT appear (server disabled)
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"myecho.execute-command\")'"
+  run jq -e '.tools[] | select(.name == "myecho.execute-command")' <<<"$output"
   assert_failure
 }
 
@@ -52,7 +52,7 @@ EOF
   assert_success
   local tools_output="$output"
   # a should be omitted
-  run bash -c "echo '$tools_output' | jq -e '.tools[] | select(.name == \"a.execute-command\")'"
+  run jq -e '.tools[] | select(.name == "a.execute-command")' <<<"$tools_output"
   assert_failure
   # b should still appear
   echo "$tools_output" | jq -e '.tools[] | select(.name == "b.execute-command")'
@@ -83,9 +83,9 @@ EOF
   run_moxy_mcp "tools/list"
   assert_success
   local tools_output="$output"
-  run bash -c "echo '$tools_output' | jq -e '.tools[] | select(.name == \"a.execute-command\")'"
+  run jq -e '.tools[] | select(.name == "a.execute-command")' <<<"$tools_output"
   assert_failure
-  run bash -c "echo '$tools_output' | jq -e '.tools[] | select(.name == \"b.execute-command\")'"
+  run jq -e '.tools[] | select(.name == "b.execute-command")' <<<"$tools_output"
   assert_failure
 }
 

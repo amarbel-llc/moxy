@@ -87,7 +87,7 @@ EOF
   # so we get a status tool instead.
   echo "$output" | jq -e '.tools[] | select(.name == "myserver.status")'
   # Verify native tool is not present
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"myserver.native-tool\")'"
+  run jq -e '.tools[] | select(.name == "myserver.native-tool")' <<<"$output"
   assert_failure
 }
 

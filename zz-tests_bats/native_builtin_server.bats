@@ -77,7 +77,7 @@ EOF
   assert_success
   # Local override should win: "greet" tool present, "hello" tool absent
   echo "$output" | jq -e '.tools[] | select(.name == "greeter.greet")'
-  run bash -c "echo '$output' | jq -e '.tools[] | select(.name == \"greeter.hello\")'"
+  run jq -e '.tools[] | select(.name == "greeter.hello")' <<<"$output"
   assert_failure
 }
 
