@@ -2,14 +2,16 @@ export MOXIN_PATH := justfile_directory() / "result-moxins" / "share" / "moxy" /
 
 default: build test test-status-clean-env
 
-dev: build-go
+[group("operational")]
+run-dev: build-go
   zx bin/dev.mjs
 
 # Start moxy over streamable-HTTP on an OS-assigned ephemeral port via the
 # clown-plugin-protocol handshake (man clown-plugin-protocol(7)), generate
 # `.tmp/.mcp.json` pointing at it, and drop into $SHELL. Moxy is killed
 # when the shell exits.
-serve-http: build-go
+[group("operational")]
+run-http: build-go
   zx bin/serve-http.mjs
 
 # POC: launch the list-changed POC MCP server (zz-pocs/list-changed/serve.ts)
@@ -17,28 +19,36 @@ serve-http: build-go
 # `.tmp/.mcp.json` pointing at it, and drop into $SHELL. Use to validate
 # whether Claude Code refreshes its tool registry on
 # `notifications/tools/list_changed`. POC is killed on shell exit.
-serve-poc-list-changed:
+[group("operational")]
+run-poc-list-changed:
   zx bin/serve-poc-list-changed.mjs
 
+[group("build")]
 build: build-go build-nix
 
+[group("build")]
 build-go: generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
+[group("build")]
 build-moxins:
   nix build --keep-going --out-link result-moxins .#moxy-moxins
 
+[group("build")]
 generate:
   go generate ./internal/config/
 
+[group("build")]
 build-gomod2nix:
   gomod2nix
 
+[group("build")]
 build-nix: build-gomod2nix
   nix build --keep-going --show-trace
 
 dir_build := "build"
 
+[group("post-build")]
 test: test-go test-bats test-bats-net_cap test-validate-mcp test-status test-flake-check
 
 # Run the bats integration suite inside the nix build sandbox via
@@ -48,18 +58,21 @@ test: test-go test-bats test-bats-net_cap test-validate-mcp test-status test-fla
 # tests that need host paths and runs only via `test-bats-tag
 # host_only`. See #249 for why we don't run bats through
 # batman/sandcastle anymore.
+[group("post-build")]
 test-bats:
   nix build --keep-going .#bats-default --no-link --print-build-logs
 
 # Run the loopback-binding lane (streamable_http.bats). Verifies that
 # moxy serve-http binding to 127.0.0.1 still works inside the nix build
 # sandbox.
+[group("post-build")]
 test-bats-net_cap:
   nix build --keep-going .#bats-net_cap --no-link --print-build-logs
 
 # Validates the flake's structural outputs (packages.* are derivations,
 # devShells eval, etc). Runs last so the nix store cache is already warm
 # from prior build steps.
+[group("post-build")]
 test-flake-check:
   nix flake check
 
@@ -67,11 +80,13 @@ test-flake-check:
 # folio, test-bats-tag net_cap). See `nix flake show` for the full list
 # — auto-discovered from `# bats file_tags=` directives in
 # zz-tests_bats/*.bats.
+[group("post-build")]
 test-bats-tag tag:
   nix build --keep-going .#bats-{{tag}} --no-link --print-build-logs
 
 # End-to-end: verify claude -p can see and call moxy MCP tools.
 # Requires: claude CLI on PATH and authenticated.
+[group("post-build")]
 test-smoke-claude-p: build-nix
   #!/usr/bin/env bash
   set -euo pipefail
@@ -113,22 +128,25 @@ test-smoke-claude-p: build-nix
   fi
 
 # Smoke-test migrated bun+zx tool scripts against real APIs
+[group("post-build")]
 test-migrated-tools: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
 
 # Smoke-test the locally-built hamster moxin (doc, src, mod-read, go-vet, go-build, go-mod)
+[group("post-build")]
 test-hamster: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-hamster.mjs
 
+[group("post-build")]
 test-go:
   MOXIN_PATH="" go vet ./...
   MOXIN_PATH="" go test ./... -v
 
 # Per-function coverage report for a Go package.
 # Used during refactors to identify untested branches before moving code.
-# Example: just cover-go ./internal/hook/...
-[group: 'debug']
-cover-go pkg=".":
+# Example: just test-go-cover ./internal/hook/...
+[group("post-build")]
+test-go-cover pkg=".":
   #!/usr/bin/env bash
   set -euo pipefail
   mkdir -p .tmp
@@ -145,7 +163,7 @@ cover-go pkg=".":
 # recipe launches a fresh `claude -p` process configured to use the
 # worktree's just-built moxy via --mcp-config, so the new builtin is
 # visible. Mirrors test-smoke-claude-p's shape.
-[group: 'debug']
+[group("post-build")]
 test-batch-via-claude-p: build-nix
   #!/usr/bin/env bash
   set -euo pipefail
@@ -179,10 +197,12 @@ test-batch-via-claude-p: build-nix
     --allowedTools "mcp__moxy__batch,mcp__moxy__folio.glob" \
     --disallowedTools "$disallowed"
 
+[group("post-build")]
 test-status: build-go
   {{justfile_directory()}}/{{dir_build}}/moxy status
 
 # Verify the nix-built binary discovers system moxins without ambient env
+[group("post-build")]
 test-status-clean-env: build-nix
   #!/usr/bin/env bash
   set -euo pipefail
@@ -199,6 +219,7 @@ test-status-clean-env: build-nix
   echo "$out" | grep -q "moxin(s)"
   echo "$out" | grep -q "all checks passed"
 
+[group("post-build")]
 test-validate-mcp: build-go
   #!/usr/bin/env bash
   set -euo pipefail
@@ -218,9 +239,9 @@ test-validate-mcp: build-go
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
 # Bisect helper: build and validate MCP loading at current commit
-# Usage: git bisect start HEAD <known-good> -- && git bisect run just bisect-validate
-[group: 'debug']
-bisect-validate: build-go
+# Usage: git bisect start HEAD <known-good> -- && git bisect run just debug-bisect
+[group("debug")]
+debug-bisect: build-go
   #!/usr/bin/env bash
   set -euo pipefail
   tmpdir=$(mktemp -d)
@@ -256,6 +277,7 @@ bisect-validate: build-go
 
 mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
 
+[group("post-build")]
 test-mcp: build-go
   #!/usr/bin/env nix
   #! nix shell nixpkgs#nodejs --command bash
@@ -263,38 +285,47 @@ test-mcp: build-go
   tools=$({{mcp-inspect}} --method tools/list {{justfile_directory()}}/{{dir_build}}/moxy serve mcp)
   echo "$tools" | jq .
 
+[group("operational")]
 run-nix *ARGS:
   nix run . -- {{ARGS}}
 
+[group("maintenance")]
 update: update-go
 
+[group("maintenance")]
 update-go:
   env GOPROXY=direct go get -u -t ./...
   go mod tidy
 
+[group("inspection")]
 man-list section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u
 
+[group("inspection")]
 man-count section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u | wc -l
 
+[group("inspection")]
 man-count-all:
   @for s in 1 2 3 4 5 6 7 8; do \
     count=$(apropos -s $s . 2>/dev/null | sort -u | wc -l | tr -d ' '); \
     printf "section %s: %s pages\n" "$s" "$count"; \
   done
 
+[group("inspection")]
 man-search query section="1":
   apropos -s {{section}} {{query}} 2>/dev/null | sort -u
 
 # Semantic man page search via embedding similarity
 # Requires: llama-server running with embedding model (just man-search-server)
 # Example: just man-search-embed "synchronize files"
+[group("inspection")]
 man-search-embed query top_k="10":
   bin/man-search-embed.bash "{{query}}" "{{top_k}}"
 
 # Build/refresh the embedding index for all section 1 man pages
 # Pass limit to index only the first N pages (0 = all)
+[group("operational")]
 man-search-index limit="0":
   bin/man-search-index.bash "{{limit}}"
 
@@ -303,6 +334,7 @@ man_search_logfile := env("HOME") / ".local/share/moxy/man-search.log"
 man_search_port := env("LLAMA_PORT", "8922")
 
 # Start the embedding server in the background (idempotent)
+[group("operational")]
 man-search-start:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -341,10 +373,12 @@ man-search-start:
   cat "$logfile" | tail -5 >&2
   exit 1
 
+[group("inspection")]
 man-search-health:
   curl -sf http://localhost:{{man_search_port}}/health | jq .
 
 # Embed a single string and show the first 5 dimensions
+[group("inspection")]
 man-search-test-embed text:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -353,6 +387,7 @@ man-search-test-embed text:
     -d "$(jq -cn --arg t "{{text}}" '{input: $t, model: "nomic"}')" \
     | jq '{dim: (.data[0].embedding | length), first_5: (.data[0].embedding[:5])}'
 
+[group("operational")]
 man-search-stop:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -367,6 +402,7 @@ man-search-stop:
   fi
 
 # Download nomic-embed-text-v1.5 embedding model (~140MB)
+[group("operational")]
 man-search-download-model:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -383,7 +419,7 @@ man-search-download-model:
   fi
 
 # Bump MOXY_VERSION in version.env to the given semver
-[group('maint')]
+[group("maintenance")]
 bump-version new_version:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -397,7 +433,7 @@ bump-version new_version:
   echo "$current → {{new_version}}"
 
 # Create a signed git tag for the current MOXY_VERSION, verify the signature, then push to origin. Message defaults to "Release v<ver>"; pass a multi-line changelog as the arg for richer notes.
-[group('maint')]
+[group("maintenance")]
 tag message="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -424,7 +460,7 @@ tag message="":
 # the same changelog as the release body. Pass notes_file to
 # override the auto-changelog with hand-written notes. Must be run
 # from the master branch.
-[group('maint')]
+[group("maintenance")]
 release new_version notes_file="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -453,6 +489,7 @@ release new_version notes_file="":
   gh release create "v{{new_version}}" --title "v{{new_version}}" --notes "$notes"
 
 # Open a PR against amarbel-llc/homebrew-moxy setting Formula/moxy.rb to v$version (run after `just release` — v$version assets must exist on the GitHub release; HOMEBREW_TAP_DIR overrides the default .tmp/homebrew-moxy checkout)
+[group("maintenance")]
 bump-formula version:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -536,68 +573,70 @@ bump-formula version:
     --head "$branch" \
     --base master
 
+[group("maintenance")]
 clean: clean-build
 
+[group("maintenance")]
 clean-build:
   rm -rf result build/
 
 # Run `bun install` at the repo root (refresh bun.lock for mkBunMoxin bundling)
-[group('debug')]
+[group("debug")]
 debug-bun-install:
   cd {{justfile_directory()}} && bun install
 
 # Regenerate bun.nix from bun.lock via nix-community/bun2nix
-[group('debug')]
+[group("debug")]
 debug-bun2nix:
   cd {{justfile_directory()}} && nix run github:nix-community/bun2nix -- -o bun.nix
 
 # Smoke-test arboretum-moxin outline against POC sample
-[group('debug')]
+[group("debug")]
 debug-arboretum-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
 
 # Smoke-test arboretum-moxin search against a small fixture
-[group('debug')]
+[group("debug")]
 debug-arboretum-search-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/search 'console.log($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke
 
 # Smoke-test arboretum-moxin search against a small Go fixture (lang=go)
-[group('debug')]
+[group("debug")]
 debug-arboretum-search-go-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/search 'fmt.Println($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go
 
 # Smoke-test arboretum-moxin rewrite (apply) against a small Go fixture
-[group('debug')]
+[group("debug")]
 debug-arboretum-rewrite-go-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'fmt.Println($X)' 'log.Info($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go '' false
 
 # Smoke-test arboretum md-toc against a tiny markdown blob on stdin
-[group('debug')]
+[group("debug")]
 debug-arboretum-md-toc-smoke:
   printf '# Hello\n\n## World\n\nbody\n\n## Again\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-toc
 
 # Smoke-test arboretum md-section against a tiny markdown blob on stdin
-[group('debug')]
+[group("debug")]
 debug-arboretum-md-section-smoke:
   printf '# Hello\n\n## World\n\nbody\n\n## Again\nmore\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-section World
 
 # Smoke-test arboretum md-anchor against a tiny markdown blob on stdin
-[group('debug')]
+[group("debug")]
 debug-arboretum-md-anchor-smoke:
   printf '<a name="x"></a>\n# X\nbody\n\n<a name="y"></a>\n# Y\nmore\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-anchor x
 
 # Smoke-test arboretum-moxin rewrite (dry-run) against a small fixture
-[group('debug')]
+[group("debug")]
 debug-arboretum-rewrite-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' true
 
 # Smoke-test arboretum-moxin rewrite (apply) against a small fixture
-[group('debug')]
+[group("debug")]
 debug-arboretum-rewrite-apply-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' false
 
 # Probe ast-grep's --update-all output streams independently
-[group('debug')]
+[group("debug")]
 debug-astgrep-streams:
   #!/usr/bin/env bash
   set -uo pipefail
@@ -617,7 +656,7 @@ debug-astgrep-streams:
   "$ag" run -p 'console.log($MSG)' -r 'logger.info($MSG)' --update-all .tmp/astgrep-smoke 1>/dev/null
 
 # Re-capture arboretum golden-output fixtures from the nix-built binary
-[group('debug')]
+[group("debug")]
 debug-arboretum-regen-goldens:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -631,16 +670,18 @@ debug-arboretum-regen-goldens:
   done
 
 # Integration test for moxin discovery via a fresh temp workspace
+[group("post-build")]
 test-moxin-loading:
   zx bin/test-moxin-loading.mjs
 
 # Integration test for internal/stderrlog per-session logging + rotation flow.
+[group("post-build")]
 test-stderrlog:
   zx bin/test-stderrlog.mjs
 
 # Debug: look for OOM kills in kernel ring buffer (needs pkexec; user sasha not in adm/systemd-journal groups)
 # SHELL is sanitized to /bin/bash since pkexec rejects SHELL values not in /etc/shells.
-[group('debug')]
+[group("debug")]
 debug-pkexec-oom days='8':
   #!/usr/bin/env bash
   set +e
@@ -657,7 +698,7 @@ debug-pkexec-oom days='8':
   pkexec journalctl --since "{{days}} days ago" --no-pager -u systemd-oomd.service 2>&1 | tail -50
   rm -f /tmp/_dmesg.out /tmp/_jk.out
 
-[group('explore')]
+[group("explore")]
 explore-nix-tools-list: build-nix
   #!/usr/bin/env bash
   set -euo pipefail
@@ -688,7 +729,7 @@ explore-nix-tools-list: build-nix
 
 # Test validate-mcp against serve-moxin with devshell-built binary.
 # Usage: just debug-validate-serve-moxin piers
-[group('debug')]
+[group("debug")]
 debug-validate-serve-moxin name: build-go
   #!/usr/bin/env bash
   set -euo pipefail
@@ -715,7 +756,7 @@ debug-validate-serve-moxin name: build-go
 # Run sisyphus Python unit tests (test_validate.py) using the nix-wrapped
 # python3 from the sisyphus moxin (which has marklas + mistune available).
 # Agent dev-loop: run after editing _validate.py or test_validate.py.
-[group('debug')]
+[group("debug")]
 debug-sisyphus-py-tests: build-moxins
   #!/usr/bin/env bash
   set -euo pipefail
@@ -726,7 +767,7 @@ debug-sisyphus-py-tests: build-moxins
 
 # Probe what marklas produces for the #239 pipe-prose and diff-codeblock cases.
 # Agent dev-loop: run to inspect ADF output before writing validator/tests.
-[group('debug')]
+[group("debug")]
 debug-sisyphus-239-probe: build-moxins
   #!/usr/bin/env bash
   set -euo pipefail
@@ -737,24 +778,24 @@ debug-sisyphus-239-probe: build-moxins
     "$py_bin" "$root/moxins/sisyphus/lib/probe_239.py"
 
 # Reproduce tools-not-appearing via claude -p with the nix-built moxy.
-[group('explore')]
+[group("explore")]
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
 
 # Build the dynamic-perms POC driver. POC scope only — not wired into main test.
-[group('explore')]
+[group("explore")]
 poc-build-dynamic-perms:
   go build -o build/moxy-exporel-dynamic-perms ./cmd/moxy-exporel-dynamic-perms
 
 # Run the dynamic-perms POC bats wrapper. Driver self-asserts.
-[group('explore')]
+[group("explore")]
 poc-test-dynamic-perms: poc-build-dynamic-perms
   bats {{justfile_directory()}}/zz-bats_explore/dynamic_perms_poc.bats
 
 # Enable impure-derivations + ca-derivations on the nix-daemon and restart it.
 # Idempotent: re-running is a no-op if both features are already in nix.custom.conf.
 # Mirrors amarbel-llc/eng#41's resolution but for Determinate Nix on Linux instead of darwin.
-[group('debug')]
+[group("debug")]
 debug-pkexec-enable-impure-derivations:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -784,14 +825,14 @@ debug-pkexec-enable-impure-derivations:
   nix config show 2>/dev/null | grep -i experimental || nix-instantiate --eval --expr 'builtins.currentSystem' 2>&1 | tail -3
 
 # Look up nix.conf docs for a setting via `nix config show --json` to get its description.
-[group('debug')]
+[group("debug")]
 debug-nix-setting key:
   #!/usr/bin/env bash
   set -euo pipefail
   nix config show --json 2>/dev/null | jq --arg k '{{key}}' '.[$k] // .[($k | sub("^extra-"; ""))]'
 
 # Smallest possible __impure derivation, exercise every flag override path.
-[group('debug')]
+[group("debug")]
 debug-nix-impure-min:
   #!/usr/bin/env bash
   set -uo pipefail
@@ -828,7 +869,7 @@ debug-nix-impure-min:
       build --impure --no-link --print-out-paths --file "$drv" 2>&1 | tail -5
 
 # Probe nix capabilities (version, experimental features) for chix.bash work.
-[group('debug')]
+[group("debug")]
 debug-nix-features:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -850,7 +891,7 @@ debug-nix-features:
 # Probe: does --option extra-sandbox-paths take effect from a non-trusted user?
 # Tries to bind-mount /home/sasha/eng/repos/moxy/.worktrees/snug-sumac into the sandbox
 # and `ls` inside. If the bind silently fails, the worktree path won't exist in the sandbox.
-[group('debug')]
+[group("debug")]
 debug-extra-sandbox-paths:
   #!/usr/bin/env bash
   set -uo pipefail
