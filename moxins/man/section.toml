@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 content-type = "text/plain"
 perms-request = "always-allow"
-description = "Read a specific section of a man page by name. Use 'toc' first to discover available section names."
+description = "Read a specific section of a man page by name. Use 'toc' first to discover available section names. The page name accepts a parenthesized section number to disambiguate multi-section pages, e.g. 'bats(1)' (the CLI) vs 'bats(7)' (writing tests)."
 command = "@BIN@/section"
 arg-order = ["page", "section_name"]
 
@@ -12,7 +12,7 @@ required = ["page", "section_name"]
 
 [input.properties.page]
 type = "string"
-description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
+description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc'). A bare name resolves to the default (lowest-numbered) section; append a parenthesized section number to disambiguate names that exist in multiple sections, e.g. 'bats(1)' for the CLI vs 'bats(7)' for the test-writing guide, 'printf(1)' vs 'printf(3)'."
 
 [input.properties.section_name]
 type = "string"

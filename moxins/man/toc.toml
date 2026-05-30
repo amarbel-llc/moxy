@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 content-type = "text/plain"
 perms-request = "always-allow"
-description = "List all sections of a man page with their heading levels. Start here to discover what a page covers before reading specific sections."
+description = "List all sections of a man page with their heading levels. Start here to discover what a page covers before reading specific sections. Append a parenthesized section number to target a specific man section when a name exists in several, e.g. 'bats(1)' (the CLI) vs 'bats(7)' (writing tests)."
 command = "@BIN@/toc"
 
 [input]
@@ -11,7 +11,7 @@ required = ["page"]
 
 [input.properties.page]
 type = "string"
-description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc')"
+description = "Man page name (e.g. 'ls', 'git-commit', 'mandoc'). A bare name resolves to the default (lowest-numbered) section; append a parenthesized section number to disambiguate names that exist in multiple sections, e.g. 'bats(1)' for the CLI vs 'bats(7)' for the test-writing guide, 'printf(1)' vs 'printf(3)'."
 
 [annotations]
 read-only-hint = true
