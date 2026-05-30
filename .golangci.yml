@@ -1,0 +1,22 @@
+# golangci-lint configuration. Starter ruleset: the standard high-signal
+# linters (govet, ineffassign, staticcheck, unused) wired as a HARD gate via
+# `just lint` → `lint-go`. errcheck is deferred — moxy has ~50 mostly-idiomatic
+# unchecked-error sites (defer Close, Fprintln, …) to triage before enabling
+# it; that is the planned "expand" step.
+version: "2"
+
+linters:
+  default: standard
+  disable:
+    - errcheck
+  exclusions:
+    rules:
+      # POC samples and bats test fixtures are illustrative, not production.
+      - path: (zz-pocs/|zz-tests_bats/test-fixtures/)
+        linters:
+          - unused
+      # main.go intentionally calls the deprecated legacy install-mcp hook.
+      - path: cmd/moxy/main.go
+        text: SA1019
+        linters:
+          - staticcheck

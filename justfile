@@ -2,10 +2,10 @@ export MOXIN_PATH := justfile_directory() / "result-moxins" / "share" / "moxy" /
 
 default: lint build test test-status-clean-env
 
-# Pre-build gate aggregate. Currently the treefmt formatting check; a hard
+# Pre-build gate aggregate: treefmt formatting check + golangci-lint. A hard
 # CI gate via `default`.
 [group("pre-build")]
-lint: lint-fmt
+lint: lint-fmt lint-go
 
 [group("operational")]
 run-dev: build-go
@@ -67,6 +67,13 @@ lint-fmt:
   set -euo pipefail
   system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
   nix build --print-build-logs --no-link ".#checks.${system}.treefmt"
+
+# Go static analysis via golangci-lint. Config: ./.golangci.yml. Hard gate via
+# the `lint` aggregate. MOXIN_PATH is cleared so package loading matches the
+# test-go environment.
+[group("pre-build")]
+lint-go:
+  MOXIN_PATH="" golangci-lint run
 
 dir_build := "build"
 
