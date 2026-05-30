@@ -10,7 +10,12 @@
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
-  export output
+  # Do NOT `export output`: http_post_mcp stores the full tools/list response
+  # (every tool's schema) in $output, and exporting it puts that large body
+  # into the environment. Once envp crosses ARG_MAX, every later exec() in the
+  # shell fails with E2BIG ("Argument list too long" — awk/rm), cascading into
+  # a teardown temp-dir collision. $output is only read in-shell, so no export
+  # is needed. See #284.
   FIXTURES_DIR="$(cd "$BATS_TEST_DIRNAME/test-fixtures" && pwd)"
 
   mkdir -p "$HOME/repo"
