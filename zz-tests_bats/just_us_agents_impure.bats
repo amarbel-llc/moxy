@@ -44,7 +44,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "run-recipe: pure mode does NOT pass --impure to nix develop" {
+function run_recipe_pure_mode_does_NOT_pass_impure_to_nix_develop { # @test
   cd "$HOME/project"
   unset JUST_US_AGENTS_IMPURE || true
   run "$BIN/run-recipe" "build" "" "" ""
@@ -55,7 +55,7 @@ teardown() {
   refute_output --partial "--impure"
 }
 
-@test "run-recipe: JUST_US_AGENTS_IMPURE=1 passes --impure to nix develop" {
+function run_recipe_JUST_US_AGENTS_IMPURE_1_passes_impure_to_nix_develop { # @test
   cd "$HOME/project"
   JUST_US_AGENTS_IMPURE=1 run "$BIN/run-recipe" "build" "" "" ""
   assert_success
@@ -65,7 +65,7 @@ teardown() {
   assert_output --partial "--impure"
 }
 
-@test "run-recipe: no flake.nix skips nix develop entirely" {
+function run_recipe_no_flake_nix_skips_nix_develop_entirely { # @test
   cd "$HOME"  # no flake.nix here
   JUST_US_AGENTS_IMPURE=1 run "$BIN/run-recipe" "build" "" "" ""
   assert_success

@@ -28,7 +28,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "push --force-with-lease succeeds when remote matches local" {
+function push_force_with_lease_succeeds_when_remote_matches_local { # @test
   cd "$WORK"
   git commit --amend --allow-empty -m c1-amended -q
   run "$BIN/push" "origin" "feat" "" true "" "$WORK"
@@ -36,14 +36,14 @@ teardown() {
   assert_success
 }
 
-@test "push --force-with-lease blocks main/master" {
+function push_force_with_lease_blocks_main_master { # @test
   cd "$WORK"
   run "$BIN/push" "origin" "main" "" true "" "$WORK"
   assert_failure
   assert_output --partial "force push to main/master is blocked"
 }
 
-@test "push --force-with-lease blocks detached HEAD with no branch arg" {
+function push_force_with_lease_blocks_detached_HEAD_with_no_branch_arg { # @test
   cd "$WORK"
   # detach HEAD
   git checkout -q --detach
@@ -53,7 +53,7 @@ teardown() {
   assert_output --partial "explicit branch argument"
 }
 
-@test "push --force-with-lease rejects when remote has moved" {
+function push_force_with_lease_rejects_when_remote_has_moved { # @test
   cd "$WORK"
   git clone -q "$REMOTE" "$HOME/other"
   (cd "$HOME/other" \
@@ -69,7 +69,7 @@ teardown() {
   assert_failure
 }
 
-@test "push --force-with-lease --force-if-includes succeeds when commit includes remote tip" {
+function push_force_with_lease_force_if_includes_succeeds_when_commit_includes_remote_tip { # @test
   cd "$WORK"
   # amend the local commit (includes the prior remote tip in its history via parent)
   git commit --amend --allow-empty -m c1-amended -q
@@ -78,7 +78,7 @@ teardown() {
   assert_success
 }
 
-@test "push --force-if-includes alone passes flag without --force-with-lease" {
+function push_force_if_includes_alone_passes_flag_without_force_with_lease { # @test
   cd "$WORK"
   # A plain push with force_if_includes=true but force_with_lease=false
   # git itself treats --force-if-includes as a no-op without --force, so push succeeds normally

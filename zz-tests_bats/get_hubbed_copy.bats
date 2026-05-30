@@ -99,7 +99,7 @@ teardown() {
 }
 
 # copy-file: fetches file, decodes base64, writes to dest
-@test "copy-file: fetches and writes file content to dest_path" {
+function copy_file_fetches_and_writes_file_content_to_dest_path { # @test
   cd "$REPO"
   dest="$HOME/out/file.txt"
   run "$BIN/copy-file" "src/file.txt" "$dest" "" "test-org/test-repo"
@@ -110,7 +110,7 @@ teardown() {
 }
 
 # copy-file: output JSON includes bytes_written, source_sha, dest_path
-@test "copy-file: output JSON has expected fields" {
+function copy_file_output_JSON_has_expected_fields { # @test
   cd "$REPO"
   dest="$HOME/out/file2.txt"
   run "$BIN/copy-file" "src/file.txt" "$dest" "" "test-org/test-repo"
@@ -121,7 +121,7 @@ teardown() {
 }
 
 # copy-file: creates parent directories
-@test "copy-file: creates parent directories" {
+function copy_file_creates_parent_directories { # @test
   cd "$REPO"
   dest="$HOME/out/deep/nested/file.txt"
   run "$BIN/copy-file" "src/file.txt" "$dest" "" "test-org/test-repo"
@@ -130,7 +130,7 @@ teardown() {
 }
 
 # copy-tree: copies only blobs under the src_path prefix
-@test "copy-tree: copies only files under src_path, preserving layout" {
+function copy_tree_copies_only_files_under_src_path_preserving_layout { # @test
   cd "$REPO"
   dest="$HOME/out/tree"
   run "$BIN/copy-tree" "mydir" "$dest" "" "test-org/test-repo"
@@ -142,7 +142,7 @@ teardown() {
 }
 
 # copy-tree: output JSON has files_copied count and paths
-@test "copy-tree: output JSON reports correct file count" {
+function copy_tree_output_JSON_reports_correct_file_count { # @test
   cd "$REPO"
   dest="$HOME/out/tree2"
   run "$BIN/copy-tree" "mydir" "$dest" "" "test-org/test-repo"
@@ -153,7 +153,7 @@ teardown() {
 }
 
 # copy-write-perms: allows dest inside CWD
-@test "copy-write-perms: allows dest inside CWD" {
+function copy_write_perms_allows_dest_inside_CWD { # @test
   cd "$REPO"
   run "$BIN/copy-write-perms" "$REPO/output.txt"
   assert_success
@@ -161,7 +161,7 @@ teardown() {
 }
 
 # copy-write-perms: denies dest in /nix/store
-@test "copy-write-perms: denies dest in /nix/store" {
+function copy_write_perms_denies_dest_in_nix_store { # @test
   cd "$REPO"
   run "$BIN/copy-write-perms" "/nix/store/abc-foo/bin/file"
   assert_failure
@@ -169,7 +169,7 @@ teardown() {
 }
 
 # copy-write-perms: asks for dest outside CWD and write-allow dirs
-@test "copy-write-perms: asks for dest outside CWD" {
+function copy_write_perms_asks_for_dest_outside_CWD { # @test
   cd "$REPO"
   run "$BIN/copy-write-perms" "/tmp/some-random-path/file.txt"
   [ "$status" -eq 1 ]

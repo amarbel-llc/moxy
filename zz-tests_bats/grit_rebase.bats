@@ -25,7 +25,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "rebase --autosquash collapses fixup commits" {
+function rebase_autosquash_collapses_fixup_commits { # @test
   run "$BIN/rebase" main "" "" "" "" "" "" true "" "$TMPDIR_TEST"
   # arg-order: upstream branch autostash continue abort skip onto autosquash update_refs repo_path
   # → upstream=main, autosquash=true (8th positional)
@@ -36,12 +36,12 @@ teardown() {
   assert_equal "$(echo "$output" | wc -l | tr -d ' ')" "1"
 }
 
-@test "rebase --update-refs flag is accepted" {
+function rebase_update_refs_flag_is_accepted { # @test
   run "$BIN/rebase" main "" "" "" "" "" "" "" true "$TMPDIR_TEST"
   assert_success
 }
 
-@test "rebase --onto moves the base" {
+function rebase_onto_moves_the_base { # @test
   git checkout -q main
   git commit --allow-empty -m main2 -q
   git checkout -q feat

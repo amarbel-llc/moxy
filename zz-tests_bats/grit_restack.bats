@@ -16,7 +16,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "restack autosquashes a fixup against an ancestor branch" {
+function restack_autosquashes_a_fixup_against_an_ancestor_branch { # @test
   # Add a fixup on branch C targeting branch A's commit. The fixup MUST carry a
   # real tree change (not --allow-empty): squashing an empty fixup produces no
   # tree change, so git's rebase reuses the original commit objects via its
@@ -63,7 +63,7 @@ teardown() {
     || { echo "expected $STACK_BRANCH_C SHA to change after restack; got $old_c → $new_c (--update-refs may be silently dropped)" >&2; false; }
 }
 
-@test "restack refuses to run on main" {
+function restack_refuses_to_run_on_main { # @test
   cd "$STACK_WORK"
   git checkout -q main
   run "$BIN/restack" main main "$STACK_WORK"
@@ -71,28 +71,28 @@ teardown() {
   assert_output --partial "restacking main/master is blocked"
 }
 
-@test "restack errors when onto is missing" {
+function restack_errors_when_onto_is_missing { # @test
   cd "$STACK_WORK"
   run "$BIN/restack" "" "$STACK_BRANCH_A" "$STACK_WORK"
   assert_failure
   assert_output --partial "onto is required"
 }
 
-@test "restack errors when root is missing" {
+function restack_errors_when_root_is_missing { # @test
   cd "$STACK_WORK"
   run "$BIN/restack" main "" "$STACK_WORK"
   assert_failure
   assert_output --partial "root is required"
 }
 
-@test "restack errors with a clear message when root is not a valid ref" {
+function restack_errors_with_a_clear_message_when_root_is_not_a_valid_ref { # @test
   cd "$STACK_WORK"
   run "$BIN/restack" main "does-not-exist" "$STACK_WORK"
   assert_failure
   assert_output --partial "cannot resolve root ref"
 }
 
-@test "restack failure can be recovered via grit.rebase --abort" {
+function restack_failure_can_be_recovered_via_grit_rebase_abort { # @test
   cd "$STACK_WORK"
   # Conflict setup: write shared.txt on pr-c, then write the same file with
   # different content on main. When restack replays pr-c onto the new main,

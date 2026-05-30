@@ -94,7 +94,7 @@ teardown() {
 }
 
 # issue-create: should resolve to origin (fork-org/myrepo), not upstream.
-@test "issue-create: resolves to origin in dual-remote clone" {
+function issue_create_resolves_to_origin_in_dual_remote_clone { # @test
   cd "$REPO"
   # arg-order: title body labels_json repo_owner_name
   run "$BIN/issue-create" "test title" "" "" ""
@@ -104,7 +104,7 @@ teardown() {
 }
 
 # issue-create: explicit repo_owner_name overrides origin resolution.
-@test "issue-create: explicit repo_owner_name is respected" {
+function issue_create_explicit_repo_owner_name_is_respected { # @test
   cd "$REPO"
   run "$BIN/issue-create" "test title" "" "" "explicit-org/explicit-repo"
   assert_success
@@ -112,7 +112,7 @@ teardown() {
 }
 
 # issue-close: should resolve to origin in dual-remote clone.
-@test "issue-close: resolves to origin in dual-remote clone" {
+function issue_close_resolves_to_origin_in_dual_remote_clone { # @test
   cd "$REPO"
   # arg-order: number comment reason repo_owner_name
   run "$BIN/issue-close" "42" "" "" ""
@@ -122,7 +122,7 @@ teardown() {
 }
 
 # issue-comment: should resolve to origin in dual-remote clone.
-@test "issue-comment: resolves to origin in dual-remote clone" {
+function issue_comment_resolves_to_origin_in_dual_remote_clone { # @test
   cd "$REPO"
   # arg-order: number body repo_owner_name
   run "$BIN/issue-comment" "42" "hello" ""
@@ -132,7 +132,7 @@ teardown() {
 }
 
 # pr-create: should resolve to origin in dual-remote clone.
-@test "pr-create: resolves to origin in dual-remote clone" {
+function pr_create_resolves_to_origin_in_dual_remote_clone { # @test
   cd "$REPO"
   # arg-order: title body base head draft labels_json repo_owner_name
   run "$BIN/pr-create" "test PR" "" "" "" "" "" ""
@@ -142,7 +142,7 @@ teardown() {
 }
 
 # Verify single-remote repos still work (no origin resolution regression).
-@test "issue-create: works in single-remote clone (only origin)" {
+function issue_create_works_in_single_remote_clone_only_origin { # @test
   SINGLE="$HOME/single"
   git init -q -b main "$SINGLE"
   cd "$SINGLE"
@@ -158,7 +158,7 @@ teardown() {
 }
 
 # Verify HTTPS remote URLs are parsed correctly.
-@test "issue-create: resolves to origin with HTTPS remote URL" {
+function issue_create_resolves_to_origin_with_HTTPS_remote_URL { # @test
   HTTPS_REPO="$HOME/https-work"
   git init -q -b main "$HTTPS_REPO"
   cd "$HTTPS_REPO"

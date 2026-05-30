@@ -18,7 +18,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "man.toc lists both top-level sections and subsections" {
+function man_toc_lists_both_top_level_sections_and_subsections { # @test
   run "$BIN/toc" "pivy-tool"
   assert_success
   # Top-level .SH sections
@@ -28,25 +28,25 @@ teardown() {
   assert_output --partial "## Setup"
 }
 
-@test "man.section resolves a top-level .SH section" {
+function man_section_resolves_a_top_level_SH_section { # @test
   run "$BIN/section" "pivy-tool" "NAME"
   assert_success
   assert_output --partial "pivy-tool"
 }
 
-@test "man.section resolves a .SS subsection by name" {
+function man_section_resolves_a_SS_subsection_by_name { # @test
   run "$BIN/section" "pivy-tool" "Informational"
   assert_success
   assert_output --partial ".SS"
 }
 
-@test "man.section subsection lookup is case-insensitive" {
+function man_section_subsection_lookup_is_case_insensitive { # @test
   run "$BIN/section" "pivy-tool" "informational"
   assert_success
   assert_output --partial ".SS"
 }
 
-@test "man.section error message lists both sections and subsections" {
+function man_section_error_message_lists_both_sections_and_subsections { # @test
   run "$BIN/section" "pivy-tool" "Nonexistent Section"
   assert_failure
   # Top-level section appears

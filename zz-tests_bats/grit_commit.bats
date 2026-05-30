@@ -22,7 +22,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "commit --allow-empty creates a commit with no changes" {
+function commit_allow_empty_creates_a_commit_with_no_changes { # @test
   cd "$REPO"
   # arg-order: message amend fixup squash allow_empty repo_path
   run "$BIN/commit" "marker" "" "" "" true "$REPO"
@@ -33,7 +33,7 @@ teardown() {
   assert_equal "$(echo "$output" | wc -l | tr -d ' ')" "2"
 }
 
-@test "commit --fixup creates a fixup! commit targeting the named ref" {
+function commit_fixup_creates_a_fixup_commit_targeting_the_named_ref { # @test
   cd "$REPO"
   echo "v1" > f.txt
   git add f.txt
@@ -48,7 +48,7 @@ teardown() {
   assert_output --partial "fixup! add f"
 }
 
-@test "commit --squash creates a squash! commit targeting the named ref" {
+function commit_squash_creates_a_squash_commit_targeting_the_named_ref { # @test
   cd "$REPO"
   echo "v1" > f.txt
   git add f.txt
@@ -63,7 +63,7 @@ teardown() {
   assert_output --partial "squash! add f"
 }
 
-@test "commit --fixup ignores message argument" {
+function commit_fixup_ignores_message_argument { # @test
   cd "$REPO"
   echo "v1" > f.txt
   git add f.txt
@@ -80,7 +80,7 @@ teardown() {
   refute_output --partial "irrelevant"
 }
 
-@test "commit fails when both fixup and squash are set" {
+function commit_fails_when_both_fixup_and_squash_are_set { # @test
   cd "$REPO"
   echo "v1" > f.txt
   git add f.txt
@@ -93,7 +93,7 @@ teardown() {
   assert_output --partial "mutually exclusive"
 }
 
-@test "commit fails when message is missing and fixup/squash are not set" {
+function commit_fails_when_message_is_missing_and_fixup_squash_are_not_set { # @test
   cd "$REPO"
   echo "v1" > f.txt
   git add f.txt
@@ -102,7 +102,7 @@ teardown() {
   assert_output --partial "message is required"
 }
 
-@test "commit fixup followed by restack autosquashes the fixup" {
+function commit_fixup_followed_by_restack_autosquashes_the_fixup { # @test
   cd "$REPO"
   # build a tiny stack: main → A → B, then add a fixup on B targeting A.
   git checkout -q -b A

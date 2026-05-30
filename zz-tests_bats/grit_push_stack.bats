@@ -16,7 +16,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "push-stack pushes a clean three-branch chain" {
+function push_stack_pushes_a_clean_three_branch_chain { # @test
   cd "$STACK_WORK"
   # amend each branch so each push needs --force-with-lease
   for b in "$STACK_BRANCH_A" "$STACK_BRANCH_B" "$STACK_BRANCH_C"; do
@@ -39,7 +39,7 @@ teardown() {
     || { echo "expected all .results[].status == ok; got: $output" >&2; false; }
 }
 
-@test "push-stack dry-run rejects when remote has diverged" {
+function push_stack_dry_run_rejects_when_remote_has_diverged { # @test
   cd "$STACK_WORK"
   # advance branch B's remote ref out from under us
   git clone -q "$STACK_REMOTE" "$HOME/other"
@@ -76,7 +76,7 @@ teardown() {
     || { echo "expected remote A ($remote_a) to differ from local A ($local_a) — push-stack must not have actually pushed A when dry-run failed" >&2; false; }
 }
 
-@test "push-stack rejects main/master in branches list" {
+function push_stack_rejects_main_master_in_branches_list { # @test
   cd "$STACK_WORK"
   branches_json=$(jq -cn --arg a "$STACK_BRANCH_A" '[$a, "main"]')
   run "$BIN/push-stack" "$branches_json" origin "$STACK_WORK"
@@ -84,7 +84,7 @@ teardown() {
   assert_output --partial "main/master"
 }
 
-@test "push-stack errors on invalid JSON branches input" {
+function push_stack_errors_on_invalid_JSON_branches_input { # @test
   cd "$STACK_WORK"
   run "$BIN/push-stack" "not-json" origin "$STACK_WORK"
   assert_failure

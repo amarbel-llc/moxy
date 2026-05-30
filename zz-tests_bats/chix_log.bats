@@ -32,7 +32,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "chix.log: passes 'log' subcommand and drv path to nix" {
+function chix_log_passes_log_subcommand_and_drv_path_to_nix { # @test
   run "$BIN/log" "/nix/store/abc123-foo.drv"
   assert_success
   assert_output --partial "fake build log output"
@@ -42,7 +42,7 @@ teardown() {
   assert_output --partial "/nix/store/abc123-foo.drv"
 }
 
-@test "chix.log: accepts an installable (not just a drv path)" {
+function chix_log_accepts_an_installable_not_just_a_drv_path { # @test
   run "$BIN/log" ".#bats-default"
   assert_success
   run cat "$HOME/nix-argv"
@@ -51,7 +51,7 @@ teardown() {
   assert_output --partial ".#bats-default"
 }
 
-@test "chix.log: propagates nix failure" {
+function chix_log_propagates_nix_failure { # @test
   # Overwrite stub to fail
   cat > "$NIX_STUB" <<'EOF'
 set -euo pipefail

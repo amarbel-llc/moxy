@@ -86,7 +86,7 @@ teardown() {
   teardown_test_home
 }
 
-@test "create-issue: includes Jira response body on 400" {
+function create_issue_includes_Jira_response_body_on_400 { # @test
   # arg-order: project summary description issuetype ...
   run "$BIN/create-issue" "PROJ" "Test issue" "" "InvalidType"
   # The script exits non-zero and emits the error via _lib.emit.
@@ -96,7 +96,7 @@ teardown() {
   assert_output --partial "400"
 }
 
-@test "update-issue: includes Jira response body on 400" {
+function update_issue_includes_Jira_response_body_on_400 { # @test
   # arg-order: issue_key summary
   run "$BIN/update-issue" "PROJ-1" "Updated summary"
   assert_failure
@@ -104,7 +104,7 @@ teardown() {
   assert_output --partial "400"
 }
 
-@test "comment: includes Jira response body on 400" {
+function comment_includes_Jira_response_body_on_400 { # @test
   # arg-order: issue_key body
   run "$BIN/comment" "PROJ-1" "A comment body"
   assert_failure
@@ -118,7 +118,7 @@ teardown() {
 # the error in the output must be the HTTP 400 from Jira (our mock), not a
 # sisyphus-level validation error.
 
-@test "create-issue: inline code with pipes passes validator (reaches Jira)" {
+function create_issue_inline_code_with_pipes_passes_validator_reaches_Jira { # @test
   # Inline code containing pipes — must not trigger the table validator.
   # arg-order: project summary description
   run "$BIN/create-issue" "PROJ" "Test" 'The node is `Foo|Bar|Baz`, reachable.'
@@ -128,7 +128,7 @@ teardown() {
   refute_output --partial "description rejected"
 }
 
-@test "create-issue: diff codeblock passes validator (reaches Jira)" {
+function create_issue_diff_codeblock_passes_validator_reaches_Jira { # @test
   # Fenced diff block — must not trigger codeBlock-with-marks validator.
   run "$BIN/create-issue" "PROJ" "Test" "$(printf '```diff\n-old();\n+new();\n```')"
   assert_failure
@@ -138,7 +138,7 @@ teardown() {
 
 # ── #280: api tool must not double-prefix /rest/api/3/ when given a full URL ──
 
-@test "api: full URL is used verbatim, not double-prefixed (closes #280)" {
+function api_full_URL_is_used_verbatim_not_double_prefixed_closes_280 { # @test
   # Pass a full URL whose path is NOT under /rest/api/3/. If the bug is
   # present, the tool prepends /rest/api/3/ → .../rest/api/3/rest/agile/...
   # and the "url" in the output reveals the mangled path.
@@ -151,7 +151,7 @@ teardown() {
   refute_output --partial "rest/api/3/rest"
 }
 
-@test "api: /rest/agile/ path is not double-prefixed with /rest/api/3/ (closes #280)" {
+function api_rest_agile_path_is_not_double_prefixed_with_rest_api_3_closes_280 { # @test
   # Pass a root-relative agile path. If the prefix check is too narrow
   # (only guards rest/api/), it incorrectly prepends /rest/api/3/ onto
   # the agile path → /rest/api/3/rest/agile/1.0/...
@@ -162,7 +162,7 @@ teardown() {
 
 # ── #238: update-issue accepts @me for assignee ────────────────────────────
 
-@test "update-issue: @me assignee resolves via /myself and reaches Jira" {
+function update_issue_me_assignee_resolves_via_myself_and_reaches_Jira { # @test
   # The mock server returns a stub accountId for GET /rest/api/3/myself.
   # resolve_assignee(@me) → myself() → accountId=stub-account-id, then
   # update_issue_field PUT → 400 from our mock (past the assignee resolution).
