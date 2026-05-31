@@ -462,7 +462,12 @@ bump-version new_version:
   echo "$current → {{new_version}}"
 
 # Create a signed git tag for the current MOXY_VERSION, verify the signature, then push to origin. Message defaults to "Release v<ver>"; pass a multi-line changelog as the arg for richer notes.
+# [positional-arguments] passes `message` as $1 (a real argv element) instead of
+# textually interpolating {{message}} into the bash body — a changelog whose
+# commit subjects contain shell metacharacters (e.g. a literal `$output`) would
+# otherwise be expanded by bash and, under `set -u`, abort with "unbound variable".
 [group("maintenance")]
+[positional-arguments]
 tag message="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -472,7 +477,7 @@ tag message="":
     echo "tag $tag already exists" >&2
     exit 1
   fi
-  message="{{message}}"
+  message="${1:-}"
   if [[ -z "$message" ]]; then
     message="Release $tag"
   fi
@@ -489,17 +494,22 @@ tag message="":
 # the same changelog as the release body. Pass notes_file to
 # override the auto-changelog with hand-written notes. Must be run
 # from the master branch.
+# [positional-arguments] exposes new_version as $1 and notes_file as $2 as real
+# argv elements rather than {{...}} text-substituting them into the bash body.
 [group("maintenance")]
+[positional-arguments]
 release new_version notes_file="":
   #!/usr/bin/env bash
   set -euo pipefail
+  new_version="$1"
+  notes_file="${2:-}"
   current_branch=$(git rev-parse --abbrev-ref HEAD)
   if [[ "$current_branch" != "master" ]]; then
     echo "just release must be run on master (currently on $current_branch)" >&2
     exit 1
   fi
-  if [[ -n "{{notes_file}}" ]]; then
-    notes=$(cat "{{notes_file}}")
+  if [[ -n "$notes_file" ]]; then
+    notes=$(cat "$notes_file")
   else
     last_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
     if [[ -n "$last_tag" ]]; then
@@ -508,14 +518,14 @@ release new_version notes_file="":
       notes=$(git log --format='- %s' HEAD)
     fi
   fi
-  just bump-version {{new_version}}
+  just bump-version "$new_version"
   if ! git diff --quiet version.env; then
     git add version.env
-    git commit -m "chore: release v{{new_version}}"
+    git commit -m "chore: release v${new_version}"
   fi
   git push origin master
   just tag "$notes"
-  gh release create "v{{new_version}}" --title "v{{new_version}}" --notes "$notes"
+  gh release create "v${new_version}" --title "v${new_version}" --notes "$notes"
 
 # Open a PR against amarbel-llc/homebrew-moxy setting Formula/moxy.rb to v$version (run after `just release` — v$version assets must exist on the GitHub release; HOMEBREW_TAP_DIR overrides the default .tmp/homebrew-moxy checkout)
 [group("maintenance")]
