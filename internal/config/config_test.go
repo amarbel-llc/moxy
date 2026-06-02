@@ -578,7 +578,7 @@ name = "broken"
 }
 
 func makeCommand(parts ...string) Command {
-	return Command{parts: parts}
+	return MakeCommand(parts...)
 }
 
 func boolPtr(b bool) *bool { return &b }
