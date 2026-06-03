@@ -31,7 +31,7 @@ description = "File or directory to search in. Defaults to current working direc
 
 [input.properties.glob]
 type = "string"
-description = "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") — maps to rg --glob"
+description = "Glob pattern(s) to filter files — maps to rg --glob. Accepts a single glob (\"*.js\"), a brace glob (\"*.{ts,tsx}\"), or a comma-separated list of globs (\"*.sh,*.bash,*.bats\"); top-level commas split into multiple --glob args while brace expansion is preserved."
 
 [input.properties.type]
 type = "string"

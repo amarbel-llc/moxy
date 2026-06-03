@@ -1,0 +1,98 @@
+#! /usr/bin/env bats
+
+# bats file_tags=rg
+
+setup() {
+  load "$BATS_TEST_DIRNAME/common.bash"
+  setup_test_home
+
+  export XDG_CACHE_HOME="$HOME/.cache"
+
+  # Use the real rg moxin from the source tree.
+  # MOXIN_PATH inherited from justfile
+
+  # Create a tree with files of several extensions, all containing a shared
+  # marker so a single pattern matches across them.
+  mkdir -p "$HOME/tree"
+  cd "$HOME/tree"
+  printf 'case MARKER\n' > a.sh
+  printf 'case MARKER\n' > b.bash
+  printf 'case MARKER\n' > c.bats
+  printf 'case MARKER\n' > d.txt
+}
+
+teardown() {
+  teardown_test_home
+}
+
+# Assert the call did not return an MCP error result. The mid-body jq check
+# must be load-bearing — bats bodies don't run under set -e, so a bare
+# `jq -e` exit status would be discarded; route it through a guard that
+# fails the test.
+assert_not_iserror() {
+  echo "$output" | jq -e '.isError != true' >/dev/null \
+    || fail "tool returned isError: $output"
+}
+
+# Count the file paths in a files_with_matches result. rg's output is merged
+# with stderr (2>&1 in the moxin), so count only path-shaped lines under the
+# search tree rather than every non-empty line — a stray rg diagnostic must
+# not inflate the count.
+result_file_count() {
+  echo "$output" | jq -r '.content[0].text' | grep -c "$HOME/tree/"
+}
+
+function rg_search_single_glob_matches { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'","glob":"*.sh"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  assert_equal "$(result_file_count)" 1
+  echo "$output" | jq -r '.content[0].text' | grep -q 'a.sh' || fail "a.sh not in results: $output"
+}
+
+function rg_search_brace_glob_matches { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'","glob":"*.{sh,bash,bats}"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  assert_equal "$(result_file_count)" 3
+}
+
+# Regression test for #289: a comma-separated glob string must be treated as
+# multiple globs (one --glob per element), not a single nonsense pattern that
+# silently matches nothing.
+function rg_search_comma_separated_glob_matches { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'","glob":"*.sh,*.bash,*.bats"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  assert_equal "$(result_file_count)" 3
+}
+
+# A comma-separated list that includes a brace glob must split only on the
+# top-level comma, leaving the brace expansion intact.
+function rg_search_comma_with_brace_glob_matches { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'","glob":"*.txt,*.{sh,bash}"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  # d.txt + a.sh + b.bash = 3
+  assert_equal "$(result_file_count)" 3
+}
+
+# Empty pieces from leading/trailing/double commas must be skipped without
+# tripping `set -e` in the splitter (the script runs with set -euo pipefail).
+function rg_search_glob_with_empty_pieces { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'","glob":",*.sh,,*.bash,"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  # Only a.sh + b.bash; empty pieces are dropped.
+  assert_equal "$(result_file_count)" 2
+}

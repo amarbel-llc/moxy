@@ -18,7 +18,42 @@ case "$output_mode" in
   *) echo "Unknown output_mode: $output_mode" >&2; exit 1 ;;
 esac
 
-[ -n "$glob" ] && rg_args+=(--glob "$glob")
+# Split a glob string on top-level commas (commas outside {...}) so the
+# intuitive comma form `*.sh,*.bash` becomes multiple --glob args, while a
+# brace glob `*.{sh,bash}` is preserved as a single glob. See #289.
+if [ -n "$glob" ]; then
+  depth=0
+  piece=""
+  for (( i=0; i<${#glob}; i++ )); do
+    ch="${glob:i:1}"
+    case "$ch" in
+      '{')
+        depth=$((depth + 1))
+        piece+="$ch"
+        ;;
+      '}')
+        if [ "$depth" -gt 0 ]; then
+          depth=$((depth - 1))
+        fi
+        piece+="$ch"
+        ;;
+      ',')
+        if [ "$depth" -eq 0 ]; then
+          if [ -n "$piece" ]; then
+            rg_args+=(--glob "$piece")
+          fi
+          piece=""
+        else
+          piece+="$ch"
+        fi
+        ;;
+      *) piece+="$ch" ;;
+    esac
+  done
+  if [ -n "$piece" ]; then
+    rg_args+=(--glob "$piece")
+  fi
+fi
 
 [ -n "$filetype" ] && rg_args+=(--type "$filetype")
 
