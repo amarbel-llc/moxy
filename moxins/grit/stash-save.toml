@@ -3,7 +3,7 @@ result-type = "text"
 perms-request = "always-allow"
 description = "Save uncommitted changes to a stash"
 command = "@BIN@/stash-save"
-arg-order = ["message", "include_untracked", "repo_path"]
+arg-order = ["message", "include_untracked", "repo_path", "paths"]
 
 [input]
 type = "object"
@@ -19,3 +19,10 @@ description = "Include untracked files (-u)"
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[input.properties.paths]
+type = "array"
+description = "Limit the stash to these pathspecs (git stash push -- <paths>), e.g. [\"flake.lock\"]. Omit to stash the whole working tree."
+
+[input.properties.paths.items]
+type = "string"

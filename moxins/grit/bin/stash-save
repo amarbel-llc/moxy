@@ -3,10 +3,19 @@ set -euo pipefail
 message="${1:-}"
 include_untracked="${2:-}"
 repo="${3:-.}"
+paths_json="${4:-}"
 cd "$repo"
 git_args=(stash push)
 
 [ "$include_untracked" = "true" ] && git_args+=(-u)
 
 [ -n "$message" ] && git_args+=(-m "$message")
+
+if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+  files=()
+  while IFS= read -r p; do
+    [ -n "$p" ] && files+=("$p")
+  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+  [ "${#files[@]}" -gt 0 ] && git_args+=(-- "${files[@]}")
+fi
 git "${git_args[@]}"
