@@ -49,16 +49,16 @@ function folio_ls_shows_entry_types { # @test
   assert_success
 
   # Verify resource block with mimeType and cache URI
-  echo "$output" | jq -e '.content[0].type == "resource"'
-  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"'
-  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")'
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail '.content[0].type == "resource" check failed: '"$output"
+  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"' || fail '.content[0].resource.mimeType == "application/json" check failed: '"$output"
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")' || fail '.content[0].resource.uri | startswith("madder://blobs/") check failed: '"$output"
 
   local entries
   entries=$(echo "$output" | jq -r '.content[0].resource.text')
 
-  echo "$entries" | jq -e '.[] | select(.name == "file.txt" and .type == "file")'
-  echo "$entries" | jq -e '.[] | select(.name == "subdir" and .type == "directory")'
-  echo "$entries" | jq -e '.[] | select(.name == "link" and .type == "symlink")'
+  echo "$entries" | jq -e '.[] | select(.name == "file.txt" and .type == "file")' || fail '.[] | select(.name == "file.txt" and .type == "file") check failed: '"$entries"
+  echo "$entries" | jq -e '.[] | select(.name == "subdir" and .type == "directory")' || fail '.[] | select(.name == "subdir" and .type == "directory") check failed: '"$entries"
+  echo "$entries" | jq -e '.[] | select(.name == "link" and .type == "symlink")' || fail '.[] | select(.name == "link" and .type == "symlink") check failed: '"$entries"
 }
 
 function folio_ls_defaults_to_cwd { # @test

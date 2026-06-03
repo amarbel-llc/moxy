@@ -25,9 +25,9 @@ function folio_du_returns_json_summary { # @test
 
   local entry
   entry=$(echo "$output" | jq -r '.content[0].resource.text')
-  echo "$entry" | jq -e '.path == "dir"'
-  echo "$entry" | jq -e '.bytes >= 100'
-  echo "$entry" | jq -e '.human != null'
+  echo "$entry" | jq -e '.path == "dir"' || fail '.path == "dir" check failed: '"$entry"
+  echo "$entry" | jq -e '.bytes >= 100' || fail '.bytes >= 100 check failed: '"$entry"
+  echo "$entry" | jq -e '.human != null' || fail '.human != null check failed: '"$entry"
 }
 
 function folio_du_with_flags_returns_raw_text { # @test
@@ -43,7 +43,7 @@ function folio_du_with_flags_returns_raw_text { # @test
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"'
+  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"' || fail '.content[0].resource.mimeType == "text/plain" check failed: '"$output"
   local text
   text=$(echo "$output" | jq -r '.content[0].resource.text')
   echo "$text" | grep -q "dir/a"
@@ -67,6 +67,6 @@ function folio_du_works_outside_cwd { # @test
 
   local entry
   entry=$(echo "$output" | jq -r '.content[0].resource.text')
-  echo "$entry" | jq -e --arg p "$HOME/other" '.path == $p'
-  echo "$entry" | jq -e '.bytes > 0'
+  echo "$entry" | jq -e --arg p "$HOME/other" '.path == $p' || fail '.path == $p check failed: '"$entry"
+  echo "$entry" | jq -e '.bytes > 0' || fail '.bytes > 0 check failed: '"$entry"
 }

@@ -26,9 +26,9 @@ EOF
   assert_success
   # restart tool is now listed, gated by destructiveHint annotation so
   # MCP clients prompt the user before each invocation.
-  echo "$output" | jq -e '.tools[] | select(.name == "restart")'
-  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .annotations.destructiveHint == true'
-  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .annotations.readOnlyHint == false'
+  echo "$output" | jq -e '.tools[] | select(.name == "restart")' || fail ".tools[] | select(.name == \"restart\") check failed: $output"
+  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .annotations.destructiveHint == true' || fail ".tools[] | select(.name == \"restart\") | .annotations.destructiveHint == true check failed: $output"
+  echo "$output" | jq -e '.tools[] | select(.name == "restart") | .annotations.readOnlyHint == false' || fail ".tools[] | select(.name == \"restart\") | .annotations.readOnlyHint == false check failed: $output"
 }
 
 function restart_running_server_succeeds { # @test
@@ -72,8 +72,8 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/call '{"name":"restart","arguments":{"server":"nonexistent"}}'
   assert_success
-  echo "$output" | jq -e '.isError == true'
-  echo "$output" | jq -e '.content[0].text | test("unknown server")'
+  echo "$output" | jq -e '.isError == true' || fail ".isError == true check failed: $output"
+  echo "$output" | jq -e '.content[0].text | test("unknown server")' || fail ".content[0].text | test(\"unknown server\") check failed: $output"
 }
 
 function restart_missing_server_param_reloads_all { # @test

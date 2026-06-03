@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# lint-dead-jq — flag dead `jq -e` assertions in bats test bodies.
+#
+# bats test bodies do NOT run under `set -e`: only the LAST command in a
+# `# @test` function (plus explicit `run`+assert / `|| fail` routing) decides
+# pass/fail. A line like `echo "$output" | jq -e '.foo == 1'` placed mid-body
+# has its exit status discarded — a dead assertion that can never fail the
+# test. This checker flags those so they can be converted to a load-bearing
+# form (`run jq -e 'FILTER' <<<"$output"` + assert_success, or `… | jq -e … ||
+# fail`). See moxy's treelint [linter.dead-jq] wiring and zz-tests_bats/lint.bats
+# for the sibling ARG_MAX guards this generalizes.
+#
+# Usage: lint-dead-jq FILE.bats [FILE.bats ...]
+# treelint invokes it as a [linter.<name>] command, passing matched files as
+# argv. Exits 0 when every file is clean, 1 when any dead assertion is found
+# (diagnostics on stderr), 2 on usage error.
+#
+# Known limitation: candidate detection is a line-regex with no shell/jq quote
+# parsing, so a load-bearing line whose jq *filter string* literally contains
+# `| jq -e` (e.g. asserting on command text) can be a false positive. No such
+# line exists in the corpus; rewrite it to `|| fail` or make it the terminal
+# line if it ever arises.
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: lint-dead-jq FILE.bats [FILE.bats ...]" >&2
+  exit 2
+fi
+
+exec awk '
+# Reset per-file state when awk opens a new input file.
+FNR == 1 {
+  state = "OUTSIDE"   # OUTSIDE | IN_TEST | IN_HELPER
+  delete cand_line
+  delete cand_text
+  ncand = 0
+  last_meaningful_lineno = 0
+  cont = ""
+}
+
+# Open a function body. A bats test is `function NAME { # @test`; anything
+# else that opens a brace-block function is a plain helper whose jq semantics
+# are its own concern (it may legitimately extract values or wrap || fail).
+state == "OUTSIDE" {
+  if ($0 ~ /^[[:space:]]*function[[:space:]].*\{[[:space:]]*#[[:space:]]*@test/ ||
+      $0 ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\([[:space:]]*\)[[:space:]]*\{[[:space:]]*#[[:space:]]*@test/) {
+    state = "IN_TEST"
+    delete cand_line
+    delete cand_text
+    ncand = 0
+    last_meaningful_lineno = 0
+    cont = ""
+    next
+  }
+  if ($0 ~ /^[[:space:]]*function[[:space:]].*\{/ ||
+      $0 ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\([[:space:]]*\)[[:space:]]*\{/) {
+    state = "IN_HELPER"
+    next
+  }
+  next
+}
+
+# Inside any function: a `}` flush-left at column 0 closes it. Every bats
+# function in this corpus closes that way, which sidesteps brace counting
+# inside quoted jq filters and heredocs.
+/^}/ {
+  if (state == "IN_TEST") close_test()
+  state = "OUTSIDE"
+  next
+}
+
+state == "IN_TEST" {
+  # Coalesce backslash-continued physical lines into one logical line before
+  # evaluating, so a `| jq -e …` whose `|| fail` lives on the continuation is
+  # recognized as load-bearing. The logical line is attributed to the line
+  # number where it began.
+  if (cont == "") logical_start = FNR
+  stripped_bs = $0
+  if (stripped_bs ~ /\\[[:space:]]*$/) {
+    sub(/\\[[:space:]]*$/, "", stripped_bs)
+    cont = cont stripped_bs " "
+    next
+  }
+  record_logical(cont $0, logical_start)
+  cont = ""
+  next
+}
+
+# IN_HELPER: ignore everything until the closing `^}` (handled above).
+
+# A function/file may end while a backslash continuation is still buffered (a
+# dangling `\` right before `}` or EOF). Treat the buffer as the final logical
+# line so its candidacy is not lost, then emit. Called from `/^}/` and `END`.
+function close_test() {
+  if (cont != "") {
+    record_logical(cont, logical_start)
+    cont = ""
+  }
+  emit_findings()
+}
+
+# Evaluate one fully-coalesced logical line: update the last-meaningful line of
+# the body, and collect it if it is a dead-assertion candidate.
+function record_logical(logical, start) {
+  if (logical ~ /[^[:space:]]/ && logical !~ /^[[:space:]]*#/) {
+    last_meaningful_lineno = start
+  }
+  if (is_dead_candidate(logical)) {
+    cand_line[ncand] = start
+    cand_text[ncand] = trim(logical)
+    ncand++
+  }
+}
+
+# A candidate is dead unless it is the terminal (last-meaningful) line of the
+# test body, whose exit status is the one bats checks.
+function emit_findings(  i) {
+  for (i = 0; i < ncand; i++) {
+    if (cand_line[i] != last_meaningful_lineno) {
+      printf "%s:%d: dead jq -e assertion (mid-body; exit status discarded). Use `run jq -e ... <<<\"$output\"` + assert_success, or append `|| fail`.\n", FILENAME, cand_line[i] > "/dev/stderr"
+      printf "  %s\n", cand_text[i] > "/dev/stderr"
+      findings++
+    }
+  }
+}
+
+# A file may end mid-test (no closing flush-left `}`). Flush the pending test so
+# its candidates are not silently dropped.
+END {
+  if (state == "IN_TEST") close_test()
+  if (findings > 0) exit 1
+}
+
+# A line is a dead-assertion candidate when its final pipeline stage is a bare
+# `jq -e` check whose status is not otherwise captured. The primary regex
+# requires `jq -e` followed by whitespace, end-of-line, or a quote, so value
+# extraction forms (`jq -r`, `jq -er`) do not match. Further exclusions:
+# run-wrapped (status goes to $status), || fail / || return routed, or an
+# assignment capture `x=$(...)`.
+function is_dead_candidate(line) {
+  if (line !~ /\|[[:space:]]*jq[[:space:]]+-e([[:space:]]|$|'"'"')/) return 0
+  if (line ~ /^[[:space:]]*run[[:space:]]/) return 0
+  if (line ~ /\|\|[[:space:]]*(fail|return)/) return 0
+  if (line ~ /=[[:space:]]*\$\(/) return 0
+  return 1
+}
+
+function trim(s) {
+  sub(/^[[:space:]]+/, "", s)
+  sub(/[[:space:]]+$/, "", s)
+  return s
+}
+' "$@"

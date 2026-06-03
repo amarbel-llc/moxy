@@ -133,10 +133,10 @@ EOF
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail ".content length check failed: $output"
   assert_valid_v0_content
   # The text content should contain the original output.
-  echo "$output" | jq -e '.content[0].text | contains("{\"ok\":true}")'
+  echo "$output" | jq -e '.content[0].text | contains("{\"ok\":true}")' || fail ".content[0].text contains check failed: $output"
 }
 
 # ===========================================================================
@@ -163,9 +163,9 @@ EOF
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail ".content length check failed: $output"
   assert_valid_v0_content
-  echo "$output" | jq -e '.content[0].text == "hello from mcp"'
+  echo "$output" | jq -e '.content[0].text == "hello from mcp"' || fail ".content[0].text check failed: $output"
 }
 
 # ===========================================================================
@@ -194,9 +194,9 @@ EOF
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail ".content length check failed: $output"
   assert_valid_v0_content
-  echo "$output" | jq -e '.content[0].text == "just plain text"'
+  echo "$output" | jq -e '.content[0].text == "just plain text"' || fail ".content[0].text check failed: $output"
 }
 
 # ===========================================================================
@@ -231,7 +231,7 @@ TOML
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail ".content length check failed: $output"
   assert_valid_v0_content
 }
 
@@ -259,11 +259,11 @@ EOF
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail ".content length check failed: $output"
   assert_valid_v1_content
-  echo "$output" | jq -e '.content[0].type == "resource"'
-  echo "$output" | jq -e '.content[0].resource.text == "hello"'
-  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"'
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail ".content[0].type check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.text == "hello"' || fail ".content[0].resource.text check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"' || fail ".content[0].resource.mimeType check failed: $output"
 }
 
 function v1_schema2_json_mimetype_resource_block_valid { # @test
@@ -290,11 +290,11 @@ TOML
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail ".content length check failed: $output"
   assert_valid_v1_content
-  echo "$output" | jq -e '.content[0].type == "resource"'
-  echo "$output" | jq -e '.content[0].resource != null'
-  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"'
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail ".content[0].type check failed: $output"
+  echo "$output" | jq -e '.content[0].resource != null' || fail ".content[0].resource non-null check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"' || fail ".content[0].resource.mimeType check failed: $output"
 }
 
 # ===========================================================================
@@ -324,12 +324,12 @@ EOF
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length == 2'
+  echo "$output" | jq -e '.content | length == 2' || fail ".content length check failed: $output"
   assert_valid_v0_content
   # First block: plain text, unchanged.
-  echo "$output" | jq -e '.content[0].text == "summary"'
+  echo "$output" | jq -e '.content[0].text == "summary"' || fail ".content[0].text check failed: $output"
   # Second block: was text+mimeType, should be downgraded to text.
-  echo "$output" | jq -e '.content[1].text == "{\"data\":1}"'
+  echo "$output" | jq -e '.content[1].text == "{\"data\":1}"' || fail ".content[1].text check failed: $output"
 }
 
 # ===========================================================================
@@ -372,7 +372,7 @@ EOF
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
   assert_valid_v1_content
-  echo "$output" | jq -e '(.content | length) == 0'
+  echo "$output" | jq -e '(.content | length) == 0' || fail ".content length == 0 check failed: $output"
 }
 
 function v0_empty_text_with_mimetype_dropped { # @test
@@ -397,7 +397,7 @@ EOF
   run_moxy_mcp "tools/call" "$params"
   assert_success
   assert_valid_v0_content
-  echo "$output" | jq -e '(.content | length) == 0'
+  echo "$output" | jq -e '(.content | length) == 0' || fail ".content length == 0 check failed: $output"
 }
 
 function v1_empty_text_with_json_mimetype_still_valid { # @test
@@ -452,6 +452,6 @@ function v0_grit_diff_content_blocks_claude_compatible { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail ".content length check failed: $output"
   assert_valid_v0_content
 }

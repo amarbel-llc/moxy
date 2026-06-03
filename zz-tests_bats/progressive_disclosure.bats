@@ -42,8 +42,8 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp resources/templates/list
   assert_success
-  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "moxy://tools/{server}")'
-  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "moxy://tools/{server}/{tool}")'
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "moxy://tools/{server}")' || fail ".resourceTemplates[] | select(.uriTemplate == \"moxy://tools/{server}\") check failed: $output"
+  echo "$output" | jq -e '.resourceTemplates[] | select(.uriTemplate == "moxy://tools/{server}/{tool}")' || fail ".resourceTemplates[] | select(.uriTemplate == \"moxy://tools/{server}/{tool}\") check failed: $output"
 }
 
 function moxy_tools_resource_lists_tools { # @test
@@ -71,8 +71,8 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp resources/read '{"uri":"moxy://tools/srv/execute-command"}'
   assert_success
-  echo "$output" | jq -r '.contents[0].text' | jq -e '.name == "execute-command"'
-  echo "$output" | jq -r '.contents[0].text' | jq -e '.inputSchema.properties.cmd'
+  echo "$output" | jq -r '.contents[0].text' | jq -e '.name == "execute-command"' || fail ".name == \"execute-command\" check failed: $output"
+  echo "$output" | jq -r '.contents[0].text' | jq -e '.inputSchema.properties.cmd' || fail ".inputSchema.properties.cmd check failed: $output"
 }
 
 

@@ -48,8 +48,8 @@ EOF
   assert_success
 
   # Should output an allow decision
-  echo "$output" | jq -e '.hookSpecificOutput.permissionDecision == "allow"'
-  echo "$output" | jq -e '.hookSpecificOutput.hookEventName == "PreToolUse"'
+  echo "$output" | jq -e '.hookSpecificOutput.permissionDecision == "allow"' || fail ".hookSpecificOutput.permissionDecision == \"allow\" check failed: $output"
+  echo "$output" | jq -e '.hookSpecificOutput.hookEventName == "PreToolUse"' || fail ".hookSpecificOutput.hookEventName == \"PreToolUse\" check failed: $output"
 }
 
 function hook_falls_through_for_non_auto_allow_tool { # @test
@@ -123,7 +123,7 @@ EOF
   # safe should be allowed
   run_moxy_hook "mcp__moxy__multi_safe"
   assert_success
-  echo "$output" | jq -e '.hookSpecificOutput.permissionDecision == "allow"'
+  echo "$output" | jq -e '.hookSpecificOutput.permissionDecision == "allow"' || fail ".hookSpecificOutput.permissionDecision == \"allow\" check failed: $output"
 
   # dangerous should fall through
   run_moxy_hook "mcp__moxy__multi_dangerous"

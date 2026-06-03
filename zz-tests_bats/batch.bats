@@ -40,9 +40,9 @@ function batch_tool_listed_with_destructive_hint { # @test
   assert_success
   # batch tool listed, gated by destructiveHint annotation so MCP
   # clients prompt the user before each invocation.
-  echo "$output" | jq -e '.tools[] | select(.name == "batch")'
-  echo "$output" | jq -e '.tools[] | select(.name == "batch") | .annotations.destructiveHint == true'
-  echo "$output" | jq -e '.tools[] | select(.name == "batch") | .annotations.readOnlyHint == false'
+  echo "$output" | jq -e '.tools[] | select(.name == "batch")' || fail '.tools[] | select(.name == "batch") check failed: '"$output"
+  echo "$output" | jq -e '.tools[] | select(.name == "batch") | .annotations.destructiveHint == true' || fail '.tools[] | select(.name == "batch") | .annotations.destructiveHint == true check failed: '"$output"
+  echo "$output" | jq -e '.tools[] | select(.name == "batch") | .annotations.readOnlyHint == false' || fail '.tools[] | select(.name == "batch") | .annotations.readOnlyHint == false check failed: '"$output"
 }
 
 function batch_happy_path_two_moxin_calls { # @test
@@ -94,15 +94,15 @@ function batch_preflight_deny_aborts_on_unknown_tool { # @test
   assert_success
 
   # IsError set on the ToolCallResultV1.
-  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.isError == true' || fail '.isError == true check failed: '"$output"
 
   local text
   text=$(echo "$output" | jq -r '.content[0].text')
   # NDJSON stream contains a bailout record.
-  echo "$text" | jq -e 'select(.type == "bailout")'
+  echo "$text" | jq -e 'select(.type == "bailout")' || fail 'select(.type == "bailout") check failed: '"$text"
   # Summary marks the batch as bailed and invalid.
-  echo "$text" | jq -e 'select(.type == "summary") | .bailed == true'
-  echo "$text" | jq -e 'select(.type == "summary") | .valid == false'
+  echo "$text" | jq -e 'select(.type == "summary") | .bailed == true' || fail 'select(.type == "summary") | .bailed == true check failed: '"$text"
+  echo "$text" | jq -e 'select(.type == "summary") | .valid == false' || fail 'select(.type == "summary") | .valid == false check failed: '"$text"
 }
 
 function batch_rejects_empty_calls_array { # @test
@@ -110,8 +110,8 @@ function batch_rejects_empty_calls_array { # @test
   cd "$HOME/repo"
   run_moxy_mcp tools/call '{"name":"batch","arguments":{"calls":[]}}'
   assert_success
-  echo "$output" | jq -e '.isError == true'
-  echo "$output" | jq -e '.content[0].text | test("non-empty")'
+  echo "$output" | jq -e '.isError == true' || fail '.isError == true check failed: '"$output"
+  echo "$output" | jq -e '.content[0].text | test("non-empty")' || fail '.content[0].text | test("non-empty") check failed: '"$output"
 }
 
 function batch_rejects_malformed_args { # @test
@@ -120,5 +120,5 @@ function batch_rejects_malformed_args { # @test
   # Missing required "calls" field. Tier 1 error: parsed but empty.
   run_moxy_mcp tools/call '{"name":"batch","arguments":{}}'
   assert_success
-  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.isError == true' || fail '.isError == true check failed: '"$output"
 }

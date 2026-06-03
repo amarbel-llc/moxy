@@ -122,7 +122,7 @@ EOF
   run_moxy_mcp "tools/list"
   assert_success
   # greeter.hello should still appear (it's a moxin, not a moxyfile server)
-  echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")'
+  echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")' || fail ".tools[] | select(.name == \"greeter.hello\") check failed: $output"
   # myecho should still appear (not in disable-servers list)
   echo "$output" | jq -e '.tools[] | select(.name == "myecho.execute-command")'
 }

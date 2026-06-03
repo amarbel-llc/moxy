@@ -74,9 +74,9 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   # grit tools are present
-  echo "$output" | jq -e '.tools[] | select(.name | startswith("grit."))'
+  echo "$output" | jq -e '.tools[] | select(.name | startswith("grit."))' || fail ".tools[] | select(.name | startswith(\"grit.\")) check failed: $output"
   # broken.status is present
-  echo "$output" | jq -e '.tools[] | select(.name == "broken.status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "broken.status")' || fail ".tools[] | select(.name == \"broken.status\") check failed: $output"
 }
 
 function all_servers_broken_still_starts { # @test
@@ -97,7 +97,7 @@ EOF
   run_moxy_mcp tools/list
   assert_success
   # 2 status tools + builtin native server tools
-  echo "$output" | jq -e '.tools | length > 1'
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-a.status")'
-  echo "$output" | jq -e '.tools[] | select(.name == "broken-b.status")'
+  echo "$output" | jq -e '.tools | length > 1' || fail ".tools | length > 1 check failed: $output"
+  echo "$output" | jq -e '.tools[] | select(.name == "broken-a.status")' || fail ".tools[] | select(.name == \"broken-a.status\") check failed: $output"
+  echo "$output" | jq -e '.tools[] | select(.name == "broken-b.status")' || fail ".tools[] | select(.name == \"broken-b.status\") check failed: $output"
 }

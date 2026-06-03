@@ -76,7 +76,7 @@ EOF
   run_moxy_mcp "tools/list"
   assert_success
   # Local override should win: "greet" tool present, "hello" tool absent
-  echo "$output" | jq -e '.tools[] | select(.name == "greeter.greet")'
+  echo "$output" | jq -e '.tools[] | select(.name == "greeter.greet")' || fail ".tools[] | select(.name == \"greeter.greet\") check failed: $output"
   run jq -e '.tools[] | select(.name == "greeter.hello")' <<<"$output"
   assert_failure
 }

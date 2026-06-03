@@ -71,7 +71,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp_with_stderr tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")' || fail ".tools[] | select(.name == \"srv.execute-command\") check failed: $output"
   echo "$MOXY_STDERR" | grep -q "ephemeral"
 }
 
@@ -109,8 +109,8 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/list
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "persistent.execute-command")'
-  echo "$output" | jq -e '.tools[] | select(.name == "ephemeral-srv.execute-command")'
+  echo "$output" | jq -e '.tools[] | select(.name == "persistent.execute-command")' || fail ".tools[] | select(.name == \"persistent.execute-command\") check failed: $output"
+  echo "$output" | jq -e '.tools[] | select(.name == "ephemeral-srv.execute-command")' || fail ".tools[] | select(.name == \"ephemeral-srv.execute-command\") check failed: $output"
 }
 
 function ephemeral_restart_reprobes { # @test

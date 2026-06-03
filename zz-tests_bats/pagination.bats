@@ -24,7 +24,7 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp resources/read '{"uri":"res/test://items"}'
   assert_success
-  echo "$output" | jq -e '.contents[0].text == "[1,2,3,4,5,6,7,8,9,10]"'
+  echo "$output" | jq -e '.contents[0].text == "[1,2,3,4,5,6,7,8,9,10]"' || fail '.contents[0].text == "[1,2,3,4,5,6,7,8,9,10]" check failed: '"$output"
 }
 
 function pagination_slices_with_offset_and_limit { # @test
@@ -41,10 +41,10 @@ EOF
   assert_success
   local text
   text=$(echo "$output" | jq -r '.contents[0].text')
-  echo "$text" | jq -e '.total == 10'
-  echo "$text" | jq -e '.offset == 0'
-  echo "$text" | jq -e '.limit == 3'
-  echo "$text" | jq -e '.items == [1,2,3]'
+  echo "$text" | jq -e '.total == 10' || fail '.total == 10 check failed: '"$text"
+  echo "$text" | jq -e '.offset == 0' || fail '.offset == 0 check failed: '"$text"
+  echo "$text" | jq -e '.limit == 3' || fail '.limit == 3 check failed: '"$text"
+  echo "$text" | jq -e '.items == [1,2,3]' || fail '.items == [1,2,3] check failed: '"$text"
 }
 
 function pagination_second_page { # @test
@@ -61,8 +61,8 @@ EOF
   assert_success
   local text
   text=$(echo "$output" | jq -r '.contents[0].text')
-  echo "$text" | jq -e '.items == [4,5,6]'
-  echo "$text" | jq -e '.total == 10'
+  echo "$text" | jq -e '.items == [4,5,6]' || fail '.items == [4,5,6] check failed: '"$text"
+  echo "$text" | jq -e '.total == 10' || fail '.total == 10 check failed: '"$text"
 }
 
 function pagination_last_page_partial { # @test
@@ -79,8 +79,8 @@ EOF
   assert_success
   local text
   text=$(echo "$output" | jq -r '.contents[0].text')
-  echo "$text" | jq -e '.items == [9,10]'
-  echo "$text" | jq -e '.total == 10'
+  echo "$text" | jq -e '.items == [9,10]' || fail '.items == [9,10] check failed: '"$text"
+  echo "$text" | jq -e '.total == 10' || fail '.total == 10 check failed: '"$text"
 }
 
 function pagination_disabled_passes_through { # @test
@@ -96,7 +96,7 @@ EOF
   assert_success
   # Without paginate=true, query params are forwarded as-is (server ignores them)
   # and the full array is returned
-  echo "$output" | jq -e '.contents[0].text == "[1,2,3,4,5,6,7,8,9,10]"'
+  echo "$output" | jq -e '.contents[0].text == "[1,2,3,4,5,6,7,8,9,10]"' || fail '.contents[0].text == "[1,2,3,4,5,6,7,8,9,10]" check failed: '"$output"
 }
 
 function pagination_default_limit { # @test
@@ -113,9 +113,9 @@ EOF
   assert_success
   local text
   text=$(echo "$output" | jq -r '.contents[0].text')
-  echo "$text" | jq -e '.limit == 50'
+  echo "$text" | jq -e '.limit == 50' || fail '.limit == 50 check failed: '"$text"
   # All 10 items returned since 10 < 50
-  echo "$text" | jq -e '.items == [1,2,3,4,5,6,7,8,9,10]'
+  echo "$text" | jq -e '.items == [1,2,3,4,5,6,7,8,9,10]' || fail '.items == [1,2,3,4,5,6,7,8,9,10] check failed: '"$text"
 }
 
 function pagination_non_array_passes_through { # @test
@@ -131,7 +131,7 @@ EOF
   run_moxy_mcp resources/read '{"uri":"res/test://status?offset=0&limit=3"}'
   assert_success
   # JSON object (not array) passes through unchanged despite pagination params
-  echo "$output" | jq -e '.contents[0].text == "{\"ok\":true,\"count\":42}"'
+  echo "$output" | jq -e '.contents[0].text == "{\"ok\":true,\"count\":42}"' || fail '.contents[0].text == "{\"ok\":true,\"count\":42}" check failed: '"$output"
 }
 
 function pagination_offset_beyond_end_returns_empty { # @test
@@ -148,7 +148,7 @@ EOF
   assert_success
   local text
   text=$(echo "$output" | jq -r '.contents[0].text')
-  echo "$text" | jq -e '.items == []'
-  echo "$text" | jq -e '.total == 10'
-  echo "$text" | jq -e '.offset == 100'
+  echo "$text" | jq -e '.items == []' || fail '.items == [] check failed: '"$text"
+  echo "$text" | jq -e '.total == 10' || fail '.total == 10 check failed: '"$text"
+  echo "$text" | jq -e '.offset == 100' || fail '.offset == 100 check failed: '"$text"
 }

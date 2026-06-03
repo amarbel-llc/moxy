@@ -56,7 +56,7 @@ function grit_diff_unstaged_changes { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail '.content | length > 0 check failed: '"$output"
   assert_no_mimetype_on_text_blocks
   assert_resource_blocks_have_resource_field
 }
@@ -69,7 +69,7 @@ function grit_diff_staged_changes { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail '.content | length > 0 check failed: '"$output"
   assert_no_mimetype_on_text_blocks
   assert_resource_blocks_have_resource_field
 }
@@ -81,7 +81,7 @@ function grit_diff_stat_only { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail '.content | length > 0 check failed: '"$output"
   assert_no_mimetype_on_text_blocks
   assert_resource_blocks_have_resource_field
 }
@@ -103,7 +103,7 @@ function grit_diff_staged_stat_only { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content | length > 0'
+  echo "$output" | jq -e '.content | length > 0' || fail '.content | length > 0 check failed: '"$output"
   assert_no_mimetype_on_text_blocks
   assert_resource_blocks_have_resource_field
 }

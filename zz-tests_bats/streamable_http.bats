@@ -118,7 +118,7 @@ function sse_receives_list_changed_after_restart { # @test
 
   http_post_mcp "tools/call" '{"name":"restart","arguments":{"server":"srv"}}' "$sid"
   assert_equal "$HTTP_STATUS" "200"
-  echo "$output" | jq -e '.result.content[0].text | test("restarted successfully")'
+  echo "$output" | jq -e '.result.content[0].text | test("restarted successfully")' || fail ".result.content[0].text | test(\"restarted successfully\") check failed: $output"
 
   run sse_wait_for "$sse_out" "notifications/tools/list_changed" 5
   if [[ $status -ne 0 ]]; then

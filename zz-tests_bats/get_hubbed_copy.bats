@@ -115,9 +115,9 @@ function copy_file_output_JSON_has_expected_fields { # @test
   dest="$HOME/out/file2.txt"
   run "$BIN/copy-file" "src/file.txt" "$dest" "" "test-org/test-repo"
   assert_success
-  echo "$output" | jq -e '.bytes_written > 0'
-  echo "$output" | jq -e '.source_sha == "abc123"'
-  echo "$output" | jq -e '.dest_path | endswith("file2.txt")'
+  echo "$output" | jq -e '.bytes_written > 0' || fail '.bytes_written > 0 check failed: '"$output"
+  echo "$output" | jq -e '.source_sha == "abc123"' || fail '.source_sha == "abc123" check failed: '"$output"
+  echo "$output" | jq -e '.dest_path | endswith("file2.txt")' || fail '.dest_path | endswith("file2.txt") check failed: '"$output"
 }
 
 # copy-file: creates parent directories
@@ -147,9 +147,9 @@ function copy_tree_output_JSON_reports_correct_file_count { # @test
   dest="$HOME/out/tree2"
   run "$BIN/copy-tree" "mydir" "$dest" "" "test-org/test-repo"
   assert_success
-  echo "$output" | jq -e '.files_copied == 2'
-  echo "$output" | jq -e '.paths | length == 2'
-  echo "$output" | jq -e '.source_sha == "deadbeef"'
+  echo "$output" | jq -e '.files_copied == 2' || fail '.files_copied == 2 check failed: '"$output"
+  echo "$output" | jq -e '.paths | length == 2' || fail '.paths | length == 2 check failed: '"$output"
+  echo "$output" | jq -e '.source_sha == "deadbeef"' || fail '.source_sha == "deadbeef" check failed: '"$output"
 }
 
 # copy-write-perms: allows dest inside CWD

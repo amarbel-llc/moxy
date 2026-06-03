@@ -40,10 +40,10 @@ EOF
   assert_success
 
   # list-items has readOnlyHint=true — should match via OR.
-  echo "$output" | jq -e '.tools[] | select(.name == "srv.list-items")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.list-items")' || fail ".tools[] | select(.name == \"srv.list-items\") check failed: $output"
 
   # update-item has idempotentHint=true — should match via OR.
-  echo "$output" | jq -e '.tools[] | select(.name == "srv.update-item")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.update-item")' || fail ".tools[] | select(.name == \"srv.update-item\") check failed: $output"
 
   # delete-item has no annotations — should NOT match.
   local count
@@ -68,7 +68,7 @@ EOF
   assert_success
 
   # list-items has readOnlyHint=true — match.
-  echo "$output" | jq -e '.tools[] | select(.name == "srv.list-items")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.list-items")' || fail ".tools[] | select(.name == \"srv.list-items\") check failed: $output"
 
   # update-item has readOnlyHint=false — no match.
   local update_count

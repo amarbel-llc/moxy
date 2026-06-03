@@ -30,7 +30,7 @@ EOF
   export MOXIN_PATH="$moxin_dir"
   run_moxy_mcp "tools/list"
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")'
+  echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")' || fail "greeter.hello tool select failed: $output"
 }
 
 function native_server_tool_can_be_called { # @test
@@ -85,7 +85,7 @@ EOF
   # The native tool should NOT appear (moxyfile server wins).
   # The moxyfile server will fail to start (echo exits immediately),
   # so we get a status tool instead.
-  echo "$output" | jq -e '.tools[] | select(.name == "myserver.status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "myserver.status")' || fail "myserver.status tool select failed: $output"
   # Verify native tool is not present
   run jq -e '.tools[] | select(.name == "myserver.native-tool")' <<<"$output"
   assert_failure
@@ -116,8 +116,8 @@ EOF
   export MOXIN_PATH="$moxin_dir"
   run_moxy_mcp "tools/list"
   assert_success
-  echo "$output" | jq -e '.tools[] | select(.name == "multi.first")'
-  echo "$output" | jq -e '.tools[] | select(.name == "multi.second")'
+  echo "$output" | jq -e '.tools[] | select(.name == "multi.first")' || fail "multi.first tool select failed: $output"
+  echo "$output" | jq -e '.tools[] | select(.name == "multi.second")' || fail "multi.second tool select failed: $output"
 }
 
 function native_server_content_type_sets_mimetype { # @test
@@ -140,10 +140,10 @@ EOF
   local params='{"name":"typed.api"}'
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.content[0].type == "resource"'
-  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"'
-  echo "$output" | jq -e '.content[0].resource.text == "{\"ok\":true}"'
-  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")'
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail ".content[0].type check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.mimeType == "application/json"' || fail ".content[0].resource.mimeType check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.text == "{\"ok\":true}"' || fail ".content[0].resource.text check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")' || fail ".content[0].resource.uri startswith check failed: $output"
 }
 
 function native_server_schema2_mcp_result_passthrough { # @test
@@ -165,9 +165,9 @@ EOF
   local params='{"name":"s2.api"}'
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.content[0].type == "resource"'
-  echo "$output" | jq -e '.content[0].resource.text == "hello from mcp"'
-  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"'
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail ".content[0].type check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.text == "hello from mcp"' || fail ".content[0].resource.text check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"' || fail ".content[0].resource.mimeType check failed: $output"
 }
 
 function native_server_schema2_nonzero_exit_ignores_stdout { # @test
@@ -189,7 +189,7 @@ EOF
   local params='{"name":"s2fail.bad"}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.isError == true' || fail ".isError check failed: $output"
 }
 
 function native_server_schema2_iserror_respected { # @test
@@ -211,8 +211,8 @@ EOF
   local params='{"name":"s2err.err"}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.isError == true'
-  echo "$output" | jq -e '.content[0].text == "tool error"'
+  echo "$output" | jq -e '.isError == true' || fail ".isError check failed: $output"
+  echo "$output" | jq -e '.content[0].text == "tool error"' || fail ".content[0].text check failed: $output"
 }
 
 function native_server_schema2_invalid_json_returns_error { # @test
@@ -234,7 +234,7 @@ EOF
   local params='{"name":"s2bad.broken"}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.isError == true'
+  echo "$output" | jq -e '.isError == true' || fail ".isError check failed: $output"
   assert_output --partial "invalid MCP result JSON"
 }
 
@@ -259,7 +259,7 @@ EOF
   local params='{"name":"s2text.plain"}'
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
-  echo "$output" | jq -e '.content[0].type == "resource"'
-  echo "$output" | jq -e '.content[0].resource.text == "just plain text"'
-  echo "$output" | jq -e '.content[0].resource.mimeType == "text/csv"'
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail ".content[0].type check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.text == "just plain text"' || fail ".content[0].resource.text check failed: $output"
+  echo "$output" | jq -e '.content[0].resource.mimeType == "text/csv"' || fail ".content[0].resource.mimeType check failed: $output"
 }

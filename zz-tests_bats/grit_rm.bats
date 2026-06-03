@@ -34,7 +34,7 @@ function grit_rm_single_file { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.isError != true'
+  echo "$output" | jq -e '.isError != true' || fail '.isError != true check failed: '"$output"
   # git should have staged the deletion.
   run git -C "$HOME/repo" status --porcelain file.txt
   assert_output "D  file.txt"
@@ -48,7 +48,7 @@ function grit_rm_directory_recursive { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.isError != true'
+  echo "$output" | jq -e '.isError != true' || fail '.isError != true check failed: '"$output"
   run git -C "$HOME/repo" status --porcelain subdir/nested.txt
   assert_output "D  subdir/nested.txt"
 }
@@ -60,6 +60,6 @@ function grit_rm_directory_without_recursive_fails { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.isError == true'
-  echo "$output" | jq -e '.content[0].text | test("not removing")'
+  echo "$output" | jq -e '.isError == true' || fail '.isError == true check failed: '"$output"
+  echo "$output" | jq -e '.content[0].text | test("not removing")' || fail '.content[0].text | test("not removing") check failed: '"$output"
 }

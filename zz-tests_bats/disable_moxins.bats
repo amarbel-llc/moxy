@@ -156,7 +156,7 @@ EOF
   assert_success
   # myserver should still appear (it's a moxyfile server, not a moxin)
   # It will fail to start, so we get a status tool
-  echo "$output" | jq -e '.tools[] | select(.name == "myserver.status")'
+  echo "$output" | jq -e '.tools[] | select(.name == "myserver.status")' || fail ".tools[] | select(.name == \"myserver.status\") check failed: $output"
   # greeter should still appear (not in disable list)
   echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")'
 }

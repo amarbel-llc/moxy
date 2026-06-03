@@ -31,10 +31,8 @@ function push_stack_pushes_a_clean_three_branch_chain { # @test
   run bash -c '"$1" "$2" "$3" "$4" 2>/dev/null' -- \
     "$BIN/push-stack" "$branches_json" origin "$STACK_WORK"
   assert_success
-  echo "$output" | jq -e '.phase == "push"' >/dev/null \
-    || { echo "expected .phase == push; got: $output" >&2; false; }
-  echo "$output" | jq -e '.results | length == 3' >/dev/null \
-    || { echo "expected .results length == 3; got: $output" >&2; false; }
+  echo "$output" | jq -e '.phase == "push"' >/dev/null || fail "expected .phase == push; got: $output"
+  echo "$output" | jq -e '.results | length == 3' >/dev/null || fail "expected .results length == 3; got: $output"
   echo "$output" | jq -e '[.results[].status] | all(. == "ok")' >/dev/null \
     || { echo "expected all .results[].status == ok; got: $output" >&2; false; }
 }
@@ -63,10 +61,8 @@ function push_stack_dry_run_rejects_when_remote_has_diverged { # @test
   run bash -c '"$1" "$2" "$3" "$4" 2>/dev/null' -- \
     "$BIN/push-stack" "$branches_json" origin "$STACK_WORK"
   assert_failure
-  echo "$output" | jq -e '.phase == "dry-run"' >/dev/null \
-    || { echo "expected .phase == dry-run; got: $output" >&2; false; }
-  echo "$output" | jq -e --arg b "$STACK_BRANCH_B" '.results[] | select(.branch == $b and .status == "rejected")' >/dev/null \
-    || { echo "expected branch $STACK_BRANCH_B status==rejected; got: $output" >&2; false; }
+  echo "$output" | jq -e '.phase == "dry-run"' >/dev/null || fail "expected .phase == dry-run; got: $output"
+  echo "$output" | jq -e --arg b "$STACK_BRANCH_B" '.results[] | select(.branch == $b and .status == "rejected")' >/dev/null || fail "expected branch $STACK_BRANCH_B status==rejected; got: $output"
 
   # confirm no real pushes happened on branch A: remote tip on A still matches its pre-test push state
   remote_a=$(cd "$STACK_REMOTE" && git rev-parse "refs/heads/$STACK_BRANCH_A")

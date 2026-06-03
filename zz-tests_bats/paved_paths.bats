@@ -45,7 +45,7 @@ function no_paved_paths_file_shows_all_tools { # @test
   run_moxy_mcp tools/list
   assert_success
   # Child server tool should appear normally
-  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")' || fail '.tools[] | select(.name == "srv.execute-command") check failed: '"$output"
 }
 
 # 2. With paved-paths file, before any selection → only paved-paths tool visible
@@ -56,7 +56,7 @@ function paved_paths_before_selection_hides_child_tools { # @test
   run_moxy_mcp tools/list
   assert_success
   # paved-paths meta tool must be present
-  echo "$output" | jq -e '.tools[] | select(.name == "paved-paths")'
+  echo "$output" | jq -e '.tools[] | select(.name == "paved-paths")' || fail '.tools[] | select(.name == "paved-paths") check failed: '"$output"
   # Child tool must be hidden
   local count
   count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.execute-command")] | length')
@@ -70,8 +70,8 @@ function paved_paths_no_args_lists_available_paths { # @test
   cd "$HOME/repo"
   run_moxy_mcp tools/call '{"name":"paved-paths","arguments":{}}'
   assert_success
-  echo "$output" | jq -e '.content[0].text | test("test-path")'
-  echo "$output" | jq -e '.content[0].text | test("A test paved path")'
+  echo "$output" | jq -e '.content[0].text | test("test-path")' || fail '.content[0].text | test("test-path") check failed: '"$output"
+  echo "$output" | jq -e '.content[0].text | test("A test paved path")' || fail '.content[0].text | test("A test paved path") check failed: '"$output"
 }
 
 # 5. After selecting a path, stage 0 tools become visible
@@ -84,9 +84,9 @@ function paved_paths_select_unlocks_stage_tools { # @test
     tools/list
   assert_success
   # Stage 0 tool must now appear
-  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")' || fail '.tools[] | select(.name == "srv.execute-command") check failed: '"$output"
   # paved-paths meta tool must still be present
-  echo "$output" | jq -e '.tools[] | select(.name == "paved-paths")'
+  echo "$output" | jq -e '.tools[] | select(.name == "paved-paths")' || fail '.tools[] | select(.name == "paved-paths") check failed: '"$output"
 }
 
 # 6. Selecting an unknown path returns an error result
@@ -96,7 +96,7 @@ function paved_paths_select_unknown_path_returns_error { # @test
   cd "$HOME/repo"
   run_moxy_mcp tools/call '{"name":"paved-paths","arguments":{"select":"nonexistent"}}'
   assert_success
-  echo "$output" | jq -e '.content[0].text | test("unknown path")'
+  echo "$output" | jq -e '.content[0].text | test("unknown path")' || fail '.content[0].text | test("unknown path") check failed: '"$output"
 }
 
 # 7. paved-paths with no args after selection shows current stage status
@@ -109,8 +109,8 @@ function paved_paths_status_after_selection { # @test
     tools/call '{"name":"paved-paths","arguments":{}}'
   assert_success
   # Status should mention the selected path and current stage
-  echo "$output" | jq -e '.content[0].text | test("test-path")'
-  echo "$output" | jq -e '.content[0].text | test("first")'
+  echo "$output" | jq -e '.content[0].text | test("test-path")' || fail '.content[0].text | test("test-path") check failed: '"$output"
+  echo "$output" | jq -e '.content[0].text | test("first")' || fail '.content[0].text | test("first") check failed: '"$output"
 }
 
 # 8. After calling the stage 0 tool, tools/list advances to stage 1
@@ -152,7 +152,7 @@ EOF
 
   assert_success
   # After completing the only stage, path is complete — all tools should be visible
-  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")'
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")' || fail '.tools[] | select(.name == "srv.execute-command") check failed: '"$output"
 }
 
 # 9. Multiple paths: all paths shown when calling paved-paths with no args
@@ -179,6 +179,6 @@ EOF
   cd "$HOME/repo"
   run_moxy_mcp tools/call '{"name":"paved-paths","arguments":{}}'
   assert_success
-  echo "$output" | jq -e '.content[0].text | test("alpha")'
-  echo "$output" | jq -e '.content[0].text | test("beta")'
+  echo "$output" | jq -e '.content[0].text | test("alpha")' || fail '.content[0].text | test("alpha") check failed: '"$output"
+  echo "$output" | jq -e '.content[0].text | test("beta")' || fail '.content[0].text | test("beta") check failed: '"$output"
 }
