@@ -39,9 +39,28 @@ build-go: generate build-moxins
 build-moxins:
   nix build --keep-going --out-link result-moxins .#moxy-moxins
 
+# Regenerate the tommy codec, deterministically, against the flake input
+# closure (mirrors dodder's `nix develop -c go generate`): `nix develop -c`
+# runs go generate with the flake's pinned tommy on PATH — the same input
+# flake-input-go_mod routes the cst *library* from — rather than whatever
+# ambient `tommy` (devshell vs ~/.nix-profile) happens to resolve first and
+# emit stale-API code. The //go:generate directive lives in
+# internal/config/schema.
+#
+# Delete the stale generated file first (like madder's generate-tommy): tommy's
+# analyze step type-checks the whole package and aborts if a prior generated
+# file references a since-renamed cst API. The schema package is structured to
+# compile without it, so removing it always leaves a regenerable package.
+#
+# `nix fmt` last applies the flake treefmt (gofumpt): tommy emits plain gofmt
+# with no blank lines between top-level funcs, which lint-fmt would reject.
 [group("build")]
 generate:
-  go generate ./internal/config/
+  #!/usr/bin/env bash
+  set -euo pipefail
+  rm -f internal/config/schema/schema_tommy.go
+  nix develop -c go generate ./internal/config/...
+  nix fmt internal/config
 
 [group("build")]
 build-gomod2nix:

@@ -153,64 +153,40 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 			}
 		}
 		{
-			_pi := 0
-			for _, _rc := range d.cstDoc.Root().Children {
-				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == "servers" {
-					if _pi > i {
-						break
-					}
-					_pi++
-					continue
-				}
-				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == "servers.headers" {
-					d.data.Servers[i].Headers = cst.ExtractStringMap(_rc)
-					d.consumed["servers.headers"] = true
-					for _ik := range d.data.Servers[i].Headers {
-						d.consumed["servers.headers"+"."+_ik] = true
-					}
-					break
+			_ctServersHeaders := cst.FindChildTable(d.cstDoc.Root(), _node, "headers")
+			if _ctServersHeaders != nil {
+				d.data.Servers[i].Headers = cst.ExtractStringMap(_ctServersHeaders)
+				d.consumed["servers.headers"] = true
+				for _ik := range d.data.Servers[i].Headers {
+					d.consumed["servers.headers"+"."+_ik] = true
 				}
 			}
 		}
 		{
-			var _ftServersOauth *cst.Node
-			_pi := 0
-			for _, _rc := range d.cstDoc.Root().Children {
-				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == "servers" {
-					if _pi > i {
-						break
-					}
-					_pi++
-					continue
-				}
-				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == "servers.oauth" {
-					_ftServersOauth = _rc
-					break
-				}
-			}
-			if _ftServersOauth != nil {
+			_ctServersOauth := cst.FindChildTable(d.cstDoc.Root(), _node, "oauth")
+			if _ctServersOauth != nil {
 				d.consumed["servers.oauth"] = true
-				oAuthVal := &OAuthConfig{}
-				for _, _kv := range _ftServersOauth.Children {
+				oAuthVal0 := &OAuthConfig{}
+				for _, _kv := range _ctServersOauth.Children {
 					if _kv.Kind != cst.NodeKeyValue {
 						continue
 					}
 					switch cst.KeyValueName(_kv) {
 					case "client-id":
 						if v, ok := cst.ExtractString(_kv); ok {
-							oAuthVal.ClientID = v
+							oAuthVal0.ClientID = v
 							d.consumed["servers.oauth.client-id"] = true
 						}
 					case "callback-port":
 						if v, ok := cst.ExtractInt(_kv); ok {
-							oAuthVal.CallbackPort = v
+							oAuthVal0.CallbackPort = v
 							d.consumed["servers.oauth.callback-port"] = true
 						}
 					}
 				}
-				d.data.Servers[i].OAuth = oAuthVal
+				d.data.Servers[i].OAuth = oAuthVal0
 			} else {
-				oAuthVal := &OAuthConfig{}
+				oAuthVal0 := &OAuthConfig{}
 				_found := false
 				for _, _kv := range _node.Children {
 					if _kv.Kind != cst.NodeKeyValue {
@@ -219,72 +195,58 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 					switch cst.KeyValueName(_kv) {
 					case "client-id":
 						if v, ok := cst.ExtractString(_kv); ok {
-							oAuthVal.ClientID = v
+							oAuthVal0.ClientID = v
 							_found = true
 							d.consumed["client-id"] = true
 						}
 					case "callback-port":
 						if v, ok := cst.ExtractInt(_kv); ok {
-							oAuthVal.CallbackPort = v
+							oAuthVal0.CallbackPort = v
 							_found = true
 							d.consumed["callback-port"] = true
 						}
 					}
 				}
 				if _found {
-					d.data.Servers[i].OAuth = oAuthVal
+					d.data.Servers[i].OAuth = oAuthVal0
 				}
 			}
 		}
 		{
-			var _ftServersAnnotations *cst.Node
-			_pi := 0
-			for _, _rc := range d.cstDoc.Root().Children {
-				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == "servers" {
-					if _pi > i {
-						break
-					}
-					_pi++
-					continue
-				}
-				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == "servers.annotations" {
-					_ftServersAnnotations = _rc
-					break
-				}
-			}
-			if _ftServersAnnotations != nil {
+			_ctServersAnnotations := cst.FindChildTable(d.cstDoc.Root(), _node, "annotations")
+			if _ctServersAnnotations != nil {
 				d.consumed["servers.annotations"] = true
-				annotationsVal := &AnnotationFilter{}
-				for _, _kv := range _ftServersAnnotations.Children {
+				annotationsVal1 := &AnnotationFilter{}
+				for _, _kv := range _ctServersAnnotations.Children {
 					if _kv.Kind != cst.NodeKeyValue {
 						continue
 					}
 					switch cst.KeyValueName(_kv) {
 					case "readOnlyHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.ReadOnlyHint = &v
+							annotationsVal1.ReadOnlyHint = &v
 							d.consumed["servers.annotations.readOnlyHint"] = true
 						}
 					case "destructiveHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.DestructiveHint = &v
+							annotationsVal1.DestructiveHint = &v
 							d.consumed["servers.annotations.destructiveHint"] = true
 						}
 					case "idempotentHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.IdempotentHint = &v
+							annotationsVal1.IdempotentHint = &v
 							d.consumed["servers.annotations.idempotentHint"] = true
 						}
 					case "openWorldHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.OpenWorldHint = &v
+							annotationsVal1.OpenWorldHint = &v
 							d.consumed["servers.annotations.openWorldHint"] = true
 						}
 					}
 				}
-				d.data.Servers[i].Annotations = annotationsVal
+				d.data.Servers[i].Annotations = annotationsVal1
 			} else {
-				annotationsVal := &AnnotationFilter{}
+				annotationsVal1 := &AnnotationFilter{}
 				_found := false
 				for _, _kv := range _node.Children {
 					if _kv.Kind != cst.NodeKeyValue {
@@ -293,41 +255,43 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 					switch cst.KeyValueName(_kv) {
 					case "readOnlyHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.ReadOnlyHint = &v
+							annotationsVal1.ReadOnlyHint = &v
 							_found = true
 							d.consumed["readOnlyHint"] = true
 						}
 					case "destructiveHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.DestructiveHint = &v
+							annotationsVal1.DestructiveHint = &v
 							_found = true
 							d.consumed["destructiveHint"] = true
 						}
 					case "idempotentHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.IdempotentHint = &v
+							annotationsVal1.IdempotentHint = &v
 							_found = true
 							d.consumed["idempotentHint"] = true
 						}
 					case "openWorldHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.OpenWorldHint = &v
+							annotationsVal1.OpenWorldHint = &v
 							_found = true
 							d.consumed["openWorldHint"] = true
 						}
 					}
 				}
 				if _found {
-					d.data.Servers[i].Annotations = annotationsVal
+					d.data.Servers[i].Annotations = annotationsVal1
 				}
 			}
 		}
 	}
 	return d, nil
 }
+
 func (d *ConfigDocument) Data() *Config {
 	return &d.data
 }
+
 func (d *ConfigDocument) Encode() ([]byte, error) {
 	if d.data.Ephemeral != nil {
 		if err := cst.SetAny(d.cstDoc.Root(), "ephemeral", *d.data.Ephemeral); err != nil {
@@ -470,21 +434,27 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 	}
 	return d.cstDoc.Bytes(), nil
 }
+
 func (d *ConfigDocument) Undecoded() []string {
 	return document.UndecodedKeys(d.cstDoc.Root(), d.consumed)
 }
+
 func (d *ConfigDocument) Comment(key string) string {
 	return d.cstDoc.GetComment(key)
 }
+
 func (d *ConfigDocument) SetComment(key, comment string) {
 	d.cstDoc.SetComment(key, comment)
 }
+
 func (d *ConfigDocument) InlineComment(key string) string {
 	return d.cstDoc.GetInlineComment(key)
 }
+
 func (d *ConfigDocument) SetInlineComment(key, comment string) {
 	d.cstDoc.SetInlineComment(key, comment)
 }
+
 func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node, consumed map[string]bool, keyPrefix string) error {
 	for _, _kv := range container.Children {
 		if _kv.Kind != cst.NodeKeyValue {
@@ -595,64 +565,40 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 			}
 		}
 		{
-			_pi := 0
-			for _, _rc := range doc.Root().Children {
-				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers" {
-					if _pi > i {
-						break
-					}
-					_pi++
-					continue
-				}
-				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers.headers" {
-					data.Servers[i].Headers = cst.ExtractStringMap(_rc)
-					consumed[keyPrefix+"servers.headers"] = true
-					for _ik := range data.Servers[i].Headers {
-						consumed[keyPrefix+"servers.headers"+"."+_ik] = true
-					}
-					break
+			_ctServersHeaders := cst.FindChildTable(doc.Root(), _node, "headers")
+			if _ctServersHeaders != nil {
+				data.Servers[i].Headers = cst.ExtractStringMap(_ctServersHeaders)
+				consumed[keyPrefix+"servers.headers"] = true
+				for _ik := range data.Servers[i].Headers {
+					consumed[keyPrefix+"servers.headers"+"."+_ik] = true
 				}
 			}
 		}
 		{
-			var _ftServersOauth *cst.Node
-			_pi := 0
-			for _, _rc := range doc.Root().Children {
-				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers" {
-					if _pi > i {
-						break
-					}
-					_pi++
-					continue
-				}
-				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers.oauth" {
-					_ftServersOauth = _rc
-					break
-				}
-			}
-			if _ftServersOauth != nil {
+			_ctServersOauth := cst.FindChildTable(doc.Root(), _node, "oauth")
+			if _ctServersOauth != nil {
 				consumed[keyPrefix+"servers.oauth"] = true
-				oAuthVal := &OAuthConfig{}
-				for _, _kv := range _ftServersOauth.Children {
+				oAuthVal0 := &OAuthConfig{}
+				for _, _kv := range _ctServersOauth.Children {
 					if _kv.Kind != cst.NodeKeyValue {
 						continue
 					}
 					switch cst.KeyValueName(_kv) {
 					case "client-id":
 						if v, ok := cst.ExtractString(_kv); ok {
-							oAuthVal.ClientID = v
+							oAuthVal0.ClientID = v
 							consumed[keyPrefix+"servers.oauth.client-id"] = true
 						}
 					case "callback-port":
 						if v, ok := cst.ExtractInt(_kv); ok {
-							oAuthVal.CallbackPort = v
+							oAuthVal0.CallbackPort = v
 							consumed[keyPrefix+"servers.oauth.callback-port"] = true
 						}
 					}
 				}
-				data.Servers[i].OAuth = oAuthVal
+				data.Servers[i].OAuth = oAuthVal0
 			} else {
-				oAuthVal := &OAuthConfig{}
+				oAuthVal0 := &OAuthConfig{}
 				_found := false
 				for _, _kv := range _node.Children {
 					if _kv.Kind != cst.NodeKeyValue {
@@ -661,72 +607,58 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 					switch cst.KeyValueName(_kv) {
 					case "client-id":
 						if v, ok := cst.ExtractString(_kv); ok {
-							oAuthVal.ClientID = v
+							oAuthVal0.ClientID = v
 							_found = true
 							consumed["client-id"] = true
 						}
 					case "callback-port":
 						if v, ok := cst.ExtractInt(_kv); ok {
-							oAuthVal.CallbackPort = v
+							oAuthVal0.CallbackPort = v
 							_found = true
 							consumed["callback-port"] = true
 						}
 					}
 				}
 				if _found {
-					data.Servers[i].OAuth = oAuthVal
+					data.Servers[i].OAuth = oAuthVal0
 				}
 			}
 		}
 		{
-			var _ftServersAnnotations *cst.Node
-			_pi := 0
-			for _, _rc := range doc.Root().Children {
-				if _rc.Kind == cst.NodeArrayTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers" {
-					if _pi > i {
-						break
-					}
-					_pi++
-					continue
-				}
-				if _pi == i+1 && _rc.Kind == cst.NodeTable && cst.TableHeaderKey(_rc) == keyPrefix+"servers.annotations" {
-					_ftServersAnnotations = _rc
-					break
-				}
-			}
-			if _ftServersAnnotations != nil {
+			_ctServersAnnotations := cst.FindChildTable(doc.Root(), _node, "annotations")
+			if _ctServersAnnotations != nil {
 				consumed[keyPrefix+"servers.annotations"] = true
-				annotationsVal := &AnnotationFilter{}
-				for _, _kv := range _ftServersAnnotations.Children {
+				annotationsVal1 := &AnnotationFilter{}
+				for _, _kv := range _ctServersAnnotations.Children {
 					if _kv.Kind != cst.NodeKeyValue {
 						continue
 					}
 					switch cst.KeyValueName(_kv) {
 					case "readOnlyHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.ReadOnlyHint = &v
+							annotationsVal1.ReadOnlyHint = &v
 							consumed[keyPrefix+"servers.annotations.readOnlyHint"] = true
 						}
 					case "destructiveHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.DestructiveHint = &v
+							annotationsVal1.DestructiveHint = &v
 							consumed[keyPrefix+"servers.annotations.destructiveHint"] = true
 						}
 					case "idempotentHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.IdempotentHint = &v
+							annotationsVal1.IdempotentHint = &v
 							consumed[keyPrefix+"servers.annotations.idempotentHint"] = true
 						}
 					case "openWorldHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.OpenWorldHint = &v
+							annotationsVal1.OpenWorldHint = &v
 							consumed[keyPrefix+"servers.annotations.openWorldHint"] = true
 						}
 					}
 				}
-				data.Servers[i].Annotations = annotationsVal
+				data.Servers[i].Annotations = annotationsVal1
 			} else {
-				annotationsVal := &AnnotationFilter{}
+				annotationsVal1 := &AnnotationFilter{}
 				_found := false
 				for _, _kv := range _node.Children {
 					if _kv.Kind != cst.NodeKeyValue {
@@ -735,38 +667,39 @@ func DecodeConfigInto(data *Config, doc *document.Document, container *cst.Node,
 					switch cst.KeyValueName(_kv) {
 					case "readOnlyHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.ReadOnlyHint = &v
+							annotationsVal1.ReadOnlyHint = &v
 							_found = true
 							consumed["readOnlyHint"] = true
 						}
 					case "destructiveHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.DestructiveHint = &v
+							annotationsVal1.DestructiveHint = &v
 							_found = true
 							consumed["destructiveHint"] = true
 						}
 					case "idempotentHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.IdempotentHint = &v
+							annotationsVal1.IdempotentHint = &v
 							_found = true
 							consumed["idempotentHint"] = true
 						}
 					case "openWorldHint":
 						if v, ok := cst.ExtractBool(_kv); ok {
-							annotationsVal.OpenWorldHint = &v
+							annotationsVal1.OpenWorldHint = &v
 							_found = true
 							consumed["openWorldHint"] = true
 						}
 					}
 				}
 				if _found {
-					data.Servers[i].Annotations = annotationsVal
+					data.Servers[i].Annotations = annotationsVal1
 				}
 			}
 		}
 	}
 	return nil
 }
+
 func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node) error {
 	if data.Ephemeral != nil {
 		if err := cst.SetAny(container, "ephemeral", *data.Ephemeral); err != nil {

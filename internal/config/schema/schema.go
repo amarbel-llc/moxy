@@ -19,8 +19,8 @@ type Config struct {
 	Ephemeral             *bool                      `toml:"ephemeral"`
 	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
 	BuiltinNative         *bool                      `toml:"builtin-native"`
-	DisableMoxins         []string                   `toml:"disable-moxins"`
-	DisableServers        []string                   `toml:"disable-servers"`
+	DisableMoxins         []string                   `toml:"disable-moxins,omitempty"`
+	DisableServers        []string                   `toml:"disable-servers,omitempty"`
 	Credentials           *credentials.CommandConfig `toml:"credentials"`
 	Servers               []ServerConfig             `toml:"servers"`
 }
