@@ -90,9 +90,18 @@ lint-fmt:
 # Go static analysis via golangci-lint. Config: ./.golangci.yml. Hard gate via
 # the `lint` aggregate. MOXIN_PATH is cleared so package loading matches the
 # test-go environment.
+#
+# GOLANGCI_LINT_CACHE is pinned to a checkout-local dir (under the gitignored
+# .tmp/) instead of the default shared ~/.cache/golangci-lint. golangci-lint
+# keys cached findings by ABSOLUTE path, so a lint run inside a spinclass
+# worktree (.worktrees/<name>/…) would otherwise deposit worktree-absolute
+# entries into the shared cache; once that worktree is removed, a root-repo
+# lint replays the dangling entry and its generated_file_filter aborts trying
+# to re-read the vanished file (moxy#294). A per-checkout cache keeps
+# each worktree's entries with it — and removed with it.
 [group("pre-build")]
 lint-go:
-  MOXIN_PATH="" golangci-lint run
+  GOLANGCI_LINT_CACHE='{{ justfile_directory() }}/.tmp/golangci-lint' MOXIN_PATH="" golangci-lint run
 
 dir_build := "build"
 
