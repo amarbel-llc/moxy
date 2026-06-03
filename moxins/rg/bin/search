@@ -8,6 +8,7 @@ output_mode="${5:-files_with_matches}"
 context="${6:-}"
 case_insensitive="${7:-}"
 multiline="${8:-}"
+hidden="${9:-}"
 
 rg_args=()
 
@@ -62,6 +63,11 @@ fi
 [ "$case_insensitive" = "true" ] && rg_args+=(-i)
 
 [ "$multiline" = "true" ] && rg_args+=(-U --multiline-dotall)
+
+# --hidden searches dotfiles/dot-directories (e.g. .github/) that ripgrep
+# skips by default. .gitignore is still honored, so .git/ stays excluded.
+# See #285.
+[ "$hidden" = "true" ] && rg_args+=(--hidden)
 
 output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1) || true
 

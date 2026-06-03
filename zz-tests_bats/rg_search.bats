@@ -19,6 +19,10 @@ setup() {
   printf 'case MARKER\n' > b.bash
   printf 'case MARKER\n' > c.bats
   printf 'case MARKER\n' > d.txt
+
+  # A match inside a hidden directory — skipped by default, found with hidden.
+  mkdir -p .hidden
+  printf 'case MARKER\n' > .hidden/h.txt
 }
 
 teardown() {
@@ -95,4 +99,31 @@ function rg_search_glob_with_empty_pieces { # @test
 
   # Only a.sh + b.bash; empty pieces are dropped.
   assert_equal "$(result_file_count)" 2
+}
+
+# By default ripgrep skips hidden files/dirs, so a match inside .hidden/ is
+# silently omitted from a root-level search. See #285.
+function rg_search_skips_hidden_by_default { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  # The four top-level files; .hidden/h.txt is skipped.
+  assert_equal "$(result_file_count)" 4
+  refute_output --partial ".hidden/h.txt"
+}
+
+# Regression test for #285: hidden=true maps to rg --hidden so matches inside
+# dot-directories like .github/ are found instead of silently dropped.
+function rg_search_hidden_opt_in_finds_dotdirs { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'","hidden":true}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  # Four top-level files + .hidden/h.txt = 5.
+  assert_equal "$(result_file_count)" 5
+  echo "$output" | jq -r '.content[0].text' | grep -q '.hidden/h.txt' \
+    || fail ".hidden/h.txt not found with hidden=true: $output"
 }

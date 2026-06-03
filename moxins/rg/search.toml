@@ -15,6 +15,7 @@ arg-order = [
   "context",
   "case_insensitive",
   "multiline",
+  "hidden",
 ]
 
 [input]
@@ -52,6 +53,10 @@ description = "Case insensitive search (rg -i)"
 [input.properties.multiline]
 type = "boolean"
 description = "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall)."
+
+[input.properties.hidden]
+type = "boolean"
+description = "Search hidden files and directories (e.g. .github/) that ripgrep skips by default (rg --hidden). .gitignore is still honored, so .git/ stays excluded."
 
 [annotations]
 read-only-hint = true
