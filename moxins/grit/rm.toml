@@ -3,7 +3,7 @@ result-type = "text"
 perms-request = "always-allow"
 description = "Delete files and stage the deletion (git rm)"
 command = "@BIN@/rm"
-arg-order = ["paths", "force", "repo_path"]
+arg-order = ["paths", "force", "recursive", "repo_path"]
 
 [input]
 type = "object"
@@ -19,6 +19,10 @@ type = "string"
 [input.properties.force]
 type = "boolean"
 description = "Force removal of files even if they have local modifications (git rm -f)"
+
+[input.properties.recursive]
+type = "boolean"
+description = "Allow recursive removal of directories and their contents (git rm -r)"
 
 [input.properties.repo_path]
 type = "string"

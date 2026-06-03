@@ -2,12 +2,14 @@
 set -euo pipefail
 paths="$1"
 force="${2:-}"
-repo="${3:-.}"
+recursive="${3:-}"
+repo="${4:-.}"
 cd "$repo"
 mapfile -t files < <(printf '%s' "$paths" | jq -r '.[]')
 git_args=(rm)
 
 [ "$force" = "true" ] && git_args+=(-f)
+[ "$recursive" = "true" ] && git_args+=(-r)
 git_args+=(--)
 git_args+=("${files[@]}")
 git "${git_args[@]}"
