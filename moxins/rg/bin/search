@@ -69,6 +69,25 @@ fi
 # See #285.
 [ "$hidden" = "true" ] && rg_args+=(--hidden)
 
-output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1) || true
+# ripgrep exit codes: 0 = match, 1 = no match (clean), 2 = error. Capture
+# combined stdout+stderr and branch on the exit code so a real error (bad
+# regex, unrecognized --type, unreadable path) is surfaced as a tool error
+# (non-zero exit -> isError result) instead of being swallowed and read as an
+# empty "no matches" success. See #296. On a clean run rg writes nothing to
+# stderr, so the combined capture holds only matches.
+set +e
+output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1)
+rc=$?
+set -e
 
-printf '%s\n' "$output"
+case "$rc" in
+  0|1)
+    # Match (0) or clean no-match (1). Empty output is a genuine absence.
+    printf '%s\n' "$output"
+    ;;
+  *)
+    # rg reported an error; surface it.
+    printf '%s\n' "${output:-rg exited with status $rc}" >&2
+    exit "$rc"
+    ;;
+esac

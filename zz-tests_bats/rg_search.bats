@@ -127,3 +127,42 @@ function rg_search_hidden_opt_in_finds_dotdirs { # @test
   echo "$output" | jq -r '.content[0].text' | grep -q '.hidden/h.txt' \
     || fail ".hidden/h.txt not found with hidden=true: $output"
 }
+
+# A genuine no-match (rg exit 1) must remain a non-error success — it must not
+# be conflated with the error path (rg exit 2). Guards the #296 fix against
+# over-reporting clean no-matches as errors.
+function rg_search_no_match_is_clean_success { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"NOSUCHTOKEN_ZZZ","path":"'"$HOME/tree"'"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  assert_equal "$(result_file_count)" 0
+}
+
+# Regression test for #296: an rg error (exit 2 — here an invalid regex) must
+# surface as isError, not a silent empty success that reads as "no matches".
+function rg_search_invalid_regex_is_error { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"(unclosed","path":"'"$HOME/tree"'"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+
+  echo "$output" | jq -e '.isError == true' >/dev/null \
+    || fail "invalid regex should surface isError: $output"
+  echo "$output" | jq -r '.content[0].text' | grep -qi 'regex' \
+    || fail "error text should mention the regex problem: $output"
+}
+
+# Regression test for #296: passing a glob-shaped value to `type` (rg exit 2 —
+# "unrecognized file type") must surface as isError rather than an empty
+# success. This is the issue's "secondary observation".
+function rg_search_unrecognized_type_is_error { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/tree"'","type":"*.php"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+
+  echo "$output" | jq -e '.isError == true' >/dev/null \
+    || fail "unrecognized type should surface isError: $output"
+  echo "$output" | jq -r '.content[0].text' | grep -qi 'file type' \
+    || fail "error text should mention the unrecognized file type: $output"
+}
