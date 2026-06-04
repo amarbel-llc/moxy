@@ -158,6 +158,12 @@
         # RFC 0001 §Compatibility). Take treefmt-nix's generated formatter
         # config and append moxy's [linter.*] sections — treefmt has no linter
         # table, so a plain append is a valid, order-independent merge.
+        #
+        # golangci-lint is a whole-tree linter: passes-files = false means
+        # treelint runs `golangci-lint run` once at the tree root with no file
+        # args (RFC 0001 §4), gated to run only when *.go files are present. Its
+        # Go toolchain + vendored module graph are provided by treelintCheck
+        # below; non-zero exit becomes a finding.
         treelintConfig = pkgs.runCommand "treelint-config.toml" { } ''
           cat ${treefmtEval.config.build.configFile} > $out
           cat >> $out <<EOF
@@ -165,6 +171,12 @@
           [linter.dead-jq]
           command = "${deadJqChecker}/bin/lint-dead-jq"
           includes = ["zz-tests_bats/*.bats"]
+
+          [linter.golangci-lint]
+          command = "golangci-lint"
+          options = ["run"]
+          passes-files = false
+          includes = ["**/*.go"]
           EOF
         '';
 
@@ -183,15 +195,58 @@
         # sandbox (the tree must be writable for fix-only formatters' sandbox
         # checks, and we never write back to the real tree), then run
         # `treelint check` rooted at that copy. Non-zero exit fails the build.
+        #
+        # The [linter.golangci-lint] entry in the merged config is a whole-tree
+        # check that shells out to `golangci-lint run` at the tree root — which
+        # needs the Go toolchain and the vendored module graph (the type-aware
+        # linters staticcheck/unused/govet must typecheck). We reproduce
+        # gomod2nix's goConfigHook env (builder/hooks/go-config-hook.sh): hydrate
+        # vendor/ from moxy.passthru.vendorEnv, restore the warm build cache from
+        # goCacheEnv, and set the offline Go env (GOPROXY=off, -mod=vendor,
+        # GO_NO_VENDOR_CHECKS=1). CGO_ENABLED=0 because moxy's module has no cgo
+        # (the cgo embedding package lives in maneater, a separate module).
         treelintCheck =
           pkgs.runCommand "treelint-check"
             {
-              nativeBuildInputs = [ treelintBin ];
+              nativeBuildInputs = [
+                treelintBin
+                moxy.passthru.go
+                pkgs-master.golangci-lint
+                pkgs.rsync
+                pkgs.zstd
+                pkgs.gnutar
+              ];
             }
             ''
               cp -r ${self} src
               chmod -R u+w src
               cd src
+
+              # Offline Go env for golangci-lint's package loader, mirroring
+              # gomod2nix's goConfigHook.
+              export GOCACHE="$TMPDIR/go-cache"
+              export GOPATH="$TMPDIR/go"
+              export GOSUMDB=off
+              export GOPROXY=off
+              export GO_NO_VENDOR_CHECKS=1
+              export GO111MODULE=on
+              export GOTOOLCHAIN=local
+              export CGO_ENABLED=0
+              export GOFLAGS="-mod=vendor -trimpath"
+              export GOLANGCI_LINT_CACHE="$TMPDIR/golangci-lint"
+              # Match the test-go/lint-go environment: package loading must not
+              # see the moxin tree (moxy#... parity with `MOXIN_PATH=""`).
+              export MOXIN_PATH=""
+
+              echo "Setting up vendor directory from ${moxy.passthru.vendorEnv}"
+              rm -rf vendor
+              rsync -a -K --ignore-errors ${moxy.passthru.vendorEnv}/ vendor
+
+              echo "Restoring Go build cache from ${moxy.passthru.goCacheEnv}/cache.tar.zst"
+              mkdir -p "$GOCACHE"
+              zstd -d -c ${moxy.passthru.goCacheEnv}/cache.tar.zst | tar -xf - -C "$GOCACHE"
+              chmod -R +w "$GOCACHE"
+
               treelint check \
                 --config-file ${treelintConfig} \
                 --tree-root .
