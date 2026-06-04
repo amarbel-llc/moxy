@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for grit.clone.
+# Receives: $1 = destination path.
+#
+# Gates the clone destination with the same write policy as folio write
+# tools (see folio/bin/folio-perms): allow inside CWD or the Claude
+# write-allow dirs, refuse /nix/store, prompt elsewhere. The source (a
+# local path or remote URL) is read-only and is not gated here.
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+set -euo pipefail
+
+destination="${1:-}"
+if [ -z "$destination" ]; then
+  echo "clone-perms: destination required — confirmation required"
+  exit 1
+fi
+
+cwd_real=$(realpath -m -- "${PWD}")
+home_real=$(realpath -m -- "${HOME:-/}")
+uid="${UID:-$(id -u)}"
+session_tmp="${CLAUDE_CODE_TMPDIR:-}"
+[ -n "$session_tmp" ] && session_tmp=$(realpath -m -- "$session_tmp")
+
+# Write-allowed dirs mirror folio-perms's write_dirs exactly.
+write_dirs=(
+  "$cwd_real"
+  "${home_real}/.claude/plans"
+  "${home_real}/.claude/projects"
+  "/tmp/claude-${uid}"
+)
+[ -n "$session_tmp" ] && write_dirs+=("$session_tmp")
+
+# /nix/store is immutable; cloning into it is a category error.
+deny_write_dirs=(
+  "/nix/store"
+)
+
+within_dir() {
+  local p="$1" dir="$2"
+  [ -z "$dir" ] && return 1
+  case "$p" in
+    "$dir" | "$dir"/*) return 0 ;;
+  esac
+  return 1
+}
+
+within_any() {
+  local p="$1"
+  shift
+  for dir in "$@"; do
+    [ -z "$dir" ] && continue
+    if within_dir "$p" "$dir"; then return 0; fi
+  done
+  return 1
+}
+
+# Resolve the parent dir canonically but keep the leaf un-followed, so the
+# destination is judged by where it lives rather than by any symlink at the
+# leaf. Mirrors folio-perms's resolve().
+parent=$(dirname -- "$destination")
+leaf=$(basename -- "$destination")
+resolved="$(realpath -m -- "$parent")/${leaf}"
+
+if within_any "$resolved" "${deny_write_dirs[@]}"; then
+  echo "$destination is in /nix/store (immutable) — refusing clone"
+  exit 2
+fi
+if within_any "$resolved" "${write_dirs[@]}"; then
+  echo "destination inside CWD/Claude write-allow dirs — auto-allowed"
+  exit 0
+fi
+echo "$destination resolves outside CWD/Claude write-allow dirs — confirmation required"
+exit 1

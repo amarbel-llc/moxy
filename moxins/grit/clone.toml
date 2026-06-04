@@ -1,0 +1,44 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+description = """Clone a git repository into a destination directory. The destination is \
+gated with the same write policy as folio write tools: auto-allowed inside the CWD or the \
+Claude write-allow dirs ($CLAUDE_CODE_TMPDIR, /tmp/claude-*, ~/.claude/plans, \
+~/.claude/projects); refused in /nix/store; prompts elsewhere. The source (local path or \
+remote URL) is read-only. git refuses to clone into a destination that already exists and \
+is non-empty, surfacing its own stderr in the diagnostic."""
+command = "@BIN@/clone"
+arg-order = ["source", "destination", "branch", "depth", "bare"]
+
+[input]
+type = "object"
+required = ["source", "destination"]
+
+[input.properties.source]
+type = "string"
+description = "Repository to clone — a local path or remote URL. Read-only; not write-gated."
+
+[input.properties.destination]
+type = "string"
+description = "Target directory for the clone. Auto-allowed inside CWD and Claude write-allow dirs; refuses /nix/store; prompts elsewhere."
+
+[input.properties.branch]
+type = "string"
+description = "Branch or tag to check out after cloning (--branch). Defaults to the remote's default branch."
+
+[input.properties.depth]
+type = "integer"
+description = "Create a shallow clone with history truncated to this many commits (--depth)."
+
+[input.properties.bare]
+type = "boolean"
+description = "Create a bare repository with no working tree (--bare)."
+
+[annotations]
+idempotent-hint = false
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/clone-perms"
+arg-order = ["destination"]
+timeout-ms = 5000

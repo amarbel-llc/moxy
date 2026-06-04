@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source="$1"
+destination="$2"
+branch="${3:-}"
+depth="${4:-}"
+bare="${5:-}"
+
+git_args=(clone)
+[ -n "$branch" ] && git_args+=(--branch "$branch")
+[ -n "$depth" ] && git_args+=(--depth "$depth")
+[ "$bare" = "true" ] && git_args+=(--bare)
+git_args+=("$source" "$destination")
+git "${git_args[@]}"
+echo "Cloned $source into $destination"
