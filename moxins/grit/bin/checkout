@@ -19,9 +19,19 @@ if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
 
   [ -n "$ref" ] && git_args+=("$ref")
   git_args+=(--)
-  while IFS= read -r p; do
-    git_args+=("$p")
-  done < <(printf '%s' "$paths_json" | jq -r '.[]')
+  # `paths` is declared as an array of strings, but a client may pass a bare
+  # string (moxy unquotes JSON string values before they reach this script),
+  # which is not valid JSON. Feeding such a value to `jq -r '.[]'` emitted a
+  # cryptic "jq: parse error" while git still ran, because the failure was
+  # swallowed by the process substitution (#307, same class as #303). Split a
+  # JSON array when the value is one; otherwise treat it as a single path.
+  if printf '%s' "$paths_json" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    while IFS= read -r p; do
+      git_args+=("$p")
+    done < <(printf '%s' "$paths_json" | jq -r '.[]')
+  else
+    git_args+=("$paths_json")
+  fi
 else
   # Branch switch mode
 
