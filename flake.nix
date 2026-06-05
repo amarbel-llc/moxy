@@ -64,11 +64,14 @@
       inputs.nixpkgs.follows = "igloo";
     };
 
-    # treelint — treefmt-derived formatter+linter multiplexer (RFC 0001). Runs
-    # the formatters from the generated treefmt config plus moxy's own
-    # [linter.*] sections (currently dead-jq) under one `treelint check` gate.
-    treelint = {
-      url = "github:amarbel-llc/treelint";
+    # conformist — the linter+formatter multiplexer (formerly treelint; RFC
+    # 0001). Runs the formatters from the generated treefmt config plus moxy's
+    # own [linter.*] sections (currently dead-jq) under one `conformist check`
+    # gate. conformist still reads the legacy treefmt-style config (and the
+    # treelint.toml / TREELINT_ env surface), so the config wiring below is
+    # unchanged by the rename.
+    conformist = {
+      url = "github:amarbel-llc/conformist";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -88,7 +91,7 @@
       bats,
       madder,
       treefmt-nix,
-      treelint,
+      conformist,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -129,30 +132,22 @@
           _module.args.tommy = tommy.packages.${system}.default;
         };
 
-        treelintBin = treelint.packages.${system}.treelint;
+        conformistBin = conformist.packages.${system}.conformist;
 
-        # The dead-jq bats linter (scripts/lint-dead-jq), wrapped so its
-        # awk/grep/bash deps are guaranteed regardless of ambient PATH — same
-        # rule moxins follow. This wrapped binary is the [linter.dead-jq]
-        # command in the merged treelint config.
-        deadJqChecker =
-          pkgs.runCommand "lint-dead-jq"
-            {
-              nativeBuildInputs = [ pkgs.makeWrapper ];
-            }
-            ''
-              mkdir -p $out/bin
-              cp ${./scripts/lint-dead-jq} $out/bin/lint-dead-jq
-              chmod +x $out/bin/lint-dead-jq
-              wrapProgram $out/bin/lint-dead-jq \
-                --set PATH ${
-                  pkgs.lib.makeBinPath [
-                    pkgs.bash
-                    pkgs.gawk
-                    pkgs.gnugrep
-                  ]
-                }
-            '';
+        # The dead-jq bats linter (scripts/lint-dead-jq), packaged via
+        # conformist's sandbox-safe helper (conformist#19): it patchShebangs the
+        # `#!/usr/bin/env bash` script so it execs inside the pure-nix check
+        # sandbox, then --prefix-wraps PATH with runtimeInputs (a superset of
+        # the old --set PATH). This is the [linter.dead-jq] command in the
+        # merged conformist config.
+        deadJqChecker = conformist.lib.writeCheckScript pkgs {
+          name = "lint-dead-jq";
+          src = ./scripts/lint-dead-jq;
+          runtimeInputs = [
+            pkgs.gawk
+            pkgs.gnugrep
+          ];
+        };
 
         # treelint reads the treefmt-era config name (rename out of scope per
         # RFC 0001 §Compatibility). Take treefmt-nix's generated formatter
@@ -173,7 +168,7 @@
         # --tree-root to the config's directory (treelint#2 footgun), so we MUST
         # pass an explicit --tree-root or it would walk /nix/store.
         treelintFormatter = pkgs.writeShellScriptBin "treelint-fmt" ''
-          exec ${treelintBin}/bin/treelint \
+          exec ${conformistBin}/bin/conformist \
             --config-file ${treelintConfig} \
             --tree-root "''${PRJ_ROOT:-$PWD}" \
             "$@"
@@ -186,13 +181,13 @@
         treelintCheck =
           pkgs.runCommand "treelint-check"
             {
-              nativeBuildInputs = [ treelintBin ];
+              nativeBuildInputs = [ conformistBin ];
             }
             ''
               cp -r ${self} src
               chmod -R u+w src
               cd src
-              treelint check \
+              conformist check \
                 --config-file ${treelintConfig} \
                 --tree-root .
               touch $out
