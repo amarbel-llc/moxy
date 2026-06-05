@@ -1,0 +1,24 @@
+schema = 3
+result-type = "text"
+content-type = "application/json"
+perms-request = "always-allow"
+description = "Background a GitHub Actions run watch. Returns immediately after detaching a poller; when the run reaches a terminal state the agent is woken via clown's job-wakeup channel (clown owns the notification). Set CLOWN_DISABLE_JOB_WAKEUP=1 to disable wakeups (the tool then reports status:\"disabled\" without watching)."
+command = "@BIN@/ci-watch"
+arg-order = ["run_id", "repo_owner_name"]
+
+[input]
+type = "object"
+required = ["run_id"]
+
+[input.properties.run_id]
+type = "string"
+description = "Numeric workflow run ID."
+
+[input.properties.repo_owner_name]
+type = "string"
+description = "Source repo in OWNER/NAME format (e.g. 'amarbel-llc/moxy'). Omit to default to <gh-authenticated-user>/<gh-default-name>."
+
+[annotations]
+read-only-hint = false
+idempotent-hint = false
+open-world-hint = true

@@ -562,6 +562,7 @@
               "issue-transfer" = "moxins/get-hubbed/src/issue-transfer.ts";
               "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
               "content-search" = "moxins/get-hubbed/src/content-search.ts";
+              "ci-watch" = "moxins/get-hubbed/src/ci-watch.ts";
             }
             { pathMode = "suffix"; };
         grit-moxin =
