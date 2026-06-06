@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "List all environment variables and their values."
 command = "@BIN@/list"
 

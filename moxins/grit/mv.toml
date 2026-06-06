@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Move or rename a file, directory, or symlink and stage the change (git mv)"
 command = "@BIN@/mv"
 arg-order = ["source", "destination", "repo_path"]

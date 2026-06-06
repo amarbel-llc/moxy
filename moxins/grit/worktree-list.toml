@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "List all git worktrees with path, HEAD, branch, and lock/prune state"
 command = "@BIN@/worktree-list"
 arg-order = ["repo_path"]

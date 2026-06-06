@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Rebase current branch onto another ref"
 command = "@BIN@/rebase"
 arg-order = ["upstream", "branch", "autostash", "continue", "abort", "skip", "onto", "autosquash", "update_refs", "repo_path"]

@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Revert one or more commits by creating new commits that undo their changes"
 command = "@BIN@/revert"
 arg-order = ["commits", "no_commit", "repo_path"]

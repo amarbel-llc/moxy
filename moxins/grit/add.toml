@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Stage files for commit"
 command = "@BIN@/add"
 arg-order = ["paths", "repo_path", "intent_to_add"]

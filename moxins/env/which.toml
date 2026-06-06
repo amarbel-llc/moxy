@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Locate a program on PATH. Returns the absolute path if found, exits nonzero if not."
 command = "@BIN@/which"
 arg-order = ["name"]

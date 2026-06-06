@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = """Compute the hash of a file or path. Returns the hash string \
 in the requested encoding."""
 command = "@BIN@/nix-hash"

@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Read file contents from a nix store path. Use head/tail to limit output for large files."
 command = "@BIN@/store-cat"
 arg-order = ["path"]

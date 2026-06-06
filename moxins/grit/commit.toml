@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Create a new commit with staged changes"
 command = "@BIN@/commit"
 arg-order = ["message", "amend", "fixup", "squash", "allow_empty", "repo_path"]

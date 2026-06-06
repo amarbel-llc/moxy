@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "dynamic"
+permit-async = false
 description = """Copy a file or directory. Source is read-policy-gated; destination is write-policy-gated. \
 Use recursive to copy directories."""
 command = "@BIN@/cp"

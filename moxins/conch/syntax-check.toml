@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Check shell script syntax without executing. Runs bash -n to parse and report errors."
 command = "@BIN@/syntax-check"
 arg-order = ["path"]

@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Show the full source of a recipe including its body, parameters, dependencies, and any doc comments."
 command = "just"
 arg-order = ["recipe"]

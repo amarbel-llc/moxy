@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Initialize a new flake in the specified directory."
 command = "@BIN@/flake-init"
 arg-order = ["template", "flake_dir"]

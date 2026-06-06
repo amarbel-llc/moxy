@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Save uncommitted changes to a stash"
 command = "@BIN@/stash-save"
 arg-order = ["message", "include_untracked", "repo_path", "paths"]

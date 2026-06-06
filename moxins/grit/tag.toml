@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "dynamic"
+permit-async = false
 description = """Manage git tags. Subcommands: create, delete, list, push, verify. \
 The arg shape for each subcommand mirrors the corresponding `git tag` / `git push` invocation. \
 Read-only subcommands (list, verify) auto-allow; create and push without --force auto-allow; \

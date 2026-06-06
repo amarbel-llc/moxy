@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Merge a branch into the current branch"
 command = "@BIN@/merge"
 arg-order = ["branch", "no_ff", "squash", "abort", "continue", "repo_path"]

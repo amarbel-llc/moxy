@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Unstage files (soft reset only, does not modify working tree)"
 command = "@BIN@/reset"
 arg-order = ["paths", "soft", "ref", "repo_path"]

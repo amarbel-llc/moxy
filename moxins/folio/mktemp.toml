@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = """Create a temporary file or directory under .tmp/ in the current working directory. \
 Returns the path of the created file or directory. The .tmp/ directory is created automatically."""
 command = "@BIN@/mktemp"

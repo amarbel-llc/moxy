@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "dynamic"
+permit-async = false
 description = """Extract and print a single file from a tarball to stdout. \
 Use tar-list first to discover available members."""
 command = "@BIN@/tar-cat"

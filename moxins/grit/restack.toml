@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Restack a stacked-PR branch chain. Runs `git rebase -i --autosquash --update-refs --onto <onto> <root>^` non-interactively, where <root> is the inclusive bottom of your stack (the script translates to <root>^ internally so <root>'s own commit gets replayed). If the rebase fails (conflicts), resume via grit.rebase --continue or --abort."
 command = "@BIN@/restack"
 arg-order = ["onto", "root", "repo_path"]

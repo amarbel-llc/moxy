@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "dynamic"
+permit-async = false
 description = """Identify file type using magic bytes. Returns a human-readable \
 description (e.g. 'ELF 64-bit executable', 'Bash script, ASCII text')."""
 command = "@BIN@/file-type"

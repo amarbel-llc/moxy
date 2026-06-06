@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "dynamic"
+permit-async = false
 description = """Create a directory and any missing parent directories. No error if the \
 directory already exists."""
 command = "@BIN@/mkdir"

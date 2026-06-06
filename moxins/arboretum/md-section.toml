@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Extract a section from a markdown document by heading name. Returns content from the heading through the next heading at same or higher level."
 command = "@BIN@/md-section"
 arg-order = ["section_name"]

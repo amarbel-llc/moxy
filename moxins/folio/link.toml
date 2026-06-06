@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "dynamic"
+permit-async = false
 description = """Create a symbolic or hard link. Source is read-policy-gated; target is write-policy-gated. \
 Defaults to symbolic (matches `ln -s`)."""
 command = "@BIN@/link"

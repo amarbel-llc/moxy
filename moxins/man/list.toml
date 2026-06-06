@@ -2,6 +2,7 @@ schema = 3
 result-type = "text"
 content-type = "text/plain"
 perms-request = "always-allow"
+permit-async = false
 description = "List all available man pages from MANPATH. Returns page names with short descriptions, sorted alphabetically."
 command = "@BIN@/list"
 

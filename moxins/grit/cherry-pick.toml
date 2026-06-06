@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Apply commits from other branches onto the current branch"
 command = "@BIN@/cherry-pick"
 arg-order = ["commits", "no_commit", "repo_path"]

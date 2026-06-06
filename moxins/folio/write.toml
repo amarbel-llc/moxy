@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "dynamic"
+permit-async = false
 description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
 partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
 command = "@BIN@/write"

@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Show commit log history"
 command = "@BIN@/log"
 arg-order = ["ref", "max_count", "oneline", "paths", "repo_path"]

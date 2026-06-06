@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "List headings from a markdown document with level indicators and auto-generated IDs (suitable for `arboretum.md-section` / `arboretum.md-anchor` selectors). Uses pandoc's gfm reader so headings adjacent to inline `<a name=...>` HTML anchors are recovered correctly. Use to discover structure before reading specific sections."
 command = "@BIN@/md-toc"
 stdin-param = "markdown"

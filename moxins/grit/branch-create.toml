@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Create a new branch"
 command = "@BIN@/branch-create"
 arg-order = ["name", "start_point", "repo_path"]

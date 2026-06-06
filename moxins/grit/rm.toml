@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Delete files and stage the deletion (git rm)"
 command = "@BIN@/rm"
 arg-order = ["paths", "force", "recursive", "repo_path"]

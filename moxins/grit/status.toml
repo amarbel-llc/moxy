@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Show working-tree status. Lists staged, unstaged, and untracked changes in `git status --short` format (e.g. ` M file`, `?? newfile`). Use this before `add` and `commit` to make sure new files aren't silently omitted from `diff --stat-only`, which only shows tracked changes."
 command = "@BIN@/status"
 arg-order = ["paths", "untracked", "ignored", "repo_path"]

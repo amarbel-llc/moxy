@@ -297,6 +297,38 @@ test-validate-mcp: build-go
   cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
+# One-shot codemod for #318: insert `permit-async = false` after the
+# perms-request line in ordering-sensitive / trivially-fast moxin tools.
+# Idempotent (skips files that already declare permit-async). Keep for
+# reference; safe to re-run.
+[group("debug")]
+debug-codemod-permit-async:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}
+  files=(
+    moxins/grit/{add,branch-create,checkout,cherry-pick,commit,diff,git-rev-parse,log,merge,mv,pull,rebase,reset,restack,revert,rm,stash-apply,stash-save,status,tag,worktree-list}.toml
+    moxins/folio/{chmod,cp,file-type,link,ls,mkdir,mktemp,mv,read,read-excluding,read-range,rm,tar-cat,tar-list,write}.toml
+    moxins/env/{list,print,which,realpath,readlink}.toml
+    moxins/jq/jq.toml
+    moxins/conch/syntax-check.toml
+    moxins/arboretum/{md-toc,md-section,md-anchor}.toml
+    moxins/man/{list,toc,section}.toml
+    moxins/just-us-agents/{list-recipes,show-recipe,list-variables,dump-justfile}.toml
+    moxins/hamster/{mod-read,src}.toml
+    moxins/chix/{which,nix-hash,store-ls,store-cat,store-path-info,derivation-show,flake-init}.toml
+  )
+  changed=0
+  for f in "${files[@]}"; do
+    [ -f "$f" ] || { echo "MISSING: $f" >&2; exit 1; }
+    grep -q '^permit-async' "$f" && continue
+    grep -q '^perms-request = ' "$f" || { echo "NO perms-request: $f" >&2; exit 1; }
+    sed -i '/^perms-request = /a permit-async = false' "$f"
+    changed=$((changed + 1))
+  done
+  echo "annotated: $changed"
+  echo "total with permit-async = false: $(grep -rl '^permit-async = false' moxins --include='*.toml' | wc -l)"
+
 # Probe whether `madder init <unprefixed-id>` creates an XDG user-level store
 # under a fresh XDG_DATA_HOME. Agent dev-loop for FDR 0004's async result
 # store (moxy-async).

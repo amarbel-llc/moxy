@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+permit-async = false
 description = "Apply a stash to the working tree without removing it from the stash list"
 command = "@BIN@/stash-apply"
 arg-order = ["stash_ref", "repo_path"]
