@@ -347,7 +347,7 @@ debug-codemod-permit-async:
   files=(
     moxins/grit/{add,branch-create,checkout,cherry-pick,commit,diff,git-rev-parse,log,merge,mv,pull,rebase,reset,restack,revert,rm,stash-apply,stash-save,status,tag,worktree-list}.toml
     moxins/folio/{chmod,cp,file-type,link,ls,mkdir,mktemp,mv,read,rm,tar,write}.toml
-    moxins/env/{list,print,which,realpath,readlink}.toml
+    moxins/env/{get,resolve,which}.toml
     moxins/jq/jq.toml
     moxins/conch/syntax-check.toml
     moxins/arboretum/{md-toc,md-section,md-anchor}.toml
