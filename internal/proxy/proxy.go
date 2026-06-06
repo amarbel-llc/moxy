@@ -683,25 +683,14 @@ func (p *Proxy) CallToolV1(
 	return result, err
 }
 
-// dispatchOutcome classifies one dispatch for metrics. A dispatch error or
-// a tool-level error result counts as failure; a dispatch error on an
-// already-cancelled context counts as abandoned (the client gave up, the
-// tool didn't fail on its own terms).
+// dispatchOutcome classifies one dispatch for metrics — see
+// statsd.OutcomeFor for the shared classification rules.
 func dispatchOutcome(
 	ctx context.Context,
 	result *protocol.ToolCallResultV1,
 	err error,
 ) statsd.Outcome {
-	switch {
-	case err != nil && ctx.Err() != nil:
-		return statsd.OutcomeAbandoned
-	case err != nil:
-		return statsd.OutcomeFailure
-	case result != nil && result.IsError:
-		return statsd.OutcomeFailure
-	default:
-		return statsd.OutcomeSuccess
-	}
+	return statsd.OutcomeFor(ctx.Err(), err, result != nil && result.IsError)
 }
 
 func (p *Proxy) callToolV1(

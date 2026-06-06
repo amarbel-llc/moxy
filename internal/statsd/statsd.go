@@ -30,6 +30,24 @@ const (
 	OutcomeAbandoned Outcome = "abandoned"
 )
 
+// OutcomeFor classifies one dispatch (or resource read / prompt get) for
+// the counter metric. An error counts as failure — unless the context was
+// already done, which counts as abandoned (the client gave up; the call
+// didn't fail on its own terms). A tool-level error result also counts as
+// failure. Shared by every emit site so the classification can't drift.
+func OutcomeFor(ctxErr, err error, resultIsError bool) Outcome {
+	switch {
+	case err != nil && ctxErr != nil:
+		return OutcomeAbandoned
+	case err != nil:
+		return OutcomeFailure
+	case resultIsError:
+		return OutcomeFailure
+	default:
+		return OutcomeSuccess
+	}
+}
+
 var (
 	mu   sync.RWMutex
 	conn net.Conn

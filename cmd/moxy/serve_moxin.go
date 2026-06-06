@@ -2,17 +2,45 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
 	"sort"
 	"text/tabwriter"
+	"time"
 
+	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 
 	"github.com/amarbel-llc/moxy/internal/native"
+	"github.com/amarbel-llc/moxy/internal/statsd"
 )
+
+// instrumentedToolAdapter emits the same statsd dispatch metrics for
+// standalone-moxin serving as the proxy's CallToolV1 wrapper does for
+// proxied dispatch (#311). Tool names are unprefixed in this mode, so
+// the served moxin's name is the <server> metric segment.
+type instrumentedToolAdapter struct {
+	*native.ToolAdapter
+	server string
+}
+
+func (a *instrumentedToolAdapter) CallToolV1(
+	ctx context.Context,
+	name string,
+	args json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
+	start := time.Now()
+	result, err := a.ToolAdapter.CallToolV1(ctx, name, args)
+	statsd.EmitToolDispatch(
+		a.server, name,
+		time.Since(start),
+		statsd.OutcomeFor(ctx.Err(), err, result != nil && result.IsError),
+	)
+	return result, err
+}
 
 func runMoxinServer(name string) error {
 	systemDir := native.SystemMoxinDir()
@@ -52,7 +80,10 @@ func runMoxinServer(name string) error {
 	}
 	srv.SetMadder(madderClient)
 
-	adapter := &native.ToolAdapter{Srv: srv}
+	adapter := &instrumentedToolAdapter{
+		ToolAdapter: &native.ToolAdapter{Srv: srv},
+		server:      found.Name,
+	}
 
 	t := transport.NewStdio(os.Stdin, os.Stdout)
 	mcpSrv, err := server.New(t, server.Options{
