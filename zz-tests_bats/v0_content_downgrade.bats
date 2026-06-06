@@ -246,10 +246,14 @@ function v1_schema2_mcp_result_resource_block_valid { # @test
 schema = 1
 name = "s2"
 EOF
+  # cache-results = "always" keeps the small mime block on the cached-
+  # resource rewrite whose V1 shape is under test (#319: the default
+  # threshold policy strips small mime blocks to plain text instead).
   cat >"$moxin_dir/s2/api.toml" <<'EOF'
 schema = 2
 command = "echo"
 args = ["-n", "{\"content\":[{\"type\":\"text\",\"text\":\"hello\",\"mimeType\":\"text/plain\"}]}"]
+cache-results = "always"
 EOF
 
   mkdir -p "$HOME/project"
@@ -273,9 +277,12 @@ function v1_schema2_json_mimetype_resource_block_valid { # @test
 schema = 1
 name = "gh"
 EOF
+  # cache-results = "always" keeps the small mime block on the cached-
+  # resource rewrite whose V1 shape is under test (#319).
   cat >"$moxin_dir/gh/issue-list.toml" <<'TOML'
 schema = 2
 command = "bash"
+cache-results = "always"
 args = ["-c", """
 text='[{"number":1,"title":"test issue"}]'
 jq -cn --arg text "$text" --arg mime "application/json" \

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -495,6 +496,66 @@ timeout-ms = 5000
 	}
 	if tool.Annotations.IdempotentHint == nil || !*tool.Annotations.IdempotentHint {
 		t.Error("idempotentHint: want true")
+	}
+}
+
+// cache-results (#319): omitted resolves to the threshold default; the three
+// explicit values parse; anything else is a config error.
+func TestParseMoxinDirCacheResults(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"defaulted": `
+schema = 3
+command = "echo"
+`,
+		"always": `
+schema = 3
+command = "echo"
+cache-results = "always"
+`,
+		"never": `
+schema = 3
+command = "echo"
+cache-results = "never"
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	byName := map[string]ToolSpec{}
+	for _, tool := range cfg.Tools {
+		byName[tool.Name] = tool
+	}
+	if got := byName["defaulted"].CacheResults; got != CacheThreshold {
+		t.Errorf("defaulted: CacheResults = %q, want threshold", got)
+	}
+	if got := byName["always"].CacheResults; got != CacheAlways {
+		t.Errorf("always: CacheResults = %q, want always", got)
+	}
+	if got := byName["never"].CacheResults; got != CacheNever {
+		t.Errorf("never: CacheResults = %q, want never", got)
+	}
+}
+
+func TestParseMoxinDirCacheResultsInvalid(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"bad": `
+schema = 3
+command = "echo"
+cache-results = "sometimes"
+`,
+	})
+
+	_, err := ParseMoxinDir(dir)
+	if err == nil || !strings.Contains(err.Error(), "invalid cache-results") {
+		t.Fatalf("err = %v, want invalid cache-results", err)
 	}
 }
 

@@ -127,11 +127,15 @@ function native_server_content_type_sets_mimetype { # @test
 schema = 1
 name = "typed"
 EOF
+  # cache-results = "always": small outputs only get the cached resource
+  # shape when the tool opts in (#319) — content-type alone is just the
+  # mime label stamped onto whatever caching produces.
   cat >"$moxin_dir/typed/api.toml" <<'EOF'
 schema = 1
 command = "echo"
 args = ["-n", "{\"ok\":true}"]
 content-type = "application/json"
+cache-results = "always"
 EOF
 
   mkdir -p "$HOME/project"
@@ -146,6 +150,34 @@ EOF
   echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")' || fail ".content[0].resource.uri startswith check failed: $output"
 }
 
+# Under the default cache-results = "threshold" policy (#319), content-type
+# on a small output is inert: plain text block, no mime, no blob write.
+function native_server_content_type_small_output_stays_plain_text { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/typed"
+  cat >"$moxin_dir/typed/_moxin.toml" <<'EOF'
+schema = 1
+name = "typed"
+EOF
+  cat >"$moxin_dir/typed/api.toml" <<'EOF'
+schema = 1
+command = "echo"
+args = ["-n", "{\"ok\":true}"]
+content-type = "application/json"
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  export MOXIN_PATH="$moxin_dir"
+  local params='{"name":"typed.api"}'
+  run_moxy_mcp_v1 "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.content[0].type == "text"' || fail ".content[0].type check failed: $output"
+  echo "$output" | jq -e '.content[0].text == "{\"ok\":true}"' || fail ".content[0].text check failed: $output"
+  echo "$output" | jq -e '.content[0] | has("mimeType") | not' || fail "mimeType should be dropped: $output"
+  refute_output --partial "madder://blobs/"
+}
+
 function native_server_schema2_mcp_result_passthrough { # @test
   local moxin_dir="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$moxin_dir/s2"
@@ -153,10 +185,13 @@ function native_server_schema2_mcp_result_passthrough { # @test
 schema = 1
 name = "s2"
 EOF
+  # cache-results = "always" so the small mime-bearing block keeps the
+  # cached-resource rewrite under test (#319: default threshold strips it).
   cat >"$moxin_dir/s2/api.toml" <<'EOF'
 schema = 2
 command = "echo"
 args = ["-n", "{\"content\":[{\"type\":\"text\",\"text\":\"hello from mcp\",\"mimeType\":\"text/plain\"}]}"]
+cache-results = "always"
 EOF
 
   mkdir -p "$HOME/project"
@@ -245,12 +280,15 @@ function native_server_schema2_text_mode { # @test
 schema = 1
 name = "s2text"
 EOF
+  # cache-results = "always" keeps the content-type → cached-resource shape
+  # under test for a small output (#319: default threshold drops the mime).
   cat >"$moxin_dir/s2text/plain.toml" <<'EOF'
 schema = 2
 command = "echo"
 args = ["-n", "just plain text"]
 result-type = "text"
 content-type = "text/csv"
+cache-results = "always"
 EOF
 
   mkdir -p "$HOME/project"

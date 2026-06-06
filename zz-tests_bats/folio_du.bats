@@ -23,8 +23,10 @@ function folio_du_returns_json_summary { # @test
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
 
+  # Small output under the default cache-results = "threshold" policy
+  # (#319): plain text block, no resource wrapper.
   local entry
-  entry=$(echo "$output" | jq -r '.content[0].resource.text')
+  entry=$(echo "$output" | jq -r '.content[0].text')
   echo "$entry" | jq -e '.path == "dir"' || fail '.path == "dir" check failed: '"$entry"
   echo "$entry" | jq -e '.bytes >= 100' || fail '.bytes >= 100 check failed: '"$entry"
   echo "$entry" | jq -e '.human != null' || fail '.human != null check failed: '"$entry"
@@ -43,9 +45,11 @@ function folio_du_with_flags_returns_raw_text { # @test
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.content[0].resource.mimeType == "text/plain"' || fail '.content[0].resource.mimeType == "text/plain" check failed: '"$output"
+  # Small output stays a plain text block; the script-emitted mime is
+  # stripped below the cache threshold (#319).
+  echo "$output" | jq -e '.content[0].type == "text"' || fail '.content[0].type == "text" check failed: '"$output"
   local text
-  text=$(echo "$output" | jq -r '.content[0].resource.text')
+  text=$(echo "$output" | jq -r '.content[0].text')
   echo "$text" | grep -q "dir/a"
   echo "$text" | grep -q "dir/b"
 }
@@ -66,7 +70,7 @@ function folio_du_works_outside_cwd { # @test
   assert_success
 
   local entry
-  entry=$(echo "$output" | jq -r '.content[0].resource.text')
+  entry=$(echo "$output" | jq -r '.content[0].text')
   echo "$entry" | jq -e --arg p "$HOME/other" '.path == $p' || fail '.path == $p check failed: '"$entry"
   echo "$entry" | jq -e '.bytes > 0' || fail '.bytes > 0 check failed: '"$entry"
 }

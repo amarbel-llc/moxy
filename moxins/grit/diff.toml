@@ -1,6 +1,7 @@
 schema = 3
 perms-request = "always-allow"
 permit-async = false
+cache-results = "always"
 description = "Show changes in the working tree or between commits"
 command = "@BIN@/diff"
 arg-order = ["ref", "paths", "staged", "stat_only", "context_lines", "repo_path"]

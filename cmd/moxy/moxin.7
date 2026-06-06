@@ -103,7 +103,89 @@ forbids backgrounding even for tools whose permission resolves to allow
 \(em use it for interactive, ordering-sensitive, or trivially-fast tools.
 The permission tier is a separate, additional gate: only allow-resolving
 tools may background regardless of this key.
+.It Sy result-type
+How the tool's stdout becomes an MCP result (schema 2/3 key).
+See
+.Sx RESULT SHAPING .
+.It Sy content-type
+MIME label stamped onto cached resource blocks (schema 3 key).
+See
+.Sx RESULT SHAPING .
+.It Sy cache-results
+When the tool's output is written to the madder blob store (schema 3
+key).
+See
+.Sx RESULT SHAPING .
+.It Sy no-truncate
+Disable the head/tail summary for oversized outputs (boolean; schema 3
+key).
+See
+.Sx RESULT SHAPING .
 .El
+.Sh RESULT SHAPING
+Four keys control how a tool's stdout becomes an MCP result.
+.Pp
+.Sy result-type
+selects who owns the result envelope:
+.Bl -tag -width "mcp-result"
+.It Li mcp-result
+The default when omitted on schema 2/3.
+Stdout must be a complete MCP
+.Li ToolCallResult
+JSON object.
+Use when the script needs dynamic control \(em per-call MIME types
+(e.g. a diff tool switching between
+.Li text/x-diff
+and
+.Li text/plain ) ,
+output-format parameters, or multiple content blocks.
+.It Li text
+Stdout is plain text; moxy builds the result.
+.El
+.Pp
+.Sy cache-results
+controls when output is written to the madder blob store and surfaced
+as a
+.Li madder://blobs/<digest>
+resource URI, on both result-type paths:
+.Bl -tag -width "threshold"
+.It Li threshold
+The default when omitted.
+Outputs above the token threshold are blob-cached and returned as a
+head/tail summary pointing at the URI; small outputs are plain text
+blocks with no blob write.
+.It Li always
+Every non-empty output is blob-cached; small outputs come back as
+resource blocks (URI, full text, MIME).
+Declare it when small outputs are composable artifacts that get
+re-piped into other tools (jq filters, man sections, diffs).
+.It Li never
+The blob store is never touched \(em even oversized output is returned
+as plain full text.
+The tool author owns the context cost.
+.El
+.Pp
+.Sy content-type
+is a pure MIME label: it is stamped onto whatever resource block
+caching produces and is otherwise inert.
+Small outputs under the
+.Li threshold
+default come back as plain text with the MIME dropped \(em the MCP spec
+has nowhere to put a MIME without a resource block, and a resource
+block requires a URI.
+Declaring
+.Sy content-type
+alone does not cause caching; pair it with
+.Sy cache-results No = Li \(dqalways\(dq
+when the label must always be present.
+The same policy governs MIME-bearing text blocks emitted by
+.Li mcp-result
+tools.
+.Pp
+.Sy no-truncate
+keeps the full text inline (prefixed with the blob URI) instead of the
+head/tail summary when an oversized output is cached.
+It does not affect whether caching happens.
 .Sh PERMISSIONS
 Each tool may declare a
 .Sy perms-request

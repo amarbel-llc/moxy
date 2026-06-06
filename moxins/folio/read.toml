@@ -4,7 +4,7 @@ no-truncate = true
 perms-request = "dynamic"
 permit-async = false
 description = """Read an entire file with line numbers. Output format: `     N\\tcontent` per line. \
-Accepts moxy.native:// result URIs as file paths, replacing `head` and `tail` piping on command output."""
+Accepts madder://blobs/<digest> result URIs as file paths, replacing `head` and `tail` piping on command output."""
 command = "@BIN@/read"
 arg-order = ["file_path"]
 
@@ -14,7 +14,7 @@ required = ["file_path"]
 
 [input.properties.file_path]
 type = "string"
-description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts moxy.native:// result URIs."
+description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts madder://blobs/<digest> result URIs."
 
 [annotations]
 read-only-hint = true

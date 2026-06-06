@@ -104,6 +104,7 @@ type ToolSpec struct {
 	PermitAsync          *bool             // nil = eligible (see PermitsAsync); #317
 	ContentType          string
 	ResultType           ResultType
+	CacheResults         CacheResults // resolved; never empty (#319)
 	NoTruncate           bool
 	SubstituteResultURIs *bool
 	Annotations          *ToolAnnotations
@@ -148,6 +149,7 @@ type rawToolFile struct {
 	PermsRequest         PermsRequest      `toml:"perms-request"`
 	DynamicPerms         *DynamicPermsSpec `toml:"dynamic-perms"` // Added for moxy POC dynamic-perms
 	PermitAsync          *bool             `toml:"permit-async"`  // #317
+	CacheResults         string            `toml:"cache-results"` // #319
 	ContentType          string            `toml:"content-type"`
 	ResultType           string            `toml:"result-type"`
 	NoTruncate           bool              `toml:"no-truncate"`
@@ -284,6 +286,11 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
 
+		cacheResults, err := resolveCacheResults(raw.CacheResults)
+		if err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
+		}
+
 		ts := ToolSpec{
 			Name:                 toolName,
 			Description:          raw.Description,
@@ -296,6 +303,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			PermitAsync:          raw.PermitAsync,  // #317
 			ContentType:          raw.ContentType,
 			ResultType:           resultType,
+			CacheResults:         cacheResults, // #319
 			NoTruncate:           raw.NoTruncate,
 			SubstituteResultURIs: raw.SubstituteResultURIs,
 			Annotations:          raw.Annotations,
@@ -340,6 +348,40 @@ func resolveResultType(schema int, raw string) (ResultType, error) {
 		}
 	default:
 		return "", fmt.Errorf("unsupported schema %d", schema)
+	}
+}
+
+// CacheResults controls when a tool's output is written to the madder blob
+// store and surfaced as a resource URI (#319). Decoupled from content-type:
+// the mime is a label stamped onto whatever resource block caching produces,
+// never itself a reason to cache.
+type CacheResults string
+
+const (
+	// CacheAlways writes every non-empty output to the blob store; small
+	// outputs come back as resource blocks (URI + text + mime if declared).
+	// For tools whose small outputs are composable artifacts (re-piped
+	// into jq, folio.read, etc.).
+	CacheAlways CacheResults = "always"
+	// CacheThreshold (the default) writes only outputs above the token
+	// threshold; small outputs are plain text blocks with no blob write
+	// and no mime.
+	CacheThreshold CacheResults = "threshold"
+	// CacheNever never writes the blob store — even oversized outputs are
+	// returned as plain full text. The tool author owns the context cost.
+	CacheNever CacheResults = "never"
+)
+
+func resolveCacheResults(raw string) (CacheResults, error) {
+	if raw == "" {
+		return CacheThreshold, nil
+	}
+	cr := CacheResults(raw)
+	switch cr {
+	case CacheAlways, CacheThreshold, CacheNever:
+		return cr, nil
+	default:
+		return "", fmt.Errorf("invalid cache-results %q (want always, threshold, or never)", raw)
 	}
 }
 
@@ -409,6 +451,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 		"arg-order", "stdin-param", "perms-request",
 		"dynamic-perms", // Added for moxy POC dynamic-perms
 		"permit-async",  // #317
+		"cache-results", // #319
 		"content-type", "result-type", "no-truncate", "substitute-result-uris",
 	}
 	if schema <= 2 {

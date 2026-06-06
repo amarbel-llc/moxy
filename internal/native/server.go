@@ -453,11 +453,13 @@ func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output stri
 
 	// Rewrite text blocks that carry mimeType into resource blocks with
 	// cache URIs — the MCP spec only allows mimeType on resource blocks.
+	// Whether a block is cached is the tool's cache-results policy (#319):
+	// the mime is just the label stamped onto whatever caching produces.
 	// Skip empty text — EmbeddedResourceContents requires non-empty text or blob.
 	cleaned := result.Content[:0]
 	for _, block := range result.Content {
 		if block.Type == "text" && block.MimeType != "" {
-			if block.Text != "" && s.madder != nil {
+			if block.Text != "" && s.madder != nil && s.shouldCache(spec, block.Text) {
 				uri, cacheErr := s.cacheAndGetURI(ctx, block.Text)
 				if cacheErr == nil {
 					text := block.Text
@@ -488,13 +490,31 @@ func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output stri
 	return marshalResult(&result)
 }
 
+// shouldCache applies the tool's cache-results policy to one output (#319):
+// always caches everything, threshold (the default) only above the token
+// threshold, never caches nothing.
+func (s *Server) shouldCache(spec *ToolSpec, text string) bool {
+	switch spec.CacheResults {
+	case CacheAlways:
+		return true
+	case CacheNever:
+		return false
+	default: // CacheThreshold (and zero value for hand-built specs)
+		return estimateTokens(text) > tokenThreshold
+	}
+}
+
 func (s *Server) buildTextResult(ctx context.Context, spec *ToolSpec, output string) (json.RawMessage, error) {
 	if output == "" {
 		return marshalResult(&protocol.ToolCallResultV1{})
 	}
 
+	// cache-results policy (#319): "never" skips the blob store entirely
+	// (even oversized output stays plain inline text — the author owns the
+	// context cost); "threshold"/"always" blob-cache oversized output with
+	// the summary (or no-truncate inline) shape.
 	tokens := estimateTokens(output)
-	if tokens > tokenThreshold && s.madder != nil {
+	if spec.CacheResults != CacheNever && tokens > tokenThreshold && s.madder != nil {
 		digest, storeErr := s.madder.Write(ctx, strings.NewReader(output))
 		if storeErr == nil {
 			if spec.NoTruncate {
@@ -513,7 +533,12 @@ func (s *Server) buildTextResult(ctx context.Context, spec *ToolSpec, output str
 		}
 	}
 
-	if spec.ContentType != "" && s.madder != nil {
+	// "always" additionally caches small outputs as resource blocks, with
+	// content-type as the mime label. content-type alone no longer forces a
+	// cache write: small outputs under "threshold"/"never" are plain text
+	// blocks with the mime dropped (the MCP spec has nowhere to put a mime
+	// without a resource block, and a resource block needs a URI).
+	if spec.CacheResults == CacheAlways && s.madder != nil {
 		uri, cacheErr := s.cacheAndGetURI(ctx, output)
 		if cacheErr == nil {
 			block := protocol.ContentBlockV1{

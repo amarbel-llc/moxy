@@ -166,6 +166,16 @@ The `_moxin.toml` manifest declares server identity (`schema`, `name`,
 `[tools.input]`). Tools may declare `perms-request` to control permission
 behavior: `always-allow`, `each-use`, or `delegate-to-client` (default).
 
+Result shaping (see moxin(7) RESULT SHAPING for the full system):
+`result-type` picks envelope ownership (`mcp-result` default = script emits
+the full MCP result, needed for dynamic mimeTypes; `text` = moxy builds it).
+`cache-results` (`threshold` default | `always` | `never`) controls madder
+blob writes independently of mime declaration (#319): threshold caches only
+oversized outputs; `always` is for small-but-composable outputs (jq, man
+sections, diffs); `content-type` is a pure mime label stamped onto cached
+resource blocks — alone it never causes caching, and small uncached outputs
+drop the mime.
+
 **Moxin dependency rule:** All moxins (`moxins/*/*.toml`) must have their
 external dependencies provided via nix wrapping. Never rely on tools being on
 the ambient PATH --- they won't be outside the moxy devshell. The pattern: put

@@ -4,8 +4,8 @@ no-truncate = true
 perms-request = "dynamic"
 permit-async = false
 description = """Read an inclusive line range from a file, equivalent to `sed -n 'start,end p' <file>`. \
-Output format: `     N\\tcontent` per line. Replaces `head`/`tail` piping — use on moxy.native:// result URIs \
-to read specific line ranges from cached command output."""
+Output format: `     N\\tcontent` per line. Replaces `head`/`tail` piping — use on madder://blobs/<digest> result \
+URIs to read specific line ranges from cached command output."""
 command = "@BIN@/read-range"
 arg-order = ["file_path", "start", "end"]
 
@@ -15,7 +15,7 @@ required = ["file_path", "start", "end"]
 
 [input.properties.file_path]
 type = "string"
-description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts moxy.native:// result URIs."
+description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts madder://blobs/<digest> result URIs."
 
 [input.properties.start]
 type = "integer"

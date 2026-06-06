@@ -128,16 +128,20 @@ func TestServerToolsCallUnknown(t *testing.T) {
 
 // TestBuildMCPResultRewritesMimeTypeToResourceBlock verifies that when a
 // schema=2 tool outputs a text block with mimeType, buildMCPResult rewrites
-// it into a valid resource block. Regression test for #92.
+// it into a valid resource block. Regression test for #92. cache-results =
+// "always" because the output is small — under the default threshold policy
+// (#319) small mime blocks are stripped to plain text instead (covered by
+// TestBuildMCPResultThresholdStripsSmallMime).
 func TestBuildMCPResultRewritesMimeTypeToResourceBlock(t *testing.T) {
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
 			{
-				Name:       "diff-tool",
-				Command:    "bash",
-				Args:       []string{"-c", `echo -n '{"content":[{"type":"text","text":"--- a/f\n+++ b/f","mimeType":"text/x-diff"}]}'`},
-				ResultType: ResultTypeMCPResult,
+				Name:         "diff-tool",
+				Command:      "bash",
+				Args:         []string{"-c", `echo -n '{"content":[{"type":"text","text":"--- a/f\n+++ b/f","mimeType":"text/x-diff"}]}'`},
+				ResultType:   ResultTypeMCPResult,
+				CacheResults: CacheAlways,
 			},
 		},
 	}
@@ -193,16 +197,20 @@ func TestBuildMCPResultRewritesMimeTypeToResourceBlock(t *testing.T) {
 	}
 }
 
+// content-type + cache-results = "always" on a small text output produces
+// the cached resource block. content-type ALONE no longer does (#319) —
+// that case is covered by TestServerToolsCallThresholdDropsSmallMime.
 func TestServerToolsCallContentTypeResourceBlock(t *testing.T) {
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
 			{
-				Name:        "json-tool",
-				Command:     "echo",
-				Args:        []string{"-n", `{"ok":true}`},
-				ContentType: "application/json",
-				ResultType:  ResultTypeText,
+				Name:         "json-tool",
+				Command:      "echo",
+				Args:         []string{"-n", `{"ok":true}`},
+				ContentType:  "application/json",
+				ResultType:   ResultTypeText,
+				CacheResults: CacheAlways,
 			},
 		},
 	}
@@ -255,6 +263,138 @@ func TestServerToolsCallContentTypeResourceBlock(t *testing.T) {
 	}
 	if !strings.HasPrefix(block.Resource.URI, "madder://blobs/") {
 		t.Errorf("resource.uri = %q, want madder://blobs/ prefix", block.Resource.URI)
+	}
+}
+
+// Under the default cache-results = "threshold" policy (#319), content-type
+// on a SMALL text output is a no-op: plain text block, mime dropped, no blob
+// write. The mime only materializes when caching produces a resource block.
+func TestServerToolsCallThresholdDropsSmallMime(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:        "json-tool",
+				Command:     "echo",
+				Args:        []string{"-n", `{"ok":true}`},
+				ContentType: "application/json",
+				ResultType:  ResultTypeText,
+				// CacheResults deliberately zero → threshold default.
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.SetMadder(newFakeMadder())
+
+	raw, err := srv.Call(context.Background(), "tools/call",
+		protocol.ToolCallParams{Name: "json-tool"})
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+	if strings.Contains(string(raw), "madder://") {
+		t.Errorf("small output under threshold policy got cached: %s", raw)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	block := result.Content[0]
+	if block.Type != "text" || block.Text != `{"ok":true}` {
+		t.Errorf("block = %+v, want plain text {\"ok\":true}", block)
+	}
+	if block.MimeType != "" {
+		t.Errorf("mimeType = %q, want dropped (spec forbids mime on text)", block.MimeType)
+	}
+}
+
+// Same policy on the mcp-result path: a SMALL script-emitted mime block is
+// stripped to plain text instead of being rewritten to a cached resource.
+func TestBuildMCPResultThresholdStripsSmallMime(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:       "diff-tool",
+				Command:    "bash",
+				Args:       []string{"-c", `echo -n '{"content":[{"type":"text","text":"--- a/f\n+++ b/f","mimeType":"text/x-diff"}]}'`},
+				ResultType: ResultTypeMCPResult,
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.SetMadder(newFakeMadder())
+	srv.SetSession("test-session")
+
+	raw, err := srv.Call(context.Background(), "tools/call",
+		protocol.ToolCallParams{Name: "diff-tool"})
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+	if strings.Contains(string(raw), "madder://") {
+		t.Errorf("small mime block under threshold policy got cached: %s", raw)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	block := result.Content[0]
+	if block.Type != "text" || block.Text != "--- a/f\n+++ b/f" {
+		t.Errorf("block = %+v, want plain text diff", block)
+	}
+	if block.MimeType != "" {
+		t.Errorf("mimeType = %q, want stripped", block.MimeType)
+	}
+}
+
+// cache-results = "never" skips the blob store even for oversized output:
+// plain full text, no summary, no URI. The author owns the context cost.
+func TestServerToolsCallCacheNeverInlinesLargeOutput(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:         "big-tool",
+				Command:      "bash",
+				Args:         []string{"-c", `for i in $(seq 1 300); do echo "line $i"; done`},
+				ResultType:   ResultTypeText,
+				CacheResults: CacheNever,
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.SetMadder(newFakeMadder())
+
+	raw, err := srv.Call(context.Background(), "tools/call",
+		protocol.ToolCallParams{Name: "big-tool"})
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+	rawStr := string(raw)
+	if strings.Contains(rawStr, "madder://") {
+		t.Errorf("cache-results=never output got cached: %.200s", rawStr)
+	}
+	if strings.Contains(rawStr, "TRUNCATED") {
+		t.Errorf("cache-results=never output got summarized: %.200s", rawStr)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, "line 1\n") || !strings.Contains(text, "line 300") {
+		t.Errorf("full text not inlined; got %.120s...", text)
 	}
 }
 
