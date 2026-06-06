@@ -297,6 +297,14 @@ test-validate-mcp: build-go
   cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
+# Sleep for N seconds (default 300). Deterministic long-running target for
+# the async-cancel live smoke (FDR 0004) — every cached/test job finishes
+# faster than an agent's inter-turn latency, making cancellation unprovable
+# against real workloads.
+[group("debug")]
+debug-sleep seconds="300":
+  sleep {{seconds}}
+
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
 # Idempotent (skips files that already declare permit-async). Keep for

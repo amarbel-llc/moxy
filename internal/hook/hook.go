@@ -232,8 +232,19 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 // always allowed without a permission prompt. These are the suffix
 // after stripping the moxy prefix (e.g. "status" from
 // "mcp__plugin_moxy_moxy__status").
+//
+// The async meta tools qualify because they widen nothing (#314):
+// `async` rejects any call whose permission does not already resolve to
+// allow (and permit-async opt-outs), so it can only launch work that
+// would never have prompted; async-result/async-cancel only read or
+// cancel this session's own job handles. `restart` and `batch` stay
+// prompting — restart churns children, and batch's single prompt is its
+// design contract.
 var builtinAutoAllow = map[string]bool{
-	"status": true,
+	"status":       true,
+	"async":        true,
+	"async-result": true,
+	"async-cancel": true,
 }
 
 // tryBuiltinAutoAllow checks whether the tool is a builtin that should be

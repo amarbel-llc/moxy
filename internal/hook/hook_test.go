@@ -145,6 +145,27 @@ func TestTryBuiltinAutoAllow(t *testing.T) {
 		}
 	})
 
+	// The async meta tools are auto-allowed (#314 smoke feedback): `async`
+	// admits only calls whose permission already resolves to allow, so
+	// allow-listing it widens nothing; async-result/async-cancel operate
+	// only on this session's own job handles.
+	t.Run("async meta tools are auto-allowed", func(t *testing.T) {
+		for _, tool := range []string{"async", "async-result", "async-cancel"} {
+			var buf bytes.Buffer
+			ok := tryBuiltinAutoAllow("mcp__plugin_moxy_moxy__"+tool, "mcp__plugin_moxy_moxy__", &buf)
+			if !ok {
+				t.Fatalf("expected tryBuiltinAutoAllow to return true for %s", tool)
+			}
+			var decoded map[string]map[string]string
+			if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded["hookSpecificOutput"]["permissionDecision"] != "allow" {
+				t.Errorf("%s: expected allow, got %q", tool, decoded["hookSpecificOutput"]["permissionDecision"])
+			}
+		}
+	})
+
 	t.Run("restart is not auto-allowed", func(t *testing.T) {
 		var buf bytes.Buffer
 		ok := tryBuiltinAutoAllow("mcp__plugin_moxy_moxy__restart", "mcp__plugin_moxy_moxy__", &buf)
