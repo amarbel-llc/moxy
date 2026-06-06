@@ -142,6 +142,17 @@ function copy_file_creates_parent_directories { # @test
   [ -f "$dest" ]
 }
 
+# Regression for #313: copy-file with an explicit ref must not 404 — same
+# fields-force-POST class as #298/#306 (only the explicit-ref path was hit).
+function copy_file_with_explicit_ref_succeeds { # @test
+  cd "$REPO"
+  dest="$HOME/out/file3.txt"
+  run "$BIN/copy-file" "src/file.txt" "$dest" "main" "test-org/test-repo"
+  assert_success
+  run cat "$dest"
+  assert_output "hello world"
+}
+
 # copy-tree: copies only blobs under the src_path prefix
 function copy_tree_copies_only_files_under_src_path_preserving_layout { # @test
   cd "$REPO"
