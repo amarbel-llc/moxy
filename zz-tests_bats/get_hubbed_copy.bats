@@ -30,28 +30,41 @@ setup() {
 set -euo pipefail
 printf '%s\n' "$@" >> "$HOME/gh-calls"
 
-# Strip --jq <filter> / -f key=val flags from argv, collecting them.
+# Strip --jq <filter> / -f key=val / --method <verb> flags from argv,
+# collecting them.
 jq_filter=""
+method=""
+has_field=0
 new_args=()
 skip_next=0
 for arg in "$@"; do
   if [ "$skip_next" = "1" ]; then
     if [ "$skip_next_type" = "jq" ]; then
       jq_filter="$arg"
+    elif [ "$skip_next_type" = "method" ]; then
+      method="$arg"
     fi
     skip_next=0
     skip_next_type=""
     continue
   fi
   case "$arg" in
-    --jq)   skip_next=1; skip_next_type="jq"; continue ;;
-    --jq=*) jq_filter="${arg#--jq=}";           continue ;;
-    -f)     skip_next=1; skip_next_type="f";    continue ;;
-    -f*)    continue ;;
+    --jq)     skip_next=1; skip_next_type="jq";     continue ;;
+    --jq=*)   jq_filter="${arg#--jq=}";             continue ;;
+    --method) skip_next=1; skip_next_type="method"; continue ;;
+    -f)       skip_next=1; skip_next_type="f"; has_field=1; continue ;;
+    -f*)      has_field=1;                          continue ;;
   esac
   new_args+=("$arg")
 done
 set -- "${new_args[@]}"
+
+# Mirror real gh: -f fields switch the request to POST unless --method GET
+# is explicit, and GitHub rejects POST on read endpoints (#298).
+if [ "$has_field" = "1" ] && [ "$method" != "GET" ]; then
+  echo "gh: Not Found (HTTP 404)" >&2
+  exit 1
+fi
 
 emit() {
   local json="$1"
@@ -150,6 +163,19 @@ function copy_tree_output_JSON_reports_correct_file_count { # @test
   echo "$output" | jq -e '.files_copied == 2' || fail '.files_copied == 2 check failed: '"$output"
   echo "$output" | jq -e '.paths | length == 2' || fail '.paths | length == 2 check failed: '"$output"
   echo "$output" | jq -e '.source_sha == "deadbeef"' || fail '.source_sha == "deadbeef" check failed: '"$output"
+}
+
+# Regression for #298: an explicit ref must not 404 — the reporter retried
+# with ref="main" (the repo's actual default branch) and got the same 404
+# because the per-file content fetch sent a field-induced POST.
+function copy_tree_with_explicit_ref_succeeds { # @test
+  cd "$REPO"
+  dest="$HOME/out/tree3"
+  run "$BIN/copy-tree" "mydir" "$dest" "main" "test-org/test-repo"
+  assert_success
+  [ -f "$dest/a.txt" ]
+  [ -f "$dest/b.txt" ]
+  refute_output --partial "404"
 }
 
 # copy-write-perms: allows dest inside CWD

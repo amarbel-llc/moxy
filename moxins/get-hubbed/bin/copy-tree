@@ -56,7 +56,11 @@ while IFS= read -r blob_path; do
   fi
   dest_file="${dest_dir}/${rel_path}"
 
-  raw=$(gh api "repos/$repo/contents/$blob_path" -f ref="$commit_sha")
+  # --method GET is required: gh switches to POST whenever -f fields are
+  # present, and GitHub rejects POST on the contents endpoint — that was
+  # #298's "Not Found (HTTP 404)" on every copy-tree invocation. With
+  # --method GET the field is sent as a ?ref= query parameter.
+  raw=$(gh api "repos/$repo/contents/$blob_path" --method GET -f ref="$commit_sha")
   mkdir -p "$(dirname "$dest_file")"
   printf '%s' "$raw" | jq -r '.content' | tr -d '\n' | base64 -d > "$dest_file"
   copied_paths+=("$rel_path")
