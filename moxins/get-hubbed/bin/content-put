@@ -21,9 +21,13 @@ fi
 
 gh_args=(api "repos/$repo/contents/$path" --method PUT --input -)
 
-# Build the request body. Fetch existing file sha for updates.
+# Build the request body. Fetch existing file sha for updates. The explicit
+# --method GET matters: `gh api` switches to POST whenever -f fields are
+# present, so without it the ref-scoped lookup silently failed and updates on
+# non-default branches went out sha-less → 422 (#306). With --method GET the
+# field is sent as a ?ref= query parameter instead.
 sha=""
-if existing=$(gh api "repos/$repo/contents/$path" ${branch:+-f ref="$branch"} 2>/dev/null); then
+if existing=$(gh api "repos/$repo/contents/$path" --method GET ${branch:+-f ref="$branch"} 2>/dev/null); then
   sha=$(printf '%s' "$existing" | jq -r '.sha // empty')
 fi
 
