@@ -15,6 +15,7 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
+	"github.com/amarbel-llc/moxy/internal/asyncjob"
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/paginate"
@@ -121,6 +122,7 @@ type Proxy struct {
 	moxyProvider                *moxyResourceProvider
 	resourceProviders           []resourceProviderEntry
 	builtinTools                *server.ToolRegistryV1
+	asyncManager                *asyncjob.Manager
 	pavedPaths                  []config.PavedPathConfig
 	pavedPathState              *pavedPathState
 	notifier                    func(*jsonrpc.Message) error

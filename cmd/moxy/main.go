@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -22,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/amarbel-llc/moxy/internal/add"
+	"github.com/amarbel-llc/moxy/internal/asyncjob"
 	"github.com/amarbel-llc/moxy/internal/config"
 	"github.com/amarbel-llc/moxy/internal/credentials"
 	"github.com/amarbel-llc/moxy/internal/hook"
@@ -40,6 +43,12 @@ var (
 	version = "dev"
 	commit  = "unknown"
 )
+
+// asyncResultStoreID is the user-level (XDG) madder store async tool
+// results are written to. Unprefixed ids resolve under
+// $XDG_DATA_HOME/madder/blob_stores/, so results survive worktrees and
+// sessions — see docs/features/0004-async-tool-dispatch.md.
+const asyncResultStoreID = "moxy-async"
 
 // printVersionTable renders the hybrid version output specified by
 // eng-versioning(7): a self-identification line, a blank line, then a
@@ -527,6 +536,79 @@ func runServer(app *command.App, mode transportMode) error {
 		},
 		p.HandleBatch,
 	)
+
+	// Async dispatch (FDR 0004): results go to the user-level madder store
+	// so they survive worktrees and sessions; the store is initialized
+	// lazily on the first async result write.
+	var ensureAsyncStore sync.Once
+	var ensureAsyncStoreErr error
+	asyncManager := asyncjob.New(asyncjob.Options{
+		WriteResult: func(ctx context.Context, content []byte) (string, error) {
+			ensureAsyncStore.Do(func() {
+				ensureAsyncStoreErr = madderClient.EnsureStore(ctx, asyncResultStoreID)
+			})
+			if ensureAsyncStoreErr != nil {
+				return "", ensureAsyncStoreErr
+			}
+			return madderClient.WriteToStore(ctx, asyncResultStoreID, bytes.NewReader(content))
+		},
+	})
+	p.SetAsyncManager(asyncManager)
+	builtinRegistry.Register(
+		protocol.ToolV1{
+			Name:        "async",
+			Description: "Dispatch one tool call in the background. Returns {job_id, status:\"running\"} immediately; when the call reaches a terminal state the agent is woken via clown's job-wakeup channel with a summary, the result blob digest, and a result-ref pointing at async-result. Only calls whose permission resolves to allow may background (ask/deny/unknown are rejected synchronously). See docs/features/0004-async-tool-dispatch.md.",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"required":["tool"],
+				"properties":{
+					"tool":{"type":"string","description":"Namespaced tool name (e.g. rg.search)"},
+					"args":{"type":"object","description":"Arguments for the tool call"}
+				}
+			}`),
+			Annotations: &protocol.ToolAnnotations{
+				ReadOnlyHint:    boolPtr(false),
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		p.HandleAsync,
+	)
+	builtinRegistry.Register(
+		protocol.ToolV1{
+			Name:        "async-result",
+			Description: "Fetch an async job's status, or its full stored tool result once terminal. Doubles as the poll surface when job wakeups are disabled (CLOWN_DISABLE_JOB_WAKEUP=1).",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"required":["job_id"],
+				"properties":{
+					"job_id":{"type":"string","description":"Job id returned by async"}
+				}
+			}`),
+			Annotations: &protocol.ToolAnnotations{
+				ReadOnlyHint:   boolPtr(true),
+				IdempotentHint: boolPtr(true),
+			},
+		},
+		p.HandleAsyncResult,
+	)
+	builtinRegistry.Register(
+		protocol.ToolV1{
+			Name:        "async-cancel",
+			Description: "Cancel a running async job. The job reaches terminal state `cancelled` and wakes the agent like any other terminal state. Cancelling an already-terminal job is a no-op reporting that state.",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"required":["job_id"],
+				"properties":{
+					"job_id":{"type":"string","description":"Job id returned by async"}
+				}
+			}`),
+			Annotations: &protocol.ToolAnnotations{
+				ReadOnlyHint:   boolPtr(false),
+				IdempotentHint: boolPtr(true),
+			},
+		},
+		p.HandleAsyncCancel,
+	)
 	p.SetBuiltinTools(builtinRegistry)
 
 	if cwd, err := os.Getwd(); err != nil {
@@ -586,6 +668,11 @@ func runServer(app *command.App, mode transportMode) error {
 
 		err = srv.Run(ctx)
 
+		// Interrupt in-flight async jobs BEFORE tearing down children so
+		// each emits a terminal `done` (interrupted) while its dispatch
+		// path is still alive — no job left open in the clown journal.
+		p.SweepAsyncJobs()
+
 		closeChildrenWithDeadline(children, time.Second)
 
 		return err
@@ -629,6 +716,10 @@ func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Prox
 	}()
 
 	err := httpServer.Serve(ln)
+
+	// Same ordering as the stdio path: interrupt async jobs while their
+	// dispatch path is still alive, then tear down children.
+	p.SweepAsyncJobs()
 
 	closeChildrenWithDeadline(children, time.Second)
 
