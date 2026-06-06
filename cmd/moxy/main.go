@@ -470,25 +470,6 @@ func runServer(app *command.App, mode transportMode) error {
 	app.RegisterMCPToolsV1(builtinRegistry)
 	builtinRegistry.Register(
 		protocol.ToolV1{
-			Name:        config.PavedPathsToolName,
-			Description: "Manage paved-path workflow selection and progress",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"select":{"type":"string","description":"Name of the path to select"}}}`),
-		},
-		func(ctx context.Context, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
-			var params map[string]any
-			if len(args) > 0 {
-				if err := json.Unmarshal(args, &params); err != nil {
-					return protocol.ErrorResultV1(fmt.Sprintf("invalid paved-paths args: %v", err)), nil
-				}
-			}
-			text := p.HandlePavedPaths(params)
-			return &protocol.ToolCallResultV1{
-				Content: []protocol.ContentBlockV1{{Type: "text", Text: text}},
-			}, nil
-		},
-	)
-	builtinRegistry.Register(
-		protocol.ToolV1{
 			Name:        "restart",
 			Description: "Restart a configured child server or moxin by name. Omit `server` to reload the moxyfile hierarchy and MOXIN_PATH and rebuild every running child. Permission-gated (destructive). Note: Claude Code does not refresh the active conversation's tool list on notifications/tools/list_changed; follow with /mcp -> Reconnect to update the system prompt. See moxy-restart(7).",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"server":{"type":"string","description":"Server or moxin name. Omit to reload everything."}}}`),
@@ -605,14 +586,6 @@ func runServer(app *command.App, mode transportMode) error {
 		p.HandleAsyncCancel,
 	)
 	p.SetBuiltinTools(builtinRegistry)
-
-	if cwd, err := os.Getwd(); err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: getting cwd for paved paths: %v\n", err)
-	} else if pavedPaths, err := config.LoadPavedPaths(cwd); err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
-	} else {
-		p.SetPavedPaths(pavedPaths)
-	}
 
 	// Wire notification forwarding for startup children
 	for _, c := range children {

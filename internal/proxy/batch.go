@@ -143,9 +143,6 @@ func (p *Proxy) HandleBatch(
 		records = append(records, rec)
 		if rec.OK {
 			passed++
-			if p.pavedPathsActive() {
-				p.maybeAdvanceStage(c.Tool)
-			}
 		} else {
 			failed++
 			if onError == "stop" {

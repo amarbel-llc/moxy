@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -32,38 +31,6 @@ var (
 	MakeCommand  = schema.MakeCommand
 	DecodeConfig = schema.DecodeConfig
 )
-
-type PavedPathStage struct {
-	Label string   `json:"label"`
-	Tools []string `json:"tools"`
-}
-
-type PavedPathConfig struct {
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	Stages      []PavedPathStage `json:"stages"`
-}
-
-const (
-	PavedPathsFile     = "moxyfile.paved-paths.json"
-	PavedPathsToolName = "paved-paths"
-)
-
-// LoadPavedPaths returns nil, nil if the file is absent.
-func LoadPavedPaths(dir string) ([]PavedPathConfig, error) {
-	data, err := os.ReadFile(filepath.Join(dir, PavedPathsFile))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("paved-paths: %w", err)
-	}
-	var paths []PavedPathConfig
-	if err := json.Unmarshal(data, &paths); err != nil {
-		return nil, fmt.Errorf("paved-paths: %w", err)
-	}
-	return paths, nil
-}
 
 type LoadSource struct {
 	Path  string

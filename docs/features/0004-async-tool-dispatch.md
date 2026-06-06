@@ -25,8 +25,8 @@ detached, and wake the agent when the result is ready.
 
 ## Interface
 
-Three new meta tools (joining `restart`, `batch`, `paved-paths`), plus an
-`async` flag on `batch`.
+Three new meta tools (joining `restart` and `batch`), plus an `async` flag
+on `batch`.
 
 ### `async` — dispatch one tool call in the background
 

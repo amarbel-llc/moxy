@@ -103,13 +103,6 @@ type EphemeralMeta struct {
 // transport details (stdio vs HTTP, credentials, etc.).
 type ConnectFunc func(ctx context.Context, cfg config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error)
 
-type pavedPathState struct {
-	SelectedPath string
-	CurrentStage int
-	CalledTools  map[string]bool
-	Complete     bool
-}
-
 type Proxy struct {
 	children                    []ChildEntry
 	failed                      []FailedServer
@@ -123,8 +116,6 @@ type Proxy struct {
 	resourceProviders           []resourceProviderEntry
 	builtinTools                *server.ToolRegistryV1
 	asyncManager                *asyncjob.Manager
-	pavedPaths                  []config.PavedPathConfig
-	pavedPathState              *pavedPathState
 	notifier                    func(*jsonrpc.Message) error
 	sessionID                   string
 	moxinReloader               MoxinReloader
@@ -178,81 +169,6 @@ func (p *Proxy) SetBootstrapper(b Bootstrapper) {
 // a MOXIN_PATH walk.
 func (p *Proxy) SetResolver(r *permcheck.Resolver) {
 	p.resolver = r
-}
-
-func (p *Proxy) SetPavedPaths(paths []config.PavedPathConfig) {
-	p.pavedPaths = paths
-}
-
-func (p *Proxy) pavedPathsActive() bool {
-	return len(p.pavedPaths) > 0
-}
-
-func (p *Proxy) findPavedPath(name string) *config.PavedPathConfig {
-	for i := range p.pavedPaths {
-		if p.pavedPaths[i].Name == name {
-			return &p.pavedPaths[i]
-		}
-	}
-	return nil
-}
-
-func stageContainsTool(stage config.PavedPathStage, name string) bool {
-	for _, t := range stage.Tools {
-		if t == name {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *Proxy) pavedPathToolAllowed(name string) bool {
-	if !p.pavedPathsActive() {
-		return true
-	}
-	if name == config.PavedPathsToolName {
-		return true
-	}
-	if p.pavedPathState == nil {
-		return false
-	}
-	if p.pavedPathState.Complete {
-		return true
-	}
-	path := p.findPavedPath(p.pavedPathState.SelectedPath)
-	if path == nil {
-		return false
-	}
-	stage := p.pavedPathState.CurrentStage
-	if stage < 0 || stage >= len(path.Stages) {
-		return false
-	}
-	return stageContainsTool(path.Stages[stage], name)
-}
-
-func (p *Proxy) maybeAdvanceStage(toolName string) {
-	if p.pavedPathState == nil || p.pavedPathState.Complete {
-		return
-	}
-	path := p.findPavedPath(p.pavedPathState.SelectedPath)
-	if path == nil {
-		return
-	}
-	stage := p.pavedPathState.CurrentStage
-	if stage >= len(path.Stages) {
-		return
-	}
-	if !stageContainsTool(path.Stages[stage], toolName) {
-		return
-	}
-	p.pavedPathState.CalledTools[toolName] = true
-	next := stage + 1
-	if next >= len(path.Stages) {
-		p.pavedPathState.Complete = true
-	} else {
-		p.pavedPathState.CurrentStage = next
-	}
-	p.notifyToolsChanged()
 }
 
 func (p *Proxy) hasBuiltinTool(name string) bool {
@@ -631,12 +547,7 @@ func (p *Proxy) ListToolsV1(
 				debugLog("ListToolsV1: FILTERED %q.%q by annotation", child.Client.Name(), tool.Name)
 				continue
 			}
-			toolFullName := child.Client.Name() + "." + tool.Name
-			if !p.pavedPathToolAllowed(toolFullName) {
-				debugLog("ListToolsV1: FILTERED %q.%q by paved path", child.Client.Name(), tool.Name)
-				continue
-			}
-			tool.Name = toolFullName
+			tool.Name = child.Client.Name() + "." + tool.Name
 			prefixToolTitle(&tool, child.Client.Name())
 			allTools = append(allTools, tool)
 		}
@@ -833,11 +744,7 @@ func (p *Proxy) callToolV1(
 	if !ok {
 		// Check if this is an ephemeral server
 		if _, isEphemeral := p.ephemeral[serverName]; isEphemeral {
-			result, err := p.callToolEphemeral(ctx, serverName, toolName, args)
-			if err == nil && result != nil && !result.IsError && p.pavedPathsActive() {
-				p.maybeAdvanceStage(name)
-			}
-			return result, err
+			return p.callToolEphemeral(ctx, serverName, toolName, args)
 		}
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("unknown server %q", serverName),
@@ -874,10 +781,6 @@ func (p *Proxy) callToolV1(
 			serverName,
 			err,
 		)
-	}
-
-	if !result.IsError && p.pavedPathsActive() {
-		p.maybeAdvanceStage(name)
 	}
 
 	return result, nil
@@ -1354,67 +1257,6 @@ func (p *Proxy) Reload(ctx context.Context) error {
 
 	p.notifyToolsChanged()
 	return nil
-}
-
-func (p *Proxy) HandlePavedPaths(args map[string]any) string {
-	if len(p.pavedPaths) == 0 {
-		return "no paved paths configured"
-	}
-
-	if args != nil {
-		if selectVal, ok := args["select"]; ok {
-			name, _ := selectVal.(string)
-			path := p.findPavedPath(name)
-			if path == nil {
-				return fmt.Sprintf("unknown path: %q", name)
-			}
-			p.pavedPathState = &pavedPathState{
-				SelectedPath: path.Name,
-				CurrentStage: 0,
-				CalledTools:  make(map[string]bool),
-			}
-			p.notifyToolsChanged()
-			var sb strings.Builder
-			fmt.Fprintf(&sb, "Selected path %q\n", path.Name)
-			if len(path.Stages) > 0 {
-				stage := path.Stages[0]
-				fmt.Fprintf(&sb, "Stage: %s\n", stage.Label)
-				fmt.Fprintf(&sb, "Tools to call:\n")
-				for _, t := range stage.Tools {
-					fmt.Fprintf(&sb, "  - %s\n", t)
-				}
-			}
-			return sb.String()
-		}
-	}
-
-	if p.pavedPathState != nil {
-		state := p.pavedPathState
-		currentPath := p.findPavedPath(state.SelectedPath)
-		var sb strings.Builder
-		fmt.Fprintf(&sb, "Path: %s\n", state.SelectedPath)
-		if currentPath != nil && state.CurrentStage < len(currentPath.Stages) {
-			stage := currentPath.Stages[state.CurrentStage]
-			fmt.Fprintf(&sb, "Stage: %s\n", stage.Label)
-			fmt.Fprintf(&sb, "Tools:\n")
-			for _, t := range stage.Tools {
-				if state.CalledTools[t] {
-					fmt.Fprintf(&sb, "  \u2713 %s\n", t)
-				} else {
-					fmt.Fprintf(&sb, "  - %s\n", t)
-				}
-			}
-		}
-		return sb.String()
-	}
-
-	var sb strings.Builder
-	sb.WriteString("Available paved paths:\n")
-	for _, path := range p.pavedPaths {
-		fmt.Fprintf(&sb, "  %s: %s\n", path.Name, path.Description)
-	}
-	sb.WriteString("\nUse select: \"<name>\" to begin a path.")
-	return sb.String()
 }
 
 func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]protocol.ToolV1, error) {

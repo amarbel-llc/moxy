@@ -1309,53 +1309,6 @@ func TestDisableServerSet(t *testing.T) {
 	}
 }
 
-func TestLoadPavedPaths(t *testing.T) {
-	dir := t.TempDir()
-	input := `[
-		{
-			"name": "onboarding",
-			"description": "Learn the repo before making changes",
-			"stages": [
-				{"label": "orient", "tools": ["folio.read", "folio.glob"]},
-				{"label": "edit",   "tools": ["folio.write", "grit.commit"]}
-			]
-		}
-	]`
-	if err := os.WriteFile(filepath.Join(dir, PavedPathsFile), []byte(input), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	paths, err := LoadPavedPaths(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(paths) != 1 {
-		t.Fatalf("expected 1 paved path, got %d", len(paths))
-	}
-	p := paths[0]
-	if p.Name != "onboarding" {
-		t.Errorf("name: got %q", p.Name)
-	}
-	if len(p.Stages) != 2 {
-		t.Fatalf("expected 2 stages, got %d", len(p.Stages))
-	}
-	if p.Stages[0].Label != "orient" {
-		t.Errorf("stage 0 label: got %q", p.Stages[0].Label)
-	}
-	if len(p.Stages[0].Tools) != 2 {
-		t.Errorf("stage 0 tools: got %v", p.Stages[0].Tools)
-	}
-}
-
-func TestLoadPavedPathsMissing(t *testing.T) {
-	paths, err := LoadPavedPaths(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if paths != nil {
-		t.Errorf("expected nil when file absent, got %v", paths)
-	}
-}
-
 func TestParseHeadersExpandEnvVars(t *testing.T) {
 	t.Setenv("TEST_TOKEN", "secret123")
 	input := `
