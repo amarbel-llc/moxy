@@ -297,6 +297,28 @@ test-validate-mcp: build-go
   cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
+# Dump one tool's tools/list entry from the locally-built moxy under a given
+# MCP protocolVersion. Agent dev-loop for #217 (annotations reported missing).
+[group("debug")]
+debug-dump-tool-entry tool="folio.read" protocol="2025-11-25": build-go
+  #!/usr/bin/env bash
+  set -euo pipefail
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  export HOME="$tmpdir/home"
+  mkdir -p "$HOME"
+  (cd "$HOME" && madder init .default >/dev/null 2>&1)
+  cd "$HOME"
+  init=$(jq -cn --arg v '{{protocol}}' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":$v,"capabilities":{},"clientInfo":{"name":"debug","version":"0"}}}')
+  initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  list='{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+  # The sleep after initialize matters: the purse-first server handles
+  # messages in goroutines, so a pipelined tools/list can race ahead of
+  # initialize's version negotiation and get the V0 (annotation-less) listing.
+  (echo "$init"; sleep 0.5; echo "$initialized"; echo "$list"; sleep 2) \
+    | {{justfile_directory()}}/{{dir_build}}/moxy serve mcp 2>/dev/null \
+    | jq -c 'if .id == 1 then {negotiated: .result.protocolVersion} elif .id == 2 then (.result.tools[] | select(.name == "{{tool}}")) else empty end'
+
 # Bisect helper: build and validate MCP loading at current commit
 # Usage: git bisect start HEAD <known-good> -- && git bisect run just debug-bisect
 [group("debug")]

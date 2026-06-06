@@ -444,6 +444,60 @@ title = "My Tool"
 	}
 }
 
+// Regression for #217: a schema-3 tool file shaped exactly like the shipped
+// moxins (input table with nested property tables BEFORE [annotations], and a
+// [dynamic-perms] table after) must still surface its annotations. Mirrors
+// moxins/folio/read.toml.
+func TestParseMoxinDirAnnotationsSchema3RealisticLayout(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"read": `
+schema = 3
+result-type = "text"
+no-truncate = true
+perms-request = "dynamic"
+description = "Read an entire file with line numbers."
+command = "@BIN@/read"
+arg-order = ["file_path"]
+
+[input]
+type = "object"
+required = ["file_path"]
+
+[input.properties.file_path]
+type = "string"
+description = "Path to the file to read."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["file_path"]
+timeout-ms = 5000
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tool := cfg.Tools[0]
+	if tool.Annotations == nil {
+		t.Fatal("expected annotations, got nil")
+	}
+	if tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint {
+		t.Error("readOnlyHint: want true")
+	}
+	if tool.Annotations.IdempotentHint == nil || !*tool.Annotations.IdempotentHint {
+		t.Error("idempotentHint: want true")
+	}
+}
+
 func TestParseMoxinDirValidation(t *testing.T) {
 	tests := []struct {
 		name  string
