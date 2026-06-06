@@ -73,6 +73,12 @@ func (p *Proxy) HandleAsync(
 			params.Tool, dec, reason,
 		)), nil
 	}
+	if !p.resolver.PermitsAsync(params.Tool) {
+		return protocol.ErrorResultV1(fmt.Sprintf(
+			"%s declares permit-async = false; it cannot be dispatched asynchronously",
+			params.Tool,
+		)), nil
+	}
 
 	id, err := p.asyncManager.Dispatch(ctx, params.Tool, params.Args,
 		func(jobCtx context.Context, tool string, callArgs json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -179,15 +185,23 @@ func (p *Proxy) handleBatchAsync(
 	var rejected []batchRejection
 	for i, c := range params.Calls {
 		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, ".")
-		if dec == permcheck.Allow {
+		if dec != permcheck.Allow {
+			rejected = append(rejected, batchRejection{
+				index:  i,
+				call:   c,
+				dec:    dec,
+				reason: reason + " (async batches are allow-only)",
+			})
 			continue
 		}
-		rejected = append(rejected, batchRejection{
-			index:  i,
-			call:   c,
-			dec:    dec,
-			reason: reason + " (async batches are allow-only)",
-		})
+		if !p.resolver.PermitsAsync(c.Tool) {
+			rejected = append(rejected, batchRejection{
+				index:  i,
+				call:   c,
+				dec:    dec,
+				reason: "tool declares permit-async = false",
+			})
+		}
 	}
 	if len(rejected) > 0 {
 		return emitPreflightBailout(params.Calls, rejected), nil

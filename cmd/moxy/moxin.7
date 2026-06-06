@@ -93,6 +93,16 @@ If present, must include
 Permission request mode for this tool.
 See
 .Sx PERMISSIONS .
+.It Sy permit-async
+Whether the tool may be dispatched in the background via the
+.Sy async
+meta tool (boolean; schema 3 key).
+Omitted defaults to eligible; an explicit
+.Li false
+forbids backgrounding even for tools whose permission resolves to allow
+\(em use it for interactive, ordering-sensitive, or trivially-fast tools.
+The permission tier is a separate, additional gate: only allow-resolving
+tools may background regardless of this key.
 .El
 .Sh PERMISSIONS
 Each tool may declare a

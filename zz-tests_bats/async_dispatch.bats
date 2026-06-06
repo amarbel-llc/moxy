@@ -55,6 +55,17 @@ args = ["-c", "true"]
 [input]
 type = "object"
 EOF
+  cat > "$moxin/noasync.toml" <<'EOF'
+schema = 3
+perms-request = "always-allow"
+permit-async = false
+description = "allow-tier tool that forbids backgrounding"
+command = "bash"
+args = ["-c", "true"]
+
+[input]
+type = "object"
+EOF
   export MOXIN_PATH="$HOME/moxins"
 
   # clown stub: records argv; `job start` prints a fixed id.
@@ -134,6 +145,16 @@ function async_rejects_ask_tier_tool { # @test
     '{"name":"async","arguments":{"tool":"testmoxin.asky","args":{}}}'
   assert_success
   assert_output --partial "resolve to allow"
+  [ ! -f "$CLOWN_RECORD" ]
+}
+
+# permit-async = false forbids backgrounding even at allow tier (#317) —
+# distinct rejection text, and the clown channel is never touched.
+function async_rejects_permit_async_false_tool { # @test
+  run_moxy_mcp "tools/call" \
+    '{"name":"async","arguments":{"tool":"testmoxin.noasync","args":{}}}'
+  assert_success
+  assert_output --partial "permit-async = false"
   [ ! -f "$CLOWN_RECORD" ]
 }
 

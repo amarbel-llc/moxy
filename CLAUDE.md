@@ -99,7 +99,9 @@ for the remainder. Sequential execution only in v1. See
 
 Moxy also injects `async`, `async-result`, and `async-cancel` meta tools
 (FDR 0004): `async {tool, args}` backgrounds one tool call (allow-only
-permission preflight), returns `{job_id, status:"running"}` immediately,
+permission preflight; tools may additionally opt out via the top-level
+`permit-async = false` TOML key, #317), returns `{job_id, status:"running"}`
+immediately,
 and wakes the agent on the terminal state via clown's job-wakeup channel
 (`${CLOWN_BIN:-clown}`); results are written to the user-level `moxy-async`
 madder store (provisioned by home-manager — moxy never creates it) with the

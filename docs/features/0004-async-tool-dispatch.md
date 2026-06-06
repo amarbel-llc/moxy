@@ -32,12 +32,19 @@ Three new meta tools (joining `restart`, `batch`, `paved-paths`), plus an
 Input: `{tool: "<server>.<tool>", args: {...}}` — the same shapes `batch`
 sub-calls use.
 
-1. **Permission pre-resolution** (same machinery as `batch`): the call is
+1. **Eligibility pre-resolution** (same machinery as `batch`): the call is
    resolved through moxy's `perms-request` system *before* anything runs.
-   Only calls that resolve to **allow** may background — `deny`, `ask`, and
-   unknown tools are rejected synchronously with a structured error. There is
-   no client to prompt once the call is detached, so ask-gated tools cannot
-   run async by design.
+   Eligibility = **permission resolves to allow AND the tool does not
+   declare `permit-async = false`** (#317). `deny`, `ask`, and unknown
+   tools are rejected synchronously with a structured error — there is no
+   client to prompt once the call is detached. The `permit-async` boolean
+   (top-level schema-3 TOML key; omitted = eligible) is the author's brake
+   for tools that are allow-safe but should not run detached (interactive,
+   ordering-sensitive, trivially fast); its rejection text is distinct from
+   the permission rejection. The key is deliberately shaped to map onto MCP
+   `execution.taskSupport` (`forbidden`/`optional`) but is NOT yet emitted
+   on `tools/list` — surfacing it before moxy wires a `TaskProvider` could
+   bait tasks-aware clients into task-augmented calls moxy can't serve.
 2. **Job open**: moxy runs `${CLOWN_BIN:-clown} job start --source moxy
    --label <tool>` and adopts the printed job id (e.g. `rg.search-3f2a8b1c`
    — clown's label sanitizer keeps dots; the job-id charset is

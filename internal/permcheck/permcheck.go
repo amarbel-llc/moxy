@@ -28,6 +28,9 @@ const (
 type ToolPermInfo struct {
 	Perm         native.PermsRequest
 	DynamicPerms *native.DynamicPermsSpec
+	// PermitAsync mirrors the tool's `permit-async` TOML key (#317).
+	// nil = omitted = async-eligible; only explicit false forbids.
+	PermitAsync *bool
 }
 
 // Resolver caches the moxin perms map and resolves decisions per call.
@@ -95,6 +98,19 @@ func evalDynamic(
 	}
 }
 
+// PermitsAsync reports whether toolName may be dispatched asynchronously
+// (FDR 0004, #317): omitted `permit-async` defaults to eligible; only an
+// explicit `permit-async = false` forbids backgrounding. Unknown tools
+// report eligible — the permission gate (Resolve returning Unknown)
+// already rejects them before this is consulted.
+func (r *Resolver) PermitsAsync(toolName string) bool {
+	info, ok := r.perms[toolName]
+	if !ok {
+		return true
+	}
+	return info.PermitAsync == nil || *info.PermitAsync
+}
+
 // NewResolverWithPerms constructs a resolver from a pre-built perms
 // map. Intended for tests that need to inject decisions without a
 // MOXIN_PATH walk.
@@ -118,6 +134,7 @@ func discoverPermissions() (map[string]ToolPermInfo, error) {
 				perms[cfg.Name+"."+tool.Name] = ToolPermInfo{
 					Perm:         tool.PermsRequest,
 					DynamicPerms: tool.DynamicPerms,
+					PermitAsync:  tool.PermitAsync,
 				}
 			}
 		}

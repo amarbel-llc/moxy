@@ -214,6 +214,54 @@ func TestHandleBatchAsyncRejectsAskTier(t *testing.T) {
 	}
 }
 
+// permit-async = false forbids backgrounding even at allow tier (#317) —
+// orthogonal to the permission gate, with a distinct rejection text.
+func TestHandleAsyncRejectsPermitAsyncFalse(t *testing.T) {
+	noAsync := false
+	p := &Proxy{}
+	p.SetResolver(permcheck.NewResolverWithPerms(map[string]permcheck.ToolPermInfo{
+		"fake.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
+	}))
+	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
+		ClownBin: "/nonexistent/clown",
+		WriteResult: func(_ context.Context, _ []byte) (string, error) {
+			return "fake-digest", nil
+		},
+		MaxRuntime: time.Minute,
+	}))
+
+	result, err := p.HandleAsync(context.Background(),
+		json.RawMessage(`{"tool":"fake.tool","args":{}}`))
+	if err != nil {
+		t.Fatalf("HandleAsync: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected rejection, got %+v", result)
+	}
+	if !strings.Contains(result.Content[0].Text, "permit-async = false") {
+		t.Errorf("rejection text = %q, want permit-async mention", result.Content[0].Text)
+	}
+
+	// Same gate for batch async: the sub-call is allow-tier but forbidden,
+	// and the dispatcher must never run.
+	p.dispatchSubCall = func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+		t.Fatal("dispatch must not run for a permit-async = false sub-call")
+		return nil, nil
+	}
+	result, err = p.HandleBatch(context.Background(), json.RawMessage(
+		`{"async":true,"calls":[{"tool":"fake.tool","args":{}}]}`,
+	))
+	if err != nil {
+		t.Fatalf("HandleBatch async: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected bailout, got %+v", result)
+	}
+	if !strings.Contains(result.Content[0].Text, "permit-async = false") {
+		t.Errorf("bailout text = %q, want permit-async mention", result.Content[0].Text)
+	}
+}
+
 func TestHandleAsyncValidation(t *testing.T) {
 	p := newAsyncProxy(t)
 

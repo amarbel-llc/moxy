@@ -498,6 +498,57 @@ timeout-ms = 5000
 	}
 }
 
+// permit-async (#317): omitted = eligible, explicit false forbids, explicit
+// true is recorded distinctly from omitted (*bool) for future tools/list
+// execution.taskSupport surfacing.
+func TestParseMoxinDirPermitAsync(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"forbidden": `
+schema = 3
+perms-request = "always-allow"
+command = "echo"
+permit-async = false
+`,
+		"explicit": `
+schema = 3
+perms-request = "always-allow"
+command = "echo"
+permit-async = true
+`,
+		"omitted": `
+schema = 3
+perms-request = "always-allow"
+command = "echo"
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	byName := map[string]ToolSpec{}
+	for _, tool := range cfg.Tools {
+		byName[tool.Name] = tool
+	}
+
+	if tool := byName["forbidden"]; tool.PermitAsync == nil || *tool.PermitAsync {
+		t.Errorf("forbidden: PermitAsync = %v, want explicit false", tool.PermitAsync)
+	} else if tool.PermitsAsync() {
+		t.Error("forbidden: PermitsAsync() = true, want false")
+	}
+	if tool := byName["explicit"]; tool.PermitAsync == nil || !*tool.PermitAsync {
+		t.Errorf("explicit: PermitAsync = %v, want explicit true", tool.PermitAsync)
+	}
+	if tool := byName["omitted"]; tool.PermitAsync != nil {
+		t.Errorf("omitted: PermitAsync = %v, want nil", tool.PermitAsync)
+	} else if !tool.PermitsAsync() {
+		t.Error("omitted: PermitsAsync() = false, want true (default eligible)")
+	}
+}
+
 func TestParseMoxinDirValidation(t *testing.T) {
 	tests := []struct {
 		name  string

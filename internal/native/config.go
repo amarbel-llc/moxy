@@ -101,6 +101,7 @@ type ToolSpec struct {
 	StdinParam           string
 	PermsRequest         PermsRequest
 	DynamicPerms         *DynamicPermsSpec // Added for moxy POC dynamic-perms
+	PermitAsync          *bool             // nil = eligible (see PermitsAsync); #317
 	ContentType          string
 	ResultType           ResultType
 	NoTruncate           bool
@@ -114,6 +115,16 @@ type ToolSpec struct {
 // this tool's arguments should be rewritten to /dev/fd/N pipes.
 func (s *ToolSpec) ShouldSubstituteURIs() bool {
 	return s.SubstituteResultURIs == nil || *s.SubstituteResultURIs
+}
+
+// PermitsAsync reports whether this tool may be dispatched asynchronously
+// (FDR 0004, #317). Omitted defaults to eligible; only an explicit
+// `permit-async = false` forbids backgrounding — the permission tier is a
+// separate, additional gate enforced by the async preflight. *bool keeps
+// omitted distinguishable from explicit-false for the future tools/list
+// execution.taskSupport surfacing.
+func (s *ToolSpec) PermitsAsync() bool {
+	return s.PermitAsync == nil || *s.PermitAsync
 }
 
 // MoxinMeta is the parsed content of _moxin.toml.
@@ -136,6 +147,7 @@ type rawToolFile struct {
 	StdinParam           string            `toml:"stdin-param"`
 	PermsRequest         PermsRequest      `toml:"perms-request"`
 	DynamicPerms         *DynamicPermsSpec `toml:"dynamic-perms"` // Added for moxy POC dynamic-perms
+	PermitAsync          *bool             `toml:"permit-async"`  // #317
 	ContentType          string            `toml:"content-type"`
 	ResultType           string            `toml:"result-type"`
 	NoTruncate           bool              `toml:"no-truncate"`
@@ -281,6 +293,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			StdinParam:           raw.StdinParam,
 			PermsRequest:         raw.PermsRequest,
 			DynamicPerms:         raw.DynamicPerms, // Added for moxy POC dynamic-perms
+			PermitAsync:          raw.PermitAsync,  // #317
 			ContentType:          raw.ContentType,
 			ResultType:           resultType,
 			NoTruncate:           raw.NoTruncate,
@@ -395,6 +408,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 		"schema", "name", "description", "command", "args",
 		"arg-order", "stdin-param", "perms-request",
 		"dynamic-perms", // Added for moxy POC dynamic-perms
+		"permit-async",  // #317
 		"content-type", "result-type", "no-truncate", "substitute-result-uris",
 	}
 	if schema <= 2 {
