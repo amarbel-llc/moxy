@@ -18,7 +18,10 @@ else
 fi
 
 gh_args=(api "repos/$repo/contents/$path")
-[ -n "$ref" ] && gh_args+=(-f ref="$ref")
+# --method GET is required when sending the ref field: gh switches to POST
+# whenever -f fields are present, and GitHub rejects POST on the contents
+# endpoint (#316, same class as #298/#306/#313). GET sends it as ?ref=.
+[ -n "$ref" ] && gh_args+=(--method GET -f ref="$ref")
 
 raw=$(gh "${gh_args[@]}")
 

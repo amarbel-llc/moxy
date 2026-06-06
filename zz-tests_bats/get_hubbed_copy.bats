@@ -2,7 +2,9 @@
 
 # bats file_tags=get_hubbed
 
-# Tests for get-hubbed copy-file and copy-tree tools. Covers #272.
+# Tests for get-hubbed's content-read tools (copy-file, copy-tree,
+# content-get) against a gh stub that mirrors gh's fields-force-POST
+# semantics. Covers #272, #298, #313, #316.
 
 load 'common'
 
@@ -140,6 +142,16 @@ function copy_file_creates_parent_directories { # @test
   run "$BIN/copy-file" "src/file.txt" "$dest" "" "test-org/test-repo"
   assert_success
   [ -f "$dest" ]
+}
+
+# Regression for #316: content-get with an explicit ref must not 404 — same
+# fields-force-POST class as #298/#306/#313 (tag and sha refs both hit it;
+# ref-less content-get does a plain GET and works).
+function content_get_with_explicit_ref_succeeds { # @test
+  cd "$REPO"
+  run "$BIN/content-get" "src/file.txt" "main" "test-org/test-repo"
+  assert_success
+  assert_output "hello world"
 }
 
 # Regression for #313: copy-file with an explicit ref must not 404 — same
