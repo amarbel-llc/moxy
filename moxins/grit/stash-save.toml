@@ -27,3 +27,6 @@ description = "Limit the stash to these pathspecs (git stash push -- <paths>), e
 
 [input.properties.paths.items]
 type = "string"
+
+[annotations]
+idempotent-hint = false

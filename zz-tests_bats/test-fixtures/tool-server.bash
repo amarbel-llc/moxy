@@ -13,7 +13,7 @@ while IFS= read -r line; do
     ;;
   notifications/initialized) ;;
   tools/list)
-    echo '{"jsonrpc":"2.0","id":'"$id"',"result":{"tools":[{"name":"execute-command","description":"Run a command","inputSchema":{"type":"object","properties":{"cmd":{"type":"string"}},"required":["cmd"]}}]}}'
+    echo '{"jsonrpc":"2.0","id":'"$id"',"result":{"tools":[{"name":"execute-command","description":"Run a command","inputSchema":{"type":"object","properties":{"cmd":{"type":"string"}},"required":["cmd"]},"annotations":{"destructiveHint":true,"openWorldHint":true}}]}}'
     ;;
   tools/call)
     name=$(echo "$line" | jq -r '.params.name')

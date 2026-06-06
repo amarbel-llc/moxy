@@ -27,3 +27,7 @@ description = "Target ref for soft reset (e.g. HEAD~1, HEAD~3, a branch). Defaul
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+destructive-hint = true
+idempotent-hint = true

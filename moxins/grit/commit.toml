@@ -32,3 +32,6 @@ description = "Allow a commit that records no changes (--allow-empty). Useful fo
 [input.properties.repo_path]
 type = "string"
 description = "Path to the git repository (defaults to current working directory — almost never needed)"
+
+[annotations]
+idempotent-hint = false

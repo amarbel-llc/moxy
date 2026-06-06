@@ -13,3 +13,6 @@ description = "Template flake reference (e.g., 'templates#rust'). If not specifi
 [input.properties.flake_dir]
 type = "string"
 description = "Directory to initialize the flake in. Defaults to current directory."
+
+[annotations]
+idempotent-hint = false

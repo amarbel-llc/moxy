@@ -297,6 +297,36 @@ test-validate-mcp: build-go
   cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
+# One-shot codemod for #315: append [annotations] to the tool TOMLs that
+# validate-mcp flags as unannotated. Idempotent (skips files that already
+# have an [annotations] block). Per-tool semantics encoded inline.
+[group("debug")]
+debug-codemod-annotations:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}
+  append() {
+    local f="$1"; shift
+    grep -q '^\[annotations\]' "$f" && return 0
+    { printf '\n[annotations]\n'; printf '%s\n' "$@"; } >> "$f"
+    echo "annotated: $f"
+  }
+  # Re-running creates a new commit/stash/branch or errors — never converges.
+  append moxins/grit/branch-create.toml 'idempotent-hint = false'
+  append moxins/grit/cherry-pick.toml   'idempotent-hint = false'
+  append moxins/grit/commit.toml        'idempotent-hint = false'
+  append moxins/grit/merge.toml         'idempotent-hint = false'
+  append moxins/grit/revert.toml        'idempotent-hint = false'
+  append moxins/grit/stash-save.toml    'idempotent-hint = false'
+  # History rewriters.
+  append moxins/grit/rebase.toml  'destructive-hint = true' 'idempotent-hint = false'
+  append moxins/grit/restack.toml 'destructive-hint = true' 'idempotent-hint = false'
+  # Soft reset: abandons branch-tip refs but converges on the same target
+  # (matches hard-reset's destructive+idempotent pair).
+  append moxins/grit/reset.toml 'destructive-hint = true' 'idempotent-hint = true'
+  # Template instantiation: refuses/conflicts on existing files.
+  append moxins/chix/flake-init.toml 'idempotent-hint = false'
+
 # Sleep for N seconds (default 300). Deterministic long-running target for
 # the async-cancel live smoke (FDR 0004) — every cached/test job finishes
 # faster than an agent's inter-turn latency, making cancellation unprovable
