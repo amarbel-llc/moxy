@@ -1,0 +1,35 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+permit-async = false
+description = """Inspect a tarball (.tar.gz, .tar.bz2, .tar, etc): with member, extract that \
+single file to stdout; without, list entries (optionally filtered by a grep pattern). \
+List first to discover member paths."""
+command = "@BIN@/tar"
+arg-order = ["path", "member", "pattern"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path to the tarball. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+
+[input.properties.member]
+type = "string"
+description = "Member path to extract to stdout (e.g. 'moxy/bin/moxy'). Omit to list entries."
+
+[input.properties.pattern]
+type = "string"
+description = "Grep pattern to filter the listing (e.g. 'bin/' or '\\.toml$'). Only valid when member is omitted."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 5000

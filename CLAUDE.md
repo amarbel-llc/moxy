@@ -208,10 +208,9 @@ via inline shell commands. No separate binary.
 
 **Tools:**
 
-- `read` -- read an entire file with line numbers. Large files (>2000 lines)
-  return a head+tail summary; use `read_range` for specific sections.
-- `read_range` -- read an inclusive line range from a file.
-- `read_excluding` -- read a file with an inclusive line range omitted.
+- `read` -- read a file with line numbers. Optional `start`/`end` print only
+  that inclusive range; optional `delete_start`/`delete_end` omit a range
+  instead (#327 folded the former read-range/read-excluding tools in).
 - `glob` -- find files matching a glob pattern. Supports `**` for recursive
   matching. Results sorted by modification time (newest first).
 - `write` -- create or overwrite a file (atomic write via tempfile+rename,

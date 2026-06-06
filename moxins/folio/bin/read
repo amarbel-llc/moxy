@@ -1,4 +1,31 @@
 #!/usr/bin/env bash
+# Merged read / read-range / read-excluding (#327): no range params reads
+# the whole file; start+end prints that inclusive range; delete_start+
+# delete_end omits that inclusive range. The pairs are mutually exclusive.
 set -euo pipefail
 file="$1"
-awk '{printf "%6d\t%s\n", NR, $0}' "$file"
+start="${2:-}"
+end="${3:-}"
+ds="${4:-}"
+de="${5:-}"
+
+if [ -n "$start$end" ] && [ -n "$ds$de" ]; then
+  echo "ERROR: start/end and delete_start/delete_end are mutually exclusive" >&2
+  exit 2
+fi
+if { [ -n "$start" ] && [ -z "$end" ]; } || { [ -z "$start" ] && [ -n "$end" ]; }; then
+  echo "ERROR: start and end must be supplied together" >&2
+  exit 2
+fi
+if { [ -n "$ds" ] && [ -z "$de" ]; } || { [ -z "$ds" ] && [ -n "$de" ]; }; then
+  echo "ERROR: delete_start and delete_end must be supplied together" >&2
+  exit 2
+fi
+
+if [ -n "$start" ]; then
+  awk -v s="$start" -v e="$end" 'NR>=s && NR<=e{printf "%6d\t%s\n", NR, $0} NR>e{exit}' "$file"
+elif [ -n "$ds" ]; then
+  awk -v ds="$ds" -v de="$de" '!(NR>=ds && NR<=de){printf "%6d\t%s\n", NR, $0}' "$file"
+else
+  awk '{printf "%6d\t%s\n", NR, $0}' "$file"
+fi

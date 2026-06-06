@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Merged tar-list / tar-cat (#327): member present extracts that member to
+# stdout; absent lists entries (optionally pattern-filtered).
+set -euo pipefail
+path="$1"
+member="${2:-}"
+pattern="${3:-}"
+
+if [ ! -f "$path" ]; then
+  echo "Error: not a file: $path" >&2
+  exit 1
+fi
+
+if [ -n "$member" ]; then
+  if [ -n "$pattern" ]; then
+    echo "ERROR: pattern only applies when listing (omit member)" >&2
+    exit 2
+  fi
+  exec tar -xf "$path" -O "$member"
+fi
+
+if [ -n "$pattern" ]; then
+  tar -tf "$path" | grep -E "$pattern"
+else
+  tar -tf "$path"
+fi

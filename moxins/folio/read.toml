@@ -3,10 +3,12 @@ result-type = "text"
 no-truncate = true
 perms-request = "dynamic"
 permit-async = false
-description = """Read an entire file with line numbers. Output format: `     N\\tcontent` per line. \
-Accepts madder://blobs/<digest> result URIs as file paths, replacing `head` and `tail` piping on command output."""
+description = """Read a file with line numbers (`     N\\tcontent` per line). \
+Optional start/end print only that inclusive line range (replacing `head`/`tail` piping); \
+optional delete_start/delete_end omit that inclusive range instead (replacing `sed` deletion). \
+Accepts madder://blobs/<digest> result URIs as file paths."""
 command = "@BIN@/read"
-arg-order = ["file_path"]
+arg-order = ["file_path", "start", "end", "delete_start", "delete_end"]
 
 [input]
 type = "object"
@@ -15,6 +17,22 @@ required = ["file_path"]
 [input.properties.file_path]
 type = "string"
 description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts madder://blobs/<digest> result URIs."
+
+[input.properties.start]
+type = "integer"
+description = "Inclusive first line to print (1-indexed). Requires end; mutually exclusive with the delete pair."
+
+[input.properties.end]
+type = "integer"
+description = "Inclusive last line to print (1-indexed). Requires start."
+
+[input.properties.delete_start]
+type = "integer"
+description = "Inclusive first line to omit (1-indexed). Requires delete_end; mutually exclusive with start/end."
+
+[input.properties.delete_end]
+type = "integer"
+description = "Inclusive last line to omit (1-indexed). Requires delete_start."
 
 [annotations]
 read-only-hint = true
