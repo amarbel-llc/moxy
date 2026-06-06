@@ -40,10 +40,13 @@ sub-calls use.
    run async by design.
 2. **Job open**: moxy runs `${CLOWN_BIN:-clown} job start --source moxy
    --label <tool>` and adopts the printed job id (e.g. `rg_search-3f2a8b1c`)
-   as the async handle. If `CLOWN_BIN` is unset, the call fails, or wakeups
-   are disabled (`CLOWN_DISABLE_JOB_WAKEUP=1` makes `clown job` calls exit-0
-   no-ops), moxy mints a local id of the same shape — async still works, the
-   agent just polls instead of being woken.
+   as the async handle. Implementers MUST NOT assume an id always comes
+   back: with `CLOWN_DISABLE_JOB_WAKEUP=1` the `clown job` commands are
+   exit-0 no-ops that print **nothing** — empty stdout on a zero exit is the
+   normal disabled-channel signature, not an error. In that case (and when
+   `CLOWN_BIN` is unset or the call fails outright), moxy mints a local id
+   of the same shape — async still works, the agent just polls
+   `async-result` instead of being woken.
 3. **Detached dispatch**: the call runs through the normal `CallToolV1`
    dispatch (statsd metrics included) on a context detached from the
    requesting MCP call, governed by the same ~16-slot concurrency cap as the
