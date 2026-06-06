@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -18,6 +19,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/paginate"
 	"github.com/amarbel-llc/moxy/internal/permcheck"
+	"github.com/amarbel-llc/moxy/internal/statsd"
 )
 
 // MoxinReloader re-discovers a single moxin's config by name from the
@@ -743,7 +745,53 @@ func (p *Proxy) ListToolsV1(
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
 
+// CallToolV1 dispatches a tool call and emits fire-and-forget statsd
+// metrics (duration + success/failure/abandoned) for every dispatch.
+// All tool-call paths funnel through here: builtins, batch sub-calls,
+// native moxins, persistent children, and ephemeral children — so this
+// wrapper is the single instrumentation point.
 func (p *Proxy) CallToolV1(
+	ctx context.Context,
+	name string,
+	args json.RawMessage,
+) (*protocol.ToolCallResultV1, error) {
+	start := time.Now()
+	result, err := p.callToolV1(ctx, name, args)
+	serverName, toolName, ok := splitPrefix(name, ".")
+	if !ok {
+		// Builtin meta tools (restart, batch, ...) have no server prefix.
+		serverName, toolName = "builtin", name
+	}
+	statsd.EmitToolDispatch(
+		serverName, toolName,
+		time.Since(start),
+		dispatchOutcome(ctx, result, err),
+	)
+	return result, err
+}
+
+// dispatchOutcome classifies one dispatch for metrics. A dispatch error or
+// a tool-level error result counts as failure; a dispatch error on an
+// already-cancelled context counts as abandoned (the client gave up, the
+// tool didn't fail on its own terms).
+func dispatchOutcome(
+	ctx context.Context,
+	result *protocol.ToolCallResultV1,
+	err error,
+) statsd.Outcome {
+	switch {
+	case err != nil && ctx.Err() != nil:
+		return statsd.OutcomeAbandoned
+	case err != nil:
+		return statsd.OutcomeFailure
+	case result != nil && result.IsError:
+		return statsd.OutcomeFailure
+	default:
+		return statsd.OutcomeSuccess
+	}
+}
+
+func (p *Proxy) callToolV1(
 	ctx context.Context,
 	name string,
 	args json.RawMessage,

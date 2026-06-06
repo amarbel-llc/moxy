@@ -156,6 +156,28 @@ Moxy loads TOML moxyfiles from a directory hierarchy:
 Later files override earlier ones by server name. See
 [moxyfile(5)](cmd/moxy/moxyfile.5) for the full configuration reference.
 
+### Metrics
+
+Moxy emits fire-and-forget statsd metrics over UDP for every tool dispatch
+(classic line protocol, no tags):
+
+```
+moxy.<server>.<tool>.duration:<ms>|ms
+moxy.<server>.<tool>.success:1|c      # or .failure / .abandoned
+```
+
+`<server>` is the child-server/moxin name (`builtin` for meta tools like
+`restart` and `batch`); names are sanitized to `[a-zA-Z0-9_-]`. A dispatch
+counts as `failure` on a dispatch error or a tool-level error result, and
+`abandoned` when the client cancelled the call. Configuration:
+
+- `STATSD_HOST` (default `127.0.0.1`) and `STATSD_PORT` (default `8125`),
+  dialed once at startup
+- `MOXY_DISABLE_STATSD=1` disables emission entirely (a failed dial also
+  runs disabled)
+
+Metrics never block or fail a dispatch — emit errors are swallowed.
+
 ## Documentation
 
 Moxy ships with man pages:

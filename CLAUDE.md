@@ -220,6 +220,9 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/embedding` -- vector index, cosine similarity, CGo llama bindings
+- `internal/statsd` -- fire-and-forget UDP statsd metrics for tool dispatch
+  (`STATSD_HOST`/`STATSD_PORT`, kill switch `MOXY_DISABLE_STATSD=1`); the
+  single emit site is the `Proxy.CallToolV1` wrapper
 
 ### CLI Subcommands
 
