@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+path="$1"
+mode="${2:-canonical}"
+case "$mode" in
+canonical) exec realpath "$path" ;;
+target) exec readlink "$path" ;;
+*)
+  echo "ERROR: mode must be \"canonical\" or \"target\", got \"$mode\"" >&2
+  exit 2
+  ;;
+esac

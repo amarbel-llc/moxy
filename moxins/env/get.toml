@@ -1,0 +1,18 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Print environment variables: with a name, that variable's value (exit 1 if unset); without, every variable as NAME=value lines."
+command = "@BIN@/get"
+arg-order = ["name"]
+
+[input]
+type = "object"
+
+[input.properties.name]
+type = "string"
+description = "Variable name to print (e.g. 'PATH', 'HOME', 'SSH_AUTH_SOCK'). Omit to list all variables."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

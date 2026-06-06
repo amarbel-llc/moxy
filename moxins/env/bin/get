@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# printenv with a name prints that variable (exit 1 if unset); with no
+# args it lists every variable — one script serves both subshapes (#326).
+exec printenv "$@"

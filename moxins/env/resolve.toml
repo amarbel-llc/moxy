@@ -1,0 +1,24 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Resolve a path: mode \"canonical\" (default) prints the absolute canonical form with all symlinks and relative components resolved (realpath); mode \"target\" prints a symlink's immediate target only (readlink)."
+command = "@BIN@/resolve"
+arg-order = ["path", "mode"]
+
+[input]
+type = "object"
+required = ["path"]
+
+[input.properties.path]
+type = "string"
+description = "Path to resolve (e.g. '/usr/bin/python3', './result', '~/.config')"
+
+[input.properties.mode]
+type = "string"
+enum = ["canonical", "target"]
+description = "canonical (default): full realpath resolution. target: immediate symlink target only."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
