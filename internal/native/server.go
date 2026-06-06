@@ -619,6 +619,7 @@ func BuildPermsArgs(arguments json.RawMessage, inputSchema json.RawMessage, argO
 		return nil, nil
 	}
 
+	arrayKeys := arrayTypedKeys(inputSchema)
 	extra := make([]string, len(argOrder))
 	for i, key := range argOrder {
 		val, ok := argMap[key]
@@ -626,18 +627,65 @@ func BuildPermsArgs(arguments json.RawMessage, inputSchema json.RawMessage, argO
 			extra[i] = ""
 			continue
 		}
-		var s string
-		if err := json.Unmarshal(val, &s); err == nil {
-			extra[i] = s
-		} else {
-			extra[i] = string(val)
-		}
+		extra[i] = argValueString(val, arrayKeys[key])
 	}
 	// Trim trailing empty slots so scripts can detect argc.
 	for len(extra) > 0 && extra[len(extra)-1] == "" {
 		extra = extra[:len(extra)-1]
 	}
 	return extra, nil
+}
+
+// argValueString renders one argument value as positional argv text. JSON
+// strings are unquoted; other types keep their raw JSON representation.
+// When wantArray is true (the schema declares the key `type: array`) but the
+// client passed a scalar instead, the scalar is wrapped as a single-element
+// JSON array — so scripts that split array args with `jq -r '.[]'` always
+// receive valid JSON (#309). Real arrays pass through untouched, and null
+// behaves like an absent key (empty slot), matching scalar-null handling.
+func argValueString(val json.RawMessage, wantArray bool) string {
+	if wantArray {
+		trimmed := bytes.TrimSpace(val)
+		switch {
+		case len(trimmed) == 0 || string(trimmed) == "null":
+			// Fall through to scalar handling, which yields "".
+		case trimmed[0] == '[':
+			return string(val)
+		default:
+			return "[" + string(trimmed) + "]"
+		}
+	}
+	var s string
+	if err := json.Unmarshal(val, &s); err == nil {
+		return s
+	}
+	return string(val)
+}
+
+// arrayTypedKeys returns the property names declared `"type": "array"` in a
+// tool's input schema, or nil when the schema is absent or unparseable.
+func arrayTypedKeys(inputSchema json.RawMessage) map[string]bool {
+	if len(inputSchema) == 0 {
+		return nil
+	}
+	var schema struct {
+		Properties map[string]struct {
+			Type string `json:"type"`
+		} `json:"properties"`
+	}
+	if json.Unmarshal(inputSchema, &schema) != nil {
+		return nil
+	}
+	var keys map[string]bool
+	for k, p := range schema.Properties {
+		if p.Type == "array" {
+			if keys == nil {
+				keys = make(map[string]bool)
+			}
+			keys[k] = true
+		}
+	}
+	return keys
 }
 
 // buildExtraArgs extracts string argument values from the caller's JSON
@@ -662,6 +710,8 @@ func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage, argO
 	// When arg_order is set, emit a value for every slot (empty string for
 	// absent keys) so positional indices are stable, then trim trailing
 	// empty slots.
+	arrayKeys := arrayTypedKeys(inputSchema)
+
 	if len(argOrder) > 0 {
 		extra := make([]string, len(argOrder))
 		seen := make(map[string]bool, len(argOrder))
@@ -672,12 +722,7 @@ func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage, argO
 				extra[i] = ""
 				continue
 			}
-			var s string
-			if err := json.Unmarshal(val, &s); err == nil {
-				extra[i] = s
-			} else {
-				extra[i] = string(val)
-			}
+			extra[i] = argValueString(val, arrayKeys[key])
 		}
 
 		// Trim trailing empty slots so scripts can detect argc.
@@ -694,13 +739,7 @@ func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage, argO
 		}
 		sort.Strings(remaining)
 		for _, key := range remaining {
-			val := argMap[key]
-			var s string
-			if err := json.Unmarshal(val, &s); err == nil {
-				extra = append(extra, s)
-			} else {
-				extra = append(extra, string(val))
-			}
+			extra = append(extra, argValueString(argMap[key], arrayKeys[key]))
 		}
 		return extra, nil
 	}
@@ -713,14 +752,7 @@ func buildExtraArgs(arguments json.RawMessage, inputSchema json.RawMessage, argO
 		if !ok {
 			continue
 		}
-		// Try to unquote as a JSON string; fall back to raw representation
-		// for non-string types (numbers, booleans, etc.).
-		var s string
-		if err := json.Unmarshal(val, &s); err == nil {
-			extra = append(extra, s)
-		} else {
-			extra = append(extra, string(val))
-		}
+		extra = append(extra, argValueString(val, arrayKeys[key]))
 	}
 	return extra, nil
 }
