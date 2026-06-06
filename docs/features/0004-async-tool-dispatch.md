@@ -1,0 +1,187 @@
+---
+status: proposed
+date: 2026-06-06
+promotion-criteria: an agent dispatches a real >60s tool call via `async`, is
+  woken by the clown job-wakeup notification, and retrieves the full result via
+  `async-result`; `async-cancel` produces a `cancelled` wake; after a moxy
+  restart the result is still reachable via the digest in the wake message; no
+  tuning-lever adjustment needed for 2 weeks of real use
+---
+
+# Async tool dispatch (meta tools + clown job wakeups)
+
+## Problem Statement
+
+Every moxy tool call is synchronous: the agent blocks until the subprocess or
+child server returns, so a long-running tool (a slow API sweep, a big `rg`
+over a huge tree, a multi-step batch) occupies the agent's turn for its full
+duration. The clown job-wakeup channel (RFC-0009, proven by
+`get-hubbed.ci-watch`) already lets background work wake the agent on
+completion — but nothing lets the agent *put a moxy tool call into the
+background* in the first place. Any moxy tool, individually or as a batch,
+should be dispatchable asynchronously: return a handle immediately, run
+detached, and wake the agent when the result is ready.
+
+## Interface
+
+Three new meta tools (joining `restart`, `batch`, `paved-paths`), plus an
+`async` flag on `batch`.
+
+### `async` — dispatch one tool call in the background
+
+Input: `{tool: "<server>.<tool>", args: {...}}` — the same shapes `batch`
+sub-calls use.
+
+1. **Permission pre-resolution** (same machinery as `batch`): the call is
+   resolved through moxy's `perms-request` system *before* anything runs.
+   Only calls that resolve to **allow** may background — `deny`, `ask`, and
+   unknown tools are rejected synchronously with a structured error. There is
+   no client to prompt once the call is detached, so ask-gated tools cannot
+   run async by design.
+2. **Job open**: moxy runs `${CLOWN_BIN:-clown} job start --source moxy
+   --label <tool>` and adopts the printed job id (e.g. `rg_search-3f2a8b1c`)
+   as the async handle. If `CLOWN_BIN` is unset, the call fails, or wakeups
+   are disabled (`CLOWN_DISABLE_JOB_WAKEUP=1` makes `clown job` calls exit-0
+   no-ops), moxy mints a local id of the same shape — async still works, the
+   agent just polls instead of being woken.
+3. **Detached dispatch**: the call runs through the normal `CallToolV1`
+   dispatch (statsd metrics included) on a context detached from the
+   requesting MCP call, governed by the same ~16-slot concurrency cap as the
+   rest of dispatch.
+4. **Immediate return**: `{job_id, tool, status: "running"}`.
+5. **Terminal**: the full result is written to the madder store, the
+   in-memory index is updated, and moxy emits
+   `clown job done <job_id> --state <state> --message "<tool> <state>:
+   <first-line summary> (madder <digest>)" --result-ref "moxy async-result
+   <job_id>"`. The agent's wake line carries everything needed to act.
+
+State mapping: clean result → `succeeded`; dispatch error or `isError`
+result → `failed`; `async-cancel` → `cancelled`; max-runtime timeout or moxy
+graceful shutdown → `interrupted`. Every spawned job reaches a terminal
+`done` — on shutdown moxy sweeps in-flight jobs and emits `interrupted` for
+each (a hard crash is the accepted producer-death gap; the job sits open
+until clown's 7-day journal GC).
+
+### `async-result` — fetch a stored result
+
+Input: `{job_id}`. Returns the job's state plus, when terminal, the full
+original `ToolCallResultV1` (from the index entry's madder digest). Running
+jobs return `{status: "running", started: ...}` so the tool doubles as a
+poll surface when wakeups are disabled. Unknown ids return a structured
+error listing live job ids.
+
+### `async-cancel` — cancel a running job
+
+Input: `{job_id}`. Context-cancels the in-flight dispatch; the job reaches
+terminal `cancelled` and wakes the agent like any other terminal state.
+Cancelling an already-terminal job is a no-op that returns the terminal
+state.
+
+### `batch {async: true, ...}` — background a whole batch
+
+`batch` gains an optional `async` flag. The existing preflight (all sub-call
+perms resolved to allow, else single bailout) runs synchronously; on success
+the batch backgrounds as **one** job (`--label batch`), and the stored
+result is the batch's normal TAP-NDJSON document. Per-sub-call jobs were
+considered and rejected: one wake per batch matches how agents consume batch
+results, and avoids flooding the notification channel.
+
+## Result store
+
+Results are written to a **user-level madder store** named `moxy-async`.
+Unprefixed madder store ids resolve to `$XDG_DATA_HOME/madder/blob_stores/`
+(see madder(1) FILES), so the store is shared across sessions and worktrees —
+unlike the CWD-relative `.default` store moxy uses for inline-result
+substitution, which is scoped per worktree and dies with it. moxy initializes
+the store lazily (`madder init moxy-async`) on first async dispatch.
+
+The job index (`job_id → {tool, state, digest, summary, started, finished,
+cancel}`) is **in-memory**. Two retention domains, deliberately decoupled
+(store = system of record, journal = wake layer, mirroring the spinclass
+chat migration):
+
+- clown's journal GC (7 days) bounds the *wake* records;
+- the madder blobs persist until explicitly reaped, and the wake message
+  embeds the digest — so even after a moxy restart loses the index, the
+  agent can `madder cat <digest>` straight from the notification line.
+
+## Examples
+
+Background a slow search, keep working, get woken:
+
+    async {tool: "rg.search", args: {pattern: "TODO", path: "/big/tree"}}
+    → {"job_id": "rg_search-3f2a8b1c", "tool": "rg.search", "status": "running"}
+
+    ... agent does other work ...
+
+    [clown-job] moxy rg_search-3f2a8b1c succeeded: rg.search succeeded:
+    412 matches (madder blake2b256-...) · moxy async-result rg_search-3f2a8b1c
+
+    async-result {job_id: "rg_search-3f2a8b1c"}
+    → full ToolCallResultV1
+
+Background a destructive batch after one permission prompt:
+
+    batch {async: true, calls: [{tool: "grit.tag", args: {...}}, ...]}
+    → {"job_id": "batch-9c01d4e2", "status": "running"}
+    ... wake on completion; async-result returns the TAP-NDJSON document
+
+Cancel:
+
+    async-cancel {job_id: "rg_search-3f2a8b1c"}
+    → {"job_id": "rg_search-3f2a8b1c", "status": "cancelled"}
+
+## MCP-native tasks (forward compatibility)
+
+MCP 2025-11-25 defines task-augmented tool invocation, and the pinned go-mcp
+already ships the full surface (`server.Options.Tasks` / `TaskProvider`
+{GetTask, GetTaskResult, CancelTask, ListTasks}, `tasks/get|result|cancel|
+list`, `ToolExecution.TaskSupport`). The v1 meta-tool design deliberately
+shapes its bookkeeping to back that interface later: the job index IS a
+`TaskProvider` store (`GetTask` ≈ index lookup, `GetTaskResult` ≈
+`async-result`, `CancelTask` ≈ `async-cancel`, `ListTasks` ≈ index scan).
+Today no known client (including Claude Code) sends task-augmented calls, so
+wiring `Options.Tasks` is future work gated on demonstrated client support —
+not part of v1.
+
+## Limitations
+
+- **Ask-gated tools cannot run async.** Only calls whose permission resolves
+  to allow may background. This is a safety posture, not a gap to fill.
+- **Producer-death gap.** If moxy crashes (not graceful shutdown), in-flight
+  jobs never emit a terminal `done`; they sit open until clown's 7-day
+  journal GC. Accepted for v1, same posture as spinclass's interrupted case.
+- **Index is process-local.** A moxy restart forgets job ids; results remain
+  reachable only via the digest embedded in the wake message. A durable
+  index is deliberate future work, not v1.
+- **No progress events.** `started`/`progress` records are journal-only in
+  the clown channel and v1 emits none; only terminal states wake the agent.
+- **Sequential batch semantics unchanged.** `async: true` changes *when* the
+  batch runs, not how — sub-calls still execute sequentially per the batch
+  contract.
+- **Store reaping is manual.** Nothing auto-reaps `moxy-async` blobs in v1;
+  content-addressed storage makes this cheap to defer.
+
+## Tuning Levers
+
+| Lever | Current | Rationale | Change signal |
+|---|---|---|---|
+| max job runtime | 30 min default, per-call override | bounds the terminal-done guarantee without strangling real long jobs (ci-watch uses 6 h for CI) | legitimate jobs hitting the ceiling |
+| concurrent async jobs | shared ~16-slot dispatch cap | clown etiquette is "low dozens"; reusing the existing governor avoids a second knob | agents queueing behind the cap on real workloads |
+| index entry retention | process lifetime, no cap | sessions are bounded; digest-in-message covers restarts | memory growth or agents needing old ids listed |
+| store reaping | none | content-addressed blobs are cheap; reaping needs a policy not a guess | `moxy-async` store size complaints |
+| wake message summary | first line of result, truncated | one notification line must stay readable | agents consistently needing more context before fetching |
+
+## More Information
+
+- moxy#314 (feature request), moxy#267 (batch madder-blob formatter — adjacent)
+- clown: RFC-0009 (job-wakeup channel), clown-job(1), FDR-0013 (channel
+  consumers; ci-watch live proof)
+- Precedents in this repo: `get-hubbed.ci-watch` (producer contract,
+  terminal-done guarantee, kill-switch posture), `batch`
+  (docs/plans/2026-05-20-batch-tool.md — permission preflight machinery this
+  design reuses)
+- Pinned clown contract (2026-06-06, clown/sleek-sumac): source=`moxy`,
+  label=tool name or `batch`, result-ref `moxy async-result <job_id>`,
+  shell-out producer only (no native journal speaker), job-id is the agent's
+  dedupe key
