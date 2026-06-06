@@ -297,6 +297,25 @@ test-validate-mcp: build-go
   cd "$HOME/repo"
   purse-first validate-mcp {{justfile_directory()}}/{{dir_build}}/moxy serve mcp
 
+# Probe whether `madder init <unprefixed-id>` creates an XDG user-level store
+# under a fresh XDG_DATA_HOME. Agent dev-loop for FDR 0004's async result
+# store (moxy-async).
+[group("debug")]
+debug-madder-init-xdg:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  # mktemp -p /tmp escapes the worktree's .madder ancestry (TMPDIR points
+  # into the worktree .tmp, whose walk-up shadows XDG scope — madder#227).
+  tmp=$(mktemp -d -p /tmp madder-xdg-probe.XXXXXX)
+  trap 'rm -rf "$tmp"' EXIT
+  mkdir -p "$tmp/cwd" "$tmp/xdg"
+  cd "$tmp/cwd"
+  XDG_DATA_HOME="$tmp/xdg" madder init moxy-async
+  echo "--- created under xdg: ---"
+  find "$tmp/xdg" -maxdepth 5 | head -20
+  echo "--- write round trip: ---"
+  printf 'roundtrip-ok' | XDG_DATA_HOME="$tmp/xdg" madder write -format json moxy-async - | head -1
+
 # Dump one tool's tools/list entry from the locally-built moxy under a given
 # MCP protocolVersion. Agent dev-loop for #217 (annotations reported missing).
 [group("debug")]

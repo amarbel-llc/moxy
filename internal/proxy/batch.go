@@ -21,6 +21,11 @@ type batchCall struct {
 type batchParams struct {
 	Calls   []batchCall `json:"calls"`
 	OnError string      `json:"on_error,omitempty"`
+	// Async backgrounds the whole batch as ONE async job (FDR 0004):
+	// preflight runs synchronously and is allow-only, the TAP-NDJSON
+	// result lands in the async result store, and the agent is woken on
+	// the batch's terminal state.
+	Async bool `json:"async,omitempty"`
 }
 
 // batchRejection records a sub-call that failed pre-flight permission
@@ -82,6 +87,10 @@ func (p *Proxy) HandleBatch(
 		return protocol.ErrorResultV1(
 			"batch unavailable: no permission resolver configured",
 		), nil
+	}
+
+	if params.Async {
+		return p.handleBatchAsync(ctx, params)
 	}
 
 	// Pre-flight: resolve every sub-call.

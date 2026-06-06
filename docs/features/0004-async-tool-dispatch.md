@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: experimental
 date: 2026-06-06
 promotion-criteria: an agent dispatches a real >60s tool call via `async`, is
   woken by the clown job-wakeup notification, and retrieves the full result via
@@ -98,8 +98,23 @@ Results are written to a **user-level madder store** named `moxy-async`.
 Unprefixed madder store ids resolve to `$XDG_DATA_HOME/madder/blob_stores/`
 (see madder(1) FILES), so the store is shared across sessions and worktrees —
 unlike the CWD-relative `.default` store moxy uses for inline-result
-substitution, which is scoped per worktree and dies with it. moxy initializes
-the store lazily (`madder init moxy-async`) on first async dispatch.
+substitution, which is scoped per worktree and dies with it.
+
+**Provisioning: the store is declared by home-manager; moxy only writes,
+never creates.** Rationale: madder's `init` currently disagrees with `write`
+about unprefixed store-id scope (`init` lands in the nearest ancestor
+`.madder`, shadowing XDG — madder#227), so creating the store from inside a
+worktree is unreliable; and a user-level resource shared by every session is
+infrastructure, which the eng convention provisions declaratively, not on
+first use by whichever process gets there first. Until the store exists,
+async degrades gracefully: jobs still reach terminal states and `async-
+result` serves from the in-memory index — only the digest in the wake
+message is missing (the write failure is logged to lifecycle.log).
+
+Rejected alternatives: worktree `.default` (covers in-session fetch and
+moxy-restart, but results die with `sc close` — the user requires
+session-surviving results); moxy-creates-XDG-store (blocked on madder#227
+and the wrong ownership model regardless).
 
 The job index (`job_id → {tool, state, digest, summary, started, finished,
 cancel}`) is **in-memory**. Two retention domains, deliberately decoupled
@@ -167,6 +182,9 @@ not part of v1.
   contract.
 - **Store reaping is manual.** Nothing auto-reaps `moxy-async` blobs in v1;
   content-addressed storage makes this cheap to defer.
+- **The result store must be provisioned out-of-band** (home-manager).
+  Until it exists, wake messages carry no digest and results are only
+  reachable from the dispatching moxy process's in-memory index.
 
 ## Tuning Levers
 

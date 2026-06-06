@@ -81,27 +81,11 @@ func (c *MadderClient) Write(ctx context.Context, content io.Reader) (string, er
 	return c.WriteToStore(ctx, defaultStoreID, content)
 }
 
-// EnsureStore initializes a blob store if it doesn't exist yet.
-// Idempotent: an existing store is left untouched. Unprefixed store ids
-// are user-level (XDG) stores under $XDG_DATA_HOME/madder/blob_stores/,
-// so this works from any CWD — unlike the '.'-prefixed CWD-relative
-// stores (see madder(1) FILES).
-func (c *MadderClient) EnsureStore(ctx context.Context, storeID string) error {
-	probe := exec.CommandContext(ctx, c.bin, "info-repo", storeID)
-	if err := probe.Run(); err == nil {
-		return nil
-	}
-	cmd := exec.CommandContext(ctx, c.bin, "init", storeID)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("madder init %s: %w (stderr: %s)", storeID, err, stderr.String())
-	}
-	return nil
-}
-
 // WriteToStore streams content into the named store and returns the
-// resulting markl-id (blob digest).
+// resulting markl-id (blob digest). Deliberately no companion
+// "EnsureStore": user-level stores are provisioned out-of-band
+// (home-manager) because `madder init` with an unprefixed id from inside a
+// worktree lands in the ancestor .madder, shadowing XDG scope (madder#227).
 func (c *MadderClient) WriteToStore(ctx context.Context, storeID string, content io.Reader) (string, error) {
 	cmd := exec.CommandContext(ctx, c.bin,
 		"write", "-format", "json", storeID, "-")

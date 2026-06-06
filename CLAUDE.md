@@ -97,6 +97,17 @@ continues — both modes are valid; stop produces `skip` directive records
 for the remainder. Sequential execution only in v1. See
 `docs/plans/2026-05-20-batch-tool.md`.
 
+Moxy also injects `async`, `async-result`, and `async-cancel` meta tools
+(FDR 0004): `async {tool, args}` backgrounds one tool call (allow-only
+permission preflight), returns `{job_id, status:"running"}` immediately,
+and wakes the agent on the terminal state via clown's job-wakeup channel
+(`${CLOWN_BIN:-clown}`); results are written to the user-level `moxy-async`
+madder store (provisioned by home-manager — moxy never creates it) with the
+digest embedded in the wake message. `batch {async: true}` backgrounds a
+whole batch as one job. The manager lives in `internal/asyncjob`; the single
+instrumentation/registration pattern mirrors `batch`. See
+`docs/features/0004-async-tool-dispatch.md`.
+
 ### Synthetic Resource Tools
 
 When `generate-resource-tools = true` on a server config, moxy generates

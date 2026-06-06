@@ -332,12 +332,17 @@ func mintID(label string) string {
 	return b.String() + "-" + hex.EncodeToString(buf[:])
 }
 
-// firstLine extracts a one-line summary from a tool result's first text
-// block, truncated for the wake line.
+// firstLine extracts a one-line summary from a tool result's first
+// text-bearing block, truncated for the wake line. Native moxin results
+// with a content-type arrive as embedded-resource blocks whose text lives
+// in Resource.Text rather than the top-level Text field.
 func firstLine(result *protocol.ToolCallResultV1) string {
 	for _, block := range result.Content {
 		if block.Text != "" {
 			return firstLineOf(block.Text)
+		}
+		if block.Resource != nil && block.Resource.Text != nil && *block.Resource.Text != "" {
+			return firstLineOf(*block.Resource.Text)
 		}
 	}
 	return ""

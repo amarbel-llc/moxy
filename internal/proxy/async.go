@@ -162,6 +162,67 @@ func (p *Proxy) HandleAsyncCancel(
 	}), nil
 }
 
+// handleBatchAsync backgrounds a whole batch as ONE async job. The
+// preflight is stricter than the synchronous batch's (which admits Ask
+// under the client's single batch prompt): once detached there is no
+// client to prompt, so every sub-call must resolve to ALLOW.
+func (p *Proxy) handleBatchAsync(
+	ctx context.Context,
+	params batchParams,
+) (*protocol.ToolCallResultV1, error) {
+	if p.asyncManager == nil {
+		return protocol.ErrorResultV1(
+			"batch async unavailable: no job manager configured",
+		), nil
+	}
+
+	var rejected []batchRejection
+	for i, c := range params.Calls {
+		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, ".")
+		if dec == permcheck.Allow {
+			continue
+		}
+		rejected = append(rejected, batchRejection{
+			index:  i,
+			call:   c,
+			dec:    dec,
+			reason: reason + " (async batches are allow-only)",
+		})
+	}
+	if len(rejected) > 0 {
+		return emitPreflightBailout(params.Calls, rejected), nil
+	}
+
+	// Re-enter HandleBatch without the async flag for the actual run, so
+	// sequential execution, on_error semantics, and the TAP-NDJSON result
+	// stay byte-identical to a synchronous batch.
+	syncArgs, err := json.Marshal(batchParams{
+		Calls:   params.Calls,
+		OnError: params.OnError,
+	})
+	if err != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("marshaling batch args: %v", err),
+		), nil
+	}
+
+	id, err := p.asyncManager.Dispatch(ctx, "batch", syncArgs,
+		func(jobCtx context.Context, _ string, callArgs json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			return p.HandleBatch(jobCtx, callArgs)
+		})
+	if err != nil {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("async dispatch: %v", err),
+		), nil
+	}
+
+	return asyncJSONResult(map[string]any{
+		"job_id": id,
+		"tool":   "batch",
+		"status": asyncjob.StateRunning,
+	}), nil
+}
+
 // asyncLookup parses {job_id} args and resolves the job, returning a
 // structured error result (never a Go error) on bad input or unknown ids.
 func (p *Proxy) asyncLookup(args json.RawMessage) (asyncjob.Snapshot, *protocol.ToolCallResultV1) {

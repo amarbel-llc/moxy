@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -509,7 +508,7 @@ func runServer(app *command.App, mode transportMode) error {
 	builtinRegistry.Register(
 		protocol.ToolV1{
 			Name:        "batch",
-			Description: "Run a sequence of moxin sub-calls under a single permission prompt. Each sub-call must resolve to allow or ask via moxy's perms-request system; deny or unknown aborts the batch. Output is TAP-NDJSON. See moxy-batch(7).",
+			Description: "Run a sequence of moxin sub-calls under a single permission prompt. Each sub-call must resolve to allow or ask via moxy's perms-request system; deny or unknown aborts the batch. Output is TAP-NDJSON. See moxy-batch(7). With async=true the whole batch backgrounds as ONE async job (allow-only preflight; the agent is woken on completion and fetches the TAP-NDJSON via async-result).",
 			InputSchema: json.RawMessage(`{
 				"type":"object",
 				"required":["calls"],
@@ -526,7 +525,8 @@ func runServer(app *command.App, mode transportMode) error {
 							}
 						}
 					},
-					"on_error":{"type":"string","enum":["stop","continue"],"default":"stop"}
+					"on_error":{"type":"string","enum":["stop","continue"],"default":"stop"},
+					"async":{"type":"boolean","default":false,"description":"Background the batch as one async job; every sub-call must resolve to allow"}
 				}
 			}`),
 			Annotations: &protocol.ToolAnnotations{
@@ -538,18 +538,13 @@ func runServer(app *command.App, mode transportMode) error {
 	)
 
 	// Async dispatch (FDR 0004): results go to the user-level madder store
-	// so they survive worktrees and sessions; the store is initialized
-	// lazily on the first async result write.
-	var ensureAsyncStore sync.Once
-	var ensureAsyncStoreErr error
+	// so they survive worktrees and sessions. The store is provisioned by
+	// home-manager — moxy only writes, NEVER creates (madder#227: init from
+	// inside a worktree lands in the ancestor .madder, shadowing XDG scope).
+	// Until the store exists, async degrades gracefully: jobs still reach
+	// terminal states; only the digest is missing from wake messages.
 	asyncManager := asyncjob.New(asyncjob.Options{
 		WriteResult: func(ctx context.Context, content []byte) (string, error) {
-			ensureAsyncStore.Do(func() {
-				ensureAsyncStoreErr = madderClient.EnsureStore(ctx, asyncResultStoreID)
-			})
-			if ensureAsyncStoreErr != nil {
-				return "", ensureAsyncStoreErr
-			}
 			return madderClient.WriteToStore(ctx, asyncResultStoreID, bytes.NewReader(content))
 		},
 	})

@@ -209,8 +209,10 @@ func TestIsErrorResultIsFailed(t *testing.T) {
 	m := newTestManager(bin)
 	id, _ := m.Dispatch(context.Background(), "x.boom", nil,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
-			return &protocol.ToolCallResultV1{IsError: true,
-				Content: []protocol.ContentBlockV1{{Type: "text", Text: "tool-level error"}}}, nil
+			return &protocol.ToolCallResultV1{
+				IsError: true,
+				Content: []protocol.ContentBlockV1{{Type: "text", Text: "tool-level error"}},
+			}, nil
 		})
 	snap := waitTerminal(t, m, id)
 	if snap.State != StateFailed {
@@ -288,6 +290,34 @@ func TestSweepInterruptsInFlight(t *testing.T) {
 	lines := recordLines(t, record)
 	if !strings.Contains(lines[len(lines)-1], "--state interrupted") {
 		t.Errorf("done line = %q, want interrupted", lines[len(lines)-1])
+	}
+}
+
+// Native moxin results with a content-type arrive as embedded-resource
+// blocks (text in Resource.Text, not the top-level Text) — the wake-line
+// summary must come from there too. Round-trip through JSON to mirror the
+// proxy's decodeToolCallResult path exactly.
+func TestSummaryFromEmbeddedResourceBlock(t *testing.T) {
+	bin, record := writeClownStub(t, "res-dddd0000")
+	m := newTestManager(bin)
+
+	raw := []byte(`{"content":[{"type":"resource","resource":{"uri":"moxy.native://x","text":"hello async","mimeType":"text/plain"}}]}`)
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal fixture: %v", err)
+	}
+
+	id, _ := m.Dispatch(context.Background(), "x.res", nil,
+		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			return &result, nil
+		})
+	snap := waitTerminal(t, m, id)
+	if snap.Summary != "hello async" {
+		t.Errorf("summary = %q, want %q", snap.Summary, "hello async")
+	}
+	done := waitDoneLine(t, record)
+	if !strings.Contains(done, "x.res: hello async") {
+		t.Errorf("done line = %q, want summary in message", done)
 	}
 }
 
