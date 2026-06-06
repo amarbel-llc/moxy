@@ -243,9 +243,12 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/embedding` -- vector index, cosine similarity, CGo llama bindings
-- `internal/statsd` -- fire-and-forget UDP statsd metrics for tool dispatch
-  (`STATSD_HOST`/`STATSD_PORT`, kill switch `MOXY_DISABLE_STATSD=1`); the
-  single emit site is the `Proxy.CallToolV1` wrapper
+- `internal/statsd` -- fire-and-forget UDP statsd metrics
+  (`STATSD_HOST`/`STATSD_PORT`, kill switch `MOXY_DISABLE_STATSD=1`); emit
+  sites: the `Proxy.CallToolV1` wrapper (all proxied tool dispatch),
+  `Proxy.ReadResource` + `Proxy.GetPromptV1` (resource_read / prompt_get
+  families, #312), and serve_moxin's instrumented adapter (#311) — all
+  sharing the `statsd.OutcomeFor` classifier
 
 ### CLI Subcommands
 

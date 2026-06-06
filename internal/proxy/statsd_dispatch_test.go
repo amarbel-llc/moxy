@@ -55,6 +55,76 @@ func TestCallToolV1EmitsDispatchMetrics(t *testing.T) {
 	}
 }
 
+// Resource reads and prompt gets emit their own metric families (#312):
+// moxy.<segment>.resource_read.* and moxy.<server>.prompt_get.*.
+func TestReadResourceAndGetPromptEmitMetrics(t *testing.T) {
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("binding UDP listener: %v", err)
+	}
+	t.Cleanup(func() { _ = pc.Close() })
+	port := pc.LocalAddr().(*net.UDPAddr).Port
+	t.Setenv("STATSD_HOST", "127.0.0.1")
+	t.Setenv("STATSD_PORT", strconv.Itoa(port))
+	t.Setenv("MOXY_DISABLE_STATSD", "")
+	statsd.ReinitFromEnv()
+	t.Cleanup(statsd.ReinitFromEnv)
+
+	p := &Proxy{}
+
+	// A URI with no server prefix errors before any provider/child lookup
+	// — the cheapest read that flows through the wrapper. Segment "_".
+	if _, err := p.ReadResource(context.Background(), "justaname"); err == nil {
+		t.Fatal("expected error for prefix-less URI")
+	}
+	buf := make([]byte, 4096)
+	_ = pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, _, err := pc.ReadFrom(buf)
+	if err != nil {
+		t.Fatalf("reading UDP packet: %v", err)
+	}
+	got := string(buf[:n])
+	if !strings.HasPrefix(got, "moxy._.resource_read.duration:") {
+		t.Errorf("packet missing resource_read duration: %q", got)
+	}
+	if !strings.HasSuffix(got, "moxy._.resource_read.failure:1|c") {
+		t.Errorf("packet missing resource_read failure counter: %q", got)
+	}
+
+	// Unknown server on a well-formed prompt name → failure under the
+	// server's segment.
+	if _, err := p.GetPromptV1(context.Background(), "nosuch.prompt", nil); err == nil {
+		t.Fatal("expected error for unknown prompt server")
+	}
+	_ = pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, _, err = pc.ReadFrom(buf)
+	if err != nil {
+		t.Fatalf("reading UDP packet: %v", err)
+	}
+	got = string(buf[:n])
+	if !strings.HasPrefix(got, "moxy.nosuch.prompt_get.duration:") {
+		t.Errorf("packet missing prompt_get duration: %q", got)
+	}
+	if !strings.HasSuffix(got, "moxy.nosuch.prompt_get.failure:1|c") {
+		t.Errorf("packet missing prompt_get failure counter: %q", got)
+	}
+}
+
+func TestResourceMetricSegment(t *testing.T) {
+	cases := []struct{ uri, want string }{
+		{"moxy://servers", "moxy"},
+		{"madder://blobs/blake2b256-abc", "madder"},
+		{"grit/some/resource", "grit"},
+		{"justaname", "_"},
+		{"", "_"},
+	}
+	for _, c := range cases {
+		if got := resourceMetricSegment(c.uri); got != c.want {
+			t.Errorf("resourceMetricSegment(%q) = %q, want %q", c.uri, got, c.want)
+		}
+	}
+}
+
 func TestDispatchOutcome(t *testing.T) {
 	okResult := &protocol.ToolCallResultV1{}
 	errResult := &protocol.ToolCallResultV1{IsError: true}

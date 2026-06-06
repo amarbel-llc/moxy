@@ -158,18 +158,24 @@ Later files override earlier ones by server name. See
 
 ### Metrics
 
-Moxy emits fire-and-forget statsd metrics over UDP for every tool dispatch
-(classic line protocol, no tags):
+Moxy emits fire-and-forget statsd metrics over UDP for every tool dispatch,
+resource read, and prompt get (classic line protocol, no tags):
 
 ```
 moxy.<server>.<tool>.duration:<ms>|ms
 moxy.<server>.<tool>.success:1|c      # or .failure / .abandoned
+moxy.<segment>.resource_read.*        # resources/read; <segment> is the URI
+                                      # scheme (moxy, madder) or <server>/ prefix
+moxy.<server>.prompt_get.*            # prompts/get
 ```
 
 `<server>` is the child-server/moxin name (`builtin` for meta tools like
-`restart` and `batch`); names are sanitized to `[a-zA-Z0-9_-]`. A dispatch
-counts as `failure` on a dispatch error or a tool-level error result, and
-`abandoned` when the client cancelled the call. Configuration:
+`restart` and `batch`); names are sanitized to `[a-zA-Z0-9_-]`, so the
+`resource_read`/`prompt_get` families can't collide with the synthetic
+`resource-read` tool. A dispatch counts as `failure` on a dispatch error or
+a tool-level error result, and `abandoned` when the client cancelled the
+call. Standalone-moxin serving (`moxy serve-moxin`) emits the same dispatch
+family. Configuration:
 
 - `STATSD_HOST` (default `127.0.0.1`) and `STATSD_PORT` (default `8125`),
   dialed once at startup

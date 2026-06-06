@@ -796,7 +796,38 @@ func (p *Proxy) ListResources(
 	return resources, nil
 }
 
+// ReadResource reads a resource and emits fire-and-forget statsd metrics
+// (moxy.<segment>.resource_read.* — see resourceMetricSegment) for every
+// read, mirroring the CallToolV1 dispatch wrapper (#312).
 func (p *Proxy) ReadResource(
+	ctx context.Context,
+	uri string,
+) (*protocol.ResourceReadResult, error) {
+	start := time.Now()
+	result, err := p.readResource(ctx, uri)
+	statsd.EmitToolDispatch(
+		resourceMetricSegment(uri), "resource_read",
+		time.Since(start),
+		statsd.OutcomeFor(ctx.Err(), err, false),
+	)
+	return result, err
+}
+
+// resourceMetricSegment derives the <server> metric segment from a
+// resource URI: the scheme for scheme-shaped URIs (moxy://servers,
+// madder://blobs/...), else the <server>/ prefix, else "_". Sanitization
+// happens at the emit layer.
+func resourceMetricSegment(uri string) string {
+	if i := strings.Index(uri, "://"); i > 0 {
+		return uri[:i]
+	}
+	if server, _, ok := splitPrefix(uri, "/"); ok {
+		return server
+	}
+	return "_"
+}
+
+func (p *Proxy) readResource(
 	ctx context.Context,
 	uri string,
 ) (*protocol.ResourceReadResult, error) {
@@ -1099,7 +1130,29 @@ func (p *Proxy) ListPromptsV1(
 	return &protocol.PromptsListResultV1{Prompts: allPrompts}, nil
 }
 
+// GetPromptV1 resolves a prompt and emits fire-and-forget statsd metrics
+// (moxy.<server>.prompt_get.*), mirroring the CallToolV1 dispatch
+// wrapper (#312).
 func (p *Proxy) GetPromptV1(
+	ctx context.Context,
+	name string,
+	args map[string]string,
+) (*protocol.PromptGetResultV1, error) {
+	start := time.Now()
+	result, err := p.getPromptV1(ctx, name, args)
+	segment, _, ok := splitPrefix(name, ".")
+	if !ok {
+		segment = "_"
+	}
+	statsd.EmitToolDispatch(
+		segment, "prompt_get",
+		time.Since(start),
+		statsd.OutcomeFor(ctx.Err(), err, false),
+	)
+	return result, err
+}
+
+func (p *Proxy) getPromptV1(
 	ctx context.Context,
 	name string,
 	args map[string]string,
