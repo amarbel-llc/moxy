@@ -39,8 +39,9 @@ sub-calls use.
    no client to prompt once the call is detached, so ask-gated tools cannot
    run async by design.
 2. **Job open**: moxy runs `${CLOWN_BIN:-clown} job start --source moxy
-   --label <tool>` and adopts the printed job id (e.g. `rg_search-3f2a8b1c`)
-   as the async handle. Implementers MUST NOT assume an id always comes
+   --label <tool>` and adopts the printed job id (e.g. `rg.search-3f2a8b1c`
+   — clown's label sanitizer keeps dots; the job-id charset is
+   `[A-Za-z0-9._-]`) as the async handle. Implementers MUST NOT assume an id always comes
    back: with `CLOWN_DISABLE_JOB_WAKEUP=1` the `clown job` commands are
    exit-0 no-ops that print **nothing** — empty stdout on a zero exit is the
    normal disabled-channel signature, not an error. In that case (and when
@@ -54,9 +55,11 @@ sub-calls use.
 4. **Immediate return**: `{job_id, tool, status: "running"}`.
 5. **Terminal**: the full result is written to the madder store, the
    in-memory index is updated, and moxy emits
-   `clown job done <job_id> --state <state> --message "<tool> <state>:
+   `clown job done <job_id> --state <state> --message "<tool>:
    <first-line summary> (madder <digest>)" --result-ref "moxy async-result
-   <job_id>"`. The agent's wake line carries everything needed to act.
+   <job_id>"`. The state is NOT repeated in the message text — the wake
+   line already renders it from the record's state field. The agent's wake
+   line carries everything needed to act.
 
 State mapping: clean result → `succeeded`; dispatch error or `isError`
 result → `failed`; `async-cancel` → `cancelled`; max-runtime timeout or moxy
@@ -113,14 +116,14 @@ chat migration):
 Background a slow search, keep working, get woken:
 
     async {tool: "rg.search", args: {pattern: "TODO", path: "/big/tree"}}
-    → {"job_id": "rg_search-3f2a8b1c", "tool": "rg.search", "status": "running"}
+    → {"job_id": "rg.search-3f2a8b1c", "tool": "rg.search", "status": "running"}
 
     ... agent does other work ...
 
-    [clown-job] moxy rg_search-3f2a8b1c succeeded: rg.search succeeded:
-    412 matches (madder blake2b256-...) · moxy async-result rg_search-3f2a8b1c
+    [clown-job] moxy rg.search-3f2a8b1c succeeded: rg.search:
+    412 matches (madder blake2b256-...) · moxy async-result rg.search-3f2a8b1c
 
-    async-result {job_id: "rg_search-3f2a8b1c"}
+    async-result {job_id: "rg.search-3f2a8b1c"}
     → full ToolCallResultV1
 
 Background a destructive batch after one permission prompt:
@@ -131,8 +134,8 @@ Background a destructive batch after one permission prompt:
 
 Cancel:
 
-    async-cancel {job_id: "rg_search-3f2a8b1c"}
-    → {"job_id": "rg_search-3f2a8b1c", "status": "cancelled"}
+    async-cancel {job_id: "rg.search-3f2a8b1c"}
+    → {"job_id": "rg.search-3f2a8b1c", "status": "cancelled"}
 
 ## MCP-native tasks (forward compatibility)
 
