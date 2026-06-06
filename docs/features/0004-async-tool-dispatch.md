@@ -1,11 +1,12 @@
 ---
-status: experimental
+status: testing
 date: 2026-06-06
-promotion-criteria: an agent dispatches a real >60s tool call via `async`, is
-  woken by the clown job-wakeup notification, and retrieves the full result via
-  `async-result`; `async-cancel` produces a `cancelled` wake; after a moxy
-  restart the result is still reachable via the digest in the wake message; no
-  tuning-lever adjustment needed for 2 weeks of real use
+promotion-criteria: live smoke passed 2026-06-06 (real dispatches woken via the
+  clown channel with succeeded/failed/cancelled states, full results via
+  `async-result`, digests resolved from the user-level store by an independent
+  process, allow-only and permit-async rejections verified); remaining gate for
+  accepted — no tuning-lever adjustment needed for 2 weeks of real use, and
+  the #322 cancellation-kill gap resolved or explicitly accepted
 ---
 
 # Async tool dispatch (meta tools + clown job wakeups)
@@ -187,6 +188,15 @@ not part of v1.
 - **Sequential batch semantics unchanged.** `async: true` changes *when* the
   batch runs, not how — sub-calls still execute sequentially per the batch
   contract.
+- **Cancellation doesn't kill grandchildren (#322).** `async-cancel` kills
+  the native tool's direct child, but its descendants survive and the
+  dispatch only unwinds when they release the pipes — the job classifies
+  `cancelled` correctly, but the underlying work runs to natural completion.
+  Proven live: a cancelled `sleep 300` recipe terminal-ized exactly at
+  start+300s. Fix direction: process-group kill and/or `cmd.WaitDelay` at
+  the native exec layer.
+- **Wake summaries of threshold-cached results show the truncation banner
+  (#323).** Cosmetic; `firstLine` should skip banner lines.
 - **Store reaping is manual.** Nothing auto-reaps `moxy-async` blobs in v1;
   content-addressed storage makes this cheap to defer.
 - **The result store must be provisioned out-of-band** (home-manager).
