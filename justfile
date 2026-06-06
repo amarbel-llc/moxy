@@ -77,17 +77,17 @@ build-nix: build-gomod2nix
 codemod-fmt-treefmt *args:
   nix fmt {{args}}
 
-# Read-only lint+format gate: build the sandboxed treelint check derivation,
+# Read-only lint+format gate: build the sandboxed conformist check derivation,
 # which runs every formatter (drift check) plus moxy's [linter.*] sections
 # (dead-jq over the bats suite) and exits non-zero on any finding, with no
 # working-tree side effects. Write-mode counterpart: codemod-fmt-treefmt
-# (`nix fmt`, treelint repair mode).
+# (`nix fmt`, conformist repair mode).
 [group("pre-build")]
 lint-fmt:
   #!/usr/bin/env bash
   set -euo pipefail
   system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
-  nix build --print-build-logs --no-link ".#checks.${system}.treelint"
+  nix build --print-build-logs --no-link ".#checks.${system}.conformist"
 
 # Go static analysis via golangci-lint. Config: ./.golangci.yml. Hard gate via
 # the `lint` aggregate. MOXIN_PATH is cleared so package loading matches the
@@ -686,9 +686,9 @@ debug-bun2nix:
 debug-arboretum-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
 
-# Fast local dead-jq check (the treelint [linter.dead-jq] command, run directly
-# without the nix build wrapper). The gating path is `just lint-fmt`
-# (treelint check); this recipe is a quicker loop while editing bats files.
+# Fast local dead-jq check (the conformist [linter.dead-jq] command, run
+# directly without the nix build wrapper). The gating path is `just lint-fmt`
+# (conformist check); this recipe is a quicker loop while editing bats files.
 [group("debug")]
 debug-lint-dead-jq *files:
   bash {{justfile_directory()}}/scripts/lint-dead-jq {{files}}

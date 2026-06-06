@@ -7,11 +7,11 @@
 # has its exit status discarded — a dead assertion that can never fail the
 # test. This checker flags those so they can be converted to a load-bearing
 # form (`run jq -e 'FILTER' <<<"$output"` + assert_success, or `… | jq -e … ||
-# fail`). See moxy's treelint [linter.dead-jq] wiring and zz-tests_bats/lint.bats
-# for the sibling ARG_MAX guards this generalizes.
+# fail`). See moxy's conformist [linter.dead-jq] wiring and
+# zz-tests_bats/lint.bats for the sibling ARG_MAX guards this generalizes.
 #
 # Usage: lint-dead-jq FILE.bats [FILE.bats ...]
-# treelint invokes it as a [linter.<name>] command, passing matched files as
+# conformist invokes it as a [linter.<name>] command, passing matched files as
 # argv. Exits 0 when every file is clean, 1 when any dead assertion is found
 # (diagnostics on stderr), 2 on usage error.
 #

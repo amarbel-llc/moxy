@@ -57,7 +57,7 @@
 
     # treefmt-nix is the formatter source-of-truth: ./treefmt.nix's
     # `programs.*.enable` resolves each formatter binary, and we consume its
-    # generated config file (config.build.configFile). The treelint binary
+    # generated config file (config.build.configFile). The conformist binary
     # (below) is the actual runner for both `nix fmt` and the check gate.
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
@@ -125,8 +125,8 @@
 
         # Formatter source-of-truth. treefmt-nix's programs.*.enable resolves
         # each formatter binary; we consume its generated config below and feed
-        # it to the treelint runner. The tommy TOML formatter binary is injected
-        # via _module.args.tommy (see ./treefmt.nix).
+        # it to the conformist runner. The tommy TOML formatter binary is
+        # injected via _module.args.tommy (see ./treefmt.nix).
         treefmtEval = treefmt-nix.lib.evalModule pkgs {
           imports = [ ./treefmt.nix ];
           _module.args.tommy = tommy.packages.${system}.default;
@@ -149,11 +149,11 @@
           ];
         };
 
-        # treelint reads the treefmt-era config name (rename out of scope per
+        # conformist reads the treefmt-era config name (rename out of scope per
         # RFC 0001 §Compatibility). Take treefmt-nix's generated formatter
         # config and append moxy's [linter.*] sections — treefmt has no linter
         # table, so a plain append is a valid, order-independent merge.
-        treelintConfig = pkgs.runCommand "treelint-config.toml" { } ''
+        conformistConfig = pkgs.runCommand "conformist-config.toml" { } ''
           cat ${treefmtEval.config.build.configFile} > $out
           cat >> $out <<EOF
 
@@ -163,13 +163,14 @@
           EOF
         '';
 
-        # `nix fmt` repair entrypoint: run treelint against the merged config.
-        # --config-file points at a /nix/store path, and treelint defaults
-        # --tree-root to the config's directory (treelint#2 footgun), so we MUST
-        # pass an explicit --tree-root or it would walk /nix/store.
-        treelintFormatter = pkgs.writeShellScriptBin "treelint-fmt" ''
+        # `nix fmt` repair entrypoint: run conformist against the merged
+        # config. --config-file points at a /nix/store path, and conformist
+        # defaults --tree-root to the config's directory (conformist#2
+        # footgun), so we MUST pass an explicit --tree-root or it would walk
+        # /nix/store.
+        conformistFormatter = pkgs.writeShellScriptBin "conformist-fmt" ''
           exec ${conformistBin}/bin/conformist \
-            --config-file ${treelintConfig} \
+            --config-file ${conformistConfig} \
             --tree-root "''${PRJ_ROOT:-$PWD}" \
             "$@"
         '';
@@ -177,9 +178,10 @@
         # Read-only gate (replaces checks.treefmt). Copy the source into the
         # sandbox (the tree must be writable for fix-only formatters' sandbox
         # checks, and we never write back to the real tree), then run
-        # `treelint check` rooted at that copy. Non-zero exit fails the build.
-        treelintCheck =
-          pkgs.runCommand "treelint-check"
+        # `conformist check` rooted at that copy. Non-zero exit fails the
+        # build.
+        conformistCheck =
+          pkgs.runCommand "conformist-check"
             {
               nativeBuildInputs = [ conformistBin ];
             }
@@ -188,7 +190,7 @@
               chmod -R u+w src
               cd src
               conformist check \
-                --config-file ${treelintConfig} \
+                --config-file ${conformistConfig} \
                 --tree-root .
               touch $out
             '';
@@ -974,13 +976,14 @@
           default = combined;
         };
 
-        # `nix fmt` runs treelint in repair mode (formatters from the generated
-        # treefmt config + any [linter.*] repair actions). `checks.treelint` is
-        # the sandboxed read-only gate (built by `just lint-fmt`, and evaluated
-        # by `nix flake check`): it runs `treelint check`, which also runs the
-        # dead-jq linter over zz-tests_bats/*.bats.
-        formatter = treelintFormatter;
-        checks.treelint = treelintCheck;
+        # `nix fmt` runs conformist in repair mode (formatters from the
+        # generated treefmt config + any [linter.*] repair actions).
+        # `checks.conformist` is the sandboxed read-only gate (built by
+        # `just lint-fmt`, and evaluated by `nix flake check`): it runs
+        # `conformist check`, which also runs the dead-jq linter over
+        # zz-tests_bats/*.bats.
+        formatter = conformistFormatter;
+        checks.conformist = conformistCheck;
 
         devShells.default = pkgs-master.mkShell {
           packages = [
