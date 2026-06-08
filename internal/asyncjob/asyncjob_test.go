@@ -45,6 +45,68 @@ func writeClownStub(t *testing.T, startOutput string) (bin, record string) {
 	return bin, record
 }
 
+// writeClownScript writes an executable clown stub whose body is `body` (a
+// bash snippet receiving the `clown` argv as $@). Used by the spool-path /
+// status tests where the stub needs custom per-subcommand output.
+func writeClownScript(t *testing.T, body string) string {
+	t.Helper()
+	shell, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skipf("no bash on PATH for clown stub: %v", err)
+	}
+	bin := filepath.Join(t.TempDir(), "clown")
+	if err := os.WriteFile(bin, []byte("#!"+shell+"\n"+body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return bin
+}
+
+func TestResolveSpoolPath(t *testing.T) {
+	bin := writeClownScript(t, `[ "$1" = job ] && [ "$2" = spool-path ] && echo "/spool/$3.out"`)
+	m := newTestManager(bin)
+	if got := m.resolveSpoolPath(context.Background(), "rg.search-1a2b"); got != "/spool/rg.search-1a2b.out" {
+		t.Errorf("resolveSpoolPath = %q, want /spool/rg.search-1a2b.out", got)
+	}
+}
+
+func TestResolveSpoolPathEmptyOnDisabledOrAbsent(t *testing.T) {
+	// Disabled channel: spool-path exits 0 with no output.
+	empty := writeClownScript(t, `exit 0`)
+	if got := newTestManager(empty).resolveSpoolPath(context.Background(), "x"); got != "" {
+		t.Errorf("disabled: got %q, want empty", got)
+	}
+	// Absent clown / old clown without the subcommand: exec fails.
+	if got := newTestManager("/nonexistent/clown").resolveSpoolPath(context.Background(), "x"); got != "" {
+		t.Errorf("absent: got %q, want empty", got)
+	}
+}
+
+func TestJobStatusParsesJSON(t *testing.T) {
+	bin := writeClownScript(t, `[ "$2" = status ] && echo '{"state":"running","elapsed_sec":42,"last_activity":"2026-06-08T00:00:00Z","spool_bytes":17,"tail":"hello"}'`)
+	m := newTestManager(bin)
+	st, err := m.JobStatus(context.Background(), "x.y-1")
+	if err != nil {
+		t.Fatalf("JobStatus: %v", err)
+	}
+	if st["tail"] != "hello" {
+		t.Errorf("tail = %v, want hello", st["tail"])
+	}
+	if st["spool_bytes"].(float64) != 17 { // JSON numbers decode as float64
+		t.Errorf("spool_bytes = %v, want 17", st["spool_bytes"])
+	}
+}
+
+func TestJobStatusErrorWhenClownFails(t *testing.T) {
+	// A locally-minted id has no journal → clown job status exits 1.
+	bin := writeClownScript(t, `exit 1`)
+	if _, err := newTestManager(bin).JobStatus(context.Background(), "x"); err == nil {
+		t.Error("want error when clown job status exits 1")
+	}
+	if _, err := newTestManager("/nonexistent/clown").JobStatus(context.Background(), "x"); err == nil {
+		t.Error("want error when clown is absent")
+	}
+}
+
 func recordLines(t *testing.T, record string) []string {
 	t.Helper()
 	data, err := os.ReadFile(record)
@@ -137,11 +199,16 @@ func TestProducerStartAdoptsClownID(t *testing.T) {
 
 	done := waitDoneLine(t, record)
 	lines := recordLines(t, record)
-	if len(lines) != 2 {
-		t.Fatalf("clown invocations = %v, want start+done", lines)
+	// start, then spool-path (FDR-0005 resolves the spool before dispatch),
+	// then done.
+	if len(lines) != 3 {
+		t.Fatalf("clown invocations = %v, want start+spool-path+done", lines)
 	}
 	if !strings.Contains(lines[0], "job start --source moxy --label rg.search") {
 		t.Errorf("start line = %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "job spool-path rg.search-3f2a8b1c") {
+		t.Errorf("second invocation = %q, want job spool-path", lines[1])
 	}
 	for _, want := range []string{
 		"job done rg.search-3f2a8b1c",

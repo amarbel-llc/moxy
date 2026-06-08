@@ -122,12 +122,28 @@ func (p *Proxy) HandleAsyncResult(
 	}
 
 	if snap.State == asyncjob.StateRunning {
-		return asyncJSONResult(map[string]any{
+		resp := map[string]any{
 			"job_id":  snap.ID,
 			"tool":    snap.Tool,
 			"status":  snap.State,
 			"started": snap.Started.Format(time.RFC3339),
-		}), nil
+		}
+		// Augment with the channel-owned live probe (RFC-0010 §3 /
+		// FDR-0005): elapsed, last_activity, spool_bytes, and a bounded
+		// output tail, surfaced under clown's own field names so an agent
+		// sees the same shape via async-result or `clown job status`. On any
+		// error (clown disabled/absent, a locally-minted id with no journal,
+		// or an installed clown without the probe) we keep the v1 shape —
+		// async-result is a façade over the probe, not a second source of
+		// truth.
+		if status, err := p.asyncManager.JobStatus(ctx, snap.ID); err == nil {
+			for _, f := range []string{"elapsed_sec", "last_activity", "spool_bytes", "progress", "tail"} {
+				if v, ok := status[f]; ok {
+					resp[f] = v
+				}
+			}
+		}
+		return asyncJSONResult(resp), nil
 	}
 
 	// Terminal with a stored result: hand back the original result

@@ -553,7 +553,7 @@ func runServer(app *command.App, mode transportMode) error {
 	builtinRegistry.Register(
 		protocol.ToolV1{
 			Name:        "async-result",
-			Description: "Fetch an async job's status, or its full stored tool result once terminal. Doubles as the poll surface when job wakeups are disabled (CLOWN_DISABLE_JOB_WAKEUP=1).",
+			Description: "Fetch an async job's status, or its full stored tool result once terminal. For a running job it also surfaces live progress when the clown output spool is available — elapsed_sec, last_activity, spool_bytes, and a bounded output tail — so you can tell a working job from a wedged one without waiting for the terminal wake. Doubles as the poll surface when job wakeups are disabled (CLOWN_DISABLE_JOB_WAKEUP=1).",
 			InputSchema: json.RawMessage(`{
 				"type":"object",
 				"required":["job_id"],

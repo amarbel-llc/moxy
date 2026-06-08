@@ -22,6 +22,7 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
 	"github.com/amarbel-llc/moxy/internal/lifecyclelog"
+	"github.com/amarbel-llc/moxy/internal/spoolctx"
 )
 
 // Job states. Running is the only non-terminal state. Succeeded/Failed/
@@ -146,6 +147,11 @@ func (m *Manager) Dispatch(ctx context.Context, tool string, args json.RawMessag
 		runtime = timeout
 	}
 	jobCtx, cancel := context.WithTimeout(context.Background(), runtime)
+	// Resolve the clown output spool (RFC-0010) and thread it down to the
+	// native exec layer, which tees the child's output into it for live
+	// `async-result`/`clown job status` probing. Empty when clown is
+	// disabled/absent — the tee is then skipped (best-effort, FDR-0005).
+	jobCtx = spoolctx.WithPath(jobCtx, m.resolveSpoolPath(jobCtx, id))
 	j := &job{
 		Snapshot: Snapshot{
 			ID:      id,
@@ -316,6 +322,41 @@ func (m *Manager) startJob(ctx context.Context, label string) string {
 		return mintID(label)
 	}
 	return id
+}
+
+// resolveSpoolPath asks clown for the job's output spool path (RFC-0010 §2).
+// Empty string ("" → no spool) is the normal answer when the channel is
+// disabled (CLOWN_DISABLE_JOB_WAKEUP=1: exit 0, no output) or when clown is
+// absent / the id was minted locally / the installed clown predates the
+// spool surface (any exec failure). The native exec layer skips the tee on
+// an empty path, so async degrades to its v1 shape — best-effort per
+// FDR-0005.
+func (m *Manager) resolveSpoolPath(ctx context.Context, id string) string {
+	cmd := exec.CommandContext(ctx, m.clownBin, "job", "spool-path", id)
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// JobStatus shells `clown job status <id> --json` and returns the parsed
+// object (RFC-0010 §3: state, source, started, ended, elapsed_sec,
+// last_activity, spool_bytes, progress, tail). An error means clown couldn't
+// derive a status — channel disabled, clown absent, a locally-minted id with
+// no journal (exit 1), or an installed clown without the probe — and the
+// caller (async-result) falls back to its in-memory v1 shape.
+func (m *Manager) JobStatus(ctx context.Context, id string) (map[string]any, error) {
+	cmd := exec.CommandContext(ctx, m.clownBin, "job", "status", id, "--json")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("clown job status %s: %w", id, err)
+	}
+	var status map[string]any
+	if err := json.Unmarshal(out, &status); err != nil {
+		return nil, fmt.Errorf("clown job status %s: parsing %q: %w", id, string(out), err)
+	}
+	return status, nil
 }
 
 // emitDone reports the terminal state. The state is not repeated in the

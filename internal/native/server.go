@@ -11,13 +11,30 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/amarbel-llc/moxy/internal/lifecyclelog"
+	"github.com/amarbel-llc/moxy/internal/spoolctx"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
+
+// syncWriter serializes concurrent writes to an underlying writer. os/exec
+// copies a command's stdout and stderr on separate goroutines, so a shared
+// sink where the two streams interleave (the async output spool) needs its
+// own lock.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
+}
 
 // moxinArgvPreview truncates an argv slice to a single log-friendly string
 // of at most maxLen characters. Used so lifecycle.log lines don't blow up
@@ -408,6 +425,24 @@ func (s *Server) runMoxinProcess(
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	// Tee the child's output into the async job's clown output spool
+	// (RFC-0010 / FDR-0005) when this dispatch carries a resolved spool path.
+	// stdout and stderr stay SEPARATE buffers (mcp-result parsing needs
+	// stdout alone, #338); only the spool sees both, interleaved in arrival
+	// order through one mutex-guarded writer. Best-effort: an open failure is
+	// logged and the dispatch proceeds untee'd. The file closes when this
+	// function returns — after cmd.Wait, before the terminal record is
+	// emitted (RFC-0010 §1: no writes after terminal).
+	if spoolPath := spoolctx.PathFromContext(ctx); spoolPath != "" {
+		if f, err := os.OpenFile(spoolPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err != nil {
+			lifecyclelog.Log("moxin %s.%s: opening spool %s: %v (skipping tee)", s.config.Name, spec.Name, spoolPath, err)
+		} else {
+			defer f.Close()
+			sw := &syncWriter{w: f}
+			cmd.Stdout = io.MultiWriter(&stdout, sw)
+			cmd.Stderr = io.MultiWriter(&stderr, sw)
+		}
+	}
 
 	moxinStart := time.Now()
 	if err := cmd.Start(); err != nil {

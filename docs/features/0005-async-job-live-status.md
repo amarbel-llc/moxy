@@ -1,10 +1,10 @@
 ---
-status: proposed
-date: 2026-06-07
-promotion-criteria: clown RFC-0010 accepted and `clown job status` /
-  `clown job spool-path` shipped; a real multi-minute async job
-  (just-us-agents.run-recipe wrapping nix build + bats) probed mid-flight
-  shows elapsed, fresh last-activity, and a recognizable output tail; the
+status: experimental
+date: 2026-06-08
+promotion-criteria: a real multi-minute async job (just-us-agents.run-recipe
+  wrapping nix build + bats) probed mid-flight via async-result shows elapsed,
+  fresh last-activity, and a recognizable output tail against the installed
+  clown (RFC-0010 spool+status shipped on clown master 575657d); the
   agent-side babysitting patterns from #341 (derivation re-eval, side-channel
   file globbing) no longer observed in session transcripts
 ---
@@ -55,14 +55,19 @@ resolves to a child MCP server writes no spool (see Limitations).
       "elapsed_sec": 312,
       "last_activity": "2026-06-08T00:17:40Z",
       "spool_bytes": 48211,
-      "output_tail": "…last 20 lines of interleaved output…"
+      "tail": "…last 20 lines of interleaved output…"
     }
 
-`elapsed_sec` comes from the in-memory index; `last_activity` is the spool's
-mtime; `output_tail` is the last 20 lines read from a bounded trailing
-window. When no spool exists (channel disabled, child-server tool, or no
-output yet) the spool-derived fields are omitted and the response is exactly
-the v1 shape. Terminal jobs are unchanged: full stored result, no tail.
+The spool-derived fields are NOT recomputed by moxy: `async-result` shells
+`clown job status <job_id> --json` and merges its `elapsed_sec`,
+`last_activity`, `spool_bytes`, `progress`, and `tail` verbatim onto the
+in-memory `{job_id, tool, status, started}`, so an agent sees the same field
+names and values whether it probes via `async-result` or `clown job status`
+— the channel is the single source of truth (RFC-0010 §3). When the probe
+errors (channel disabled, child-server tool, a locally-minted id with no
+journal, or an installed clown without the probe) the spool-derived fields
+are omitted and the response is exactly the v1 shape. Terminal jobs are
+unchanged: full stored result, no tail.
 
 Cross-producer and cross-session consumers use the channel-owned probe
 directly — `clown job status <job_id>` reports the same fields from the same
@@ -80,8 +85,8 @@ Dispatch a long recipe, probe it mid-flight, get woken as before:
 
     async-result {job_id: "just-us-agents.run-recipe-b496fe63"}
     → {"status": "running", "elapsed_sec": 312,
-       "last_activity": "4s ago", "spool_bytes": 48211,
-       "output_tail": "moxy-bats-grit> ok 24 grit_diff_stat_only\n..."}
+       "last_activity": "2026-06-08T00:17:40Z", "spool_bytes": 48211,
+       "tail": "moxy-bats-grit> ok 24 grit_diff_stat_only\n..."}
 
     ... fresh last_activity + advancing tail ⇒ leave it alone ...
 

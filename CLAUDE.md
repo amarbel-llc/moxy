@@ -110,10 +110,17 @@ like `"10m"`; else the 30-min default) caps wall-clock time; on expiry moxy
 kills the whole process tree (`Setpgid` + group SIGTERM + `WaitDelay` at the
 native exec layer, #344/#345) and terminalizes with status `timeout` — a
 moxy-only status reported verbatim by `async-result` but emitted on clown's
-wire as `interrupted`. `batch {async: true}` backgrounds a whole batch as one
-job. The manager lives in `internal/asyncjob`; the single
-instrumentation/registration pattern mirrors `batch`. See
-`docs/features/0004-async-tool-dispatch.md`.
+wire as `interrupted`. For live mid-flight observability (FDR 0005 /
+clown RFC-0010), moxy resolves a per-job output spool via
+`clown job spool-path` and tees the native-moxin child's stdout+stderr into
+it at the `runMoxinProcess` exec layer (threaded down via
+`internal/spoolctx`); `async-result` on a running job then shells
+`clown job status <id> --json` and surfaces `{elapsed_sec, last_activity,
+spool_bytes, progress, tail}` verbatim — the clown channel is the single
+source of truth, and absent it the response keeps its v1 shape. `batch
+{async: true}` backgrounds a whole batch as one job. The manager lives in
+`internal/asyncjob`; the single instrumentation/registration pattern mirrors
+`batch`. See `docs/features/0004-async-tool-dispatch.md` and `0005-async-job-live-status.md`.
 
 ### Synthetic Resource Tools
 
