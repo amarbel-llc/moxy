@@ -1,4 +1,4 @@
-.Dd April 11, 2026
+.Dd June 8, 2026
 .Dt MOXIN 7
 .Os
 .Sh NAME
@@ -72,8 +72,36 @@ Optional human-readable description of the server.
 .Ss Tool Fields
 .Bl -tag -width "perms-request"
 .It Sy schema
-Schema version.
-Currently must be
+Schema version of this tool file: accepts
+.Li 1 , 2 ,
+or
+.Li 3 ,
+of which
+.Li 3
+is current and recommended.
+Schema 2 introduced
+.Sy result-type ;
+schema 3 introduced
+.Sy content-type , cache-results , no-truncate ,
+.Sy substitute-result-uris , permit-async ,
+the
+.Sy annotations
+and
+.Sy dynamic-perms
+tables, and renamed the schema 1/2 snake_case keys
+.Sy arg_order
+and
+.Sy stdin_param
+to their kebab-case forms
+.Sy arg-order
+and
+.Sy stdin-param .
+The old snake_case spellings still parse on schema 1/2 but emit a
+deprecation warning.
+Note the manifest
+.Pq Pa _moxin.toml
+.Sy schema
+is a separate field that must always remain
 .Li 1 .
 .It Sy description
 Human-readable description shown to agents.
@@ -84,6 +112,24 @@ Resolved from
 or as a relative path from the working directory.
 .It Sy args
 Optional array of arguments prepended before caller-supplied arguments.
+.It Sy arg-order
+Optional array of input-property names fixing the positional order of
+caller arguments (schema 3 key; schema 1/2 spelling
+.Sy arg_order ) .
+When set, it overrides the default required-then-lexicographic ordering
+.Pq see Sx ARGUMENT PASSING .
+Absent keys emit empty positional slots so
+.Sy $1 , $2 , ...
+stay stable; trailing empties are trimmed, and any properties not listed
+are appended in sorted order.
+.It Sy stdin-param
+Optional name of an input property whose value is fed to the command on
+.Em stdin
+instead of as an argument (schema 3 key; schema 1/2 spelling
+.Sy stdin_param ) .
+A
+.Sy madder://blobs/<digest>
+value is resolved to its bytes before being written.
 .It Sy input
 Optional JSON Schema object describing the tool's parameters.
 If present, must include
@@ -91,6 +137,20 @@ If present, must include
 (injected defensively if missing).
 .It Sy perms-request
 Permission request mode for this tool.
+See
+.Sx PERMISSIONS .
+.It Sy dynamic-perms
+Table declaring a helper command that computes the permission verdict at
+call time (schema 3 key).
+Required when
+.Sy perms-request No = Li \(dqdynamic\(dq
+and invalid otherwise.
+Fields:
+.Sy command
+(required),
+.Sy args , arg-order , stdin-param ,
+and
+.Sy timeout-ms .
 See
 .Sx PERMISSIONS .
 .It Sy permit-async
@@ -121,6 +181,19 @@ Disable the head/tail summary for oversized outputs (boolean; schema 3
 key).
 See
 .Sx RESULT SHAPING .
+.It Sy substitute-result-uris
+Whether
+.Sy madder://blobs/<digest>
+URIs appearing in the tool's own output are resolved to their contents
+before the result is returned (boolean; schema 3 key).
+.It Sy annotations
+Optional table of MCP behavior hints surfaced on the tool (schema 3 key):
+.Sy title , read-only-hint , destructive-hint , idempotent-hint ,
+and
+.Sy open-world-hint .
+Moxyfile
+.Sy [servers.annotations]
+filters can select child tools by these values.
 .El
 .Sh RESULT SHAPING
 Four keys control how a tool's stdout becomes an MCP result.
@@ -203,6 +276,13 @@ The permission hook returns
 forcing the client to prompt the user for confirmation on every
 invocation.
 Use for destructive or sensitive operations.
+.It Li dynamic
+The verdict is computed per call by the helper command declared in the
+tool's
+.Sy dynamic-perms
+table
+.Pq Sy command , args , arg-order , stdin-param , timeout-ms .
+Use when the allow/ask decision depends on the actual argument values.
 .It Li delegate-to-client
 No hook output is produced; the client applies its own policy.
 This is the default when
@@ -251,6 +331,36 @@ array, in order.
 .It
 Remaining keys, sorted lexicographically.
 .El
+.Pp
+When a tool sets
+.Sy arg-order ,
+that explicit list replaces the required-then-lexicographic ordering
+above: caller arguments are emitted in the listed order, any key absent
+from the call becomes an empty positional slot
+.Pq trailing empties trimmed ,
+and any properties not named in the list follow in sorted order.
+.Pp
+A fixed
+.Sy args
+prefix
+.Em composes
+with
+.Sy arg-order :
+.Sy args
+is prepended verbatim, then the ordered caller arguments follow.
+This is the supported way to inject a fixed subcommand without a
+per-subcommand wrapper binary.
+For example:
+.Bd -literal -offset indent
+command = "grit"
+args = ["series"]
+arg-order = ["pattern"]
+.Ed
+.Pp
+runs
+.Sy grit series Ar pattern
+for a caller-supplied
+.Sy pattern .
 .Pp
 For
 .Sy sh -c
