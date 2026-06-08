@@ -17,9 +17,9 @@ automatically.
 just                  # build + test (default target)
 just build-go         # go build only -> build/{moxy,maneater}
 just build-nix        # nix build (runs gomod2nix first)
-just test             # all tests (go + bats + validate-mcp + status)
-just test-go          # go vet + go test
-just test-bats        # bats integration tests (default lane: nix sandbox)
+just test             # the gate: nix flake check + net_cap bats + runtime smokes
+just test-go          # fast devshell loop: go vet + go test (NOT the gate)
+just test-bats        # fast devshell loop: bats-default lane (NOT the gate)
 just test-bats-net_cap  # loopback-binding lane (streamable_http.bats)
 
 # Single Go test
@@ -31,6 +31,15 @@ go test ./internal/config/... -v -run TestParse
 # specific bats tests — there is no devshell/raw-bats path.
 just test-bats-tag grit
 ```
+
+`nix flake check` is the single hermetic gate: it runs `go-test-race`
+(`go test -race ./...`), `go-vet`, `go-lint` (golangci-lint), `conformist`
+(fmt + dead-jq), and the `bats-default` lane — all in the build sandbox, so
+env-dependent and race bugs can't slip through the way they do in the
+devshell. `just test` (hence `just` / the `merge-this-session` pre-merge
+hook) routes through it. The devshell `test-go` / `test-bats` / `lint-*`
+recipes stay as fast inner-loop iteration; the flake check is the source of
+truth. `-race` lives in the gate (#348), so it runs on every merge.
 
 After changing Go dependencies: `just build-gomod2nix` to regenerate
 `gomod2nix.toml` before `build-nix`.
