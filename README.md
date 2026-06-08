@@ -193,7 +193,7 @@ Moxy ships with man pages:
 - **moxin(7)** — moxin format and authoring guide
 
 View them with `man moxy`, `man moxyfile`, `man moxy-hooks`, or `man moxin`
-after installing via Homebrew or nix.
+after installing via nix.
 
 ## License
 
