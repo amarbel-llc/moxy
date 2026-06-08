@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+from typing import Any
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
@@ -15,7 +16,7 @@ labels = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else ""
 issuetype = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else ""
 output_format = sys.argv[7] if len(sys.argv) > 7 and sys.argv[7] else ""
 
-fields = {}
+fields: dict[str, Any] = {}
 if summary:
     fields["summary"] = summary
 if description:

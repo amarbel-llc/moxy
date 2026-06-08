@@ -75,7 +75,12 @@ def _walk(node: dict, violations: list[str], in_list_item: bool) -> None:
 
 def _check_code_marks(text_node: dict, violations: list[str]) -> None:
     marks = text_node.get("marks") or []
-    mark_types = {m.get("type") for m in marks if isinstance(m, dict)}
+    # Drop marks with no "type" so mark_types is set[str] (not set[str | None]):
+    # a None can never be in _CODE_INCOMPATIBLE_MARKS or equal "code", so this
+    # is behavior-preserving, and it keeps `sorted(bad)` well-typed.
+    mark_types = {
+        t for m in marks if isinstance(m, dict) and (t := m.get("type")) is not None
+    }
     if "code" not in mark_types:
         return
     bad = mark_types & _CODE_INCOMPATIBLE_MARKS

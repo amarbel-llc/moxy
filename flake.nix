@@ -149,6 +149,26 @@
           ];
         };
 
+        # Lenient mypy type-check for the first-party moxin Python (#10). The
+        # python env bundles mypy with types-requests so the `requests` stub
+        # resolves; mypy.ini at the tree root supplies ignore_missing_imports +
+        # scripts_are_modules. Wrapped the same way as deadJqChecker and wired as
+        # the [linter.mypy] command below; also exposed as packages.lint-py-types
+        # for the debug-py-typecheck dev-loop.
+        mypyEnv = pkgs.python3.withPackages (ps: [
+          ps.mypy
+          ps.types-requests
+        ]);
+        pyTypesChecker = conformist.lib.writeCheckScript pkgs {
+          name = "lint-py-types";
+          src = ./scripts/lint-py-types;
+          runtimeInputs = [
+            mypyEnv
+            pkgs.gnugrep
+            pkgs.coreutils
+          ];
+        };
+
         # conformist reads the treefmt-era config name (rename out of scope per
         # RFC 0001 §Compatibility). Take treefmt-nix's generated formatter
         # config and append moxy's [linter.*] sections — treefmt has no linter
@@ -160,6 +180,10 @@
           [linter.dead-jq]
           command = "${deadJqChecker}/bin/lint-dead-jq"
           includes = ["zz-tests_bats/*.bats"]
+
+          [linter.mypy]
+          command = "${pyTypesChecker}/bin/lint-py-types"
+          includes = ["moxins/sisyphus/lib/*.py", "moxins/sisyphus/bin/*", "moxins/freud/bin/*"]
           EOF
         '';
 
@@ -1037,6 +1061,10 @@
         packages = batsLaneOutputs // {
           inherit moxy moxy-moxins;
           default = combined;
+          # The wrapped lenient-mypy checker (#10), exposed so the
+          # debug-py-typecheck recipe runs the exact same binary the gate's
+          # [linter.mypy] uses.
+          lint-py-types = pyTypesChecker;
         };
 
         # `nix fmt` runs conformist in repair mode (formatters from the
@@ -1047,7 +1075,7 @@
         # zz-tests_bats/*.bats.
         formatter = conformistFormatter;
         # `nix flake check` is the single hermetic gate: conformist (fmt +
-        # dead-jq), the Go test (-race) / vet / golangci-lint checks, and the
+        # dead-jq + mypy), the Go test (-race) / vet / golangci-lint checks, and the
         # comprehensive `bats-default` lane (every test except the net_cap and
         # host_only tags, which need sandbox capabilities a flake check can't
         # grant — those stay as their own `nix build` recipes). The per-tag

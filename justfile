@@ -883,6 +883,21 @@ debug-sisyphus-py-tests: build-moxins
   done
   exit "$rc"
 
+# Lenient mypy type-check (#10) of the first-party moxin Python via the same
+# wrapped checker the gate's [linter.mypy] runs (mypy + types-requests, reading
+# ./mypy.ini). The checker skips the one bash script (api-perms) by shebang.
+# Agent dev-loop: run after editing moxin Python or mypy.ini.
+[group("debug")]
+debug-py-typecheck:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd {{justfile_directory()}}
+  nix build --keep-going .#lint-py-types -o result-lint-py
+  ./result-lint-py/bin/lint-py-types \
+    moxins/sisyphus/lib/*.py \
+    moxins/sisyphus/bin/* \
+    moxins/freud/bin/*
+
 # Probe what marklas produces for the #239 pipe-prose and diff-codeblock cases.
 # Agent dev-loop: run to inspect ADF output before writing validator/tests.
 [group("debug")]

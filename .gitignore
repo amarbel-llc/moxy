@@ -2,3 +2,4 @@ build/
 node_modules/
 __pycache__/
 result-moxins
+result-lint-py

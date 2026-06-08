@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+from typing import Any
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
@@ -13,7 +14,7 @@ ENV_VARS = ["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN"]
 env_present = {name: bool(os.environ.get(name)) for name in ENV_VARS}
 missing = [name for name, present in env_present.items() if not present]
 
-report = {
+report: dict[str, Any] = {
     "env": env_present,
     "configured": not missing,
     "auth": None,

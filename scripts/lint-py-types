@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# lint-py-types — lenient mypy type-check for the first-party moxin Python (#10).
+#
+# conformist invokes this as the [linter.mypy] command, passing matched files
+# as argv (see flake.nix and ./mypy.ini). The same wrapped script backs the
+# debug-py-typecheck dev-loop recipe.
+#
+# The matched globs (moxins/sisyphus/bin/*, moxins/freud/bin/*) include the one
+# bash script, api-perms — filter to actual Python (by .py extension or a
+# python shebang) so mypy never tries to parse shell as Python. mypy.ini at the
+# tree root supplies the lenient config; types-requests rides in via the nix
+# wrapper PATH so the `requests` stub resolves.
+#
+# Usage: lint-py-types FILE [FILE ...]
+# Exits 0 when every file type-checks, non-zero on type errors (mypy's own
+# exit), 2 on usage error.
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: lint-py-types FILE [FILE ...]" >&2
+  exit 2
+fi
+
+pyfiles=()
+for f in "$@"; do
+  case "$f" in
+  *.py)
+    pyfiles+=("$f")
+    ;;
+  *)
+    # Extensionless: keep only files whose shebang names python.
+    if head -n 1 "$f" 2>/dev/null | grep -q 'python'; then
+      pyfiles+=("$f")
+    fi
+    ;;
+  esac
+done
+
+# Nothing Python in this batch (e.g. only api-perms matched) — clean by
+# definition.
+if [ "${#pyfiles[@]}" -eq 0 ]; then
+  exit 0
+fi
+
+exec mypy "${pyfiles[@]}"

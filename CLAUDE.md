@@ -34,7 +34,8 @@ just test-bats-tag grit
 
 `nix flake check` is the single hermetic gate: it runs `go-test-race`
 (`go test -race ./...`), `go-vet`, `go-lint` (golangci-lint), `conformist`
-(fmt + dead-jq), and the `bats-default` lane — all in the build sandbox, so
+(fmt incl. ruff for Python + dead-jq + mypy), and the `bats-default` lane —
+all in the build sandbox, so
 env-dependent and race bugs can't slip through the way they do in the
 devshell. `just test` (hence `just` / the `merge-this-session` pre-merge
 hook) routes through it. The devshell `test-go` / `test-bats` / `lint-*`
