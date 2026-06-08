@@ -85,3 +85,38 @@ function push_force_if_includes_alone_passes_flag_without_force_with_lease { # @
   run "$BIN/push" "origin" "feat" "" "" true "$WORK"
   assert_success
 }
+
+function push_refspec_pushes_local_branch_to_differently_named_remote_branch { # @test
+  cd "$WORK"
+  # arg-order: remote branch set_upstream force_with_lease force_if_includes repo_path remote_branch
+  run "$BIN/push" "origin" "feat" "" "" "" "$WORK" "renamed-feat"
+  assert_success
+  run git --git-dir="$REMOTE" rev-parse --verify renamed-feat
+  assert_success
+}
+
+function push_refspec_head_to_named_remote_branch { # @test
+  cd "$WORK"
+  # branch empty + remote_branch set -> pushes HEAD:from-head
+  run "$BIN/push" "origin" "" "" "" "" "$WORK" "from-head"
+  assert_success
+  run git --git-dir="$REMOTE" rev-parse --verify from-head
+  assert_success
+}
+
+function push_refspec_defaults_remote_to_origin { # @test
+  cd "$WORK"
+  # remote empty, remote_branch set -> origin still resolved
+  run "$BIN/push" "" "feat" "" "" "" "$WORK" "default-remote"
+  assert_success
+  run git --git-dir="$REMOTE" rev-parse --verify default-remote
+  assert_success
+}
+
+function push_refspec_force_with_lease_blocks_main_destination { # @test
+  cd "$WORK"
+  # destination remote_branch=main must be blocked even when source is a feature branch
+  run "$BIN/push" "origin" "feat" "" true "" "$WORK" "main"
+  assert_failure
+  assert_output --partial "force push to main/master is blocked"
+}

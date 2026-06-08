@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 description = "Push commits to a remote repository"
 command = "@BIN@/push"
-arg-order = ["remote", "branch", "set_upstream", "force_with_lease", "force_if_includes", "repo_path"]
+arg-order = ["remote", "branch", "set_upstream", "force_with_lease", "force_if_includes", "repo_path", "remote_branch"]
 
 [input]
 type = "object"
@@ -22,6 +22,10 @@ description = "Require that the pushed commit includes whatever is at the remote
 [input.properties.remote]
 type = "string"
 description = "Remote name (default origin)"
+
+[input.properties.remote_branch]
+type = "string"
+description = "Destination branch on the remote. When set, pushes a refspec <branch>:<remote_branch> (source defaults to HEAD if branch is empty), e.g. `git push origin local-branch:remote-branch` or `git push origin HEAD:some-other-branch`."
 
 [input.properties.repo_path]
 type = "string"

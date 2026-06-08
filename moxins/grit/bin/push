@@ -6,12 +6,19 @@ set_upstream="${3:-}"
 force_with_lease="${4:-}"
 force_if_includes="${5:-}"
 repo="${6:-.}"
+remote_branch="${7:-}"
 cd "$repo"
 
 if [ "$force_with_lease" = "true" ]; then
-  target="$branch"
+  # The destination ref is what a force push clobbers, so the main/master
+  # guard keys off remote_branch when a refspec is used. Falls back to the
+  # source branch (or the current branch) when pushing to a same-named ref.
+  target="$remote_branch"
   if [ -z "$target" ]; then
-    target=$(git rev-parse --abbrev-ref HEAD)
+    target="$branch"
+    if [ -z "$target" ]; then
+      target=$(git rev-parse --abbrev-ref HEAD)
+    fi
   fi
   if [ "$target" = "HEAD" ]; then
     echo "ERROR: force push in detached HEAD state requires an explicit branch argument" >&2
@@ -29,12 +36,20 @@ git_args=(push)
 [ "$force_if_includes" = "true" ] && git_args+=(--force-if-includes)
 [ "$set_upstream" = "true" ] && git_args+=(-u)
 
-# Default remote to origin when a branch is specified, so git doesn't
-# interpret the branch name as a remote.
-if [ -n "$branch" ] && [ -z "$remote" ]; then
+# Default remote to origin when a branch or refspec is specified, so git
+# doesn't interpret the branch name as a remote.
+if { [ -n "$branch" ] || [ -n "$remote_branch" ]; } && [ -z "$remote" ]; then
   remote="origin"
 fi
 
 [ -n "$remote" ] && git_args+=("$remote")
-[ -n "$branch" ] && git_args+=("$branch")
+if [ -n "$remote_branch" ]; then
+  # refspec form: <source>:<remote_branch>. Default the source to HEAD so
+  # callers can do `git push origin HEAD:some-other-branch`.
+  src="$branch"
+  [ -z "$src" ] && src="HEAD"
+  git_args+=("${src}:${remote_branch}")
+elif [ -n "$branch" ]; then
+  git_args+=("$branch")
+fi
 git "${git_args[@]}"
