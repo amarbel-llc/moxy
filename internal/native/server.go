@@ -397,6 +397,10 @@ func (s *Server) runMoxinProcess(
 		command = filepath.Join(s.config.SourceDir, command)
 	}
 	cmd := exec.CommandContext(ctx, command, allArgs...)
+	// Kill the whole process group (not just the direct child) on ctx
+	// cancel/deadline, and bound the wait so a pipe-holding grandchild
+	// can't wedge the dispatch (#344/#345).
+	configureProcessGroup(cmd)
 	cmd.ExtraFiles = sub.ExtraFiles
 	if stdinContent != "" {
 		cmd.Stdin = strings.NewReader(stdinContent)

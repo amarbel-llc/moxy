@@ -162,10 +162,18 @@ func (p *Proxy) HandleAsyncCancel(
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	return asyncJSONResult(map[string]any{
+	out := map[string]any{
 		"job_id": snap.ID,
 		"status": snap.State,
-	}), nil
+	}
+	// A wedged process tree (a SIGTERM-ignoring leaf) can take until the
+	// kill-grace SIGKILL to exit, longer than this poll window. Tell the
+	// agent the cancel landed and a terminal wakeup is still coming, so a
+	// transient "running" isn't read as failure-to-act (#344).
+	if snap.State == asyncjob.StateRunning {
+		out["detail"] = "cancel requested; awaiting process-tree exit (SIGTERM sent, SIGKILL after grace)"
+	}
+	return asyncJSONResult(out), nil
 }
 
 // handleBatchAsync backgrounds a whole batch as ONE async job. The
