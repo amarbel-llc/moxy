@@ -530,7 +530,6 @@
               "store-ls" = "moxins/chix/src/store-ls.ts";
             }
             { pathMode = "suffix"; };
-        conch-moxin = mkMoxin "conch" [ pkgs.bash ] { };
         env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
         folio-moxin = mkMoxin "folio" [
           pkgs.bash
@@ -741,7 +740,6 @@
           mkdir -p $out/share/moxy/moxins
           ln -s ${arboretum-moxin} $out/share/moxy/moxins/arboretum
           ln -s ${chix-moxin} $out/share/moxy/moxins/chix
-          ln -s ${conch-moxin} $out/share/moxy/moxins/conch
           ln -s ${env-moxin} $out/share/moxy/moxins/env
           ln -s ${folio-moxin} $out/share/moxy/moxins/folio
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud

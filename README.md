@@ -96,7 +96,6 @@ The following moxins ship with moxy. Each can be served individually via
 |-------|------:|-------------|------|
 | calendar | 1 | Google Calendar: view upcoming events and agendas | bun, gws |
 | car | 5 | Google Drive: search, list, get, and export files | bun, gws |
-| conch | 1 | Shell inspection: syntax checking and script analysis | bash |
 | env | 5 | Environment inspection: PATH binaries and env vars | — |
 | folio | 16 | File I/O. Auto-allows inside CWD, /nix/store, and ~/.claude tree; prompts elsewhere | jq, coreutils |
 | freud | 12 | Past Claude Code session transcripts | python3 |

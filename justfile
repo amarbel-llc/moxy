@@ -361,7 +361,6 @@ debug-codemod-permit-async:
     moxins/folio/{chmod,cp,file-type,link,ls,mkdir,mktemp,mv,read,rm,tar,write}.toml
     moxins/env/{get,resolve,which}.toml
     moxins/jq/jq.toml
-    moxins/conch/syntax-check.toml
     moxins/arboretum/{md-toc,md-section,md-anchor}.toml
     moxins/man/{list,toc,section}.toml
     moxins/just-us-agents/{list-recipes,show-recipe,list-variables,dump-justfile}.toml
