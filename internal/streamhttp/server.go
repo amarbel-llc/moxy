@@ -156,13 +156,24 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 		flush: flusher,
 		done:  make(chan struct{}),
 	}
-	s.streams.add(stream)
-	defer s.streams.remove(stream.id)
 
+	// Flush the response headers BEFORE registering the stream, so the
+	// initial flush can't race a broadcast (the stream isn't visible to
+	// Notify until add()). See #343.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	flusher.Flush()
+
+	s.streams.add(stream)
+	// Order matters: remove() stops new broadcasts from snapshotting this
+	// stream, then closeStream() waits (via the stream mutex) for any
+	// in-flight broadcast to finish before this handler returns and net/http
+	// tears the connection down.
+	defer func() {
+		s.streams.remove(stream.id)
+		stream.closeStream()
+	}()
 
 	select {
 	case <-r.Context().Done():

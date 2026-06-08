@@ -14,6 +14,43 @@ type sseStream struct {
 	w     http.ResponseWriter
 	flush http.Flusher
 	done  chan struct{}
+
+	// mu serializes all writes to w/flush. An http.ResponseWriter is not
+	// safe for concurrent use, but broadcast() runs on the Server.Notify
+	// goroutine while the owning handler goroutine (and net/http's own
+	// connection teardown) also touch w — without this lock the chunked
+	// framing corrupts ("invalid byte in chunk length" on the client, #343).
+	mu sync.Mutex
+	// closed flips true once the owning handler is tearing down, so a
+	// concurrent broadcast can't write to a response that net/http is
+	// finishing. Guarded by mu; close of done happens exactly once.
+	closed bool
+}
+
+// writeEvent writes one SSE event and flushes, serialized against other
+// writers and against teardown. A no-op once the stream is closed.
+func (s *sseStream) writeEvent(event string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	fmt.Fprint(s.w, event)
+	s.flush.Flush()
+}
+
+// closeStream marks the stream closed and closes done exactly once. Taking
+// mu means it waits for any in-flight writeEvent to finish, so the owning
+// handler never returns (triggering net/http's finishRequest) while a
+// broadcast is mid-write.
+func (s *sseStream) closeStream() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.closed = true
+	close(s.done)
 }
 
 type streamRegistry struct {
@@ -43,7 +80,7 @@ func (r *streamRegistry) closeAll() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, s := range r.streams {
-		close(s.done)
+		s.closeStream()
 	}
 	r.streams = make(map[string]*sseStream)
 }
@@ -63,12 +100,6 @@ func (r *streamRegistry) broadcast(msg *jsonrpc.Message) {
 	r.mu.RUnlock()
 
 	for _, s := range snapshot {
-		select {
-		case <-s.done:
-			continue
-		default:
-		}
-		fmt.Fprint(s.w, event)
-		s.flush.Flush()
+		s.writeEvent(event)
 	}
 }
