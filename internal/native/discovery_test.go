@@ -8,6 +8,19 @@ import (
 	"testing"
 )
 
+// isolateMoxinEnv points HOME and the working directory at separate empty
+// temp dirs so DefaultMoxinPath's hierarchy walk finds nothing. Without this,
+// tests that pass an empty moxinPath fall back to the real environment and
+// pick up the developer's own ~/.config/moxy/moxins (e.g. an installed
+// stats-me moxin), making len(configs) nondeterministic. The two dirs are
+// siblings, so neither is an ancestor of the other and the intermediate-dir
+// walk is skipped too.
+func isolateMoxinEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+}
+
 // writeDiscoveryMoxin creates a directory-based moxin with _moxin.toml and a default tool.
 func writeDiscoveryMoxin(t *testing.T, parentDir, name, desc string) {
 	t.Helper()
@@ -104,6 +117,7 @@ func TestSystemDirAppended(t *testing.T) {
 }
 
 func TestEmptyMoxinPath(t *testing.T) {
+	isolateMoxinEnv(t)
 	systemDir := filepath.Join(t.TempDir(), "system")
 	writeDiscoveryMoxin(t, systemDir, "tool", "system")
 
@@ -121,6 +135,7 @@ func TestEmptyMoxinPath(t *testing.T) {
 }
 
 func TestEmptyMoxinPathNoSystemDir(t *testing.T) {
+	isolateMoxinEnv(t)
 	configs, err := DiscoverConfigs("", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
