@@ -95,6 +95,25 @@ function grit_diff_no_changes { # @test
   assert_resource_blocks_have_resource_field
 }
 
+# Regression test for #337: a diff body larger than Linux's per-argument
+# exec limit (MAX_ARG_STRLEN, 128 KiB) killed the wrapper because the diff
+# was passed to jq as an argv argument ("Argument list too long").
+function grit_diff_large_diff { # @test
+  seq -f 'original line %.0f' 1 15000 > big.txt
+  git add big.txt
+  git commit -m "add big file"
+  seq -f 'replaced line %.0f' 1 15000 > big.txt
+
+  local params='{"name":"grit.diff"}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+
+  echo "$output" | jq -e '.isError != true' || fail 'diff returned isError: '"$output"
+  echo "$output" | jq -e '.content | length > 0' || fail '.content | length > 0 check failed: '"$output"
+  assert_no_mimetype_on_text_blocks
+  assert_resource_blocks_have_resource_field
+}
+
 function grit_diff_staged_stat_only { # @test
   echo "both" > file.txt
   git add file.txt

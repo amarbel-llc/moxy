@@ -37,5 +37,7 @@ else
   mime="text/x-diff"
 fi
 
-jq -cn --arg text "$output" --arg mime "$mime" \
-  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
+# Feed the diff body via stdin: passing it as an argv argument breaks on
+# diffs larger than Linux's per-arg exec limit (MAX_ARG_STRLEN, #337).
+printf '%s' "$output" | jq -Rsc --arg mime "$mime" \
+  '{content:[{type:"text",text:.,mimeType:$mime}]}'
