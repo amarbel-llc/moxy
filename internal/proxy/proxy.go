@@ -1351,7 +1351,30 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 		return p.reprobeEphemeral(ctx, meta)
 	}
 
-	// Close existing child if running
+	// Spawn the replacement FIRST, while the old child keeps serving, so the
+	// server is never absent from the registry during its own restart. The
+	// proxy handles messages in goroutines, so a tool call pipelined right
+	// after a restart runs concurrently with it; the previous order — remove
+	// old, then run the slow connectFunc, then add new — left a window where
+	// that call found neither instance and got "unknown server", which flaked
+	// under CPU contention once the respawn outran the client's spacing (#351).
+	// Mirrors restartMoxin's make-before-break.
+	client, result, err := p.connectFunc(ctx, cfg)
+	if err != nil {
+		// Respawn failed: leave the old child in place (still serving) and
+		// mark the server failed, matching restartMoxin — a failed restart
+		// must not tear down a healthy child.
+		p.markFailed(serverName, err)
+		return fmt.Errorf("spawning %s: %w", serverName, err)
+	}
+
+	client.SetOnNotification(func(msg *jsonrpc.Message) {
+		p.ForwardNotification(msg)
+	})
+
+	// Atomically swap old → new under one lock: close+remove the old child,
+	// drop any failed entry, add the new child. A concurrent tool call sees
+	// either the old or the new srv, never neither.
 	p.mu.Lock()
 	for i, c := range p.children {
 		if c.Client.Name() == serverName {
@@ -1361,27 +1384,12 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 			break
 		}
 	}
-	// Remove from failed list if present
 	for i, f := range p.failed {
 		if f.Name == serverName {
 			p.failed = append(p.failed[:i], p.failed[i+1:]...)
 			break
 		}
 	}
-	p.mu.Unlock()
-
-	// Spawn fresh (outside lock — this is slow)
-	client, result, err := p.connectFunc(ctx, cfg)
-	if err != nil {
-		p.markFailed(serverName, err)
-		return fmt.Errorf("spawning %s: %w", serverName, err)
-	}
-
-	client.SetOnNotification(func(msg *jsonrpc.Message) {
-		p.ForwardNotification(msg)
-	})
-
-	p.mu.Lock()
 	p.children = append(p.children, ChildEntry{
 		Client:       client,
 		Config:       cfg,
