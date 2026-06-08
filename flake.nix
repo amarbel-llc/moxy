@@ -567,17 +567,16 @@
               "ci-watch" = "moxins/get-hubbed/src/ci-watch.ts";
             }
             { pathMode = "suffix"; };
-        grit-moxin =
-          mkBunMoxin "grit"
-            [
-              pkgs.bash
-              pkgs.coreutils
-              pkgs.git
-            ]
-            {
-              "push-stack" = "moxins/grit/src/push-stack.ts";
-            }
-            { pathMode = "inherit"; };
+        # grit deliberately uses pathMode = "inherit" with no nix-pinned deps:
+        # it must run the user's own git (matching the repo they're operating
+        # on, with their configured aliases/templates/credential helpers). Under
+        # "inherit", mkBunMoxin's wrapProgram skips the PATH arg entirely, so a
+        # deps list here would be a no-op — both the bun binary and the bash
+        # scripts resolve git through the inherited process PATH at exec time.
+        # Keep this empty; see #219.
+        grit-moxin = mkBunMoxin "grit" [ ] {
+          "push-stack" = "moxins/grit/src/push-stack.ts";
+        } { pathMode = "inherit"; };
         # @GOMARKDOC@ / @PANDOC@ are baked into the bundled JS at build time
         # via mkBunMoxin's extraSubstitutions, so the markdown renderer path
         # doesn't depend on the user's PATH or any runtime env var. doc.ts
