@@ -2,7 +2,9 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
+)
 import _lib
 
 board_id = sys.argv[1]
@@ -23,5 +25,7 @@ else:
     sprints = result.get("values", [])
     lines = [f"Found {len(sprints)} sprints\n"]
     for s in sprints:
-        lines.append(f"  {s.get('id', ''):>6}  {s.get('state', ''):10s}  {s.get('name', '')}")
+        lines.append(
+            f"  {s.get('id', ''):>6}  {s.get('state', ''):10s}  {s.get('name', '')}"
+        )
     _lib.emit("\n".join(lines))

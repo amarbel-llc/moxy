@@ -10,9 +10,9 @@ def find_session(session_id: str) -> Path | None:
     """Locate a session transcript. Accepts both top-level session UUIDs
     and subagent IDs (agent-XXX). For subagent IDs, searches every
     project's <session>/subagents/ directory."""
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return None
     for proj_dir in projects_dir.iterdir():
@@ -54,10 +54,12 @@ def extract_tool_calls(content) -> list[dict]:
     calls = []
     for block in content:
         if isinstance(block, dict) and block.get("type") == "tool_use":
-            calls.append({
-                "name": block.get("name", "?"),
-                "input": block.get("input", {}),
-            })
+            calls.append(
+                {
+                    "name": block.get("name", "?"),
+                    "input": block.get("input", {}),
+                }
+            )
     return calls
 
 
@@ -95,13 +97,17 @@ def main():
     limit = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else 0
 
     if not session_id:
-        print("Usage: freud-messages <session_id> [role] [search] [offset] [limit]",
-              file=sys.stderr)
+        print(
+            "Usage: freud-messages <session_id> [role] [search] [offset] [limit]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     path = find_session(session_id)
     if path is None:
-        print(f"Session {session_id} not found. Use the sessions tool to list available sessions.")
+        print(
+            f"Session {session_id} not found. Use the sessions tool to list available sessions."
+        )
         sys.exit(1)
 
     messages = []
@@ -129,12 +135,14 @@ def main():
             if role_filter and msg_type != role_filter:
                 continue
 
-            messages.append({
-                "role": role,
-                "text": text,
-                "tool_calls": tool_calls,
-                "tool_results": tool_results,
-            })
+            messages.append(
+                {
+                    "role": role,
+                    "text": text,
+                    "tool_calls": tool_calls,
+                    "tool_results": tool_results,
+                }
+            )
 
     # Apply search filter
     if search:
@@ -170,13 +178,19 @@ def main():
             lines.append(f"[{i}] {role} tool_call: {tc['name']}({oneline(input_str)})")
 
         for tr in msg["tool_results"]:
-            lines.append(f"[{i}] {role} tool_result({tr['tool_use_id']}): {oneline(tr['text'])}")
+            lines.append(
+                f"[{i}] {role} tool_result({tr['tool_use_id']}): {oneline(tr['text'])}"
+            )
 
     if total > len(messages) + offset:
         remaining = total - offset - len(messages)
-        lines.append(f"\n--- {remaining} more messages (use offset={offset + len(messages)})")
+        lines.append(
+            f"\n--- {remaining} more messages (use offset={offset + len(messages)})"
+        )
     elif offset > 0:
-        lines.append(f"\n--- showing {len(messages)} of {total} messages (offset={offset})")
+        lines.append(
+            f"\n--- showing {len(messages)} of {total} messages (offset={offset})"
+        )
 
     emit_mcp_result("\n".join(lines))
 

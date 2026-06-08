@@ -11,7 +11,9 @@ def main():
         sys.exit(1)
 
     session_id = sys.argv[1]
-    projects_dir = Path(os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
 
     if not projects_dir.is_dir():
         print("No projects directory found")
@@ -25,7 +27,9 @@ def main():
             sys.stdout.write(f.read_text())
             return
 
-    print(f"Session {session_id} not found. Use the sessions tool to discover available session ids.")
+    print(
+        f"Session {session_id} not found. Use the sessions tool to discover available session ids."
+    )
     sys.exit(1)
 
 

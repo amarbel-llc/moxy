@@ -14,9 +14,9 @@ def find_session(session_id: str) -> Path | None:
     """Locate a session transcript. Accepts both top-level session UUIDs
     and subagent IDs (agent-XXX). For subagent IDs, searches every
     project's <session>/subagents/ directory."""
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return None
     for proj_dir in projects_dir.iterdir():
@@ -40,7 +40,9 @@ def find_session(session_id: str) -> Path | None:
 
 
 def resolve_cwd(proj_dir: Path) -> str | None:
-    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    jsonls = sorted(
+        proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not jsonls:
         return None
 
@@ -66,9 +68,9 @@ def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
 
 
 def collect_multi_session_paths(project_filter: str, days: int) -> list[Path]:
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return []
 
@@ -87,7 +89,9 @@ def collect_multi_session_paths(project_filter: str, days: int) -> list[Path]:
         if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
             continue
         project = cwd_map[proj_dir.name]
-        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+        if project_filter and not matches_project(
+            project, proj_dir.name, project_filter
+        ):
             continue
         for f in proj_dir.glob("*.jsonl"):
             if f.stat().st_mtime >= cutoff:
@@ -114,7 +118,9 @@ def truncate(s: str, n: int = RESULT_TRUNCATE) -> str:
     return s[:n] + "..."
 
 
-def extract_calls(path: Path, tool_name_filter: str, include_results: bool) -> list[dict]:
+def extract_calls(
+    path: Path, tool_name_filter: str, include_results: bool
+) -> list[dict]:
     calls = []
     results_map: dict[str, dict] = {}
     msg_index = 0
@@ -147,16 +153,21 @@ def extract_calls(path: Path, tool_name_filter: str, include_results: bool) -> l
                     if tool_name_filter and tool_name_filter not in name.lower():
                         continue
 
-                    calls.append({
-                        "id": tool_id,
-                        "name": name,
-                        "input": input_data,
-                        "msg_index": msg_index,
-                    })
+                    calls.append(
+                        {
+                            "id": tool_id,
+                            "name": name,
+                            "input": input_data,
+                            "msg_index": msg_index,
+                        }
+                    )
 
             elif msg_type == "user" and include_results:
                 for block in content:
-                    if not isinstance(block, dict) or block.get("type") != "tool_result":
+                    if (
+                        not isinstance(block, dict)
+                        or block.get("type") != "tool_result"
+                    ):
                         continue
 
                     tool_use_id = block.get("tool_use_id", "")
@@ -188,12 +199,16 @@ def extract_calls(path: Path, tool_name_filter: str, include_results: bool) -> l
     return calls
 
 
-def format_calls(calls: list[dict], include_results: bool, session_label: str = "") -> list[str]:
+def format_calls(
+    calls: list[dict], include_results: bool, session_label: str = ""
+) -> list[str]:
     lines = []
     for i, call in enumerate(calls, start=1):
         input_str = json.dumps(call["input"], separators=(",", ":"))
         prefix = f"[{session_label}#{i}]" if session_label else f"[{i}]"
-        lines.append(f"{prefix} msg:{call['msg_index']} {call['name']} \u2192 {oneline(input_str)}")
+        lines.append(
+            f"{prefix} msg:{call['msg_index']} {call['name']} \u2192 {oneline(input_str)}"
+        )
 
         if include_results:
             result = call.get("result")
@@ -204,7 +219,7 @@ def format_calls(calls: list[dict], include_results: bool, session_label: str = 
                 else:
                     lines.append(f"     \u21b3 {text}")
             else:
-                lines.append(f"     \u21b3 (no result)")
+                lines.append("     \u21b3 (no result)")
 
     return lines
 
@@ -213,7 +228,11 @@ def main():
     session_id = sys.argv[1] if len(sys.argv) > 1 else ""
     tool_name_filter = (sys.argv[2] if len(sys.argv) > 2 else "").lower()
     limit = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 0
-    include_results = (sys.argv[4] if len(sys.argv) > 4 else "").lower() in ("true", "1", "yes")
+    include_results = (sys.argv[4] if len(sys.argv) > 4 else "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
     project_filter = sys.argv[5] if len(sys.argv) > 5 else ""
     days = int(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6] else 7
 
@@ -266,7 +285,9 @@ def main():
         for i, call in enumerate(all_calls, start=1):
             input_str = json.dumps(call["input"], separators=(",", ":"))
             label = call.get("_session_label", "?")
-            lines.append(f"[{i}] {label} msg:{call['msg_index']} {call['name']} \u2192 {oneline(input_str)}")
+            lines.append(
+                f"[{i}] {label} msg:{call['msg_index']} {call['name']} \u2192 {oneline(input_str)}"
+            )
 
             if include_results:
                 result = call.get("result")
@@ -277,13 +298,19 @@ def main():
                     else:
                         lines.append(f"     \u21b3 {text}")
                 else:
-                    lines.append(f"     \u21b3 (no result)")
+                    lines.append("     \u21b3 (no result)")
 
         proj_desc = f", project: {project_filter}" if project_filter else ""
         mtimes = [p.stat().st_mtime for p in session_paths]
-        earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-        latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-        lines.append(f"\n{len(all_calls)} tool call(s) across {len(session_paths)} sessions ({earliest} \u2192 {latest}{proj_desc})")
+        earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime(
+            "%Y-%m-%d"
+        )
+        latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime(
+            "%Y-%m-%d"
+        )
+        lines.append(
+            f"\n{len(all_calls)} tool call(s) across {len(session_paths)} sessions ({earliest} \u2192 {latest}{proj_desc})"
+        )
 
         emit_mcp_result("\n".join(lines))
 

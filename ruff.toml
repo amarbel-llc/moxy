@@ -1,0 +1,25 @@
+# ruff config for the first-party moxin Python (#353). treefmt-nix's
+# ruff-format / ruff-check programs (wired in treefmt.nix) auto-discover this
+# file. treefmt decides WHICH files ruff sees; this decides how ruff treats
+# them.
+
+# The sisyphus/freud tool scripts have no .py extension — tell ruff to parse
+# them as Python anyway.
+extend-include = ["moxins/sisyphus/bin/*", "moxins/freud/bin/*"]
+
+# Exclusions for a direct `ruff` run that discovers files itself (vendored
+# marklas, and api-perms which is bash, not Python). The gate runs ruff via
+# treefmt, which passes file paths explicitly and excludes api-perms on its
+# side (see treefmt.nix) — explicit paths bypass these, so this list is the
+# belt to treefmt's suspenders.
+extend-exclude = [
+  "moxins/sisyphus/lib/_vendor",
+  "moxins/sisyphus/bin/api-perms",
+]
+
+[lint.per-file-ignores]
+# The tool scripts import after a sys.path.insert that puts lib/ on the path
+# — a deliberate module-level import that E402 (import-not-at-top) can't
+# understand. The lib/ helpers carry inline `# noqa: E402` for the same reason.
+"moxins/sisyphus/bin/*" = ["E402"]
+"moxins/freud/bin/*" = ["E402"]

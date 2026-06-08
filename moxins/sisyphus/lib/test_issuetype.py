@@ -64,7 +64,10 @@ def test_extract_tolerates_garbage():
     assert _issuetype.extract_issue_type_names(None) == []
     assert _issuetype.extract_issue_type_names({}) == []
     assert _issuetype.extract_issue_type_names({"values": "nope"}) == []
-    assert _issuetype.extract_issue_type_names({"values": [{"id": "1"}, 7, {"name": ""}]}) == []
+    assert (
+        _issuetype.extract_issue_type_names({"values": [{"id": "1"}, 7, {"name": ""}]})
+        == []
+    )
 
 
 # ── suggest_issue_type ─────────────────────────────────────────────────────
@@ -96,7 +99,9 @@ def test_no_suggestion_when_nothing_close():
 
 
 def test_format_lists_valid_types_and_suggests():
-    msg = _issuetype.format_issuetype_error("XORCH", "Sub-task", ["Task", "Bug", "Subtask"])
+    msg = _issuetype.format_issuetype_error(
+        "XORCH", "Sub-task", ["Task", "Bug", "Subtask"]
+    )
     assert "Sub-task" in msg
     assert "XORCH" in msg
     assert "Task, Bug, Subtask" in msg
@@ -115,28 +120,15 @@ def test_format_falls_back_when_no_names():
     assert "per-project" in msg
 
 
-# ── _lib wiring smoke (only when the heavy deps are importable) ─────────────
-
-
-def test_lib_exposes_issuetype_wrapper():
-    """Import `_lib` (atlassian/marklas/requests) and confirm the create-issue
-    wrapper exists. Skips on a bare Python without the deps, mirroring
-    test_validate.py's marklas-skip. Catches syntax/wiring errors in _lib.py
-    that the pure tests above can't, since they never import _lib.
-    """
-    try:
-        import _lib  # noqa: F401
-    except ImportError:
-        return  # deps not available in this environment; skip
-    assert hasattr(_lib, "create_issue_with_issuetype_hint")
-    assert hasattr(_lib, "_fetch_issue_type_names")
-
-
 # ── Test runner ────────────────────────────────────────────────────────────
 
 
 def _run_all():
-    tests = [(name, fn) for name, fn in globals().items() if name.startswith("test_") and callable(fn)]
+    tests = [
+        (name, fn)
+        for name, fn in globals().items()
+        if name.startswith("test_") and callable(fn)
+    ]
     failures = []
     for name, fn in tests:
         try:

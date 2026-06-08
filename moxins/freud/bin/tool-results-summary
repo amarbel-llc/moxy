@@ -12,7 +12,9 @@ from pathlib import Path
 
 def resolve_cwd(proj_dir: Path) -> str | None:
     """Extract cwd from the newest JSONL in a project directory."""
-    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    jsonls = sorted(
+        proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not jsonls:
         return None
 
@@ -65,7 +67,10 @@ def collect_results(path: Path, tool_name_filter: str) -> list[dict]:
 
             elif msg_type == "user":
                 for block in content:
-                    if not isinstance(block, dict) or block.get("type") != "tool_result":
+                    if (
+                        not isinstance(block, dict)
+                        or block.get("type") != "tool_result"
+                    ):
                         continue
 
                     tool_use_id = block.get("tool_use_id", "")
@@ -92,19 +97,26 @@ def collect_results(path: Path, tool_name_filter: str) -> list[dict]:
 
                     name = tool_names.get(tool_use_id, "?")
 
-                    if tool_name_filter and tool_name_filter.lower() not in name.lower():
+                    if (
+                        tool_name_filter
+                        and tool_name_filter.lower() not in name.lower()
+                    ):
                         continue
 
                     is_success = not is_error and not is_empty
 
-                    results.append({
-                        "tool": name,
-                        "is_success": is_success,
-                        "is_error": is_error and not is_rejected,
-                        "is_empty": is_empty,
-                        "is_rejected": is_rejected,
-                        "preview": normalize_preview(text) if (text and not is_success) else "",
-                    })
+                    results.append(
+                        {
+                            "tool": name,
+                            "is_success": is_success,
+                            "is_error": is_error and not is_rejected,
+                            "is_empty": is_empty,
+                            "is_rejected": is_rejected,
+                            "preview": normalize_preview(text)
+                            if (text and not is_success)
+                            else "",
+                        }
+                    )
 
     return results
 
@@ -133,9 +145,9 @@ def main():
         except re.error as e:
             return emit_mcp_result(f"invalid error_pattern regex: {e}")
 
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return emit_mcp_result("(no sessions found)")
 
@@ -156,14 +168,18 @@ def main():
         if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
             continue
         project = cwd_map[proj_dir.name]
-        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+        if project_filter and not matches_project(
+            project, proj_dir.name, project_filter
+        ):
             continue
         for f in proj_dir.glob("*.jsonl"):
             if f.stat().st_mtime >= cutoff:
                 session_paths.append(f)
 
     if not session_paths:
-        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+        return emit_mcp_result(
+            f"No sessions found (days={days}, project={project_filter or 'all'})"
+        )
 
     # Phase 3: collect results, honoring scope.
     # scope=main        → only main session JSONLs
@@ -264,7 +280,9 @@ def main():
     mtimes = [p.stat().st_mtime for p in session_paths]
     earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
     latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    lines.append(f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})")
+    lines.append(
+        f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})"
+    )
 
     emit_mcp_result("\n".join(lines))
 

@@ -10,12 +10,15 @@ Permission gating happens at the moxin layer via `perms-request = "dynamic"`
 plus the sibling script `bin/api-perms` — read-only verbs (GET/HEAD/OPTIONS)
 auto-allow; everything else asks the user.
 """
+
 import json
 import os
 import sys
 from urllib.parse import urljoin
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
+)
 import _lib
 
 method = (sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else "GET").upper()

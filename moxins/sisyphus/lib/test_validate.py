@@ -336,7 +336,11 @@ def test_marklas_clean_markdown_passes():
 
 
 def _run_all():
-    tests = [(name, fn) for name, fn in globals().items() if name.startswith("test_") and callable(fn)]
+    tests = [
+        (name, fn)
+        for name, fn in globals().items()
+        if name.startswith("test_") and callable(fn)
+    ]
     failures = []
     for name, fn in tests:
         try:

@@ -9,7 +9,9 @@ from pathlib import Path
 
 def resolve_cwd(proj_dir: Path) -> str | None:
     """Extract cwd from the newest JSONL in a project directory."""
-    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    jsonls = sorted(
+        proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not jsonls:
         return None
 
@@ -53,7 +55,9 @@ def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
 
 def main():
     project_filter = sys.argv[1] if len(sys.argv) > 1 else ""
-    projects_dir = Path(os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return emit_mcp_result("(no sessions found)")
 
@@ -72,23 +76,31 @@ def main():
         if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
             continue
         project = cwd_map[proj_dir.name]
-        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+        if project_filter and not matches_project(
+            project, proj_dir.name, project_filter
+        ):
             continue
         for f in proj_dir.glob("*.jsonl"):
             st = f.stat()
-            rows.append((
-                st.st_mtime,
-                f.stem,
-                datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
-                count_lines(f),
-                human_size(st.st_size),
-                project,
-            ))
+            rows.append(
+                (
+                    st.st_mtime,
+                    f.stem,
+                    datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
+                    count_lines(f),
+                    human_size(st.st_size),
+                    project,
+                )
+            )
 
     rows.sort(key=lambda r: r[0], reverse=True)
 
     lines = []
-    lines.append(f"{'SESSION':<36}  {'LAST ACTIVITY':<16}  {'MSGS':>5}  {'SIZE':>5}  PROJECT")
+    lines.append(
+        f"{'SESSION':<36}  {'LAST ACTIVITY':<16}  {'MSGS':>5}  {'SIZE':>5}  PROJECT"
+    )
     for _, session, activity, msgs, size, project in rows:
         lines.append(f"{session:<36}  {activity:<16}  {msgs:>5}  {size:>5}  {project}")
 

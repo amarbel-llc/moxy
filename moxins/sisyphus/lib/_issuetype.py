@@ -77,7 +77,9 @@ def format_issuetype_error(project: str, requested: str, names) -> str:
         lines.append(f"  valid issue types: {', '.join(names)}")
         suggestion = suggest_issue_type(requested, names)
         if suggestion:
-            lines.append(f"  did you mean {suggestion!r}? (issue type names are per-project)")
+            lines.append(
+                f"  did you mean {suggestion!r}? (issue type names are per-project)"
+            )
     else:
         lines.append(
             "  could not list valid types; issue type names are per-project. "

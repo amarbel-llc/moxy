@@ -40,6 +40,30 @@
     "*.cjs"
   ];
 
+  # Python (moxin tool scripts) via ruff: format + lint. Scoped to the
+  # first-party moxin Python — the sisyphus lib/ helpers and the
+  # sisyphus/freud bin/ tool scripts (almost all pure Python). The
+  # extensionless bin scripts are picked up via ruff.toml's extend-include;
+  # E402 (import-after-sys.path.insert) is silenced there per-file. Vendored
+  # marklas is excluded globally below. api-perms is the one bash script under
+  # sisyphus/bin/* — excluded here so treefmt never hands it to ruff (ruff's
+  # own extend-exclude loses to extend-include for explicitly-passed paths).
+  # See #353 and ./ruff.toml.
+  programs.ruff-format.enable = true;
+  programs.ruff-check.enable = true;
+  settings.formatter.ruff-format.includes = lib.mkForce [
+    "moxins/sisyphus/lib/*.py"
+    "moxins/sisyphus/bin/*"
+    "moxins/freud/bin/*"
+  ];
+  settings.formatter.ruff-format.excludes = [ "moxins/sisyphus/bin/api-perms" ];
+  settings.formatter.ruff-check.includes = lib.mkForce [
+    "moxins/sisyphus/lib/*.py"
+    "moxins/sisyphus/bin/*"
+    "moxins/freud/bin/*"
+  ];
+  settings.formatter.ruff-check.excludes = [ "moxins/sisyphus/bin/api-perms" ];
+
   # TOML (moxin configs, moxyfile, .moxy/servers/*) via tommy's CST-preserving
   # formatter.
   settings.formatter.tommy = {
@@ -59,6 +83,8 @@
     "internal/config/config_tommy.go"
     # Test fixtures are loaded/compared verbatim by bats tests.
     "zz-tests_bats/test-fixtures/**"
+    # Vendored marklas (sisyphus) — owned upstream, must not be reformatted.
+    "moxins/sisyphus/lib/_vendor/**"
     # Misc non-source.
     "version.env"
     "sweatfile"

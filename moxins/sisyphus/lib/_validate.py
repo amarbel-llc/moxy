@@ -97,7 +97,7 @@ def _check_table(node: dict, violations: list[str]) -> None:
     if not rows:
         snippet = _first_text_snippet(node) or "(empty)"
         violations.append(
-            f'A table with no rows was produced (likely from a line containing '
+            f"A table with no rows was produced (likely from a line containing "
             f'`|` characters that GFM parsed as a one-cell table): "{snippet}". '
             f"Rewrite the line so it doesn't look like a GFM table — for "
             f"example wrap pipe-bearing tokens in a sentence form or a code "

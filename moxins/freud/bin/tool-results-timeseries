@@ -12,7 +12,9 @@ from pathlib import Path
 
 def resolve_cwd(proj_dir: Path) -> str | None:
     """Extract cwd from the newest JSONL in a project directory."""
-    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    jsonls = sorted(
+        proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not jsonls:
         return None
 
@@ -45,7 +47,9 @@ def session_bucket(path: Path, group_by: str) -> str:
     return dt.strftime("%m-%d")
 
 
-def collect_results(path: Path, tool_name_filter: str, error_re: "re.Pattern | None" = None) -> dict:
+def collect_results(
+    path: Path, tool_name_filter: str, error_re: "re.Pattern | None" = None
+) -> dict:
     """Count tool results by outcome for a single JSONL file.
 
     When error_re is provided, only results whose error/empty/rejected
@@ -75,7 +79,10 @@ def collect_results(path: Path, tool_name_filter: str, error_re: "re.Pattern | N
 
             elif msg_type == "user":
                 for block in content:
-                    if not isinstance(block, dict) or block.get("type") != "tool_result":
+                    if (
+                        not isinstance(block, dict)
+                        or block.get("type") != "tool_result"
+                    ):
                         continue
 
                     tool_use_id = block.get("tool_use_id", "")
@@ -95,7 +102,10 @@ def collect_results(path: Path, tool_name_filter: str, error_re: "re.Pattern | N
 
                     name = tool_names.get(tool_use_id, "?")
 
-                    if tool_name_filter and tool_name_filter.lower() not in name.lower():
+                    if (
+                        tool_name_filter
+                        and tool_name_filter.lower() not in name.lower()
+                    ):
                         continue
 
                     is_empty = not text
@@ -130,7 +140,9 @@ def subagent_paths(session_path: Path) -> list[Path]:
     return []
 
 
-def render_sparkline(values: list[int], labels: list[str], title: str, rows: int = 12) -> list[str]:
+def render_sparkline(
+    values: list[int], labels: list[str], title: str, rows: int = 12
+) -> list[str]:
     """Render an ASCII sparkline chart."""
     total = sum(values)
     if total == 0:
@@ -173,9 +185,9 @@ def main():
         except re.error as e:
             return emit_mcp_result(f"invalid error_pattern regex: {e}")
 
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return emit_mcp_result("(no sessions found)")
 
@@ -196,7 +208,9 @@ def main():
         if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
             continue
         project = cwd_map[proj_dir.name]
-        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+        if project_filter and not matches_project(
+            project, proj_dir.name, project_filter
+        ):
             continue
         for f in proj_dir.glob("*.jsonl"):
             if f.stat().st_mtime >= cutoff:
@@ -204,10 +218,14 @@ def main():
                 session_files.append((f, bucket))
 
     if not session_files:
-        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+        return emit_mcp_result(
+            f"No sessions found (days={days}, project={project_filter or 'all'})"
+        )
 
     # Phase 3: collect results per time bucket
-    buckets: dict[str, dict] = defaultdict(lambda: {"ok": 0, "err": 0, "empty": 0, "rej": 0})
+    buckets: dict[str, dict] = defaultdict(
+        lambda: {"ok": 0, "err": 0, "empty": 0, "rej": 0}
+    )
 
     for path, bucket in session_files:
         if scope in ("both", "main"):
@@ -223,7 +241,9 @@ def main():
     sorted_buckets = sorted(buckets.keys())
 
     # Check if any data
-    grand_total = sum(b["ok"] + b["err"] + b["empty"] + b["rej"] for b in buckets.values())
+    grand_total = sum(
+        b["ok"] + b["err"] + b["empty"] + b["rej"] for b in buckets.values()
+    )
     if grand_total == 0:
         filter_desc = f", tool={tool_name_filter}" if tool_name_filter else ""
         return emit_mcp_result(
@@ -277,8 +297,10 @@ def main():
         spark_labels = [b[-2:] for b in sorted_buckets]  # day of month
 
     err_values = [buckets[b]["err"] for b in sorted_buckets]
-    vol_values = [buckets[b]["ok"] + buckets[b]["err"] + buckets[b]["empty"] + buckets[b]["rej"]
-                  for b in sorted_buckets]
+    vol_values = [
+        buckets[b]["ok"] + buckets[b]["err"] + buckets[b]["empty"] + buckets[b]["rej"]
+        for b in sorted_buckets
+    ]
 
     lines.append("")
     lines.extend(render_sparkline(err_values, spark_labels, "Errors"))
@@ -290,7 +312,9 @@ def main():
     mtimes = [p.stat().st_mtime for p, _ in session_files]
     earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
     latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    lines.append(f"\n{len(session_files)} sessions analyzed ({earliest} \u2192 {latest})")
+    lines.append(
+        f"\n{len(session_files)} sessions analyzed ({earliest} \u2192 {latest})"
+    )
 
     emit_mcp_result("\n".join(lines))
 

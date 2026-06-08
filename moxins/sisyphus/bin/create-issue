@@ -2,7 +2,9 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
+)
 import _lib
 
 project = sys.argv[1]
@@ -27,9 +29,9 @@ if priority:
 if labels:
     parsed = _lib.parse_argv_list(labels)
     if isinstance(parsed, list):
-        fields["labels"] = [str(l).strip() for l in parsed]
+        fields["labels"] = [str(label).strip() for label in parsed]
     else:
-        fields["labels"] = [l.strip() for l in parsed.split(",")]
+        fields["labels"] = [label.strip() for label in parsed.split(",")]
 if parent:
     fields["parent"] = {"key": parent}
 

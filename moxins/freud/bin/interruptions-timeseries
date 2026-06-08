@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,7 +15,9 @@ PROCEED_MARKER = "The user doesn't want to proceed with this tool use"
 
 
 def resolve_cwd(proj_dir: Path) -> str | None:
-    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    jsonls = sorted(
+        proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not jsonls:
         return None
     with open(jsonls[0]) as f:
@@ -89,7 +91,9 @@ def scan_session(path: Path) -> tuple[int, int]:
                             if text.startswith(INTERRUPTION_PREFIX):
                                 interrupts += 1
 
-                        elif block.get("type") == "tool_result" and block.get("is_error"):
+                        elif block.get("type") == "tool_result" and block.get(
+                            "is_error"
+                        ):
                             inner = block.get("content", "")
                             text = ""
                             if isinstance(inner, str):
@@ -147,7 +151,9 @@ def subagent_paths(session_path: Path) -> list[Path]:
     return []
 
 
-def render_sparkline(values: list[int], labels: list[str], title: str, rows: int = 12) -> list[str]:
+def render_sparkline(
+    values: list[int], labels: list[str], title: str, rows: int = 12
+) -> list[str]:
     total = sum(values)
     if total == 0:
         return []
@@ -177,9 +183,9 @@ def main():
     if group_by not in ("day", "week"):
         group_by = "day"
 
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return emit_mcp_result("(no sessions found)")
 
@@ -200,7 +206,9 @@ def main():
         if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
             continue
         project = cwd_map[proj_dir.name]
-        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+        if project_filter and not matches_project(
+            project, proj_dir.name, project_filter
+        ):
             continue
         for f in proj_dir.glob("*.jsonl"):
             if f.stat().st_mtime >= cutoff:
@@ -208,7 +216,9 @@ def main():
                 session_files.append((f, bucket))
 
     if not session_files:
-        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+        return emit_mcp_result(
+            f"No sessions found (days={days}, project={project_filter or 'all'})"
+        )
 
     # Build session_id → bucket mapping for hook log attribution
     sid_to_bucket: dict[str, str] = {}
@@ -216,7 +226,9 @@ def main():
         sid_to_bucket[path.stem] = bucket
 
     # Phase 3: scan sessions for interruptions and rejections per bucket
-    buckets: dict[str, dict] = defaultdict(lambda: {"prompted": 0, "rejected": 0, "interrupted": 0})
+    buckets: dict[str, dict] = defaultdict(
+        lambda: {"prompted": 0, "rejected": 0, "interrupted": 0}
+    )
 
     for path, bucket in session_files:
         ic, rc = scan_session(path)
@@ -306,7 +318,9 @@ def main():
     mtimes = [p.stat().st_mtime for p, _ in session_files]
     earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
     latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    lines.append(f"\n{len(session_files)} sessions analyzed ({earliest} \u2192 {latest})")
+    lines.append(
+        f"\n{len(session_files)} sessions analyzed ({earliest} \u2192 {latest})"
+    )
 
     emit_mcp_result("\n".join(lines))
 

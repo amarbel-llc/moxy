@@ -2,7 +2,9 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
+)
 import _lib
 
 project = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None
@@ -25,5 +27,7 @@ else:
     for b in boards:
         loc = b.get("location", {})
         proj = loc.get("projectName", "") if loc else ""
-        lines.append(f"  {b['id']:>6}  {b.get('name', ''):30s}  {b.get('type', ''):10s}  {proj}")
+        lines.append(
+            f"  {b['id']:>6}  {b.get('name', ''):30s}  {b.get('type', ''):10s}  {proj}"
+        )
     _lib.emit("\n".join(lines))

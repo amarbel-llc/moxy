@@ -9,12 +9,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-MULTI_WORD_COMMANDS = {"git", "just", "docker", "kubectl", "nix", "gh", "cargo", "go", "npm"}
+MULTI_WORD_COMMANDS = {
+    "git",
+    "just",
+    "docker",
+    "kubectl",
+    "nix",
+    "gh",
+    "cargo",
+    "go",
+    "npm",
+}
 
 
 def resolve_cwd(proj_dir: Path) -> str | None:
     """Extract cwd from the newest JSONL in a project directory."""
-    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    jsonls = sorted(
+        proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not jsonls:
         return None
 
@@ -122,9 +134,9 @@ def main():
     if scope not in ("both", "main", "subagents"):
         scope = "both"
 
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         print("(no sessions found)")
         return
@@ -146,14 +158,18 @@ def main():
         if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
             continue
         project = cwd_map[proj_dir.name]
-        if project_filter and not matches_project(project, proj_dir.name, project_filter):
+        if project_filter and not matches_project(
+            project, proj_dir.name, project_filter
+        ):
             continue
         for f in proj_dir.glob("*.jsonl"):
             if f.stat().st_mtime >= cutoff:
                 session_paths.append(f)
 
     if not session_paths:
-        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+        return emit_mcp_result(
+            f"No sessions found (days={days}, project={project_filter or 'all'})"
+        )
 
     # Phase 3: tally across all sessions, honoring scope.
     total_counter: Counter = Counter()
@@ -167,7 +183,9 @@ def main():
     total_calls = sum(total_counter.values())
     if total_calls == 0:
         filter_desc = f", tool_name={tool_name_filter}" if tool_name_filter else ""
-        return emit_mcp_result(f"No tool calls found across {len(session_paths)} sessions{filter_desc}")
+        return emit_mcp_result(
+            f"No tool calls found across {len(session_paths)} sessions{filter_desc}"
+        )
 
     # Phase 4: format output
     lines = []
@@ -204,7 +222,9 @@ def main():
     mtimes = [p.stat().st_mtime for p in session_paths]
     earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
     latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    lines.append(f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})")
+    lines.append(
+        f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})"
+    )
 
     emit_mcp_result("\n".join(lines))
 

@@ -9,9 +9,9 @@ from pathlib import Path
 
 def find_session(session_id: str) -> tuple[Path | None, str]:
     """Returns (jsonl_path, project_cwd)."""
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return None, ""
     for proj_dir in projects_dir.iterdir():
@@ -51,7 +51,9 @@ def main():
 
     path, _ = find_session(session_id)
     if path is None:
-        print(f"Session {session_id} not found. Use the sessions tool to list available sessions.")
+        print(
+            f"Session {session_id} not found. Use the sessions tool to list available sessions."
+        )
         sys.exit(1)
 
     project = resolve_cwd(path)
@@ -119,9 +121,13 @@ def main():
     lines.append(f"Session: {session_id}")
     lines.append(f"Project: {project}")
     lines.append(f"Duration: {fmt_ts(first_ts)} → {fmt_ts(last_ts)}")
-    lines.append(f"Messages: {user_count} user / {assistant_count} assistant / {other_count} other")
+    lines.append(
+        f"Messages: {user_count} user / {assistant_count} assistant / {other_count} other"
+    )
     if interrupt_count > 0 or reject_count > 0:
-        lines.append(f"Interruptions: {interrupt_count} interrupted / {reject_count} rejected")
+        lines.append(
+            f"Interruptions: {interrupt_count} interrupted / {reject_count} rejected"
+        )
 
     if tool_counter:
         lines.append(f"\nTop tools ({len(tool_counter)} distinct):")

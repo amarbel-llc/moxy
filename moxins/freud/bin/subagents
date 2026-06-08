@@ -7,9 +7,9 @@ from pathlib import Path
 
 
 def find_session_dir(session_id: str) -> Path | None:
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return None
     for proj_dir in projects_dir.iterdir():
@@ -79,9 +79,9 @@ def main():
         sys.exit(1)
 
     # Find the subagents directory
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return emit_mcp_result("(no sessions found)")
 
@@ -109,7 +109,9 @@ def main():
     max_id = max(len(a["agent_id"]) for a in agents)
 
     lines.append("")
-    lines.append(f"  {'#':>3}  {'Agent ID':<{max_id}}  {'Msgs':>5}  {'Tools':>5}  Prompt")
+    lines.append(
+        f"  {'#':>3}  {'Agent ID':<{max_id}}  {'Msgs':>5}  {'Tools':>5}  Prompt"
+    )
     for i, a in enumerate(agents, start=1):
         lines.append(
             f"  {i:>3}  {a['agent_id']:<{max_id}}  {a['msg_count']:>5}  {a['tool_count']:>5}  {oneline(a['prompt'])}"

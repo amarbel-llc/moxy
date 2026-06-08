@@ -11,7 +11,9 @@ from pathlib import Path
 
 def resolve_cwd(proj_dir: Path) -> str | None:
     """Extract cwd from the newest JSONL in a project directory."""
-    jsonls = sorted(proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    jsonls = sorted(
+        proj_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
     if not jsonls:
         return None
 
@@ -79,7 +81,9 @@ def subagent_paths(session_path: Path) -> list[Path]:
     return []
 
 
-def tally_tools(path: Path, session_tools: set[str], total_calls: defaultdict[str, int]):
+def tally_tools(
+    path: Path, session_tools: set[str], total_calls: defaultdict[str, int]
+):
     """Extract tool names from a JSONL, adding to session_tools and total_calls."""
     with open(path) as f:
         for line in f:
@@ -111,9 +115,9 @@ def main():
     if scope not in ("both", "main", "subagents"):
         scope = "both"
 
-    projects_dir = Path(os.environ.get(
-        "CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects"
-    ))
+    projects_dir = Path(
+        os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
+    )
     if not projects_dir.is_dir():
         return emit_mcp_result("(no sessions found)")
 
@@ -146,14 +150,18 @@ def main():
             if not proj_dir.is_dir() or proj_dir.name not in cwd_map:
                 continue
             project = cwd_map[proj_dir.name]
-            if project_filter and not matches_project(project, proj_dir.name, project_filter):
+            if project_filter and not matches_project(
+                project, proj_dir.name, project_filter
+            ):
                 continue
             for f in proj_dir.glob("*.jsonl"):
                 if f.stat().st_mtime >= cutoff:
                     session_paths.append(f)
 
     if not session_paths:
-        return emit_mcp_result(f"No sessions found (days={days}, project={project_filter or 'all'})")
+        return emit_mcp_result(
+            f"No sessions found (days={days}, project={project_filter or 'all'})"
+        )
 
     # Collect tools per session (including subagents)
     tool_sessions: defaultdict[str, int] = defaultdict(int)
@@ -173,7 +181,9 @@ def main():
             tool_sessions[name] += 1
 
     if not tool_sessions:
-        return emit_mcp_result(f"No tool calls found across {len(session_paths)} sessions")
+        return emit_mcp_result(
+            f"No tool calls found across {len(session_paths)} sessions"
+        )
 
     # Sort by session count descending, then by total calls
     ranked = sorted(
@@ -186,7 +196,9 @@ def main():
     lines = []
     mode = "explicit session list" if session_ids_arg else f"{days} days"
     proj_desc = f", project: {project_filter}" if project_filter else ""
-    lines.append(f"Unique tools across {len(session_paths)} sessions ({mode}{proj_desc})")
+    lines.append(
+        f"Unique tools across {len(session_paths)} sessions ({mode}{proj_desc})"
+    )
     lines.append(f"{len(ranked)} unique tools, {sum(total_calls.values())} total calls")
 
     max_name = max(4, max(len(t) for t in ranked))
@@ -194,7 +206,9 @@ def main():
     max_calls = max(5, len(str(max(total_calls.values()))))
 
     lines.append("")
-    lines.append(f"  {'#':>3}  {'Tool':<{max_name}}  {'Sessions':>{max_sess}}  {'Calls':>{max_calls}}")
+    lines.append(
+        f"  {'#':>3}  {'Tool':<{max_name}}  {'Sessions':>{max_sess}}  {'Calls':>{max_calls}}"
+    )
     for i, tool in enumerate(ranked, start=1):
         lines.append(
             f"  {i:>3}  {tool:<{max_name}}  {tool_sessions[tool]:>{max_sess}}  {total_calls[tool]:>{max_calls}}"
@@ -204,7 +218,9 @@ def main():
     mtimes = [p.stat().st_mtime for p in session_paths]
     earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
     latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    lines.append(f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})")
+    lines.append(
+        f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})"
+    )
 
     emit_mcp_result("\n".join(lines))
 
