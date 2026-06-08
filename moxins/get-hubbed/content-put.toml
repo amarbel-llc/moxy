@@ -7,7 +7,10 @@ description = """Create or update a file in the repository via the GitHub Conten
 Automatically fetches the existing file's SHA for updates (upsert). \
 Content is provided as plain text and base64-encoded by the tool."""
 command = "@BIN@/content-put"
-arg-order = ["path", "content", "message", "branch", "repo_owner_name"]
+# content travels via stdin, not argv: argv caps a single argument at
+# Linux's MAX_ARG_STRLEN (128 KiB), truncating large file puts (#342).
+arg-order = ["path", "message", "branch", "repo_owner_name"]
+stdin-param = "content"
 
 [input]
 type = "object"

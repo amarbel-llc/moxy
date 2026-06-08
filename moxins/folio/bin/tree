@@ -39,5 +39,7 @@ else
   mime="text/plain"
 fi
 
-jq -cn --arg text "$text" --arg mime "$mime" \
-  '{content:[{type:"text",text:$text,mimeType:$mime}]}'
+# Feed the listing via stdin: passing it as an argv argument breaks on
+# listings larger than Linux's per-arg exec limit (MAX_ARG_STRLEN, #342).
+printf '%s' "$text" | jq -Rsc --arg mime "$mime" \
+  '{content:[{type:"text",text:.,mimeType:$mime}]}'

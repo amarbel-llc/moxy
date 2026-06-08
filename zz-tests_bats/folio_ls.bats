@@ -64,6 +64,27 @@ function folio_ls_shows_entry_types { # @test
   echo "$entries" | jq -e '.[] | select(.name == "link" and .type == "symlink")' || fail '.[] | select(.name == "link" and .type == "symlink") check failed: '"$entries"
 }
 
+# Regression test for #342: a listing larger than Linux's per-argument exec
+# limit (MAX_ARG_STRLEN, 128 KiB) killed the wrapper because the listing was
+# passed to the envelope jq as an argv argument ("Argument list too long").
+# Flags mode keeps the fixture cheap: one ls invocation, no per-entry stat/jq.
+function folio_ls_large_listing { # @test
+  mkdir -p "$HOME/project/big"
+  cd "$HOME/project"
+  # ~3000 entries x ~50-char names ≈ 150 KB of ls -1 output.
+  local i
+  for i in $(seq 3000); do
+    : > "big/file-with-a-long-padding-name-to-inflate-listing-$i"
+  done
+
+  local params='{"name":"folio.ls","arguments":{"path":"big","flags":"-1"}}'
+  run_moxy_mcp_v1 "tools/call" "$params"
+  assert_success
+
+  echo "$output" | jq -e '.isError != true' || fail 'ls returned isError: '"$output"
+  echo "$output" | jq -e '.content | length > 0' || fail '.content | length > 0 check failed: '"$output"
+}
+
 function folio_ls_defaults_to_cwd { # @test
   mkdir -p "$HOME/project"
   echo "hello" > "$HOME/project/readme.txt"

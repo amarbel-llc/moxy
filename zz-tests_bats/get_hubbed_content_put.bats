@@ -7,6 +7,11 @@
 # explicit GET carrying ref=<branch> — `gh api ... -f ref=X` WITHOUT
 # `--method GET` silently becomes a POST (gh's documented field behavior),
 # the lookup fails, and the PUT goes out with no sha → 422 from GitHub.
+#
+# Also covers #342: content travels via stdin (stdin-param), not argv, so
+# files larger than Linux's per-argument exec limit (MAX_ARG_STRLEN, 128 KiB)
+# survive both moxy's exec of the script and the script's own jq invocation.
+# The script signature is: content-put <path> <message> [branch] [repo] < content
 
 load 'common'
 
@@ -81,7 +86,7 @@ teardown() {
 # Regression for #306: updating an existing file on a feature branch must
 # resolve the blob sha ON THAT BRANCH and include it in the PUT body.
 function content_put_update_on_branch_includes_branch_sha { # @test
-  run "$BIN/content-put" "dir/file.txt" "new content" "update msg" "feature-branch" "owner/repo"
+  run bash -c 'printf %s "new content" | "$0/content-put" "dir/file.txt" "update msg" "feature-branch" "owner/repo"' "$BIN"
   assert_success
 
   run cat "$HOME/put-body.json"
@@ -92,7 +97,7 @@ function content_put_update_on_branch_includes_branch_sha { # @test
 
 # Updating on the default branch (no branch arg) keeps working.
 function content_put_update_default_branch_includes_sha { # @test
-  run "$BIN/content-put" "dir/file.txt" "new content" "update msg" "" "owner/repo"
+  run bash -c 'printf %s "new content" | "$0/content-put" "dir/file.txt" "update msg" "" "owner/repo"' "$BIN"
   assert_success
 
   run cat "$HOME/put-body.json"
@@ -104,11 +109,60 @@ function content_put_update_default_branch_includes_sha { # @test
 # Creating a brand-new file sends no sha (GitHub rejects a sha for creates).
 function content_put_create_new_file_omits_sha { # @test
   export GH_STUB_NO_FILE=1
-  run "$BIN/content-put" "dir/new.txt" "content" "create msg" "feature-branch" "owner/repo"
+  run bash -c 'printf %s "content" | "$0/content-put" "dir/new.txt" "create msg" "feature-branch" "owner/repo"' "$BIN"
   assert_success
 
   run cat "$HOME/put-body.json"
   assert_success
   refute_output --partial '"sha"'
   assert_output --partial '"branch": "feature-branch"'
+}
+
+# Regression for #342: content larger than MAX_ARG_STRLEN (128 KiB) must
+# round-trip byte-identically. Pre-#342 the content rode argv twice (moxy's
+# exec of the script, then jq --arg) and either exec died with "Argument
+# list too long".
+function content_put_large_content_round_trips { # @test
+  seq -f 'content line %.0f with some padding to inflate the payload' 1 4000 \
+    > "$HOME/big-content.txt"
+  # ~230 KB — comfortably past the 128 KiB per-arg limit.
+  [ "$(stat -c '%s' "$HOME/big-content.txt")" -gt 131072 ] || fail "fixture too small"
+
+  run bash -c '"$0/content-put" "dir/big.txt" "big msg" "" "owner/repo" < "$1"' \
+    "$BIN" "$HOME/big-content.txt"
+  assert_success
+
+  jq -r '.content' "$HOME/put-body.json" | base64 -d > "$HOME/round-trip.txt"
+  cmp "$HOME/big-content.txt" "$HOME/round-trip.txt" \
+    || fail "decoded PUT content differs from input"
+}
+
+# Content fidelity: trailing newlines must survive (a $(cat)-style capture
+# would strip them and corrupt the committed file).
+function content_put_preserves_trailing_newline { # @test
+  printf 'line1\nline2\n' > "$HOME/nl-content.txt"
+
+  run bash -c '"$0/content-put" "dir/nl.txt" "nl msg" "" "owner/repo" < "$1"' \
+    "$BIN" "$HOME/nl-content.txt"
+  assert_success
+
+  jq -r '.content' "$HOME/put-body.json" | base64 -d > "$HOME/nl-round-trip.txt"
+  cmp "$HOME/nl-content.txt" "$HOME/nl-round-trip.txt" \
+    || fail "trailing newline lost in round-trip"
+}
+
+# The stdin-param wiring end-to-end: moxy extracts `content` from the tool
+# arguments and delivers it on the script's stdin (never argv).
+function content_put_via_moxy_stdin_param { # @test
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  local params='{"name":"get-hubbed.content-put","arguments":{"path":"dir/f.txt","content":"hello stdin","message":"msg","repo_owner_name":"owner/repo"}}'
+  run_moxy_mcp_v1 "tools/call" "$params"
+  assert_success
+  echo "$output" | jq -e '.isError != true' || fail 'content-put returned isError: '"$output"
+
+  run bash -c 'jq -r .content "$HOME/put-body.json" | base64 -d'
+  assert_success
+  assert_output "hello stdin"
 }
