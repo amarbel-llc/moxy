@@ -227,8 +227,9 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	}
 	defer sub.Cleanup()
 
-	output, runErr := s.runMoxinProcess(ctx, spec, allArgs, stdinContent, sub)
+	stdout, stderr, runErr := s.runMoxinProcess(ctx, spec, allArgs, stdinContent, sub)
 	if runErr != nil {
+		output := combineStreams(stdout, stderr)
 		if output == "" {
 			output = runErr.Error()
 		}
@@ -240,9 +241,28 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	}
 
 	if spec.ResultType == ResultTypeMCPResult {
-		return s.buildMCPResult(ctx, spec, output)
+		// The script owns the MCP envelope on stdout. stderr is a
+		// diagnostics channel (nix warnings, progress chatter) and must
+		// not be glued onto the stream before the JSON parse (#338).
+		if stderr != "" {
+			debugMoxin("toolCall %s.%s: stderr diagnostics (%d bytes): %s", s.config.Name, spec.Name, len(stderr), stderr)
+		}
+		return s.buildMCPResult(ctx, spec, stdout)
 	}
-	return s.buildTextResult(ctx, spec, output)
+	return s.buildTextResult(ctx, spec, combineStreams(stdout, stderr))
+}
+
+// combineStreams joins stdout and stderr with a newline separator,
+// preserving the historical single-stream shape used by text-mode
+// results and error reporting.
+func combineStreams(stdout, stderr string) string {
+	if stderr == "" {
+		return stdout
+	}
+	if stdout == "" {
+		return stderr
+	}
+	return stdout + "\n" + stderr
 }
 
 // errResult marshals an MCP isError text result with a printf-formatted
@@ -361,16 +381,17 @@ func (s *Server) substituteArgvBlobURIs(
 }
 
 // runMoxinProcess starts the moxin tool's subprocess, kicks off any
-// blob-streaming writers, waits for both, and returns the combined
-// stdout+stderr plus any error. Lifecycle and debug logging happen
-// here.
+// blob-streaming writers, waits for both, and returns stdout and
+// stderr separately plus any error. Keeping the streams apart lets
+// mcp-result mode parse the envelope from stdout alone (#338).
+// Lifecycle and debug logging happen here.
 func (s *Server) runMoxinProcess(
 	ctx context.Context,
 	spec *ToolSpec,
 	allArgs []string,
 	stdinContent string,
 	sub *resultSubstitution,
-) (string, error) {
+) (string, string, error) {
 	command := resolveBinPlaceholder(spec.Command, s.config.SourceDir)
 	if !filepath.IsAbs(command) && s.config.SourceDir != "" && strings.Contains(command, string(filepath.Separator)) {
 		command = filepath.Join(s.config.SourceDir, command)
@@ -388,7 +409,7 @@ func (s *Server) runMoxinProcess(
 	if err := cmd.Start(); err != nil {
 		debugMoxin("toolCall %s.%s: start error: %v (command=%s args=%v)", s.config.Name, spec.Name, err, spec.Command, allArgs)
 		lifecyclelog.Log("moxin START_FAIL %s.%s err=%v", s.config.Name, spec.Name, err)
-		return "", fmt.Errorf("starting command: %w", err)
+		return "", "", fmt.Errorf("starting command: %w", err)
 	}
 	moxinPid := cmd.Process.Pid
 	lifecyclelog.Log(
@@ -402,7 +423,7 @@ func (s *Server) runMoxinProcess(
 			_ = cmd.Process.Kill()
 		}
 		_ = cmd.Wait()
-		return "", fmt.Errorf("starting blob streaming: %w", err)
+		return "", "", fmt.Errorf("starting blob streaming: %w", err)
 	}
 	// Close the parent's read-end copies now that the child has them, so
 	// the child sees EOF when the writer subprocesses finish.
@@ -421,14 +442,7 @@ func (s *Server) runMoxinProcess(
 		moxinSignalName(cmd.ProcessState), stdout.Len(), stderr.Len(),
 	)
 
-	output := stdout.String()
-	if stderr.Len() > 0 {
-		if output != "" {
-			output += "\n"
-		}
-		output += stderr.String()
-	}
-	return output, waitErr
+	return stdout.String(), stderr.String(), waitErr
 }
 
 func exitCode(ps *os.ProcessState) int {

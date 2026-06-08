@@ -354,6 +354,49 @@ func TestBuildMCPResultThresholdStripsSmallMime(t *testing.T) {
 	}
 }
 
+// Regression test for #338: in mcp-result mode the script owns the MCP
+// envelope on stdout; stderr chatter (nix warnings, progress lines) must
+// not be glued onto the stream before the JSON parse.
+func TestBuildMCPResultIgnoresStderrChatter(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name:    "flake-show",
+				Command: "bash",
+				Args: []string{
+					"-c",
+					`echo -n '{"content":[{"type":"text","text":"flake inventory"}]}'; echo "warning: Git tree has uncommitted changes" >&2`,
+				},
+				ResultType: ResultTypeMCPResult,
+			},
+		},
+	}
+	srv := NewServer(cfg)
+	srv.SetMadder(newFakeMadder())
+	srv.SetSession("test-session")
+
+	raw, err := srv.Call(context.Background(), "tools/call",
+		protocol.ToolCallParams{Name: "flake-show"})
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("IsError=true — stderr chatter broke the envelope parse: %s", raw)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d: %s", len(result.Content), raw)
+	}
+	if got := result.Content[0].Text; got != "flake inventory" {
+		t.Errorf("content text = %q, want %q", got, "flake inventory")
+	}
+}
+
 // cache-results = "never" skips the blob store even for oversized output:
 // plain full text, no summary, no URI. The author owns the context cost.
 func TestServerToolsCallCacheNeverInlinesLargeOutput(t *testing.T) {
