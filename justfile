@@ -1,9 +1,15 @@
 export MOXIN_PATH := justfile_directory() / "result-moxins" / "share" / "moxy" / "moxins"
 
-default: lint build test test-status-clean-env
+# The hermetic gate is `nix flake check` (via `test`): it runs conformist
+# (fmt + dead-jq), go-test-race, go-vet, go-lint, and every bats lane in the
+# build sandbox — so the formatting/lint/go-test/bats coverage `lint` and the
+# old devshell `test-*` recipes provided is now subsumed there and not
+# repeated here. `lint`, `test-go`, `test-bats`, etc. remain as fast
+# devshell loops for iteration; `nix flake check` is the source of truth.
+default: build test test-status-clean-env
 
-# Pre-build gate aggregate: treefmt formatting check + golangci-lint. A hard
-# CI gate via `default`.
+# Fast devshell lint loop (treefmt check + golangci-lint). NOT the gate — the
+# hermetic equivalents (conformist + go-lint) run inside `nix flake check`.
 [group("pre-build")]
 lint: lint-fmt lint-go
 
@@ -107,8 +113,14 @@ lint-go:
 
 dir_build := "build"
 
+# The gate. `test-flake-check` (= `nix flake check`) runs the hermetic
+# go-test-race / go-vet / go-lint / conformist / bats-default checks, so the
+# devshell test-go/test-bats and lint recipes are NOT repeated here (they stay
+# as standalone fast loops). test-bats-net_cap stays explicit: the loopback
+# lane needs a sandbox capability a flake check can't grant. The runtime
+# smokes (validate-mcp, status) aren't expressible as flake checks either.
 [group("post-build")]
-test: test-go test-bats test-bats-net_cap test-validate-mcp test-status test-flake-check
+test: test-flake-check test-bats-net_cap test-validate-mcp test-status
 
 # Run the bats integration suite inside the nix build sandbox via
 # `nix build .#bats-default`. The default lane filters

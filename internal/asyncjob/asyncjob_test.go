@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,10 +20,19 @@ import (
 // signature: exit 0, no output).
 func writeClownStub(t *testing.T, startOutput string) (bin, record string) {
 	t.Helper()
+	// Resolve a real interpreter rather than hardcoding `/usr/bin/env bash`:
+	// the hermetic nix-check sandbox has bash on PATH but no /usr/bin/env, so
+	// an env-shebang stub silently fails to exec and `startJob` mints a local
+	// id instead of running the stub. A direct shebang to the resolved bash
+	// works in both the sandbox and the devshell.
+	shell, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skipf("no bash on PATH for clown stub: %v", err)
+	}
 	dir := t.TempDir()
 	record = filepath.Join(dir, "record")
 	bin = filepath.Join(dir, "clown")
-	script := "#!/usr/bin/env bash\n" +
+	script := "#!" + shell + "\n" +
 		"printf '%s\\n' \"$*\" >> " + record + "\n" +
 		"if [ \"$1\" = job ] && [ \"$2\" = start ]; then\n"
 	if startOutput != "" {

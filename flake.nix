@@ -969,6 +969,52 @@
             bats-host_only = mkBatsLane { filter = "host_only"; };
           };
 
+        # Hermetic Go test + vet checks (#347, folds #348). A lean base off
+        # `moxy`: doCheck on, the plugin-gen postInstall dropped (irrelevant to
+        # a test run), MOXIN_PATH unset to match `just test-go`. The build
+        # sandbox gives each a fresh HOME/TMPDIR, so env-dependent tests (e.g.
+        # discovery's MOXIN_PATH/HOME fallback) are isolated by construction —
+        # the class that leaked into the merge hook. buildGoRace flips
+        # CGO_ENABLED=1 + -race for the race deriv only, leaving the shipped
+        # binary untouched.
+        goCheckBase = moxy.overrideAttrs (_: {
+          doCheck = true;
+          postInstall = "";
+          preCheck = "export MOXIN_PATH=";
+        });
+        goTestRace = pkgs.buildGoRace { base = goCheckBase; };
+        goVet = goCheckBase.overrideAttrs (_: {
+          pname = "moxy-govet";
+          checkPhase = ''
+            runHook preCheck
+            go vet ./...
+            runHook postCheck
+          '';
+        });
+        # golangci-lint as a hermetic check. moxy's .golangci.yml uses only the
+        # standard built-in analyzers (no external plugins), so it typechecks
+        # offline against the buildGoApplication module graph. Caches go to
+        # $TMPDIR (the sandbox HOME is read-only). golangci-lint from
+        # pkgs-master matches the devshell `lint-go` binary (config schema v2).
+        goLint = goCheckBase.overrideAttrs (old: {
+          pname = "moxy-golangci-lint";
+          nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
+            pkgs-master.golangci-lint
+          ];
+          # --config points at the flake's copy of .golangci.yml: the dotfile
+          # is not in the filtered moxySrc, so without this golangci-lint runs
+          # with defaults (errcheck on, no exclusions) and flags ~50 idiomatic
+          # sites the repo config deliberately suppresses. Path-based
+          # exclusions still resolve against the analyzed paths (cwd-relative).
+          checkPhase = ''
+            runHook preCheck
+            export HOME="$TMPDIR"
+            export GOLANGCI_LINT_CACHE="$TMPDIR/golangci-lint-cache"
+            golangci-lint run --config ${./.golangci.yml} --timeout 10m ./...
+            runHook postCheck
+          '';
+        });
+
       in
       {
         packages = batsLaneOutputs // {
@@ -983,7 +1029,21 @@
         # `conformist check`, which also runs the dead-jq linter over
         # zz-tests_bats/*.bats.
         formatter = conformistFormatter;
-        checks.conformist = conformistCheck;
+        # `nix flake check` is the single hermetic gate: conformist (fmt +
+        # dead-jq), the Go test (-race) / vet / golangci-lint checks, and the
+        # comprehensive `bats-default` lane (every test except the net_cap and
+        # host_only tags, which need sandbox capabilities a flake check can't
+        # grant — those stay as their own `nix build` recipes). The per-tag
+        # lanes remain in `packages` for focused `just test-bats-tag` runs;
+        # bats-default already covers them in aggregate, so re-listing each as
+        # a check would only double-build.
+        checks = {
+          conformist = conformistCheck;
+          go-test-race = goTestRace;
+          go-vet = goVet;
+          go-lint = goLint;
+          bats = batsLaneOutputs.bats-default;
+        };
 
         devShells.default = pkgs-master.mkShell {
           packages = [
