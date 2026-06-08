@@ -866,9 +866,9 @@ debug-validate-serve-moxin name: build-go
   purse-first validate-mcp "$moxy" serve-moxin --name "{{name}}" 2>&1 \
     && echo "PASS" || echo "FAIL (exit $?)"
 
-# Run sisyphus Python unit tests (test_validate.py) using the nix-wrapped
+# Run sisyphus Python unit tests (lib/test_*.py) using the nix-wrapped
 # python3 from the sisyphus moxin (which has marklas + mistune available).
-# Agent dev-loop: run after editing _validate.py or test_validate.py.
+# Agent dev-loop: run after editing _validate.py / _issuetype.py or their tests.
 [group("debug")]
 debug-sisyphus-py-tests: build-moxins
   #!/usr/bin/env bash
@@ -876,7 +876,12 @@ debug-sisyphus-py-tests: build-moxins
   moxin_dir="{{justfile_directory()}}/result-moxins/share/moxy/moxins/sisyphus"
   # The nix wrapper burns in the python path; extract it from the create-issue wrapper.
   py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
-  "$py_bin" "{{justfile_directory()}}/moxins/sisyphus/lib/test_validate.py"
+  rc=0
+  for t in "{{justfile_directory()}}"/moxins/sisyphus/lib/test_*.py; do
+    echo "== $(basename "$t") =="
+    "$py_bin" "$t" || rc=1
+  done
+  exit "$rc"
 
 # Probe what marklas produces for the #239 pipe-prose and diff-codeblock cases.
 # Agent dev-loop: run to inspect ADF output before writing validator/tests.

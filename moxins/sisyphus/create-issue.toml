@@ -22,7 +22,7 @@ description = "Issue description (plain text or ADF)"
 
 [input.properties.issuetype]
 type = "string"
-description = "Issue type name (default: Task). Common: Bug, Task, Story, Sub-task"
+description = "Issue type name (default: Task). Common: Bug, Task, Story, Epic. Names are PER-PROJECT: the subtask type is often 'Subtask' (no hyphen), not 'Sub-task'. On a rejected type the tool lists the project's valid names."
 
 [input.properties.priority]
 type = "string"

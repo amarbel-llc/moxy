@@ -11,9 +11,10 @@ from requests.exceptions import HTTPError
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "_vendor"))
 from marklas import to_adf as _marklas_to_adf, to_md as _marklas_to_md  # noqa: E402
 
-# Local sibling — `lib/` is on sys.path because each `bin/*` script inserts it
-# before `import _lib`.
+# Local siblings — `lib/` is on sys.path because each `bin/*` script inserts
+# it before `import _lib`.
 import _validate  # noqa: E402
+import _issuetype  # noqa: E402
 
 ADFValidationError = _validate.ADFValidationError
 
@@ -108,6 +109,51 @@ def jira_call():
         yield
     except HTTPError as exc:
         emit(_format_http_error(exc))
+        sys.exit(1)
+
+
+def _fetch_issue_type_names(jira, project):
+    """Best-effort list of a project's valid issue type names via createmeta.
+
+    Uses the authenticated session directly (mirroring bin/api) rather than a
+    named SDK method, so it doesn't depend on the atlassian-python-api version.
+    Returns [] on any failure — the caller falls back to a generic hint.
+    """
+    from urllib.parse import urljoin
+
+    url = urljoin(
+        jira.url.rstrip("/") + "/",
+        f"rest/api/3/issue/createmeta/{project}/issuetypes",
+    )
+    resp = jira.session.request("GET", url, timeout=30)
+    resp.raise_for_status()
+    return _issuetype.extract_issue_type_names(resp.json())
+
+
+def create_issue_with_issuetype_hint(jira, fields, project, issuetype):
+    """create_issue, but turn an issuetype-related 400 into an actionable
+    error that lists the project's valid issue types and suggests the likely
+    intended one (#292).
+
+    The extra createmeta round-trip happens only on the error path; the happy
+    path is a plain create_issue. Non-issuetype HTTPErrors fall through to the
+    standard formatted-body emit, matching jira_call().
+    """
+    try:
+        return jira.create_issue(fields=fields)
+    except HTTPError as exc:
+        try:
+            body = exc.response.json()
+        except Exception:
+            body = None
+        if not _issuetype.is_issuetype_error_body(body):
+            emit(_format_http_error(exc))
+            sys.exit(1)
+        try:
+            names = _fetch_issue_type_names(jira, project)
+        except Exception:
+            names = []
+        emit(_issuetype.format_issuetype_error(project, issuetype, names))
         sys.exit(1)
 
 

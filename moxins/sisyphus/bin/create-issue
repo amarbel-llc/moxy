@@ -40,8 +40,7 @@ if assignee:
     # but that's a different path. See:
     # https://developer.atlassian.com/cloud/jira/platform/deprecation-notice-user-privacy-api-migration-guide/#issue
     fields["assignee"] = {"id": _lib.resolve_assignee(jira, assignee)}
-with _lib.jira_call():
-    result = jira.create_issue(fields=fields)
+result = _lib.create_issue_with_issuetype_hint(jira, fields, project, issuetype)
 
 if output_format == "json":
     _lib.emit(result)
