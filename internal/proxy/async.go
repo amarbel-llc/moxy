@@ -39,6 +39,21 @@ type asyncJobRef struct {
 	JobID string `json:"job_id"`
 }
 
+// builtinAsyncRefusal is the rejection message for an attempt to background
+// a moxy builtin meta tool (restart, batch, async, async-result,
+// async-cancel). These are dispatched in-process by moxy itself, so
+// backgrounding one via async is never valid — a detached restart would
+// churn child servers while the agent keeps dispatching against them
+// (#333). The refusal keys off hasBuiltinTool rather than relying on the
+// accidental Unknown-perm rejection, which would lapse if builtins ever
+// gained first-class permission entries.
+func builtinAsyncRefusal(tool string) string {
+	return fmt.Sprintf(
+		"%s is a moxy builtin meta tool and cannot be dispatched asynchronously",
+		tool,
+	)
+}
+
 // HandleAsync dispatches one tool call in the background and returns a job
 // handle immediately. Per FDR 0004 only calls whose permission resolves to
 // ALLOW may background — once detached there is no client to prompt, so
@@ -55,6 +70,9 @@ func (p *Proxy) HandleAsync(
 	}
 	if params.Tool == "" {
 		return protocol.ErrorResultV1("async.tool is required"), nil
+	}
+	if p.hasBuiltinTool(params.Tool) {
+		return protocol.ErrorResultV1(builtinAsyncRefusal(params.Tool)), nil
 	}
 	if p.asyncManager == nil {
 		return protocol.ErrorResultV1(
@@ -221,6 +239,15 @@ func (p *Proxy) handleBatchAsync(
 
 	var rejected []batchRejection
 	for i, c := range params.Calls {
+		if p.hasBuiltinTool(c.Tool) {
+			rejected = append(rejected, batchRejection{
+				index:  i,
+				call:   c,
+				dec:    permcheck.Unknown,
+				reason: builtinAsyncRefusal(c.Tool),
+			})
+			continue
+		}
 		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, ".")
 		if dec != permcheck.Allow {
 			rejected = append(rejected, batchRejection{

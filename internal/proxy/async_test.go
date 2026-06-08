@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
 	"github.com/amarbel-llc/moxy/internal/asyncjob"
 	"github.com/amarbel-llc/moxy/internal/native"
@@ -259,6 +260,76 @@ func TestHandleAsyncRejectsPermitAsyncFalse(t *testing.T) {
 	}
 	if !strings.Contains(result.Content[0].Text, "permit-async = false") {
 		t.Errorf("bailout text = %q, want permit-async mention", result.Content[0].Text)
+	}
+}
+
+// registerBuiltins wires a minimal builtin-tool registry so hasBuiltinTool
+// recognizes the named meta tools, mirroring cmd/moxy's registration.
+func registerBuiltins(t *testing.T, p *Proxy, names ...string) {
+	t.Helper()
+	reg := server.NewToolRegistryV1()
+	noop := func(context.Context, json.RawMessage) (*protocol.ToolCallResultV1, error) {
+		return &protocol.ToolCallResultV1{}, nil
+	}
+	for _, n := range names {
+		reg.Register(protocol.ToolV1{Name: n, InputSchema: json.RawMessage(`{"type":"object"}`)}, noop)
+	}
+	p.SetBuiltinTools(reg)
+}
+
+// async {tool: "restart"} must be refused explicitly as a builtin, not by
+// the accidental Unknown-perm path (#333).
+func TestHandleAsyncRejectsBuiltinTool(t *testing.T) {
+	p := newAsyncProxy(t)
+	registerBuiltins(t, p, "restart", "batch", "async")
+
+	result, err := p.HandleAsync(context.Background(),
+		json.RawMessage(`{"tool":"restart","args":{}}`))
+	if err != nil {
+		t.Fatalf("HandleAsync: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected rejection, got %+v", result)
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, "builtin meta tool") || !strings.Contains(text, "restart") {
+		t.Errorf("rejection text = %q, want builtin refusal citing restart", text)
+	}
+}
+
+// batch {async:true} with a builtin sub-call (async batch-of-batch) must
+// bail out citing the builtin, and never dispatch (#333).
+func TestHandleBatchAsyncRejectsBuiltinSubCall(t *testing.T) {
+	p := newProxyWithResolverAndDispatch(
+		t,
+		map[string]permcheck.ToolPermInfo{
+			"fake.tool": {Perm: native.PermsAlwaysAllow},
+		},
+		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			t.Fatal("dispatch must not run for a builtin sub-call")
+			return nil, nil
+		},
+	)
+	registerBuiltins(t, p, "restart", "batch", "async")
+	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
+		ClownBin: "/nonexistent/clown",
+		WriteResult: func(_ context.Context, _ []byte) (string, error) {
+			return "fake-digest", nil
+		},
+		MaxRuntime: time.Minute,
+	}))
+
+	result, err := p.HandleBatch(context.Background(), json.RawMessage(
+		`{"async":true,"calls":[{"tool":"fake.tool","args":{}},{"tool":"batch","args":{}}]}`,
+	))
+	if err != nil {
+		t.Fatalf("HandleBatch async: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected bailout, got %+v", result)
+	}
+	if !strings.Contains(result.Content[0].Text, "builtin meta tool") {
+		t.Errorf("bailout text = %q, want builtin refusal", result.Content[0].Text)
 	}
 }
 
