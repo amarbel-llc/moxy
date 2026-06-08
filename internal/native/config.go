@@ -432,7 +432,7 @@ func detectUndecodedMeta(data []byte) []string {
 		}
 	}
 
-	return document.UndecodedKeys(doc.Root(), consumed)
+	return undecodedKeys(doc.Root(), consumed)
 }
 
 // detectUndecodedTool returns undecoded keys in a per-tool TOML file,
@@ -466,20 +466,20 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 	// input is an arbitrary JSON Schema table — consume it and all subtables.
 	if inputNode := doc.FindTableInContainer(doc.Root(), "input"); inputNode != nil {
 		consumed["input"] = true
-		document.MarkAllConsumed(inputNode, "input", consumed)
+		markAllConsumed(inputNode, "input", consumed)
 	}
 
 	// annotations is a known table with typed fields.
 	if annNode := doc.FindTableInContainer(doc.Root(), "annotations"); annNode != nil {
 		consumed["annotations"] = true
-		document.MarkAllConsumed(annNode, "annotations", consumed)
+		markAllConsumed(annNode, "annotations", consumed)
 	}
 
 	// dynamic-perms is a known table with typed fields.
 	// Added for moxy POC dynamic-perms
 	if dpNode := doc.FindTableInContainer(doc.Root(), "dynamic-perms"); dpNode != nil {
 		consumed["dynamic-perms"] = true
-		document.MarkAllConsumed(dpNode, "dynamic-perms", consumed)
+		markAllConsumed(dpNode, "dynamic-perms", consumed)
 	}
 
 	for _, child := range doc.Root().Children {
@@ -487,12 +487,12 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 			key := document.SubTableKey(child, "")
 			if strings.HasPrefix(key, "input") {
 				consumed[key] = true
-				document.MarkAllConsumed(child, key, consumed)
+				markAllConsumed(child, key, consumed)
 			}
 		}
 	}
 
-	raw := document.UndecodedKeys(doc.Root(), consumed)
+	raw := undecodedKeys(doc.Root(), consumed)
 	if len(raw) == 0 {
 		return nil
 	}
@@ -502,4 +502,49 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 		prefixed[i] = filename + ": " + k
 	}
 	return prefixed
+}
+
+// undecodedKeys walks the CST and returns all key paths not present in the
+// consumed set. Table headers are prefixed to their children (e.g.
+// "input.foo"); keys under a consumed table are still checked individually.
+// Localized from tommy's document.UndecodedKeys, removed in tommy 0.4.x where
+// undecoded detection moved onto the cst.Value model (which native does not
+// use — it decodes via BurntSushi and only borrows tommy for this scan).
+func undecodedKeys(root *cst.Node, consumed map[string]bool) []string {
+	var result []string
+	for _, child := range root.Children {
+		switch child.Kind {
+		case cst.NodeKeyValue:
+			if k := cst.KeyValueName(child); !consumed[k] {
+				result = append(result, k)
+			}
+		case cst.NodeTable:
+			name := cst.TableHeaderKey(child)
+			if consumed[name] {
+				// Table was consumed (e.g. a map field) — check inner keys.
+				for _, inner := range child.Children {
+					if inner.Kind != cst.NodeKeyValue {
+						continue
+					}
+					if q := name + "." + cst.KeyValueName(inner); !consumed[q] {
+						result = append(result, q)
+					}
+				}
+			} else {
+				result = append(result, name) // whole table unknown
+			}
+		}
+	}
+	return result
+}
+
+// markAllConsumed marks every key-value child of a table as consumed, using
+// the given prefix to build qualified keys (e.g. "input.foo"). Localized from
+// tommy's document.MarkAllConsumed, removed in tommy 0.4.x.
+func markAllConsumed(table *cst.Node, prefix string, consumed map[string]bool) {
+	for _, child := range table.Children {
+		if child.Kind == cst.NodeKeyValue {
+			consumed[prefix+"."+cst.KeyValueName(child)] = true
+		}
+	}
 }

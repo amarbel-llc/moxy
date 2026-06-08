@@ -5,20 +5,27 @@ import (
 	"github.com/amarbel-llc/tommy/pkg/document"
 )
 
-// DecodeCommandConfigInto populates a CommandConfig from a TOML table node.
-// Generated config code calls this for the [credentials] table.
-func DecodeCommandConfigInto(data *CommandConfig, doc *document.Document, container *cst.Node, consumed map[string]bool, keyPrefix string) error {
-	if v, err := document.GetFromContainer[string](doc, container, "read"); err == nil {
-		data.Read = v
-		consumed[keyPrefix+"read"] = true
+// DecodeCommandConfigInto populates a CommandConfig from the [credentials]
+// table. Generated config code delegates here for the *CommandConfig field,
+// passing the table's cst.Value model node (tommy 0.4.x decode contract).
+func DecodeCommandConfigInto(data *CommandConfig, sub *cst.Value) error {
+	if v, ok := sub.Get("read"); ok && v.Kind == cst.VLeaf {
+		if s, sok := cst.ExtractString(v.Leaf); sok {
+			data.Read = s
+			v.MarkConsumed()
+		}
 	}
-	if v, err := document.GetFromContainer[string](doc, container, "write"); err == nil {
-		data.Write = v
-		consumed[keyPrefix+"write"] = true
+	if v, ok := sub.Get("write"); ok && v.Kind == cst.VLeaf {
+		if s, sok := cst.ExtractString(v.Leaf); sok {
+			data.Write = s
+			v.MarkConsumed()
+		}
 	}
-	if v, err := document.GetFromContainer[string](doc, container, "delete"); err == nil {
-		data.Delete = v
-		consumed[keyPrefix+"delete"] = true
+	if v, ok := sub.Get("delete"); ok && v.Kind == cst.VLeaf {
+		if s, sok := cst.ExtractString(v.Leaf); sok {
+			data.Delete = s
+			v.MarkConsumed()
+		}
 	}
 	return nil
 }
