@@ -1,0 +1,18 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Report the current time as JSON: local and UTC ISO-8601 timestamps, IANA timezone, numeric offset, and unix epoch. Pass an optional IANA timezone to report the local fields in that zone."
+command = "@BIN@/clock"
+arg-order = ["timezone"]
+
+[input]
+type = "object"
+
+[input.properties.timezone]
+type = "string"
+description = "Optional IANA timezone name (e.g. 'America/New_York', 'UTC', 'Asia/Tokyo') to report the local fields in. Defaults to the host's zone."
+
+[annotations]
+read-only-hint = true
+open-world-hint = false

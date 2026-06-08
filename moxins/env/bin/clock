@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Report the current time as JSON (#340). With no argument the host's zone
+# is used; an optional IANA timezone name reports the local fields in that
+# zone. Zone files are resolved via TZDIR (pinned to nix tzdata by the
+# wrapper) so the convert path works without any host zoneinfo.
+set -euo pipefail
+req_tz="${1:-}"
+
+# Reject path-shaped input before it reaches TZDIR/$tz or the TZ env var.
+case "$req_tz" in
+*..* | /*)
+  echo "Error: invalid timezone: $req_tz" >&2
+  exit 1
+  ;;
+esac
+
+# A single reference instant keeps local/utc/unix mutually consistent
+# (three separate `date` calls could straddle a second boundary).
+now=$(date +%s)
+
+effective_tz="$req_tz"
+if [ -z "$effective_tz" ]; then
+  effective_tz="${TZ:-}"
+  if [ -z "$effective_tz" ] && [ -L /etc/localtime ]; then
+    resolved=$(readlink -f /etc/localtime 2>/dev/null || true)
+    case "$resolved" in
+    */zoneinfo/*) effective_tz="${resolved##*/zoneinfo/}" ;;
+    esac
+  fi
+fi
+
+if [ -n "$effective_tz" ]; then
+  if [ -n "${TZDIR:-}" ] && [ ! -e "$TZDIR/$effective_tz" ]; then
+    echo "Error: unknown timezone: $effective_tz" >&2
+    exit 1
+  fi
+  export TZ="$effective_tz"
+fi
+
+local=$(date -d "@$now" +%Y-%m-%dT%H:%M:%S%:z)
+offset=$(date -d "@$now" +%z)
+utc=$(date -u -d "@$now" +%Y-%m-%dT%H:%M:%SZ)
+
+# Prefer the explicit/derived IANA name; fall back to the zone abbreviation
+# (e.g. "UTC") when the host zone can't be resolved to an IANA name.
+tz_label="$effective_tz"
+[ -z "$tz_label" ] && tz_label=$(date -d "@$now" +%Z)
+
+jq -n \
+  --arg local "$local" \
+  --arg utc "$utc" \
+  --arg timezone "$tz_label" \
+  --arg offset "$offset" \
+  --argjson unix "$now" \
+  '{local: $local, utc: $utc, timezone: $timezone, offset: $offset, unix: $unix}'

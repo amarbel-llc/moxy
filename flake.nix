@@ -530,7 +530,24 @@
               "store-ls" = "moxins/chix/src/store-ls.ts";
             }
             { pathMode = "suffix"; };
-        env-moxin = mkMoxin "env" [ pkgs.bash pkgs.coreutils pkgs.which ] { pathMode = "suffix"; };
+        env-moxin =
+          mkMoxin "env"
+            [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.jq
+              pkgs.which
+            ]
+            {
+              pathMode = "suffix";
+              # clock resolves IANA zone files via TZDIR; pin tzdata so the
+              # timezone-convert path works without any host zoneinfo (#340).
+              extraWrapArgs = [
+                "--set"
+                "TZDIR"
+                "${pkgs.tzdata}/share/zoneinfo"
+              ];
+            };
         folio-moxin = mkMoxin "folio" [
           pkgs.bash
           pkgs.coreutils
@@ -909,6 +926,9 @@
               # just_us_agents_*.bats invoke wrapped scripts via ${JUST_US_AGENTS_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               JUST_US_AGENTS_BIN = "${just-us-agents-moxin}/bin";
+              # env_*.bats invoke wrapped scripts via ${ENV_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              ENV_BIN = "${env-moxin}/bin";
             };
             nativeBuildInputs = [
               pkgs.bash
