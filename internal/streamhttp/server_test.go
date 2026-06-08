@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
@@ -285,14 +286,32 @@ func TestSSEStreamReceivesNotification(t *testing.T) {
 		t.Fatalf("Notify: %v", err)
 	}
 
-	buf := make([]byte, 4096)
-	n, err := resp.Body.Read(buf)
-	if err != nil && err != io.EOF {
-		t.Fatalf("read SSE: %v", err)
+	// Read on a goroutine with a deadline so a DROPPED event fails fast rather
+	// than hanging until the 10-minute test timeout. A drop happens if the
+	// stream isn't registered before Notify's broadcast snapshots the registry
+	// (the regression that #343's reorder introduced): the event never lands
+	// and the bare Read blocks forever.
+	type readResult struct {
+		buf []byte
+		err error
 	}
-	body := string(buf[:n])
-	if !bytes.Contains(buf[:n], []byte("notifications/tools/list_changed")) {
-		t.Errorf("SSE event did not contain expected notification, got: %s", body)
+	ch := make(chan readResult, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		n, err := resp.Body.Read(buf)
+		ch <- readResult{buf[:n], err}
+	}()
+
+	select {
+	case res := <-ch:
+		if res.err != nil && res.err != io.EOF {
+			t.Fatalf("read SSE: %v", res.err)
+		}
+		if !bytes.Contains(res.buf, []byte("notifications/tools/list_changed")) {
+			t.Errorf("SSE event did not contain expected notification, got: %s", res.buf)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("SSE event not delivered within 3s — stream missed the broadcast (#343)")
 	}
 }
 

@@ -157,13 +157,17 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 		done:  make(chan struct{}),
 	}
 
-	// Flush the response headers BEFORE registering the stream, so the
-	// initial flush can't race a broadcast (the stream isn't visible to
-	// Notify until add()). See #343.
+	// Set the SSE headers BEFORE registering so any first write — the flush
+	// below or an early broadcast — carries them. Register BEFORE flushing so
+	// the stream is visible to Notify by the time the client's GET returns
+	// (the flush is what unblocks the client; a broadcast right after must
+	// find the stream, else the event is silently dropped and the client
+	// hangs, #343). Flush under the stream lock so it serializes with
+	// broadcast's writeEvent — an http.ResponseWriter is not safe for
+	// concurrent use.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	flusher.Flush()
 
 	s.streams.add(stream)
 	// Order matters: remove() stops new broadcasts from snapshotting this
@@ -174,6 +178,10 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 		s.streams.remove(stream.id)
 		stream.closeStream()
 	}()
+
+	stream.mu.Lock()
+	flusher.Flush()
+	stream.mu.Unlock()
 
 	select {
 	case <-r.Context().Done():
