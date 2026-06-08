@@ -105,7 +105,7 @@ func newApp() *command.App {
 	app.Description.Long = "Moxy spawns child MCP servers as subprocesses, communicates with them " +
 		"via JSON-RPC over stdio, and presents their tools, resources, and prompts " +
 		"through a single unified MCP server. Child server capabilities are namespaced " +
-		"with a dot separator (e.g. grit.status, lux.hover). Configuration is loaded " +
+		"with a dot separator (e.g. grit.status, folio.read). Configuration is loaded " +
 		"from a hierarchy of TOML moxyfiles: global (~/.config/moxy/moxyfile), " +
 		"per-directory, and project-local."
 
