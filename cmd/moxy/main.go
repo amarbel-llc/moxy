@@ -533,13 +533,14 @@ func runServer(app *command.App, mode transportMode) error {
 	builtinRegistry.Register(
 		protocol.ToolV1{
 			Name:        "async",
-			Description: "Dispatch one tool call in the background. Returns {job_id, status:\"running\"} immediately; when the call reaches a terminal state the agent is woken via clown's job-wakeup channel with a summary, the result blob digest, and a result-ref pointing at async-result. Only calls whose permission resolves to allow may background (ask/deny/unknown are rejected synchronously). See docs/features/0004-async-tool-dispatch.md.",
+			Description: "Dispatch one tool call in the background. Returns {job_id, status:\"running\"} immediately; when the call reaches a terminal state the agent is woken via clown's job-wakeup channel with a summary, the result blob digest, and a result-ref pointing at async-result. Only calls whose permission resolves to allow may background (ask/deny/unknown are rejected synchronously). A job that exceeds its timeout (the optional per-call `timeout`, else the 30-minute server default) is killed — whole process tree — and terminalizes with status `timeout`. See docs/features/0004-async-tool-dispatch.md.",
 			InputSchema: json.RawMessage(`{
 				"type":"object",
 				"required":["tool"],
 				"properties":{
 					"tool":{"type":"string","description":"Namespaced tool name (e.g. rg.search)"},
-					"args":{"type":"object","description":"Arguments for the tool call"}
+					"args":{"type":"object","description":"Arguments for the tool call"},
+					"timeout":{"type":"string","description":"Max wall-clock duration before the job's whole process tree is killed and it terminalizes with status \"timeout\" (e.g. \"10m\", \"90s\"). Defaults to the server max runtime (30m)."}
 				}
 			}`),
 			Annotations: &protocol.ToolAnnotations{

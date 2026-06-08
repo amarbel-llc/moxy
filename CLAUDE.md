@@ -98,15 +98,20 @@ for the remainder. Sequential execution only in v1. See
 `docs/plans/2026-05-20-batch-tool.md`.
 
 Moxy also injects `async`, `async-result`, and `async-cancel` meta tools
-(FDR 0004): `async {tool, args}` backgrounds one tool call (allow-only
+(FDR 0004): `async {tool, args, timeout?}` backgrounds one tool call (allow-only
 permission preflight; tools may additionally opt out via the top-level
 `permit-async = false` TOML key, #317), returns `{job_id, status:"running"}`
 immediately,
 and wakes the agent on the terminal state via clown's job-wakeup channel
 (`${CLOWN_BIN:-clown}`); results are written to the user-level `moxy-async`
 madder store (provisioned by home-manager — moxy never creates it) with the
-digest embedded in the wake message. `batch {async: true}` backgrounds a
-whole batch as one job. The manager lives in `internal/asyncjob`; the single
+digest embedded in the wake message. The optional `timeout` (duration string
+like `"10m"`; else the 30-min default) caps wall-clock time; on expiry moxy
+kills the whole process tree (`Setpgid` + group SIGTERM + `WaitDelay` at the
+native exec layer, #344/#345) and terminalizes with status `timeout` — a
+moxy-only status reported verbatim by `async-result` but emitted on clown's
+wire as `interrupted`. `batch {async: true}` backgrounds a whole batch as one
+job. The manager lives in `internal/asyncjob`; the single
 instrumentation/registration pattern mirrors `batch`. See
 `docs/features/0004-async-tool-dispatch.md`.
 

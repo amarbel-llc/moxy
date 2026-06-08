@@ -30,8 +30,12 @@ on `batch`.
 
 ### `async` — dispatch one tool call in the background
 
-Input: `{tool: "<server>.<tool>", args: {...}}` — the same shapes `batch`
-sub-calls use.
+Input: `{tool: "<server>.<tool>", args: {...}, timeout?: "<duration>"}` — the
+`tool`/`args` shapes `batch` sub-calls use, plus an optional `timeout`
+duration string (`"10m"`, `"90s"`). When the job exceeds its timeout (the
+per-call value, else the 30-minute server default) moxy kills the whole
+process tree and terminalizes it with status `timeout` (§State mapping). An
+unparseable or non-positive `timeout` is rejected synchronously.
 
 1. **Eligibility pre-resolution** (same machinery as `batch`): the call is
    resolved through moxy's `perms-request` system *before* anything runs.
@@ -70,11 +74,22 @@ sub-calls use.
    line carries everything needed to act.
 
 State mapping: clean result → `succeeded`; dispatch error or `isError`
-result → `failed`; `async-cancel` → `cancelled`; max-runtime timeout or moxy
-graceful shutdown → `interrupted`. Every spawned job reaches a terminal
-`done` — on shutdown moxy sweeps in-flight jobs and emits `interrupted` for
-each (a hard crash is the accepted producer-death gap; the job sits open
-until clown's 7-day journal GC).
+result → `failed`; `async-cancel` → `cancelled`; a deadline (per-call or
+default max-runtime) → `timeout`; moxy graceful shutdown → `interrupted`.
+`timeout` is a **moxy-only** status that `async-result` reports verbatim; on
+clown's wire it is emitted as `interrupted` (clown accepts only
+succeeded/failed/cancelled/interrupted, and a deadline IS an interruption).
+Every spawned job reaches a terminal `done` — on shutdown moxy sweeps
+in-flight jobs and emits `interrupted` for each (a hard crash is the accepted
+producer-death gap; the job sits open until clown's 7-day journal GC).
+
+Both the deadline and `async-cancel` rely on a process-group kill at the
+native exec layer (`Setpgid` + a group SIGTERM on ctx-cancel + `WaitDelay`):
+without it a deeper process or a SIGTERM-ignoring leaf keeps the inherited
+pipes open and `cmd.Wait()` blocks forever, leaving the job wedged `running`
+with no terminal wakeup (#344/#345). `async-cancel` returns a `detail` field
+while a still-dying tree exits so a transient `running` isn't read as
+failure-to-act.
 
 ### `async-result` — fetch a stored result
 
@@ -188,13 +203,12 @@ not part of v1.
 - **Sequential batch semantics unchanged.** `async: true` changes *when* the
   batch runs, not how — sub-calls still execute sequentially per the batch
   contract.
-- **Cancellation doesn't kill grandchildren (#322).** `async-cancel` kills
-  the native tool's direct child, but its descendants survive and the
-  dispatch only unwinds when they release the pipes — the job classifies
-  `cancelled` correctly, but the underlying work runs to natural completion.
-  Proven live: a cancelled `sleep 300` recipe terminal-ized exactly at
-  start+300s. Fix direction: process-group kill and/or `cmd.WaitDelay` at
-  the native exec layer.
+- **Cancel/timeout may orphan a SIGTERM-ignoring leaf (#344/#345).** The
+  process-group kill SIGTERMs the whole tree and `WaitDelay` force-closes the
+  pipes so the dispatch always terminalizes, but a leaf that ignores SIGTERM
+  and survives the grace is left orphaned (reparented to init) rather than
+  SIGKILLed as a group. The job still reaches its terminal state on time; the
+  stronger group-SIGKILL-on-escalation is a possible follow-up.
 - **Wake summaries of threshold-cached results show the truncation banner
   (#323).** Cosmetic; `firstLine` should skip banner lines.
 - **Store reaping is manual.** Nothing auto-reaps `moxy-async` blobs in v1;
@@ -207,7 +221,8 @@ not part of v1.
 
 | Lever | Current | Rationale | Change signal |
 |---|---|---|---|
-| max job runtime | 30 min default, per-call override | bounds the terminal-done guarantee without strangling real long jobs (ci-watch uses 6 h for CI) | legitimate jobs hitting the ceiling |
+| max job runtime | 30 min default; per-call `timeout` duration-string override | bounds the terminal-done guarantee without strangling real long jobs (ci-watch uses 6 h for CI) | legitimate jobs hitting the ceiling |
+| kill grace (`killGrace`) | 10 s | time between the group SIGTERM and Go force-closing the pipes + SIGKILLing the child; long enough for graceful exit, short enough to bound the wedge | jobs taking >10 s to flush on cancel, or wedges feeling slow to terminalize |
 | concurrent async jobs | shared ~16-slot dispatch cap | clown etiquette is "low dozens"; reusing the existing governor avoids a second knob | agents queueing behind the cap on real workloads |
 | index entry retention | process lifetime, no cap | sessions are bounded; digest-in-message covers restarts | memory growth or agents needing old ids listed |
 | store reaping | none | content-addressed blobs are cheap; reaping needs a policy not a guess | `moxy-async` store size complaints |

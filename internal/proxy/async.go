@@ -30,8 +30,9 @@ func (p *Proxy) SweepAsyncJobs() {
 }
 
 type asyncParams struct {
-	Tool string          `json:"tool"`
-	Args json.RawMessage `json:"args"`
+	Tool    string          `json:"tool"`
+	Args    json.RawMessage `json:"args"`
+	Timeout string          `json:"timeout"`
 }
 
 type asyncJobRef struct {
@@ -80,7 +81,19 @@ func (p *Proxy) HandleAsync(
 		)), nil
 	}
 
-	id, err := p.asyncManager.Dispatch(ctx, params.Tool, params.Args,
+	var timeout time.Duration
+	if params.Timeout != "" {
+		d, perr := time.ParseDuration(params.Timeout)
+		if perr != nil || d <= 0 {
+			return protocol.ErrorResultV1(fmt.Sprintf(
+				"invalid async timeout %q: want a positive Go duration like \"10m\" or \"90s\"",
+				params.Timeout,
+			)), nil
+		}
+		timeout = d
+	}
+
+	id, err := p.asyncManager.Dispatch(ctx, params.Tool, params.Args, timeout,
 		func(jobCtx context.Context, tool string, callArgs json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return p.CallToolV1(jobCtx, tool, callArgs)
 		})
@@ -228,7 +241,9 @@ func (p *Proxy) handleBatchAsync(
 		), nil
 	}
 
-	id, err := p.asyncManager.Dispatch(ctx, "batch", syncArgs,
+	// Batch async keeps the manager default runtime; per-batch timeout is not
+	// exposed in v1.
+	id, err := p.asyncManager.Dispatch(ctx, "batch", syncArgs, 0,
 		func(jobCtx context.Context, _ string, callArgs json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return p.HandleBatch(jobCtx, callArgs)
 		})

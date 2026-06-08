@@ -270,6 +270,13 @@ func TestHandleAsyncValidation(t *testing.T) {
 		t.Errorf("missing tool: %+v", result)
 	}
 
+	// An unparseable / non-positive timeout is rejected synchronously (#345).
+	result, _ = p.HandleAsync(context.Background(),
+		json.RawMessage(`{"tool":"fake.tool","args":{},"timeout":"soon"}`))
+	if !result.IsError || !strings.Contains(result.Content[0].Text, "invalid async timeout") {
+		t.Errorf("bad timeout: %+v", result)
+	}
+
 	result, _ = p.HandleAsyncResult(context.Background(), json.RawMessage(`{"job_id":"nope-123"}`))
 	if !result.IsError || !strings.Contains(result.Content[0].Text, "unknown async job") {
 		t.Errorf("unknown id: %+v", result)

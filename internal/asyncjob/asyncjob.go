@@ -24,15 +24,29 @@ import (
 	"github.com/amarbel-llc/moxy/internal/lifecyclelog"
 )
 
-// Job states. Running is the only non-terminal state; the four terminal
-// states map one-to-one onto clown's job-wakeup states.
+// Job states. Running is the only non-terminal state. Succeeded/Failed/
+// Cancelled/Interrupted map one-to-one onto clown's job-wakeup wire states.
+// Timeout is a moxy-only distinction (a deadline-exceeded job, #345): it is
+// reported as-is to agents via async-result but emitted on clown's wire as
+// `interrupted` (clown accepts only the four wire states; a deadline IS an
+// interruption). See wireState.
 const (
 	StateRunning     = "running"
 	StateSucceeded   = "succeeded"
 	StateFailed      = "failed"
 	StateCancelled   = "cancelled"
 	StateInterrupted = "interrupted"
+	StateTimeout     = "timeout"
 )
+
+// wireState maps a moxy job state onto a clown job-wakeup wire state. Only
+// Timeout needs translation; every other state is already a valid wire state.
+func wireState(state string) string {
+	if state == StateTimeout {
+		return StateInterrupted
+	}
+	return state
+}
 
 // DispatchFunc runs one tool call. Production passes Proxy.CallToolV1
 // (wrapped to carry the tool name); tests substitute fakes.
@@ -75,6 +89,9 @@ type job struct {
 	cancel        context.CancelFunc
 	userCancelled bool
 	swept         bool
+	// runtime is the deadline this job ran under (per-call timeout or the
+	// manager default), used to phrase the timeout summary.
+	runtime time.Duration
 }
 
 // Manager owns the job index and lifecycle.
@@ -118,11 +135,17 @@ func New(opts Options) *Manager {
 // Dispatch opens a clown job (or mints a local id when the channel is
 // disabled/absent), starts the call on a detached context, and returns the
 // job id immediately. The permission decision is the CALLER's job — only
-// allow-resolved calls may reach Dispatch.
-func (m *Manager) Dispatch(ctx context.Context, tool string, args json.RawMessage, dispatch DispatchFunc) (string, error) {
+// allow-resolved calls may reach Dispatch. timeout overrides the manager's
+// default max runtime when > 0; a deadline-exceeded job terminalizes as
+// StateTimeout (#345).
+func (m *Manager) Dispatch(ctx context.Context, tool string, args json.RawMessage, timeout time.Duration, dispatch DispatchFunc) (string, error) {
 	id := m.startJob(ctx, tool)
 
-	jobCtx, cancel := context.WithTimeout(context.Background(), m.maxRuntime)
+	runtime := m.maxRuntime
+	if timeout > 0 {
+		runtime = timeout
+	}
+	jobCtx, cancel := context.WithTimeout(context.Background(), runtime)
 	j := &job{
 		Snapshot: Snapshot{
 			ID:      id,
@@ -130,7 +153,8 @@ func (m *Manager) Dispatch(ctx context.Context, tool string, args json.RawMessag
 			State:   StateRunning,
 			Started: time.Now(),
 		},
-		cancel: cancel,
+		cancel:  cancel,
+		runtime: runtime,
 	}
 
 	m.mu.Lock()
@@ -215,7 +239,7 @@ func (m *Manager) Sweep() {
 func (m *Manager) finish(id string, jobCtx context.Context, result *protocol.ToolCallResultV1, err error) {
 	m.mu.Lock()
 	j := m.jobs[id]
-	userCancelled, swept := j.userCancelled, j.swept
+	userCancelled, swept, runtime := j.userCancelled, j.swept, j.runtime
 	m.mu.Unlock()
 
 	state := classify(jobCtx, result, err, userCancelled, swept)
@@ -236,6 +260,11 @@ func (m *Manager) finish(id string, jobCtx context.Context, result *protocol.Too
 	} else if err != nil {
 		summary = firstLineOf(err.Error())
 	}
+	// A timed-out job's only error is "context deadline exceeded"; phrase it
+	// for the agent instead (#345).
+	if state == StateTimeout {
+		summary = "timed out after " + runtime.String()
+	}
 
 	m.mu.Lock()
 	j.State = state
@@ -248,9 +277,11 @@ func (m *Manager) finish(id string, jobCtx context.Context, result *protocol.Too
 	m.emitDone(j.Tool, id, state, summary, digest)
 }
 
-// classify maps a dispatch outcome onto a terminal state. Order matters:
-// an explicit user cancel wins over the generic ctx error, and a shutdown
-// sweep or deadline reads as interrupted.
+// classify maps a dispatch outcome onto a terminal state. Order matters: an
+// explicit user cancel wins over the generic ctx error; a graceful-shutdown
+// sweep cancels via CancelFunc (context.Canceled, caught by the swept branch)
+// and reads as interrupted; a deadline that fired on its own reads as timeout
+// (#345 — covers both the default max-runtime and a per-call timeout).
 func classify(jobCtx context.Context, result *protocol.ToolCallResultV1, err error, userCancelled, swept bool) string {
 	switch {
 	case userCancelled:
@@ -258,7 +289,7 @@ func classify(jobCtx context.Context, result *protocol.ToolCallResultV1, err err
 	case swept:
 		return StateInterrupted
 	case errors.Is(jobCtx.Err(), context.DeadlineExceeded):
-		return StateInterrupted
+		return StateTimeout
 	case err != nil:
 		return StateFailed
 	case result != nil && result.IsError:
@@ -300,7 +331,7 @@ func (m *Manager) emitDone(tool, id, state, summary, digest string) {
 	}
 	cmd := exec.Command(m.clownBin,
 		"job", "done", id,
-		"--state", state,
+		"--state", wireState(state),
 		"--message", message,
 		"--result-ref", "moxy async-result "+id)
 	if err := cmd.Run(); err != nil {

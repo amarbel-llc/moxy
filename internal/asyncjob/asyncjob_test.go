@@ -106,7 +106,7 @@ func TestProducerStartAdoptsClownID(t *testing.T) {
 	bin, record := writeClownStub(t, "rg.search-3f2a8b1c")
 	m := newTestManager(bin)
 
-	id, err := m.Dispatch(context.Background(), "rg.search", nil,
+	id, err := m.Dispatch(context.Background(), "rg.search", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return okResult("412 matches"), nil
 		})
@@ -157,7 +157,7 @@ func TestEmptyStdoutMintsLocalID(t *testing.T) {
 	bin, _ := writeClownStub(t, "")
 	m := newTestManager(bin)
 
-	id, err := m.Dispatch(context.Background(), "rg.search", nil,
+	id, err := m.Dispatch(context.Background(), "rg.search", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return okResult("ok"), nil
 		})
@@ -175,7 +175,7 @@ func TestEmptyStdoutMintsLocalID(t *testing.T) {
 
 func TestMissingClownBinStillDispatches(t *testing.T) {
 	m := newTestManager("/nonexistent/clown")
-	id, err := m.Dispatch(context.Background(), "grit.status", nil,
+	id, err := m.Dispatch(context.Background(), "grit.status", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return okResult("clean"), nil
 		})
@@ -191,7 +191,7 @@ func TestMissingClownBinStillDispatches(t *testing.T) {
 func TestDispatchErrorIsFailed(t *testing.T) {
 	bin, record := writeClownStub(t, "boom-11112222")
 	m := newTestManager(bin)
-	id, _ := m.Dispatch(context.Background(), "x.boom", nil,
+	id, _ := m.Dispatch(context.Background(), "x.boom", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return nil, errors.New("dispatch exploded")
 		})
@@ -207,7 +207,7 @@ func TestDispatchErrorIsFailed(t *testing.T) {
 func TestIsErrorResultIsFailed(t *testing.T) {
 	bin, _ := writeClownStub(t, "boom-33334444")
 	m := newTestManager(bin)
-	id, _ := m.Dispatch(context.Background(), "x.boom", nil,
+	id, _ := m.Dispatch(context.Background(), "x.boom", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return &protocol.ToolCallResultV1{
 				IsError: true,
@@ -224,7 +224,7 @@ func TestCancelProducesCancelled(t *testing.T) {
 	bin, record := writeClownStub(t, "slow-55556666")
 	m := newTestManager(bin)
 	started := make(chan struct{})
-	id, _ := m.Dispatch(context.Background(), "x.slow", nil,
+	id, _ := m.Dispatch(context.Background(), "x.slow", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			close(started)
 			<-ctx.Done()
@@ -247,7 +247,9 @@ func TestCancelProducesCancelled(t *testing.T) {
 	}
 }
 
-func TestMaxRuntimeProducesInterrupted(t *testing.T) {
+// The default max-runtime deadline produces the moxy status `timeout`, which
+// async-result reports as-is, but emits clown wire state `interrupted` (#345).
+func TestMaxRuntimeProducesTimeout(t *testing.T) {
 	bin, record := writeClownStub(t, "slow-77778888")
 	m := New(Options{
 		ClownBin: bin,
@@ -257,17 +259,50 @@ func TestMaxRuntimeProducesInterrupted(t *testing.T) {
 		MaxRuntime:  20 * time.Millisecond,
 		Concurrency: 4,
 	})
-	id, _ := m.Dispatch(context.Background(), "x.slow", nil,
+	id, _ := m.Dispatch(context.Background(), "x.slow", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			<-ctx.Done()
 			return nil, ctx.Err()
 		})
 	snap := waitTerminal(t, m, id)
-	if snap.State != StateInterrupted {
-		t.Errorf("state = %q, want interrupted", snap.State)
+	if snap.State != StateTimeout {
+		t.Errorf("state = %q, want timeout", snap.State)
+	}
+	if !strings.Contains(snap.Summary, "timed out after") {
+		t.Errorf("summary = %q, want a 'timed out after' phrasing", snap.Summary)
+	}
+	// clown accepts only the four wire states; timeout maps to interrupted.
+	if done := waitDoneLine(t, record); !strings.Contains(done, "--state interrupted") {
+		t.Errorf("done line = %q, want wire state interrupted", done)
+	}
+}
+
+// A per-call timeout overrides a generous manager default and terminalizes the
+// same way as the default deadline (#345).
+func TestPerCallTimeoutOverridesDefault(t *testing.T) {
+	bin, record := writeClownStub(t, "slow-aaaa1111")
+	m := New(Options{
+		ClownBin: bin,
+		WriteResult: func(_ context.Context, _ []byte) (string, error) {
+			return "d", nil
+		},
+		MaxRuntime:  time.Hour, // would never fire within the test
+		Concurrency: 4,
+	})
+	id, _ := m.Dispatch(context.Background(), "x.slow", nil, 20*time.Millisecond,
+		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		})
+	snap := waitTerminal(t, m, id)
+	if snap.State != StateTimeout {
+		t.Errorf("state = %q, want timeout (per-call timeout should fire before the 1h default)", snap.State)
+	}
+	if !strings.Contains(snap.Summary, "20ms") {
+		t.Errorf("summary = %q, want the per-call duration", snap.Summary)
 	}
 	if done := waitDoneLine(t, record); !strings.Contains(done, "--state interrupted") {
-		t.Errorf("done line = %q, want interrupted", done)
+		t.Errorf("done line = %q, want wire state interrupted", done)
 	}
 }
 
@@ -275,7 +310,7 @@ func TestSweepInterruptsInFlight(t *testing.T) {
 	bin, record := writeClownStub(t, "slow-9999aaaa")
 	m := newTestManager(bin)
 	started := make(chan struct{})
-	id, _ := m.Dispatch(context.Background(), "x.slow", nil,
+	id, _ := m.Dispatch(context.Background(), "x.slow", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			close(started)
 			<-ctx.Done()
@@ -307,7 +342,7 @@ func TestSummaryFromEmbeddedResourceBlock(t *testing.T) {
 		t.Fatalf("unmarshal fixture: %v", err)
 	}
 
-	id, _ := m.Dispatch(context.Background(), "x.res", nil,
+	id, _ := m.Dispatch(context.Background(), "x.res", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return &result, nil
 		})
@@ -324,7 +359,7 @@ func TestSummaryFromEmbeddedResourceBlock(t *testing.T) {
 func TestLookupReturnsStoredResult(t *testing.T) {
 	bin, _ := writeClownStub(t, "res-bbbbcccc")
 	m := newTestManager(bin)
-	id, _ := m.Dispatch(context.Background(), "x.res", nil,
+	id, _ := m.Dispatch(context.Background(), "x.res", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return okResult("the full result body"), nil
 		})
