@@ -1,5 +1,9 @@
 schema = 3
-result-type = "text"
+# No result-type: the script emits a full MCP envelope (with a dynamic
+# mimeType — application/json for -J, text/plain otherwise), so it owns the
+# result (default mcp-result). Declaring result-type = "text" would wrap that
+# envelope JSON as the text payload — agents would see `{"content":…}` instead
+# of the listing (#346). Matches ls.toml, the sibling envelope-emitting tool.
 perms-request = "dynamic"
 description = """Recursive directory listing in tree(1) format. Returns an ASCII tree (default) \
 or JSON. Depth-limited to keep output bounded; defaults exclude common noise dirs \
