@@ -103,7 +103,7 @@ The following moxins ship with moxy. Each can be served individually via
 | gmail | 2 | Gmail: triage and read messages | bun, gws |
 | grit | 31 | Git operations (force-push/hard-reset blocked on main/master) | git, jq |
 | gws | 1 | Google Workspace: generic API passthrough | bun, gws |
-| hamster | 8 | Go package documentation via `go doc` | go, bun |
+| hamster | 6 | Go package documentation via `go doc` | go, bun |
 | jq | 1 | Execute jq filters on JSON data | jq |
 | just-us-agents | 6 | Justfile recipe runner | just, jq, bun |
 | man | 4 | Unix man page reader with section-level progressive disclosure | pandoc, mandoc |

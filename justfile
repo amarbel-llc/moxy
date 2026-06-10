@@ -203,7 +203,7 @@ test-smoke-claude-p: build-nix
 test-migrated-tools: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
 
-# Smoke-test the locally-built hamster moxin (doc, src, mod-read, go-vet, go-build, go-mod)
+# Smoke-test the locally-built hamster moxin (doc, src, mod-read, go-mod)
 [group("post-build")]
 test-hamster: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-hamster.mjs
