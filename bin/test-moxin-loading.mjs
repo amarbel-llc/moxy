@@ -10,7 +10,7 @@
 // Environment setup:
 //   - Builds moxy + moxins from the working tree
 //   - Keeps real HOME (global moxyfile servers may fail to connect — that's fine)
-//   - Sets MOXIN_PATH to build/moxins
+//   - Sets MOXIN_PATH to result-moxins (built by build-go's build-moxins dep)
 //   - CWD is a temp dir outside the moxyfile hierarchy
 //
 // This reproduces the environment a non-moxy repo (e.g. madder) would see.
@@ -23,7 +23,13 @@ $.verbose = false;
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 const MOXY_BIN = path.join(REPO_ROOT, "build", "moxy");
-const MOXINS_DIR = path.join(REPO_ROOT, "result", "share", "moxy", "moxins");
+const MOXINS_DIR = path.join(
+  REPO_ROOT,
+  "result-moxins",
+  "share",
+  "moxy",
+  "moxins",
+);
 
 // --- Build ---
 
@@ -170,6 +176,20 @@ for (const [server, tools] of Object.entries(byServer).sort()) {
   console.log(`  ${server}: ${tools.length} tools`);
 }
 
+// Global-HOME moxyfile servers (e.g. chrest) also contribute tools, so a
+// nonzero total doesn't prove moxin discovery worked. Count only tools whose
+// prefix matches a moxin directory actually shipped in MOXINS_DIR.
+const moxinNames = await fs.readdir(MOXINS_DIR);
+const moxinTools = toolNames.filter((name) => {
+  const dot = name.indexOf(".");
+  return dot > 0 && moxinNames.includes(name.slice(0, dot));
+});
+
+console.log("");
+console.log(
+  `=== moxin tools: ${moxinTools.length} (across ${moxinNames.length} shipped moxins) ===`,
+);
+
 console.log("");
 console.log("=== moxin.log ===");
 
@@ -182,7 +202,7 @@ if (await fs.pathExists(MOXIN_LOG)) {
 
 await cleanup();
 
-if (toolNames.length === 0) {
-  console.error("FAIL: no tools discovered — handshake or moxin probe failed");
+if (moxinTools.length === 0) {
+  console.error("FAIL: no moxin tools discovered — moxin probe failed");
   process.exit(1);
 }

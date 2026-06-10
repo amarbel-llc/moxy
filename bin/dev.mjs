@@ -16,7 +16,13 @@ $.verbose = false;
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 const MOXY_BIN_DIR = path.join(REPO_ROOT, "build");
-const MOXINS_DIR = path.join(REPO_ROOT, "result", "share", "moxy", "moxins");
+const MOXINS_DIR = path.join(
+  REPO_ROOT,
+  "result-moxins",
+  "share",
+  "moxy",
+  "moxins",
+);
 
 // --- Build ---
 
