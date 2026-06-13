@@ -347,6 +347,13 @@ debug-codemod-annotations:
 debug-sleep seconds="300":
   sleep {{seconds}}
 
+# Run a focused Go test by name pattern in one package (default ./internal/...).
+# Fast inner loop for TDD on a single test without the full `test-go` suite.
+# MOXIN_PATH is cleared to match test-go's package-loading environment.
+[group("debug")]
+debug-go-test pattern pkg="./internal/native/...":
+  MOXIN_PATH="" go test {{pkg}} -run {{pattern}} -v
+
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
 # Idempotent (skips files that already declare permit-async). Keep for
