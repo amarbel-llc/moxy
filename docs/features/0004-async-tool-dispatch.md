@@ -68,10 +68,13 @@ unparseable or non-positive `timeout` is rejected synchronously.
 5. **Terminal**: the full result is written to the madder store, the
    in-memory index is updated, and moxy emits
    `clown job done <job_id> --state <state> --message "<tool>:
-   <first-line summary> (madder <digest>)" --result-ref "moxy async-result
-   <job_id>"`. The state is NOT repeated in the message text — the wake
-   line already renders it from the record's state field. The agent's wake
-   line carries everything needed to act.
+   <first-line summary> (madder <digest>)" --result-ref
+   "madder://blobs/<digest>"`. The `result_ref` is the **machine-readable
+   artifact URI** (a terminal that produced no result carries none), so a
+   journal reader — this or another moxy process — recovers the result from
+   the done record alone; the digest also rides in the message for the human
+   wake line. The state is NOT repeated in the message text — the wake line
+   already renders it from the record's state field.
 
 State mapping: clean result → `succeeded`; dispatch error or `isError`
 result → `failed`; `async-cancel` → `cancelled`; a deadline (per-call or
@@ -93,11 +96,19 @@ failure-to-act.
 
 ### `async-result` — fetch a stored result
 
-Input: `{job_id}`. Returns the job's state plus, when terminal, the full
-original `ToolCallResultV1` (from the index entry's madder digest). Running
-jobs return `{status: "running", started: ...}` so the tool doubles as a
-poll surface when wakeups are disabled. Unknown ids return a structured
-error listing live job ids.
+Input: `{job_id}`. **Journal-first**: when clown's journal is reachable it is
+the authority for state and the result reference — `async-result` reads
+`clown job read --job <id> --json`, takes the last terminal record's
+`result_ref`, and fetches the `ToolCallResultV1` from the `moxy-async` store.
+This resolves jobs launched by **another** moxy process or session (#321), not
+just this process's own. When the journal is unavailable (channel disabled,
+clown absent, or a locally-minted id) it falls back to the in-memory index,
+which also owns the moxy-only `timeout` distinction (a journal read of a
+timed-out job sees the wire state `interrupted`, upgraded back to `timeout`
+only for this process's own jobs). Running jobs return `{status: "running",
+...}` merged with the live `clown job status` probe (elapsed/last_activity/
+spool_bytes/tail, FDR-0005) so the tool doubles as a poll surface when wakeups
+are disabled. Unknown ids return a structured error listing live job ids.
 
 ### `async-cancel` — cancel a running job
 
@@ -140,14 +151,22 @@ session-surviving results); moxy-creates-XDG-store (blocked on madder#227
 and the wrong ownership model regardless).
 
 The job index (`job_id → {tool, state, digest, summary, started, finished,
-cancel}`) is **in-memory**. Two retention domains, deliberately decoupled
-(store = system of record, journal = wake layer, mirroring the spinclass
-chat migration):
+cancel}`) is **in-memory**, and is now the *fallback* read authority rather
+than the primary. The authorities split three ways: clown's journal is the
+**state** authority on the read path (`async-result` reads it first), the
+`moxy-async` store is the **result** authority, and the in-memory index serves
+degraded mode (no journal) and holds the OS process handle for the kill. It
+must NOT be removed — it is the only source of truth when the journal is
+unavailable. Retention is likewise three-domained:
 
-- clown's journal GC (7 days) bounds the *wake* records;
-- the madder blobs persist until explicitly reaped, and the wake message
-  embeds the digest — so even after a moxy restart loses the index, the
-  agent can `madder cat <digest>` straight from the notification line.
+- clown's journal records bound the *state* read path. Note clown#126
+  (cleanup-on-terminate): acked terminal records get a 24h resting-retention
+  and are then reaped, so a long-finished cross-session job may no longer be in
+  the journal;
+- the madder blobs persist independently until explicitly reaped, so a job
+  whose journal record was reaped can still have a live result; the wake
+  message also embeds the digest, so even after a moxy restart loses the index
+  the agent can `madder cat <digest>` straight from the notification line.
 
 ## Examples
 
@@ -159,7 +178,7 @@ Background a slow search, keep working, get woken:
     ... agent does other work ...
 
     [clown-job] moxy rg.search-3f2a8b1c succeeded: rg.search:
-    412 matches (madder blake2b256-...) · moxy async-result rg.search-3f2a8b1c
+    412 matches (madder blake2b256-...) · madder://blobs/blake2b256-...
 
     async-result {job_id: "rg.search-3f2a8b1c"}
     → full ToolCallResultV1
@@ -195,9 +214,25 @@ not part of v1.
 - **Producer-death gap.** If moxy crashes (not graceful shutdown), in-flight
   jobs never emit a terminal `done`; they sit open until clown's 7-day
   journal GC. Accepted for v1, same posture as spinclass's interrupted case.
-- **Index is process-local.** A moxy restart forgets job ids; results remain
-  reachable only via the digest embedded in the wake message. A durable
-  index is deliberate future work, not v1.
+- **Index is process-local, and deliberately retained as the degraded
+  fallback.** A moxy restart forgets job ids; cross-process state now comes
+  from clown's journal (the read authority), and results remain reachable via
+  the digest in the wake message. The index is NOT dead code — it is the sole
+  source of truth when the journal is unavailable (disabled channel,
+  locally-minted id), so "finishing the migration" by deleting it would break
+  standalone moxy.
+- **Cross-session reads collapse `timeout` to `interrupted`.** clown's wire
+  vocabulary has only four states (RFC-0009 §5), so a timed-out job reads back
+  as `interrupted` to any process other than the one that launched it; that
+  process upgrades it to `timeout` from its local index, and the human summary
+  ("timed out after <d>") carries the nuance regardless. A machine-readable
+  cross-session signal would be a future RFC-0009 addition (a fifth state or a
+  sub-reason field), not a `result_ref`/message hack.
+- **Terminal-record reaping (clown#126).** Once clown GCs a job's terminal
+  record (24h after ack), `async-result` falls back to this process's index;
+  if that's also gone (restart), a >24h-old cross-session result is
+  unrecoverable via `async-result` — the agent had the digest in the original
+  wake line.
 - **No progress events.** `started`/`progress` records are journal-only in
   the clown channel and v1 emits none; only terminal states wake the agent.
 - **Sequential batch semantics unchanged.** `async: true` changes *when* the
@@ -231,13 +266,22 @@ not part of v1.
 ## More Information
 
 - moxy#314 (feature request), moxy#267 (batch madder-blob formatter — adjacent)
-- clown: RFC-0009 (job-wakeup channel), clown-job(1), FDR-0013 (channel
-  consumers; ci-watch live proof)
+- **Journal-as-state-authority (2026-06-13):** `async-result`/`async-cancel`
+  re-backed on clown's journal (this doc's read path) — moxy#321 (cross-session
+  visibility), moxy#341 (status/tail parity), moxy#131 (timeout doc fix). The
+  full clown-ownership end-state (clown executes the call, agents inspect via
+  clown's own tools) is clown#117, gated on clown#112 (result blobs over the
+  channel) and clown#134 (job-as-executor) — deliberately out of scope here.
+  Heads-up: clown#126 changed terminal-record retention (24h resting + reap).
+- clown: RFC-0009 (job-wakeup channel + record schema), RFC-0010 (output spool
+  + status probe), RFC-0011 (job-platform MCP tools — deliberately no cancel),
+  clown-job(1), FDR-0013 (channel consumers; ci-watch live proof)
 - Precedents in this repo: `get-hubbed.ci-watch` (producer contract,
   terminal-done guarantee, kill-switch posture), `batch`
   (docs/plans/2026-05-20-batch-tool.md — permission preflight machinery this
   design reuses)
-- Pinned clown contract (2026-06-06, clown/sleek-sumac): source=`moxy`,
-  label=tool name or `batch`, result-ref `moxy async-result <job_id>`,
-  shell-out producer only (no native journal speaker), job-id is the agent's
-  dedupe key
+- Pinned clown contract (2026-06-13, clown/fond-sycamore): source=`moxy`,
+  label=tool name or `batch`, `result_ref` = `madder://blobs/<digest>` (the
+  machine-readable artifact URI), read back via `clown job read --job <id>
+  --json`, shell-out producer only (no native journal speaker), job-id is the
+  agent's dedupe key

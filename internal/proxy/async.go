@@ -129,56 +129,163 @@ func (p *Proxy) HandleAsync(
 }
 
 // HandleAsyncResult returns a running job's status or a terminal job's full
-// stored result.
+// stored result. It is JOURNAL-FIRST: when clown's journal is reachable it is
+// the authority for state and the machine-readable result reference, so a job
+// launched by ANOTHER moxy process resolves entirely from the shared journal +
+// moxy-async store (#321). The in-process index is the fallback for degraded
+// mode (channel disabled, clown absent, or a locally-minted id with no
+// journal), and it owns the moxy-only `timeout` distinction.
 func (p *Proxy) HandleAsyncResult(
 	ctx context.Context,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
-	snap, errResult := p.asyncLookup(args)
+	if p.asyncManager == nil {
+		return protocol.ErrorResultV1("async unavailable: no job manager configured"), nil
+	}
+	jobID, errResult := parseJobRef(args)
 	if errResult != nil {
 		return errResult, nil
 	}
 
-	if snap.State == asyncjob.StateRunning {
-		resp := map[string]any{
-			"job_id":  snap.ID,
-			"tool":    snap.Tool,
-			"status":  snap.State,
-			"started": snap.Started.Format(time.RFC3339),
+	// The local snapshot (present only if THIS moxy launched the job) is
+	// consulted alongside the journal: it carries the cached result, the
+	// moxy-only `timeout` state, and lets us resolve the done-before-journal
+	// race (finish flips local state to terminal before emitDone writes the
+	// record).
+	localSnap, haveLocal := p.asyncManager.Lookup(jobID)
+
+	jv, jerr := p.asyncManager.ReadJournal(ctx, jobID)
+	if jerr == nil && jv.Found {
+		if jv.State == "" {
+			// No terminal record yet. If our own index already finished, the
+			// record write is merely in flight — trust the producer.
+			if haveLocal && localSnap.State != asyncjob.StateRunning {
+				return p.terminalFromSnapshot(localSnap), nil
+			}
+			resp := map[string]any{"job_id": jobID, "status": asyncjob.StateRunning}
+			if haveLocal {
+				resp["tool"] = localSnap.Tool
+			}
+			if !jv.Started.IsZero() {
+				resp["started"] = jv.Started.Format(time.RFC3339)
+			}
+			p.mergeLiveStatus(ctx, resp, jobID)
+			return asyncJSONResult(resp), nil
 		}
-		// Augment with the channel-owned live probe (RFC-0010 §3 /
-		// FDR-0005): elapsed, last_activity, spool_bytes, and a bounded
-		// output tail, surfaced under clown's own field names so an agent
-		// sees the same shape via async-result or `clown job status`. On any
-		// error (clown disabled/absent, a locally-minted id with no journal,
-		// or an installed clown without the probe) we keep the v1 shape —
-		// async-result is a façade over the probe, not a second source of
-		// truth.
-		if status, err := p.asyncManager.JobStatus(ctx, snap.ID); err == nil {
-			for _, f := range []string{"elapsed_sec", "last_activity", "spool_bytes", "progress", "tail"} {
-				if v, ok := status[f]; ok {
-					resp[f] = v
-				}
+
+		// Terminal. Upgrade the wire `interrupted` back to `timeout` for our
+		// own timed-out jobs — clown's 4-state vocabulary (RFC-0009 §5) has no
+		// `timeout`, so a cross-session reader correctly sees `interrupted`.
+		state := jv.State
+		if state == asyncjob.StateInterrupted && haveLocal && localSnap.State == asyncjob.StateTimeout {
+			state = asyncjob.StateTimeout
+		}
+
+		// Recover the result blob from the journal's machine-readable
+		// result_ref (a madder://blobs/<digest> URI).
+		if jv.ResultRef != "" {
+			if result, ferr := p.fetchAsyncResult(ctx, jv.ResultRef); ferr == nil {
+				return result, nil
+			}
+			// Blob unreachable (reaped per clown#126, or store down): fall back
+			// to a locally-cached result if we still hold one.
+			if haveLocal && localSnap.Result != nil {
+				return localSnap.Result, nil
 			}
 		}
+
+		// Terminal with no recoverable result (cancelled/interrupted with no
+		// blob, or a reaped blob we never cached): report the terminal state.
+		out := map[string]any{"job_id": jobID, "status": state}
+		if jv.Message != "" {
+			out["summary"] = jv.Message
+		}
+		if !jv.Ended.IsZero() {
+			out["finished"] = jv.Ended.Format(time.RFC3339)
+		}
+		return asyncJSONResult(out), nil
+	}
+
+	// In-process fallback (degraded mode: the journal is unavailable).
+	if !haveLocal {
+		return p.unknownJobError(jobID), nil
+	}
+	if localSnap.State == asyncjob.StateRunning {
+		resp := map[string]any{
+			"job_id":  localSnap.ID,
+			"tool":    localSnap.Tool,
+			"status":  localSnap.State,
+			"started": localSnap.Started.Format(time.RFC3339),
+		}
+		p.mergeLiveStatus(ctx, resp, jobID)
 		return asyncJSONResult(resp), nil
 	}
+	return p.terminalFromSnapshot(localSnap), nil
+}
 
-	// Terminal with a stored result: hand back the original result
-	// verbatim (IsError and all).
-	if snap.Result != nil {
-		return snap.Result, nil
+// mergeLiveStatus augments a running-job response with clown's journal+spool
+// probe (RFC-0010 §3 / FDR-0005): elapsed_sec, last_activity, spool_bytes,
+// progress, and a bounded output tail, surfaced under clown's own field names
+// so an agent sees the same shape via async-result or `clown job status`. On
+// any error (clown disabled/absent, a locally-minted id, or an installed clown
+// without the probe) the response keeps its base shape — the probe is a
+// façade, never a second source of truth.
+func (p *Proxy) mergeLiveStatus(ctx context.Context, resp map[string]any, jobID string) {
+	status, err := p.asyncManager.JobStatus(ctx, jobID)
+	if err != nil {
+		return
 	}
+	for _, f := range []string{"elapsed_sec", "last_activity", "spool_bytes", "progress", "tail"} {
+		if v, ok := status[f]; ok {
+			resp[f] = v
+		}
+	}
+}
 
-	// Terminal without a result (cancelled/interrupted before producing
-	// one): report the terminal state.
+// terminalFromSnapshot renders a terminal in-process snapshot: the stored
+// result verbatim (IsError and all) when present, else a terminal-state report
+// for a cancelled/interrupted job that produced no result.
+func (p *Proxy) terminalFromSnapshot(snap asyncjob.Snapshot) *protocol.ToolCallResultV1 {
+	if snap.Result != nil {
+		return snap.Result
+	}
 	return asyncJSONResult(map[string]any{
 		"job_id":   snap.ID,
 		"tool":     snap.Tool,
 		"status":   snap.State,
 		"summary":  snap.Summary,
 		"finished": snap.Finished.Format(time.RFC3339),
-	}), nil
+	})
+}
+
+// fetchAsyncResult resolves a madder://blobs/<digest> result_ref to the stored
+// ToolCallResultV1. The async manager writes each terminal result as marshaled
+// JSON to the user-level moxy-async store and references it by this URI in the
+// job's done record, so any reader — including another moxy process — recovers
+// the result from the journal alone.
+func (p *Proxy) fetchAsyncResult(ctx context.Context, resultRef string) (*protocol.ToolCallResultV1, error) {
+	if p.madder == nil {
+		return nil, fmt.Errorf("no madder backend configured")
+	}
+	if !strings.HasPrefix(resultRef, blobURIPrefix) {
+		return nil, fmt.Errorf("result_ref %q is not a madder blob URI", resultRef)
+	}
+	digest := strings.TrimPrefix(resultRef, blobURIPrefix)
+	if idx := strings.Index(digest, "?"); idx >= 0 {
+		digest = digest[:idx]
+	}
+	if digest == "" {
+		return nil, fmt.Errorf("result_ref %q has no digest segment", resultRef)
+	}
+	body, err := p.madder.CatBytes(ctx, digest)
+	if err != nil {
+		return nil, err
+	}
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("decoding stored result %q: %w", digest, err)
+	}
+	return &result, nil
 }
 
 // HandleAsyncCancel context-cancels a running job. Cancelling an
@@ -303,34 +410,50 @@ func (p *Proxy) handleBatchAsync(
 	}), nil
 }
 
-// asyncLookup parses {job_id} args and resolves the job, returning a
-// structured error result (never a Go error) on bad input or unknown ids.
+// parseJobRef extracts the {job_id} argument, returning a structured error
+// result (never a Go error) on bad input. Unlike asyncLookup it does NOT
+// require the id to be known to the local manager — a journal-resolvable
+// cross-session id must reach the read path (#321).
+func parseJobRef(args json.RawMessage) (string, *protocol.ToolCallResultV1) {
+	var ref asyncJobRef
+	if err := json.Unmarshal(args, &ref); err != nil {
+		return "", protocol.ErrorResultV1(fmt.Sprintf("invalid args: %v", err))
+	}
+	if ref.JobID == "" {
+		return "", protocol.ErrorResultV1("job_id is required")
+	}
+	return ref.JobID, nil
+}
+
+// unknownJobError builds the "no such job" result, listing the ids this moxy
+// process knows so the agent can spot a typo or a cross-process id.
+func (p *Proxy) unknownJobError(jobID string) *protocol.ToolCallResultV1 {
+	ids := p.asyncManager.IDs()
+	sort.Strings(ids)
+	hint := "no async jobs known to this moxy process"
+	if len(ids) > 0 {
+		hint = "known job ids: " + strings.Join(ids, ", ")
+	}
+	return protocol.ErrorResultV1(fmt.Sprintf("unknown async job %q (%s)", jobID, hint))
+}
+
+// asyncLookup parses {job_id} args and resolves the job in the LOCAL index,
+// returning a structured error result (never a Go error) on bad input or
+// unknown ids. Used by HandleAsyncCancel, which is inherently process-local —
+// you can only kill a process whose handle this moxy holds.
 func (p *Proxy) asyncLookup(args json.RawMessage) (asyncjob.Snapshot, *protocol.ToolCallResultV1) {
 	if p.asyncManager == nil {
 		return asyncjob.Snapshot{}, protocol.ErrorResultV1(
 			"async unavailable: no job manager configured",
 		)
 	}
-	var ref asyncJobRef
-	if err := json.Unmarshal(args, &ref); err != nil {
-		return asyncjob.Snapshot{}, protocol.ErrorResultV1(
-			fmt.Sprintf("invalid args: %v", err),
-		)
+	jobID, errResult := parseJobRef(args)
+	if errResult != nil {
+		return asyncjob.Snapshot{}, errResult
 	}
-	if ref.JobID == "" {
-		return asyncjob.Snapshot{}, protocol.ErrorResultV1("job_id is required")
-	}
-	snap, ok := p.asyncManager.Lookup(ref.JobID)
+	snap, ok := p.asyncManager.Lookup(jobID)
 	if !ok {
-		ids := p.asyncManager.IDs()
-		sort.Strings(ids)
-		hint := "no async jobs known to this moxy process"
-		if len(ids) > 0 {
-			hint = "known job ids: " + strings.Join(ids, ", ")
-		}
-		return asyncjob.Snapshot{}, protocol.ErrorResultV1(fmt.Sprintf(
-			"unknown async job %q (%s)", ref.JobID, hint,
-		))
+		return asyncjob.Snapshot{}, p.unknownJobError(jobID)
 	}
 	return snap, nil
 }

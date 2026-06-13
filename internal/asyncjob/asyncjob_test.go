@@ -107,6 +107,63 @@ func TestJobStatusErrorWhenClownFails(t *testing.T) {
 	}
 }
 
+func TestReadJournalParsesTerminal(t *testing.T) {
+	body := `[ "$2" = read ] && printf '%s\n' ` +
+		`'{"job":"x.y-1","type":"started","ts":"2026-06-13T00:00:00Z"}' ` +
+		`'{"job":"x.y-1","type":"succeeded","ts":"2026-06-13T00:01:00Z","message":"done","result_ref":"madder://blobs/abc123"}'`
+	m := newTestManager(writeClownScript(t, body))
+	view, err := m.ReadJournal(context.Background(), "x.y-1")
+	if err != nil {
+		t.Fatalf("ReadJournal: %v", err)
+	}
+	if !view.Found {
+		t.Fatal("Found = false, want true")
+	}
+	if view.State != StateSucceeded {
+		t.Errorf("State = %q, want %q", view.State, StateSucceeded)
+	}
+	if view.ResultRef != "madder://blobs/abc123" {
+		t.Errorf("ResultRef = %q, want madder://blobs/abc123", view.ResultRef)
+	}
+	if view.Message != "done" {
+		t.Errorf("Message = %q, want done", view.Message)
+	}
+	if view.Started.IsZero() || view.Ended.IsZero() {
+		t.Errorf("timestamps not parsed: started=%v ended=%v", view.Started, view.Ended)
+	}
+}
+
+// A stream with no terminal record means the job is still running — it must
+// NOT be inferred dead (RFC-0010 §3: status is journal-derived and never
+// detects a producer that died without a terminal).
+func TestReadJournalRunningNoTerminal(t *testing.T) {
+	body := `[ "$2" = read ] && printf '%s\n' ` +
+		`'{"job":"x.y-1","type":"started","ts":"2026-06-13T00:00:00Z"}' ` +
+		`'{"job":"x.y-1","type":"progress","ts":"2026-06-13T00:00:30Z","message":"working"}'`
+	m := newTestManager(writeClownScript(t, body))
+	view, err := m.ReadJournal(context.Background(), "x.y-1")
+	if err != nil {
+		t.Fatalf("ReadJournal: %v", err)
+	}
+	if !view.Found {
+		t.Fatal("Found = false, want true (records present)")
+	}
+	if view.State != "" {
+		t.Errorf("State = %q, want empty (no terminal record)", view.State)
+	}
+}
+
+func TestReadJournalErrorWhenClownFails(t *testing.T) {
+	// Disabled channel / locally-minted id with no journal → exit 1.
+	if _, err := newTestManager(writeClownScript(t, `exit 1`)).ReadJournal(context.Background(), "x"); err == nil {
+		t.Error("want error when clown job read exits 1")
+	}
+	// Absent clown.
+	if _, err := newTestManager("/nonexistent/clown").ReadJournal(context.Background(), "x"); err == nil {
+		t.Error("want error when clown is absent")
+	}
+}
+
 func recordLines(t *testing.T, record string) []string {
 	t.Helper()
 	data, err := os.ReadFile(record)
@@ -215,7 +272,7 @@ func TestProducerStartAdoptsClownID(t *testing.T) {
 		"--state succeeded",
 		"412 matches",
 		snap.Digest,
-		"--result-ref moxy async-result rg.search-3f2a8b1c",
+		"--result-ref madder://blobs/" + snap.Digest,
 	} {
 		if !strings.Contains(done, want) {
 			t.Errorf("done line %q missing %q", done, want)

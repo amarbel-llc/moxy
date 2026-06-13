@@ -66,12 +66,17 @@ names and values whether it probes via `async-result` or `clown job status`
 — the channel is the single source of truth (RFC-0010 §3). When the probe
 errors (channel disabled, child-server tool, a locally-minted id with no
 journal, or an installed clown without the probe) the spool-derived fields
-are omitted and the response is exactly the v1 shape. Terminal jobs are
-unchanged: full stored result, no tail.
+are omitted and the response is exactly the v1 shape. **Terminal** jobs now
+also read through the journal: `async-result` takes the terminal record's
+`result_ref` (a `madder://blobs/<digest>` URI) and fetches the full stored
+result, falling back to the in-memory index when the journal is unavailable
+(see FDR-0004, journal-as-state-authority). So both the running probe and the
+terminal result are journal-backed, and `async-result` now resolves jobs
+launched by another session too (moxy#321), not only its own.
 
-Cross-producer and cross-session consumers use the channel-owned probe
-directly — `clown job status <job_id>` reports the same fields from the same
-files (RFC-0010 §3); `async-result` is moxy's MCP façade over its own jobs,
+Cross-producer and cross-session consumers may also use the channel-owned
+probe directly — `clown job status <job_id>` reports the same fields from the
+same files (RFC-0010 §3). `async-result` is moxy's MCP façade over the journal,
 not a second source of truth.
 
 ## Examples

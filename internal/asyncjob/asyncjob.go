@@ -7,6 +7,8 @@
 package asyncjob
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -359,9 +361,114 @@ func (m *Manager) JobStatus(ctx context.Context, id string) (map[string]any, err
 	return status, nil
 }
 
+// terminalRecordTypes is the set of RFC-0009 §5 wire states that mark a job's
+// terminal journal record. `timeout` is intentionally absent — it is a
+// moxy-only distinction emitted on the wire as `interrupted` (see wireState).
+var terminalRecordTypes = map[string]bool{
+	StateSucceeded:   true,
+	StateFailed:      true,
+	StateCancelled:   true,
+	StateInterrupted: true,
+}
+
+// JournalView is the reduced view of a job's clown journal record stream that
+// async-result consults. State is the wire type of the last terminal record,
+// or "" when the stream carries no terminal record yet — which means the job
+// is still running and is NEVER inferred dead (RFC-0010 §3: status is
+// journal-derived and cannot detect a producer that died without emitting a
+// terminal). ResultRef is that terminal record's machine-readable artifact URI
+// (a `madder://blobs/<digest>`), empty for a no-result terminal. Found is false
+// when the stream yielded no parseable records.
+type JournalView struct {
+	State     string
+	ResultRef string
+	Message   string
+	Started   time.Time
+	Ended     time.Time
+	Found     bool
+}
+
+// journalRecord mirrors the subset of the RFC-0009 record schema
+// ({v,job,session,source,from,type,seq,ts,message,result_ref}) that
+// ReadJournal consumes.
+type journalRecord struct {
+	Type      string `json:"type"`
+	TS        string `json:"ts"`
+	Message   string `json:"message"`
+	ResultRef string `json:"result_ref"`
+}
+
+// ReadJournal shells `clown job read --job <id> --json` and reduces the job's
+// record stream (NDJSON, one RFC-0009 record per line) to a JournalView. The
+// `--job` selector scopes the read to one job's full stream (mirroring the
+// job_read MCP `job` arg) rather than the channel firehose. The last terminal
+// record is authoritative for state and result_ref.
+//
+// An error means the journal is unavailable — the channel is disabled
+// (CLOWN_DISABLE_JOB_WAKEUP=1, clown's canonical kill switch), clown is absent,
+// or the id was minted locally and has no journal — and the caller
+// (async-result) falls back to the in-process snapshot. The error contract
+// mirrors JobStatus.
+func (m *Manager) ReadJournal(ctx context.Context, id string) (JournalView, error) {
+	cmd := exec.CommandContext(ctx, m.clownBin, "job", "read", "--job", id, "--json")
+	out, err := cmd.Output()
+	if err != nil {
+		return JournalView{}, fmt.Errorf("clown job read %s: %w", id, err)
+	}
+
+	var view JournalView
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		line := bytes.TrimSpace(sc.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var rec journalRecord
+		if json.Unmarshal(line, &rec) != nil {
+			continue // tolerate a stray non-record line
+		}
+		view.Found = true
+		ts := parseJournalTime(rec.TS)
+		if view.Started.IsZero() && !ts.IsZero() {
+			view.Started = ts
+		}
+		if terminalRecordTypes[rec.Type] {
+			view.State = rec.Type
+			view.ResultRef = rec.ResultRef
+			view.Message = rec.Message
+			view.Ended = ts
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return JournalView{}, fmt.Errorf("clown job read %s: scanning: %w", id, err)
+	}
+	return view, nil
+}
+
+// parseJournalTime parses an RFC 3339 journal timestamp, returning the zero
+// time on any error (an absent/garbled ts is not fatal to a journal read).
+func parseJournalTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 // emitDone reports the terminal state. The state is not repeated in the
 // message text (the wake line renders it from the record's state field);
 // the digest rides in the message so results survive a moxy restart.
+//
+// result_ref carries the MACHINE-READABLE artifact reference — the
+// `madder://blobs/<digest>` URI — so a journal reader (this or another moxy
+// process, or `clown job read`) can recover the result from the terminal
+// record alone (#321). It is kept strictly to the artifact URI; a terminal
+// with no result (a cancelled/interrupted job that produced none) carries no
+// ref, and human nuance like a timeout note lives only in the message.
 func (m *Manager) emitDone(tool, id, state, summary, digest string) {
 	message := tool + ":"
 	if summary != "" {
@@ -370,11 +477,15 @@ func (m *Manager) emitDone(tool, id, state, summary, digest string) {
 	if digest != "" {
 		message += " (madder " + digest + ")"
 	}
-	cmd := exec.Command(m.clownBin,
+	args := []string{
 		"job", "done", id,
 		"--state", wireState(state),
 		"--message", message,
-		"--result-ref", "moxy async-result "+id)
+	}
+	if digest != "" {
+		args = append(args, "--result-ref", "madder://blobs/"+digest)
+	}
+	cmd := exec.Command(m.clownBin, args...)
 	if err := cmd.Run(); err != nil {
 		lifecyclelog.Log("asyncjob: clown job done %s: %v", id, err)
 	}

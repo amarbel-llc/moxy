@@ -7,7 +7,8 @@
 # user-level madder store (hermetic via XDG_DATA_HOME), and the clown stub
 # records the producer contract (`job start` → `job done --state succeeded
 # --message "<tool>: <summary> (madder <digest>)" --result-ref
-# "moxy async-result <id>"`).
+# madder://blobs/<digest>`). The result-ref is the machine-readable artifact
+# URI so a journal reader recovers the result from the done record alone.
 
 load 'common'
 
@@ -125,13 +126,19 @@ function async_dispatch_full_producer_contract { # @test
 
   run cat "$CLOWN_RECORD"
   assert_output --partial "testmoxin.echo: hello async (madder "
-  assert_output --partial "--result-ref moxy async-result testmoxin.echo-e2e00001"
+  assert_output --partial "--result-ref madder://blobs/"
 
   # The digest in the done line resolves in the user-level store: the
   # stored blob is the full marshaled ToolCallResultV1.
   local digest
   digest=$(grep -oE 'madder [^)]+' "$CLOWN_RECORD" | head -1 | cut -d' ' -f2)
   [ -n "$digest" ]
+
+  # result-ref carries the SAME digest as the message, as a machine-readable
+  # madder://blobs/<digest> URI — what a journal reader resolves the blob from.
+  run grep -F -- "--result-ref madder://blobs/$digest" "$CLOWN_RECORD"
+  assert_success
+
   run "${MADDER_BIN:-madder}" cat "$digest"
   assert_success
   assert_output --partial "hello async"
