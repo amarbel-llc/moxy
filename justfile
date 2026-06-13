@@ -352,7 +352,7 @@ debug-sleep seconds="300":
 # MOXIN_PATH is cleared to match test-go's package-loading environment.
 [group("debug")]
 debug-go-test pattern pkg="./internal/native/...":
-  MOXIN_PATH="" go test {{pkg}} -run {{pattern}} -v
+  MOXIN_PATH="" go test {{pkg}} -run '{{pattern}}' -v
 
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
