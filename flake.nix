@@ -169,10 +169,60 @@
           ];
         };
 
+        # tommy codegen as a conformist linter driver. Walks the tree for
+        # `//go:generate tommy generate` directives (here:
+        # internal/config/schema/schema.go -> schema_tommy.go) and runs `tommy
+        # generate` per file (REPAIR mode; the appended CHECK command below is a
+        # no-op `true`). Resolves tommy + go from the AMBIENT PATH and skips
+        # (exit 0) when either is missing — so the sandboxed conformistCheck
+        # (which only runs the no-op check) and bare `nix fmt` stay safe, while a
+        # devshell-driven `conformist --commit` regenerates schema_tommy.go into
+        # the chore.
+        tommyCodegenDriver = pkgs.writeShellApplication {
+          name = "conformist-tommy-codegen";
+          runtimeInputs = [
+            pkgs.coreutils
+            pkgs.findutils
+            pkgs.gnugrep
+          ];
+          text = ''
+            mode="repair"
+            if [ "''${1:-}" = "--check" ]; then
+              mode="check"
+            fi
+            if ! command -v tommy >/dev/null 2>&1; then
+              echo "tommy-codegen: tommy not on PATH; skipping" >&2
+              exit 0
+            fi
+            if ! command -v go >/dev/null 2>&1; then
+              echo "tommy-codegen: go not on PATH; skipping" >&2
+              exit 0
+            fi
+            status=0
+            while IFS= read -r f; do
+              dir=$(dirname "$f")
+              base=$(basename "$f")
+              if [ "$mode" = "check" ]; then
+                ( cd "$dir" || exit 1; GOFILE="$base" tommy generate --check; ) || status=1
+              else
+                ( cd "$dir" || exit 1; GOFILE="$base" tommy generate; ) || status=1
+              fi
+            done < <(grep -rIl --include='*.go' 'go:generate tommy generate' . 2>/dev/null | grep -v '/result' || true)
+            exit "$status"
+          '';
+        };
+
         # conformist reads the treefmt-era config name (rename out of scope per
         # RFC 0001 §Compatibility). Take treefmt-nix's generated formatter
         # config and append moxy's [linter.*] sections — treefmt has no linter
         # table, so a plain append is a valid, order-independent merge.
+        #
+        # tommy-codegen: CHECK is a no-op `true` (the sandboxed conformistCheck
+        # lacks the go toolchain `tommy generate --check` needs; true staleness
+        # stays gated by `just generate`); REPAIR runs the driver by absolute
+        # store path so it resolves in the sandbox and the wrapper without a PATH
+        # dependency, regenerating schema_tommy.go into the `conformist --commit`
+        # chore.
         conformistConfig = pkgs.runCommand "conformist-config.toml" { } ''
           cat ${treefmtEval.config.build.configFile} > $out
           cat >> $out <<EOF
@@ -184,6 +234,12 @@
           [linter.mypy]
           command = "${pyTypesChecker}/bin/lint-py-types"
           includes = ["moxins/sisyphus/lib/*.py", "moxins/sisyphus/bin/*", "moxins/freud/bin/*"]
+
+          [linter.tommy-codegen]
+          command = "true"
+          repair-command = "${tommyCodegenDriver}/bin/conformist-tommy-codegen"
+          includes = ["*.go", "**/*.go"]
+          passes-files = false
           EOF
         '';
 
