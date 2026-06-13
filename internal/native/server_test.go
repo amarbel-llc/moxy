@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -477,6 +479,114 @@ func TestServerToolsCallWithArguments(t *testing.T) {
 	}
 	if result.Content[0].Text != "hello from args" {
 		t.Errorf("output = %q, want %q", result.Content[0].Text, "hello from args")
+	}
+}
+
+// TestServerToolsCallStringArgRoundTrips pins the escape-handling contract
+// for string positionals passed to a moxin script (issue #364).
+//
+// A moxin tool's arguments arrive as a JSON object on the wire. moxy
+// recovers each scalar string value with a single full json.Unmarshal in
+// argValueString, then hands the decoded Go string to the script as one
+// argv entry. The script writes that argv entry verbatim (folio's write
+// is `printf '%s' "$content"`), so the decoded string is exactly what
+// hits disk.
+//
+// The contract is a FULL, uniform JSON-string decode and nothing more:
+// exactly one decode pass, applied to every escape the same way. The test
+// proves it by round-trip identity — a standards-compliant encoder
+// (json.Marshal) produces the wire bytes, and the bytes on disk must equal
+// the original Go string. The two failure modes #364 worried about are
+// thereby excluded:
+//
+//   - A double decode would turn the wire encoding of the literal six
+//     characters backslash-u-0-0-1-b into a raw ESC byte; round-trip
+//     identity rejects that.
+//   - A selective "decode only the unicode escape" pass would collapse
+//     that sequence while leaving newline/backslash escapes literal;
+//     round-trip identity rejects that too.
+//
+// The asymmetry the issue observed (a raw ESC byte where literal escape
+// text survived) is therefore a property of how the *client* encoded its
+// arguments, not of moxy: a real control char encodes to a single-escape
+// and correctly decodes to one ESC byte, while literal escape text encodes
+// double-escaped and correctly decodes back to the literal characters.
+// moxy faithfully reproduces whatever the wire string denotes.
+func TestServerToolsCallStringArgRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.txt")
+
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{
+			{
+				Name: "write",
+				// $1 = file_path, $2 = content (argv after $0). printf
+				// '%s' is byte-verbatim — it does not re-interpret any
+				// escape in $content, mirroring moxins/folio/bin/write.
+				Command:  "bash",
+				Args:     []string{"-c", `printf '%s' "$2" > "$1"`, "write"},
+				ArgOrder: []string{"file_path", "content"},
+				Input:    json.RawMessage(`{"type":"object","properties":{"file_path":{"type":"string"},"content":{"type":"string"}},"required":["file_path","content"]}`),
+			},
+		},
+	}
+	srv := NewServer(cfg)
+
+	// The content this caller wants on disk. Written with Go's `\\` escape
+	// so the literal six characters backslash-u-0-0-1-b appear as TEXT
+	// (the asciinema/.cast/RFC authoring case from #364), alongside real
+	// control bytes (tab, newline, and a genuine ESC) that must survive
+	// untouched.
+	content := "literal-escape-text:[\\u001b[0m]\t" +
+		"real-newline:[\n]\t" +
+		"real-esc:[\x1b]\t" +
+		"backslash:[\\]\tdone"
+
+	// json.Marshal is the standards-compliant encoder. Its output is the
+	// wire bytes; a correct single-decode sink must hand `content` back.
+	encoded, err := json.Marshal(content)
+	if err != nil {
+		t.Fatalf("marshal content: %v", err)
+	}
+	args := fmt.Sprintf(`{"file_path":%q,"content":%s}`, out, encoded)
+
+	params := protocol.ToolCallParams{
+		Name:      "write",
+		Arguments: json.RawMessage(args),
+	}
+	raw, err := srv.Call(context.Background(), "tools/call", params)
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+
+	got, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("read written file: %v", err)
+	}
+	if string(got) != content {
+		t.Fatalf("content did not round-trip\n got %q (% x)\nwant %q (% x)",
+			string(got), got, content, content)
+	}
+
+	// Spell out the headline #364 guarantee as a standalone assertion so a
+	// regression is self-describing. literalEsc is the literal text
+	// backslash-u-0-0-1-b that must NOT collapse to a control byte; it is
+	// built with Go's `\\` escape, never typed as a lone unicode escape.
+	literalEsc := "\\u001b[0m"
+	if !strings.Contains(string(got), literalEsc) {
+		t.Errorf("literal escape text %q must survive verbatim on disk (no silent collapse to a control byte); got %q",
+			literalEsc, string(got))
+	}
+	if !strings.Contains(string(got), "\x1b") {
+		t.Errorf("a genuine ESC byte in content must survive on disk; got %q", string(got))
 	}
 }
 
