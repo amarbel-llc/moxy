@@ -25,6 +25,13 @@ setup() {
 # Minimal gh stub for api-delete tests. Records argv to $HOME/gh-argv
 # and returns canned JSON so the bin script sees a successful response.
 set -euo pipefail
+# Drain stdin like real `gh --input -` does. Without this the body case
+# (`printf '%s' "$body" | gh ...` in bin/api) races this stub's exit: if the
+# stub closes the pipe first, printf takes SIGPIPE and `set -o pipefail` makes
+# it the pipeline's status (141), flaking the test. cat consumes the body to
+# EOF so printf always completes. Harmless for the no-body tests (stdin is
+# empty, cat returns immediately). See #365.
+cat >/dev/null 2>&1 || true
 printf '%s\n' "$@" > "$HOME/gh-argv"
 echo '{}'
 EOF
