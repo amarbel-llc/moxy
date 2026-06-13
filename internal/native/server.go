@@ -222,6 +222,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 	}
 	debugMoxin("toolCall %s.%s: command=%s args=%v", s.config.Name, spec.Name, spec.Command, spec.Args)
 
+	if err := validateArgKeys(callParams.Arguments, spec.InputParsed); err != nil {
+		return errResult("%v", err)
+	}
+
 	stdinContent, arguments, err := s.prepareStdin(ctx, spec, callParams.Arguments)
 	if err != nil {
 		return errResult("%v", err)
@@ -660,6 +664,80 @@ func validateEnumConstraints(arguments json.RawMessage, schema *InputSchema) err
 		}
 	}
 	return nil
+}
+
+// validateArgKeys enforces two structural invariants that the moxin arg
+// builder otherwise tolerates silently — the shared root cause of the
+// folio_write silent-truncation (#362) and empty-path (#358) bugs:
+//
+//   - Unknown keys: every supplied argument must be a declared property.
+//     buildExtraArgs appends keys it doesn't recognize as trailing
+//     positionals, so an Edit-style `new_string` lands on a script's $2 and
+//     clobbers a file. Rejecting the undeclared key turns that wrong-tool
+//     call into a clear error instead of silent data loss.
+//   - Missing required: every key in the schema's "required" list must be
+//     present and non-null. An absent required arg otherwise becomes an
+//     empty positional slot (so a mis-named file_path yields `mv "$tmp" ""`).
+//
+// The schema's declared Properties are the client-facing contract (they are
+// what moxy advertises in tools/list), so a top-level key outside that set is
+// always a caller mistake — moxin input schemas never declare top-level
+// additionalProperties (the type does not model it). Keys beginning with "_"
+// are reserved (MCP "_meta" convention) and pass through. A tool with no
+// [input] schema, or one declaring no properties, is left unconstrained.
+//
+// Validate the ORIGINAL arguments (before any stdin-param extraction) so a
+// required stdin param counts as present and is not flagged unknown.
+func validateArgKeys(arguments json.RawMessage, schema *InputSchema) error {
+	if schema == nil || len(arguments) == 0 {
+		return nil
+	}
+	var argMap map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &argMap); err != nil {
+		return nil // let buildExtraArgs surface parse errors
+	}
+
+	// Unknown-key rejection runs only when the schema declares properties;
+	// a propertyless object schema (rare/meta) is treated as unconstrained.
+	if len(schema.Properties) > 0 {
+		var unknown []string
+		for key := range argMap {
+			if strings.HasPrefix(key, "_") {
+				continue
+			}
+			if _, ok := schema.Properties[key]; !ok {
+				unknown = append(unknown, key)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			return fmt.Errorf("unknown argument(s): %s (valid: %s)",
+				strings.Join(unknown, ", "), sortedPropertyNames(schema.Properties))
+		}
+	}
+
+	var missing []string
+	for _, req := range schema.Required {
+		raw, ok := argMap[req]
+		if !ok || string(bytes.TrimSpace(raw)) == "null" {
+			missing = append(missing, req)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required argument(s): %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+// sortedPropertyNames returns a tool schema's property names, sorted, as a
+// comma-separated list for deterministic "valid: ..." diagnostics.
+func sortedPropertyNames(props map[string]PropertySchema) string {
+	names := make([]string, 0, len(props))
+	for k := range props {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }
 
 // BuildExtraArgs is the exported alias of buildExtraArgs, used by the
