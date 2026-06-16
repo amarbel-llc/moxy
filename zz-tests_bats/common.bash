@@ -254,6 +254,54 @@ start_moxy_http() {
   return 1
 }
 
+# Start `moxy serve-http --listen 127.0.0.1:0` (the caller-chosen fixed-bind
+# path) in the current directory's moxyfile. Passing :0 lets the kernel pick
+# the port so the test never races on a hardcoded number, while still driving
+# the --listen branch: moxy suppresses the clown-plugin handshake on stdout
+# and logs the bound address to stderr. We parse that address from stderr,
+# then wait for /healthz. Same exports and teardown contract as
+# start_moxy_http, so stop_moxy_http cleans up either.
+start_moxy_http_listen() {
+  _ensure_madder_default_store
+  MOXY_HTTP_STDOUT=$(mktemp)
+  MOXY_HTTP_STDERR=$(mktemp)
+
+  local moxy_cwd
+  moxy_cwd=$(_moxy_spawn_dir)
+  (cd "$moxy_cwd" && MOXY_HEARTBEAT_INTERVAL=0 "${MOXY_BIN:-moxy}" serve-http --listen 127.0.0.1:0) >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
+  MOXY_HTTP_PID=$!
+
+  local addr i
+  for ((i = 0; i < 100; i++)); do
+    addr=$(sed -n 's/.*streamable-http on \([0-9.]*:[0-9]*\) (--listen).*/\1/p' "$MOXY_HTTP_STDERR" | head -n 1)
+    [[ -n $addr ]] && break
+    if ! kill -0 "$MOXY_HTTP_PID" 2>/dev/null; then
+      echo "moxy serve-http --listen exited before binding; stderr:" >&2
+      cat "$MOXY_HTTP_STDERR" >&2
+      return 1
+    fi
+    sleep 0.1
+  done
+  if [[ -z ${addr:-} ]]; then
+    echo "moxy serve-http --listen bind timeout; stderr:" >&2
+    cat "$MOXY_HTTP_STDERR" >&2
+    return 1
+  fi
+  MOXY_HTTP_URL="http://$addr"
+
+  local code
+  for ((i = 0; i < 30; i++)); do
+    code=$(curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz" 2>/dev/null || true)
+    if [[ $code == 200 ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "healthz never became 200; stderr:" >&2
+  cat "$MOXY_HTTP_STDERR" >&2
+  return 1
+}
+
 stop_moxy_http() {
   if [[ -n ${MOXY_HTTP_PID:-} ]] && kill -0 "$MOXY_HTTP_PID" 2>/dev/null; then
     kill "$MOXY_HTTP_PID" 2>/dev/null || true

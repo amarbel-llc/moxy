@@ -133,7 +133,7 @@ func newApp() *command.App {
 				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT/SIGTERM.",
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return runServer(app, transportStdio)
+			return runServer(app, transportStdio, "")
 		},
 	})
 
@@ -141,12 +141,31 @@ func newApp() *command.App {
 		Name: "serve-http",
 		Description: command.Description{
 			Short: "Run as MCP proxy server over streamable HTTP",
-			Long: "Loads the moxyfile hierarchy, spawns child MCP servers, binds an " +
-				"ephemeral port on 127.0.0.1, prints a clown-plugin-protocol handshake " +
-				"line to stdout, serves /healthz and /mcp, and shuts down on SIGINT/SIGTERM.",
+			Long: "Loads the moxyfile hierarchy, spawns child MCP servers, serves " +
+				"/healthz and /mcp over streamable HTTP, and shuts down on " +
+				"SIGINT/SIGTERM. With no --listen flag, binds an ephemeral port on " +
+				"127.0.0.1 and prints a clown-plugin-protocol handshake line to " +
+				"stdout (for clown-plugin-host). With --listen ADDR, binds that " +
+				"fixed address instead and logs the bound address to stderr only — " +
+				"use this to put moxy behind a reverse proxy or tunnel that needs a " +
+				"stable upstream.",
 		},
-		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return runServer(app, transportHTTP)
+		Params: []command.Param{
+			{
+				Name:        "listen",
+				Type:        command.String,
+				Description: "Fixed TCP address to bind, e.g. 127.0.0.1:8731. When omitted, binds an ephemeral 127.0.0.1 port and prints the clown-plugin handshake.",
+				Default:     "",
+			},
+		},
+		RunCLI: func(_ context.Context, argsJSON json.RawMessage) error {
+			var args struct {
+				Listen string `json:"listen"`
+			}
+			if err := json.Unmarshal(argsJSON, &args); err != nil {
+				return err
+			}
+			return runServer(app, transportHTTP, args.Listen)
 		},
 	})
 
@@ -390,7 +409,7 @@ const (
 	transportHTTP
 )
 
-func runServer(app *command.App, mode transportMode) error {
+func runServer(app *command.App, mode transportMode, listenAddr string) error {
 	// Redirect os.Stderr (including Go panic traces) to a per-session log
 	// file so crashes that bypass the normal logging path can be recovered
 	// after the fact. Rotate on clean return so a leftover entry in
@@ -600,6 +619,13 @@ func runServer(app *command.App, mode transportMode) error {
 
 	switch mode {
 	case transportHTTP:
+		// A caller-supplied --listen address binds a fixed port and is
+		// meant to sit behind a reverse proxy or tunnel — there is no
+		// clown-plugin-host on the other end of stdout, so suppress the
+		// handshake line and report the bound address on stderr only.
+		if listenAddr != "" {
+			return runHTTPServer(ctx, listenAddr, "--listen", p, children, instructions)
+		}
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			for _, c := range children {
@@ -613,7 +639,7 @@ func runServer(app *command.App, mode transportMode) error {
 
 	default:
 		if httpAddr := os.Getenv("MOXY_HTTP_ADDR"); httpAddr != "" {
-			return runHTTPServer(ctx, httpAddr, p, children, instructions)
+			return runHTTPServer(ctx, httpAddr, "MOXY_HTTP_ADDR", p, children, instructions)
 		}
 
 		fmt.Fprintf(os.Stderr, "moxy: serving stdio\n")
@@ -648,12 +674,16 @@ func runServer(app *command.App, mode transportMode) error {
 	}
 }
 
-func runHTTPServer(ctx context.Context, addr string, p *proxy.Proxy, children []proxy.ChildEntry, instructions string) error {
+// runHTTPServer binds a fixed address and serves streamable HTTP on it.
+// source labels the stderr line with what selected the fixed bind (e.g.
+// "--listen" or "MOXY_HTTP_ADDR") and never reaches the wire — unlike the
+// ephemeral path, no clown-plugin handshake is printed to stdout.
+func runHTTPServer(ctx context.Context, addr, source string, p *proxy.Proxy, children []proxy.ChildEntry, instructions string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", addr, err)
 	}
-	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (MOXY_HTTP_ADDR)\n", ln.Addr())
+	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (%s)\n", ln.Addr(), source)
 	return runHTTPServerOnListener(ctx, ln, p, children, instructions)
 }
 

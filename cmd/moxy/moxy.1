@@ -8,6 +8,9 @@
 .Nm
 .Cm serve mcp
 .Nm
+.Cm serve-http
+.Op Fl -listen Ar addr
+.Nm
 .Cm validate
 .Nm
 .Cm add
@@ -26,7 +29,7 @@ and declarative tool configs (moxins) discovered from
 .Ev MOXIN_PATH
 .Pq see Xr moxin 7 .
 .Sh COMMANDS
-.Bl -tag -width "serve mcp"
+.Bl -tag -width "serve-http"
 .It Cm serve mcp
 Run as an MCP proxy server over stdio.
 This is the default command when invoked via the MCP protocol.
@@ -36,6 +39,29 @@ initialize handshakes, probes ephemeral servers, discovers moxins from
 and serves as a unified MCP server on stdin/stdout.
 Shuts down gracefully on
 .Dv SIGINT .
+.It Cm serve-http Op Fl -listen Ar addr
+Run as an MCP proxy server over streamable HTTP, serving
+.Pa /healthz
+and
+.Pa /mcp .
+With no
+.Fl -listen
+flag, binds an ephemeral port on
+.Li 127.0.0.1
+and prints a clown-plugin-protocol handshake line to stdout, for use
+under a clown-plugin-host.
+With
+.Fl -listen Ar addr
+.Pq e.g. Li 127.0.0.1:8731 ,
+binds that fixed address instead, suppresses the handshake line, and
+logs the bound address to stderr only \(em use this to place
+.Nm
+behind a reverse proxy or tunnel that needs a stable upstream.
+The
+.Ev MOXY_HTTP_ADDR
+environment variable applies the same fixed-bind behavior to the default
+.Pq stdio
+command.
 .It Cm validate
 Validate the moxyfile hierarchy and output results in TAP version 14
 format.
@@ -132,6 +158,15 @@ Colon-separated list of directories to search for moxin configs.
 See
 .Xr moxin 7
 for discovery details.
+.It Ev MOXY_HTTP_ADDR
+When set on the default
+.Pq stdio
+command, serves streamable HTTP on the given fixed address
+.Pq e.g. Li 127.0.0.1:8731
+instead of stdio.
+The
+.Cm serve-http Fl -listen
+flag is the first-class equivalent for the HTTP command.
 .El
 .Sh FILES
 .Bl -tag -width "./.madder/local/share/blob_stores/default/"

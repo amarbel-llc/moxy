@@ -43,6 +43,32 @@ function handshake_and_healthz { # @test
   assert_output "200"
 }
 
+function listen_flag_binds_caller_addr_and_serves { # @test
+  start_moxy_http_listen
+
+  # The --listen path must NOT print the clown-plugin handshake line to
+  # stdout — there is no plugin-host on the other end to consume it.
+  run cat "$MOXY_HTTP_STDOUT"
+  refute_output --partial "streamable-http"
+
+  # /healthz and a full MCP initialize both work on the bound address.
+  run curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz"
+  assert_success
+  assert_output "200"
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  assert_equal "$HTTP_STATUS" "200"
+  [[ -n $MOXY_SESSION_ID ]]
+}
+
+function no_listen_flag_still_prints_handshake { # @test
+  # Backward-compat: the default (no --listen) path still binds an ephemeral
+  # port and prints the clown-plugin-protocol handshake line on stdout.
+  start_moxy_http
+  run head -n 1 "$MOXY_HTTP_STDOUT"
+  assert_output --partial "|streamable-http"
+}
+
 function initialize_assigns_session_id { # @test
   start_moxy_http
 
