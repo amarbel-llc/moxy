@@ -137,3 +137,29 @@ function commit_fixup_followed_by_restack_autosquashes_the_fixup { # @test
   run cat a.txt
   assert_output "a content with annotation"
 }
+
+# Regression for the #366-class blob-URI substitution pathology (tracked
+# systemically in #371): moxy must not rewrite madder://blobs/<digest> URIs
+# that appear inside grit.commit's `message`. The commit message is verbatim
+# data, never a blob to stream, so the read-side /dev/fd/N rewrite only
+# corrupts it. This MUST route through the moxy proxy (run_moxy_mcp_v1) so
+# substituteArgvBlobURIs actually fires — invoking $BIN/commit directly
+# bypasses moxy's arg layer and would not catch the bug.
+function commit_message_with_madder_uri_is_written_verbatim { # @test
+  cd "$REPO"
+  echo "change" > tracked.txt
+  git add tracked.txt
+
+  local msg='ref madder://blobs/blake2b256-deadbeefcafe and madder://blobs/blake2b256-secondref'
+  local params
+  params=$(jq -cn --arg n "grit.commit" --arg m "$msg" --arg r "$REPO" \
+    '{name: $n, arguments: {message: $m, repo_path: $r}}')
+  run_moxy_mcp_v1 "tools/call" "$params"
+  assert_success
+
+  # The recorded commit message must be the bytes we passed — no /dev/fd/N.
+  # $(...) strips the trailing newline %B appends, leaving the verbatim line.
+  local body
+  body=$(git -C "$REPO" log -1 --format=%B)
+  assert_equal "$body" "$msg"
+}

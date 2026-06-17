@@ -2,6 +2,10 @@ schema = 3
 result-type = "text"
 perms-request = "always-allow"
 permit-async = false
+# The commit message is verbatim data, never a blob to stream; opt out of the
+# read-side madder://blobs -> /dev/fd/N argv rewrite so a message that mentions
+# a blob URI is recorded literally (#366-class; systemic fix tracked in #371).
+substitute-result-uris = false
 description = "Create a new commit with staged changes"
 command = "@BIN@/commit"
 arg-order = ["message", "amend", "fixup", "squash", "allow_empty", "repo_path"]

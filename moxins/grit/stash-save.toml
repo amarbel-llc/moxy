@@ -2,6 +2,9 @@ schema = 3
 result-type = "text"
 perms-request = "always-allow"
 permit-async = false
+# The stash message is verbatim data, never a blob to stream; opt out of the
+# read-side madder://blobs -> /dev/fd/N argv rewrite (#366-class; see #371).
+substitute-result-uris = false
 description = "Save uncommitted changes to a stash"
 command = "@BIN@/stash-save"
 arg-order = ["message", "include_untracked", "repo_path", "paths"]

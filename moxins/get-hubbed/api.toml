@@ -1,6 +1,10 @@
 schema = 3
 result-type = "text"
 content-type = "application/json"
+# The `body` arg is a verbatim JSON request payload, never a blob to stream;
+# opt out of the read-side madder://blobs -> /dev/fd/N argv rewrite so a body
+# that contains a blob URI is sent literally (#366-class; see #371).
+substitute-result-uris = false
 description = """
 Adhoc GitHub REST API client backed by `gh api`. Use for any endpoint
 get-hubbed doesn't yet expose as a dedicated tool. Authenticated session

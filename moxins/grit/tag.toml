@@ -2,6 +2,9 @@ schema = 3
 result-type = "text"
 perms-request = "dynamic"
 permit-async = false
+# The tag message is verbatim data, never a blob to stream; opt out of the
+# read-side madder://blobs -> /dev/fd/N argv rewrite (#366-class; see #371).
+substitute-result-uris = false
 description = """Manage git tags. Subcommands: create, delete, list, push, verify. \
 The arg shape for each subcommand mirrors the corresponding `git tag` / `git push` invocation. \
 Read-only subcommands (list, verify) auto-allow; create and push without --force auto-allow; \
