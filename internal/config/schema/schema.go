@@ -166,7 +166,7 @@ type AnnotationFilter struct {
 // DisableMoxinSet provides O(1) lookups for disabled moxins and moxin tools.
 type DisableMoxinSet struct {
 	servers map[string]bool // bare names like "chix"
-	tools   map[string]bool // dotted names like "man.semantic-search"
+	tools   map[string]bool // dotted names like "folio.write"
 }
 
 // BuildDisableMoxinSet partitions DisableMoxins into whole-server and

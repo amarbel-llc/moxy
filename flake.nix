@@ -24,13 +24,6 @@
       inputs.utils.follows = "utils";
     };
 
-    maneater = {
-      url = "github:amarbel-llc/maneater";
-      inputs.igloo.follows = "igloo";
-      inputs.nixpkgs-master.follows = "nixpkgs-master";
-      inputs.utils.follows = "utils";
-    };
-
     # amarbel-llc/bats provides bats-libs (the bundled library tree
     # consumed by mkBatsLane's batsLibPath). It used to also provide
     # batman (the sandcastle-wrapping bats wrapper) for the devshell,
@@ -87,7 +80,6 @@
       utils,
       purse-first,
       tommy,
-      maneater,
       bats,
       madder,
       treefmt-nix,
@@ -715,7 +707,6 @@
               pkgs.mandoc
               pkgs.manix
               pkgs.pandoc
-              maneater.packages.${system}.default
             ]
             {
               extraWrapArgs = [

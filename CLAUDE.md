@@ -15,7 +15,7 @@ automatically.
 
 ``` sh
 just                  # build + test (default target)
-just build-go         # go build only -> build/{moxy,maneater}
+just build-go         # go build only -> build/moxy
 just build-nix        # nix build (runs gomod2nix first)
 just test             # the gate: nix flake check + net_cap bats + runtime smokes
 just test-go          # fast devshell loop: go vet + go test (NOT the gate)
@@ -263,7 +263,6 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
 - `internal/status` -- unified status display and validation of moxyfile hierarchy
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
 - `internal/paginate` -- cursor-based pagination for resource lists
-- `internal/embedding` -- vector index, cosine similarity, CGo llama bindings
 - `internal/statsd` -- fire-and-forget UDP statsd metrics
   (`STATSD_HOST`/`STATSD_PORT`, kill switch `MOXY_DISABLE_STATSD=1`); emit
   sites: the `Proxy.CallToolV1` wrapper (all proxied tool dispatch),
@@ -284,8 +283,7 @@ Dispatched in `cmd/moxy/main.go`:
 
 Built with `go-mcp` from `amarbel-llc/purse-first`. The `command.App`, `server`,
 `transport`, and `protocol` packages provide the MCP framework. Uses `gomod2nix`
-for Nix builds. Maneater additionally links against `llama-cpp` via CGo for
-embedding generation.
+for Nix builds.
 
 ## Testing Conventions
 
@@ -311,7 +309,3 @@ embedding generation.
   `bats-default`, …) are auto-discovered from `# bats file_tags=` directives
   in each `.bats` file. See `flake.nix`'s `mkBatsLane`.
 - The justfile sets `output-format = "tap"` for TAP output from just itself
-- Embedding tests in `internal/embedding/` require `MANPAGE_MODEL_PATH` env var
-  pointing to the nomic GGUF model; they are skipped otherwise
-- `search_quality_test.go` documents expected ranking behavior and known
-  limitations --- update these when changing the embedding pipeline
