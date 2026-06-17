@@ -2,6 +2,12 @@ schema = 3
 result-type = "text"
 perms-request = "dynamic"
 permit-async = false
+# folio.write only ever WRITES; it never reads a cached-result blob. The
+# madder://blobs/<digest> -> /dev/fd/N argv rewrite is a read-side mechanism,
+# so leaving it on corrupts any file whose literal content contains such a
+# URI (the content arg is written verbatim, never read from the fd). Opt out
+# so content and file_path reach the script unmodified (#366).
+substitute-result-uris = false
 description = """Create or overwrite a file. Uses atomic write (tempfile + rename) to prevent \
 partial writes. Creates parent directories if needed. Preserves permissions of existing files."""
 command = "@BIN@/write"
