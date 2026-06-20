@@ -51,6 +51,33 @@ Examples:
   share a tool name; collisions are rejected at startup)
 - `--name-template '{server}.{tool}'` / no flag — current behaviour
 
+### Orthogonal to `--expose` (do not drop `--expose` on a public origin)
+
+`--name-template` only changes *how names are rendered*; it does **not** change
+*which categories of tools are exposed*. The two flags are independent and a
+public claude.ai origin needs both. In particular, an **empty `--expose`
+resolves to `full`** (child + resource-bridge + meta), so "just drop
+`--expose resources-only`" would re-expose moxy's control surface
+(`restart`/`async`/`batch`/`status`) on the public origin — the exact boundary
+`resources-only` was protecting. The correct migration for an origin moving from
+hidden-tools to visible-tools is to **swap the profile, not drop the flag**:
+
+```
+# before (FDR 0006): connection accepted, but tools-only UI is empty
+moxy serve-http --listen 127.0.0.1:8731 --expose resources-only
+
+# after: dot-free child tools visible AND callable, control surface still hidden
+moxy serve-http --listen 127.0.0.1:8731 \
+  --name-template '{server}_{tool}' \
+  --expose no-meta,-resource-bridge
+```
+
+`no-meta` keeps the control plane hidden; `-resource-bridge` drops the generic
+`<child>_resource-read`/`-templates` tools (a child's purpose-built read tool, or
+native resources, cover reads instead). The `--expose` filter still gates
+correctly under a custom template because categories are carried on the registry
+entry, not parsed from the rendered name.
+
 ### Parse rules (an intentional asymmetry)
 
 `{tool}` is **required**; `{server}` is **optional**. Dropping `{tool}` would

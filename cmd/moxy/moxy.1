@@ -136,7 +136,22 @@ template. The flag applies to
 .Cm serve-http
 only;
 .Cm serve-mcp
-always uses the default template. See
+always uses the default template.
+.Pp
+.Fl -name-template
+is orthogonal to
+.Fl -expose :
+it changes how names are rendered, not which categories are exposed. It does
+.Em not
+hide moxy's control surface, and an empty
+.Fl -expose
+resolves to
+.Sy full ,
+so a public origin must still pass
+.Fl -expose
+to gate the meta tools \(em e.g.
+.Li "--name-template '{server}_{tool}' --expose no-meta,-resource-bridge" ,
+not name-template alone. See
 .Cm render
 below and docs/features/0007-name-template.md.
 .It Cm render Op Fl -name-template Ar template
