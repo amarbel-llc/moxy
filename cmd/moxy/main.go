@@ -35,6 +35,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/status"
 	"github.com/amarbel-llc/moxy/internal/stderrlog"
 	"github.com/amarbel-llc/moxy/internal/streamhttp"
+	"github.com/amarbel-llc/moxy/internal/toolfilter"
 )
 
 // version and commit are set at build time via -ldflags.
@@ -133,7 +134,7 @@ func newApp() *command.App {
 				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT/SIGTERM.",
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return runServer(app, transportStdio, "")
+			return runServer(app, transportStdio, "", "")
 		},
 	})
 
@@ -157,15 +158,22 @@ func newApp() *command.App {
 				Description: "Fixed TCP address to bind, e.g. 127.0.0.1:8731. When omitted, binds an ephemeral 127.0.0.1 port and prints the clown-plugin handshake.",
 				Default:     "",
 			},
+			{
+				Name:        "expose",
+				Type:        command.String,
+				Description: "Tool-exposure filter for strict/public frontends, e.g. 'resources-only' or '-meta'. Comma-separated profiles (full, no-meta, resources-only) and +/-{child,resource-bridge,meta} toggles. Default (empty) exposes everything. See docs/features/0006-tool-exposure-filter.md.",
+				Default:     "",
+			},
 		},
 		RunCLI: func(_ context.Context, argsJSON json.RawMessage) error {
 			var args struct {
 				Listen string `json:"listen"`
+				Expose string `json:"expose"`
 			}
 			if err := json.Unmarshal(argsJSON, &args); err != nil {
 				return err
 			}
-			return runServer(app, transportHTTP, args.Listen)
+			return runServer(app, transportHTTP, args.Listen, args.Expose)
 		},
 	})
 
@@ -409,7 +417,14 @@ const (
 	transportHTTP
 )
 
-func runServer(app *command.App, mode transportMode, listenAddr string) error {
+func runServer(app *command.App, mode transportMode, listenAddr, expose string) error {
+	// Resolve the --expose tool-exposure filter before any expensive
+	// bootstrap so a bad selector fails fast.
+	toolFilter, err := toolfilter.Parse(expose)
+	if err != nil {
+		return fmt.Errorf("--expose: %w", err)
+	}
+
 	// Redirect os.Stderr (including Go panic traces) to a per-session log
 	// file so crashes that bypass the normal logging path can be recovered
 	// after the fact. Rotate on clean return so a leftover entry in
@@ -473,6 +488,10 @@ func runServer(app *command.App, mode transportMode, listenAddr string) error {
 	systemDir := bootRes.systemDir
 
 	p := proxy.New(children, failed, activeServers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
+	p.SetToolFilter(toolFilter)
+	if !toolFilter.IsAll() {
+		fmt.Fprintf(os.Stderr, "moxy: tool-exposure filter active (--expose): %s\n", toolFilter)
+	}
 	p.SetMadderClient(madderClient)
 	p.SetSessionID(sessionID)
 	p.SetMoxinReloader(&moxinReloaderImpl{

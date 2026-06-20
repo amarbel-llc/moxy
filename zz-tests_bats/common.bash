@@ -212,7 +212,8 @@ start_moxy_http() {
   # MOXY_HEARTBEAT_INTERVAL=30s wraps every POST in text/event-stream,
   # which breaks unrelated tests that jq-decode the body. Tests that
   # exercise heartbeat behavior should override this explicitly.
-  (cd "$moxy_cwd" && MOXY_HEARTBEAT_INTERVAL=0 "${MOXY_BIN:-moxy}" serve-http) >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
+  # Extra args ("$@") are appended to serve-http, e.g. --expose <selector>.
+  (cd "$moxy_cwd" && MOXY_HEARTBEAT_INTERVAL=0 "${MOXY_BIN:-moxy}" serve-http "$@") >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
   MOXY_HTTP_PID=$!
 
   local line addr i

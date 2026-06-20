@@ -82,6 +82,59 @@ function initialize_assigns_session_id { # @test
   echo "$output" | jq -e '.result.tools[] | select(.name == "srv.execute-command")'
 }
 
+function expose_no_meta_drops_meta_tools_keeps_child { # @test
+  # --expose no-meta hides moxy's control surface but keeps child tools.
+  start_moxy_http --expose no-meta
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  local body="$output"
+  run jq -e '.result.tools[] | select(.name == "srv.execute-command")' <<<"$body"
+  assert_success
+  run jq -e '.result.tools[] | select(.name == "restart")' <<<"$body"
+  assert_failure
+
+  # Hidden is also uncallable — the security boundary, not just a list filter.
+  http_post_mcp "tools/call" '{"name":"restart","arguments":{"server":"srv"}}' "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  body="$output"
+  run jq -e '.result.isError == true' <<<"$body"
+  assert_success
+  run jq -e '.result.content[0].text | test("not exposed")' <<<"$body"
+  assert_success
+}
+
+function expose_resources_only_drops_all_tools { # @test
+  # --expose resources-only advertises zero tools; resources (none here) would
+  # still flow natively. The child's own tool is gone and uncallable.
+  start_moxy_http --expose resources-only
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  run jq -r '.result.tools | length' <<<"$output"
+  assert_output "0"
+
+  http_post_mcp "tools/call" '{"name":"srv.execute-command","arguments":{"cmd":"echo hi"}}' "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  local body="$output"
+  run jq -e '.result.isError == true' <<<"$body"
+  assert_success
+  run jq -e '.result.content[0].text | test("not exposed")' <<<"$body"
+  assert_success
+}
+
+function expose_invalid_selector_refuses_to_start { # @test
+  # A bad --expose selector fails fast: moxy exits before it ever serves.
+  run start_moxy_http --expose bogus-profile
+  assert_failure
+}
+
 function tools_list_without_session_returns_404 { # @test
   start_moxy_http
 

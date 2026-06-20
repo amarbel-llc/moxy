@@ -10,6 +10,7 @@
 .Nm
 .Cm serve-http
 .Op Fl -listen Ar addr
+.Op Fl -expose Ar selector
 .Nm
 .Cm validate
 .Nm
@@ -39,7 +40,7 @@ initialize handshakes, probes ephemeral servers, discovers moxins from
 and serves as a unified MCP server on stdin/stdout.
 Shuts down gracefully on
 .Dv SIGINT .
-.It Cm serve-http Op Fl -listen Ar addr
+.It Cm serve-http Op Fl -listen Ar addr Op Fl -expose Ar selector
 Run as an MCP proxy server over streamable HTTP, serving
 .Pa /healthz
 and
@@ -62,6 +63,42 @@ The
 environment variable applies the same fixed-bind behavior to the default
 .Pq stdio
 command.
+.Pp
+The
+.Fl -expose Ar selector
+flag restricts which categories of tools are advertised and dispatched \(em
+for strict or public frontends that should not see moxy's full surface.
+Every tool is classified by name into one of three categories:
+.Sy child
+.Pq proxied child-server tools, e.g. grit.status ,
+.Sy resource-bridge
+.Pq synthetic <server>.resource-read / .resource-templates tools ,
+and
+.Sy meta
+.Pq moxy and framework builtins: status, restart, batch, async\(emfamily .
+.Ar selector
+is a comma-separated list applied left-to-right over a base of
+.Sy full :
+a profile name
+.Pq Sy full , Sy no-meta , Sy resources-only
+resets the set, and a
+.Sy + Ns Ar cat
+/
+.Sy - Ns Ar cat
+toggle adjusts it
+.Pq e.g. Li -meta , Li resources-only .
+An excluded category is neither listed nor callable, so
+.Li --expose resources-only
+on a public origin exposes children's resources natively while hiding all
+tools, and
+.Li --expose no-meta
+keeps child tools but removes moxy's control surface.
+Resources are served natively regardless of this flag.
+Omitting it
+.Pq or Li --expose full
+exposes everything, the default.
+Unknown profile or category names are rejected at startup.
+See docs/features/0006-tool-exposure-filter.md.
 .It Cm validate
 Validate the moxyfile hierarchy and output results in TAP version 14
 format.

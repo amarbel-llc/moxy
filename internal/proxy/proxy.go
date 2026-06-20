@@ -21,6 +21,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/paginate"
 	"github.com/amarbel-llc/moxy/internal/permcheck"
 	"github.com/amarbel-llc/moxy/internal/statsd"
+	"github.com/amarbel-llc/moxy/internal/toolfilter"
 )
 
 // MoxinReloader re-discovers a single moxin's config by name from the
@@ -121,6 +122,7 @@ type Proxy struct {
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
 	resolver                    *permcheck.Resolver
+	toolFilter                  toolfilter.Filter // which tool categories to expose; default All()
 	dispatchSubCall             subCallDispatcher // test seam; nil → use CallToolV1
 	mu                          sync.RWMutex
 }
@@ -148,6 +150,14 @@ func (p *Proxy) SetMadderClient(m native.MadderBackend) {
 
 func (p *Proxy) SetBuiltinTools(registry *server.ToolRegistryV1) {
 	p.builtinTools = registry
+}
+
+// SetToolFilter restricts which tool categories the proxy advertises and
+// dispatches. The default (New) is toolfilter.All(); serve-http --expose
+// passes a narrower filter. Excluded categories are neither listed nor
+// callable — see docs/features/0006-tool-exposure-filter.md.
+func (p *Proxy) SetToolFilter(f toolfilter.Filter) {
+	p.toolFilter = f
 }
 
 func (p *Proxy) SetSessionID(id string) {
@@ -225,6 +235,7 @@ func New(
 		globalEphemeral:             globalEphemeral,
 		globalProgressiveDisclosure: globalProgressiveDisclosure,
 		connectFunc:                 connectFunc,
+		toolFilter:                  toolfilter.All(),
 	}
 	moxy := &moxyResourceProvider{proxy: p}
 	p.moxyProvider = moxy
@@ -654,8 +665,28 @@ func (p *Proxy) ListToolsV1(
 		}
 	}
 
+	allTools = p.applyToolFilter(allTools)
+
 	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
+}
+
+// applyToolFilter drops tools whose category the configured --expose filter
+// excludes. Categorization is by name (toolfilter.Categorize), the same
+// function CallToolV1 uses to gate dispatch, so the advertised surface and the
+// callable surface never disagree. The default All() filter short-circuits to
+// a no-op.
+func (p *Proxy) applyToolFilter(tools []protocol.ToolV1) []protocol.ToolV1 {
+	if p.toolFilter.IsAll() {
+		return tools
+	}
+	kept := tools[:0]
+	for _, t := range tools {
+		if p.toolFilter.Allows(toolfilter.Categorize(t.Name)) {
+			kept = append(kept, t)
+		}
+	}
+	return kept
 }
 
 // CallToolV1 dispatches a tool call and emits fire-and-forget statsd
@@ -699,6 +730,17 @@ func (p *Proxy) callToolV1(
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
 	debugLog("CallToolV1 path hit for tool %q", name)
+
+	// Enforce the --expose filter at the single dispatch funnel: a tool whose
+	// category is excluded is not callable, even by a client that already
+	// knows its name. This is what makes `--expose no-meta` / `resources-only`
+	// a real boundary on a public origin rather than a cosmetic list filter.
+	if !p.toolFilter.Allows(toolfilter.Categorize(name)) {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("tool %q is not exposed by this server", name),
+		), nil
+	}
+
 	if p.builtinTools != nil && p.hasBuiltinTool(name) {
 		return p.builtinTools.CallToolV1(ctx, name, args)
 	}
