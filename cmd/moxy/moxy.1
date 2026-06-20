@@ -40,7 +40,7 @@ initialize handshakes, probes ephemeral servers, discovers moxins from
 and serves as a unified MCP server on stdin/stdout.
 Shuts down gracefully on
 .Dv SIGINT .
-.It Cm serve-http Op Fl -listen Ar addr Op Fl -expose Ar selector
+.It Cm serve-http Op Fl -listen Ar addr Op Fl -expose Ar selector Op Fl -name-template Ar template
 Run as an MCP proxy server over streamable HTTP, serving
 .Pa /healthz ,
 .Pa /mcp ,
@@ -103,6 +103,58 @@ Omitting it
 exposes everything, the default.
 Unknown profile or category names are rejected at startup.
 See docs/features/0006-tool-exposure-filter.md.
+.Pp
+The
+.Fl -name-template Ar template
+flag changes how child tool and prompt names are advertised. The default
+.Pq Li "{server}.{tool}"
+is the historical dot join; a strict frontend such as claude.ai rejects any
+tool name containing a dot, so
+.Li "--name-template '{server}_{tool}'"
+advertises dot-free names
+.Pq e.g. Li grit_commit
+that pass its
+.Li ^[a-zA-Z0-9_-]{1,64}$
+validator.
+.Ar template
+is arbitrary text with the placeholders
+.Li {server}
+and
+.Li {tool} ;
+.Li {tool}
+is required, while
+.Li {server}
+is optional
+.Pq dropping it , e.g. Li "{tool}" , risks cross-server collisions .
+A malformed template is rejected at flag parse; a template under which two
+distinct
+.Pq server, tool
+pairs render to the same name is rejected at startup rather than silently
+shadowing one. Dispatch reverse-resolves a rendered name through a registry
+built at list time, so it round-trips to the child's original tool regardless of
+template. The flag applies to
+.Cm serve-http
+only;
+.Cm serve-mcp
+always uses the default template. See
+.Cm render
+below and docs/features/0007-name-template.md.
+.It Cm render Op Fl -name-template Ar template
+Render or reverse-resolve a namespaced tool/prompt name under a template,
+without a running server. Forward
+.Pq Fl -server Ar s Fl -tool Ar t
+prints the advertised name; reverse
+.Pq Fl -resolve Ar name
+prints the canonical tab-separated
+.Ar server No and Ar tool
+via a structural inverse, which works only for invertible templates
+.Pq exactly one Li {server} and one Li {tool} separated by a literal .
+.Nm Cm render
+does not introspect a running server \(em pass the same
+.Fl -name-template
+you gave
+.Cm serve-http .
+See docs/features/0007-name-template.md.
 .It Cm validate
 Validate the moxyfile hierarchy and output results in TAP version 14
 format.

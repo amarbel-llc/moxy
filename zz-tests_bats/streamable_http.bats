@@ -135,6 +135,79 @@ function expose_invalid_selector_refuses_to_start { # @test
   assert_failure
 }
 
+function name_template_default_is_dotted { # @test
+  # No --name-template flag: names keep the historical dot join (back-compat).
+  start_moxy_http
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  run jq -e '.result.tools[] | select(.name == "srv.execute-command")' <<<"$output"
+  assert_success
+}
+
+function name_template_underscore_advertises_safe_names { # @test
+  # --name-template '{server}_{tool}' renders dot-free names for strict
+  # frontends (claude.ai rejects any dotted tool name). The dotted form is gone
+  # and no advertised name contains a dot.
+  start_moxy_http --name-template '{server}_{tool}'
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  local body="$output"
+  run jq -e '.result.tools[] | select(.name == "srv_execute-command")' <<<"$body"
+  assert_success
+  run jq -e '.result.tools[] | select(.name == "srv.execute-command")' <<<"$body"
+  assert_failure
+  # The whole point: claude.ai's validator rejects any dot, so assert none.
+  run jq -e '[.result.tools[].name | select(test("\\."))] | length == 0' <<<"$body"
+  assert_success
+}
+
+function name_template_underscore_dispatch_round_trips { # @test
+  # A call to the rendered name routes to the child's original tool name.
+  start_moxy_http --name-template '{server}_{tool}'
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  http_post_mcp "tools/call" '{"name":"srv_execute-command","arguments":{"cmd":"echo hi"}}' "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  local body="$output"
+  run jq -e '.result.isError != true' <<<"$body"
+  assert_success
+  run jq -e '.result.content[0].text | test("executed: echo hi")' <<<"$body"
+  assert_success
+}
+
+function name_template_missing_tool_refuses_to_start { # @test
+  # A template without {tool} is malformed — fail fast before serving.
+  run start_moxy_http --name-template '{server}'
+  assert_failure
+}
+
+function name_template_collision_refuses_to_start { # @test
+  # Two servers both exposing 'execute-command' collide under '{tool}' (the
+  # server prefix is dropped) → moxy refuses to serve rather than shadow one.
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+
+[[servers]]
+name = "srv2"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+
+  run start_moxy_http --name-template '{tool}'
+  assert_failure
+}
+
 function clown_system_prompt_fragment_served { # @test
   # clown fetches /clown/system-prompt once after health, before claude
   # launches (RFC-0002 §5). It returns a 200 Markdown fragment listing live

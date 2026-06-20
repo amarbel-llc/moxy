@@ -28,6 +28,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/credentials"
 	"github.com/amarbel-llc/moxy/internal/hook"
 	"github.com/amarbel-llc/moxy/internal/mcpclient"
+	"github.com/amarbel-llc/moxy/internal/naming"
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/oauth"
 	"github.com/amarbel-llc/moxy/internal/permcheck"
@@ -134,7 +135,7 @@ func newApp() *command.App {
 				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT/SIGTERM.",
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return runServer(app, transportStdio, "", "")
+			return runServer(app, transportStdio, "", "", "")
 		},
 	})
 
@@ -164,16 +165,23 @@ func newApp() *command.App {
 				Description: "Tool-exposure filter for strict/public frontends, e.g. 'resources-only' or '-meta'. Comma-separated profiles (full, no-meta, resources-only) and +/-{child,resource-bridge,meta} toggles. Default (empty) exposes everything. See docs/features/0006-tool-exposure-filter.md.",
 				Default:     "",
 			},
+			{
+				Name:        "name-template",
+				Type:        command.String,
+				Description: "Template for advertised tool/prompt names using {server} and {tool}, e.g. '{server}_{tool}' for claude.ai-safe dot-free names. Default '{server}.{tool}'. {tool} is required; omitting {server} risks cross-server collisions (rejected at startup). See docs/features/0007-name-template.md.",
+				Default:     "",
+			},
 		},
 		RunCLI: func(_ context.Context, argsJSON json.RawMessage) error {
 			var args struct {
-				Listen string `json:"listen"`
-				Expose string `json:"expose"`
+				Listen       string `json:"listen"`
+				Expose       string `json:"expose"`
+				NameTemplate string `json:"name-template"`
 			}
 			if err := json.Unmarshal(argsJSON, &args); err != nil {
 				return err
 			}
-			return runServer(app, transportHTTP, args.Listen, args.Expose)
+			return runServer(app, transportHTTP, args.Listen, args.Expose, args.NameTemplate)
 		},
 	})
 
@@ -334,6 +342,77 @@ func newApp() *command.App {
 	})
 
 	app.AddCommand(&command.Command{
+		Name: "render",
+		Description: command.Description{
+			Short: "Render or reverse-resolve a namespaced tool/prompt name under a template",
+			Long: "Forward (default): prints the advertised name for --server/--tool " +
+				"under --name-template. Reverse (--resolve <rendered>): prints the " +
+				"canonical \"server<TAB>tool\" via a structural inverse, which works " +
+				"only for invertible templates (exactly one {server} and one {tool} " +
+				"separated by a literal). render does NOT introspect a running " +
+				"server — pass the same --name-template you gave serve-http. " +
+				"See docs/features/0007-name-template.md.",
+		},
+		Params: []command.Param{
+			{
+				Name:        "name-template",
+				Type:        command.String,
+				Description: "Template using {server} and {tool}. Default '{server}.{tool}'.",
+				Default:     "",
+			},
+			{
+				Name:        "server",
+				Type:        command.String,
+				Description: "Server name (forward direction).",
+				Default:     "",
+			},
+			{
+				Name:        "tool",
+				Type:        command.String,
+				Description: "Tool or prompt name (forward direction).",
+				Default:     "",
+			},
+			{
+				Name:        "resolve",
+				Type:        command.String,
+				Description: "Reverse-resolve this rendered name to 'server<TAB>tool' instead of rendering forward.",
+				Default:     "",
+			},
+		},
+		RunCLI: func(_ context.Context, argsJSON json.RawMessage) error {
+			var args struct {
+				NameTemplate string `json:"name-template"`
+				Server       string `json:"server"`
+				Tool         string `json:"tool"`
+				Resolve      string `json:"resolve"`
+			}
+			if err := json.Unmarshal(argsJSON, &args); err != nil {
+				return err
+			}
+			tmpl, err := naming.Parse(args.NameTemplate)
+			if err != nil {
+				return fmt.Errorf("--name-template: %w", err)
+			}
+			if args.Resolve != "" {
+				if !tmpl.Invertible() {
+					return fmt.Errorf("cannot resolve %q: template %q is not invertible without the live server set", args.Resolve, tmpl)
+				}
+				server, tool, ok := tmpl.Resolve(args.Resolve)
+				if !ok {
+					return fmt.Errorf("cannot resolve %q under template %q", args.Resolve, tmpl)
+				}
+				fmt.Printf("%s\t%s\n", server, tool)
+				return nil
+			}
+			if args.Server == "" || args.Tool == "" {
+				return fmt.Errorf("forward render requires --server and --tool (or use --resolve)")
+			}
+			fmt.Println(tmpl.Render(args.Server, args.Tool))
+			return nil
+		},
+	})
+
+	app.AddCommand(&command.Command{
 		Name: "hook",
 		Description: command.Description{
 			Short: "Handle MCP hook protocol",
@@ -417,12 +496,21 @@ const (
 	transportHTTP
 )
 
-func runServer(app *command.App, mode transportMode, listenAddr, expose string) error {
+func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTemplate string) error {
 	// Resolve the --expose tool-exposure filter before any expensive
 	// bootstrap so a bad selector fails fast.
 	toolFilter, err := toolfilter.Parse(expose)
 	if err != nil {
 		return fmt.Errorf("--expose: %w", err)
+	}
+
+	// Resolve the --name-template the same way: a malformed template (unknown
+	// placeholder, missing {tool}, unterminated brace) fails fast before any
+	// child is spawned. A valid-but-colliding template can only be detected once
+	// the live server set is known — checked after ProbeEphemeral below.
+	tmpl, err := naming.Parse(nameTemplate)
+	if err != nil {
+		return fmt.Errorf("--name-template: %w", err)
 	}
 
 	// Redirect os.Stderr (including Go panic traces) to a per-session log
@@ -491,6 +579,10 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose string) 
 	p.SetToolFilter(toolFilter)
 	if !toolFilter.IsAll() {
 		fmt.Fprintf(os.Stderr, "moxy: tool-exposure filter active (--expose): %s\n", toolFilter)
+	}
+	p.SetNameTemplate(tmpl)
+	if !tmpl.IsDefault() {
+		fmt.Fprintf(os.Stderr, "moxy: name template active (--name-template): %s\n", tmpl)
 	}
 	p.SetMadderClient(madderClient)
 	p.SetSessionID(sessionID)
@@ -632,6 +724,17 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose string) 
 	}
 
 	p.ProbeEphemeral(ctx)
+
+	// A custom name template may map two distinct (server, tool) pairs to one
+	// rendered name (e.g. "{tool}" with two servers exposing "read"). Detect it
+	// now that the full server set is known and refuse to serve rather than
+	// silently shadow a tool on what is often a public origin. The default
+	// template never collides, so skip the sweep there.
+	if !tmpl.IsDefault() {
+		if err := p.CheckNameCollisions(ctx); err != nil {
+			return fmt.Errorf("--name-template %q: %w", tmpl, err)
+		}
+	}
 
 	summaries := p.CollectServerSummaries(ctx)
 	instructions := proxy.FormatInstructions(summaries)

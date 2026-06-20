@@ -17,6 +17,7 @@ import (
 
 	"github.com/amarbel-llc/moxy/internal/asyncjob"
 	"github.com/amarbel-llc/moxy/internal/config"
+	"github.com/amarbel-llc/moxy/internal/naming"
 	"github.com/amarbel-llc/moxy/internal/native"
 	"github.com/amarbel-llc/moxy/internal/paginate"
 	"github.com/amarbel-llc/moxy/internal/permcheck"
@@ -123,6 +124,11 @@ type Proxy struct {
 	bootstrapper                Bootstrapper
 	resolver                    *permcheck.Resolver
 	toolFilter                  toolfilter.Filter // which tool categories to expose; default All()
+	nameTemplate                naming.Template   // how tool/prompt names are rendered; default {server}.{tool}
+	toolRegistry                naming.Registry   // rendered tool name → canonical Entry; rebuilt on every ListToolsV1
+	promptRegistry              naming.Registry   // rendered prompt name → canonical Entry; rebuilt on every ListPromptsV1
+	toolCollision               error             // last tool-name collision under a custom template (nil if none)
+	promptCollision             error             // last prompt-name collision under a custom template (nil if none)
 	dispatchSubCall             subCallDispatcher // test seam; nil → use CallToolV1
 	mu                          sync.RWMutex
 }
@@ -158,6 +164,38 @@ func (p *Proxy) SetBuiltinTools(registry *server.ToolRegistryV1) {
 // callable — see docs/features/0006-tool-exposure-filter.md.
 func (p *Proxy) SetToolFilter(f toolfilter.Filter) {
 	p.toolFilter = f
+}
+
+// SetNameTemplate sets the template used to render child tool/prompt names. The
+// default (New) is naming.DefaultTemplate() ("{server}.{tool}"), which renders
+// byte-identically to the historical dot join and keeps the splitPrefix dispatch
+// fast path. serve-http --name-template passes a custom template; under one,
+// dispatch resolves via the rendered→canonical registries instead of parsing.
+func (p *Proxy) SetNameTemplate(t naming.Template) {
+	p.nameTemplate = t
+}
+
+// CheckNameCollisions enumerates the full tool and prompt surface once and
+// returns the first name-template collision (a *naming.CollisionError), if any.
+// serve-http calls it at startup under a custom template to fail fast rather
+// than silently shadowing a tool or prompt on a public origin. The default
+// template never collides, so callers skip it there.
+func (p *Proxy) CheckNameCollisions(ctx context.Context) error {
+	if _, err := p.ListToolsV1(ctx, ""); err != nil {
+		return err
+	}
+	if _, err := p.ListPromptsV1(ctx, ""); err != nil {
+		return err
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.toolCollision != nil {
+		return p.toolCollision
+	}
+	if p.promptCollision != nil {
+		return p.promptCollision
+	}
+	return nil
 }
 
 func (p *Proxy) SetSessionID(id string) {
@@ -236,6 +274,7 @@ func New(
 		globalProgressiveDisclosure: globalProgressiveDisclosure,
 		connectFunc:                 connectFunc,
 		toolFilter:                  toolfilter.All(),
+		nameTemplate:                naming.DefaultTemplate(),
 	}
 	moxy := &moxyResourceProvider{proxy: p}
 	p.moxyProvider = moxy
@@ -509,6 +548,26 @@ func (p *Proxy) ListToolsV1(
 
 	allTools := make([]protocol.ToolV1, 0)
 
+	// Render each advertised name through the configured template and, in the
+	// same pass, record its canonical (server, original, category) so dispatch
+	// can reverse-resolve a custom template without re-parsing the rendered
+	// string. seen drops any duplicate rendered name (impossible under the
+	// default template; possible under a name-dropping custom template — the
+	// later entry is dropped, first-wins, matching the registry).
+	tb := naming.NewBuilder(p.nameTemplate)
+	seen := make(map[string]bool)
+	addTool := func(server, original string, cat naming.Category, tool protocol.ToolV1) {
+		rendered := p.nameTemplate.Render(server, original)
+		tb.Add(naming.Entry{Server: server, Original: original, Kind: naming.KindTool, Category: cat})
+		if seen[rendered] {
+			debugLog("ListToolsV1: dropping duplicate rendered tool name %q (server %q, tool %q)", rendered, server, original)
+			return
+		}
+		seen[rendered] = true
+		tool.Name = rendered
+		allTools = append(allTools, tool)
+	}
+
 	debugLog("ListToolsV1: %d children, %d failed", len(children), len(failed))
 	for _, child := range children {
 		debugLog("ListToolsV1: child %q caps.Tools=%v progressive=%v",
@@ -558,13 +617,16 @@ func (p *Proxy) ListToolsV1(
 				debugLog("ListToolsV1: FILTERED %q.%q by annotation", child.Client.Name(), tool.Name)
 				continue
 			}
-			tool.Name = child.Client.Name() + "." + tool.Name
+			original := tool.Name
 			prefixToolTitle(&tool, child.Client.Name())
-			allTools = append(allTools, tool)
+			addTool(child.Client.Name(), original, naming.CategoryChild, tool)
 		}
 	}
 
-	// Inject synthetic resource tools for resource-capable children
+	// Inject synthetic resource tools for resource-capable children. A child
+	// that already advertises a tool rendering to the same name (seen) wins,
+	// so the synthetic is skipped — the same collision check as before, now
+	// keyed by rendered name.
 	for _, child := range children {
 		if child.Capabilities.Resources == nil {
 			continue
@@ -577,38 +639,7 @@ func (p *Proxy) ListToolsV1(
 		}
 
 		serverName := child.Client.Name()
-
-		// Check for collisions with child's own tools
-		hasResourceRead := false
-		hasResourceTemplates := false
-		for _, t := range allTools {
-			if t.Name == serverName+".resource-read" {
-				hasResourceRead = true
-			}
-			if t.Name == serverName+".resource-templates" {
-				hasResourceTemplates = true
-			}
-		}
-
-		if !hasResourceRead {
-			allTools = append(allTools, protocol.ToolV1{
-				Name:        serverName + ".resource-read",
-				Title:       serverName + ": Read Resource",
-				Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
-				InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
-				Annotations: readOnlyAnnotations(),
-			})
-		}
-
-		if !hasResourceTemplates {
-			allTools = append(allTools, protocol.ToolV1{
-				Name:        serverName + ".resource-templates",
-				Title:       serverName + ": List Resource Templates",
-				Description: fmt.Sprintf("List available resource templates for %s", serverName),
-				InputSchema: json.RawMessage(`{"type":"object"}`),
-				Annotations: readOnlyAnnotations(),
-			})
-		}
+		p.addSyntheticResourceTools(serverName, seen, addTool)
 	}
 
 	// Append cached tools from ephemeral servers
@@ -618,35 +649,21 @@ func (p *Proxy) ListToolsV1(
 				if !matchesAnnotationFilter(tool.Annotations, meta.Config.Annotations) {
 					continue
 				}
-				tool.Name = serverName + "." + tool.Name
+				original := tool.Name
 				prefixToolTitle(&tool, serverName)
-				allTools = append(allTools, tool)
+				addTool(serverName, original, naming.CategoryChild, tool)
 			}
 			if meta.Capabilities.Resources != nil {
 				grt := meta.Config.GenerateResourceTools
 				if grt == nil || *grt {
-					allTools = append(allTools, protocol.ToolV1{
-						Name:        serverName + ".resource-read",
-						Title:       serverName + ": Read Resource",
-						Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
-						InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
-						Annotations: readOnlyAnnotations(),
-					})
-					allTools = append(allTools, protocol.ToolV1{
-						Name:        serverName + ".resource-templates",
-						Title:       serverName + ": List Resource Templates",
-						Description: fmt.Sprintf("List available resource templates for %s", serverName),
-						InputSchema: json.RawMessage(`{"type":"object"}`),
-						Annotations: readOnlyAnnotations(),
-					})
+					p.addSyntheticResourceTools(serverName, seen, addTool)
 				}
 			}
 		}
 	}
 
 	for _, f := range failed {
-		allTools = append(allTools, protocol.ToolV1{
-			Name:  f.Name + ".status",
+		addTool(f.Name, "status", naming.CategoryChild, protocol.ToolV1{
 			Title: f.Name + ": Server Status",
 			Description: fmt.Sprintf(
 				"Server %q failed to start: %s",
@@ -658,6 +675,9 @@ func (p *Proxy) ListToolsV1(
 		})
 	}
 
+	// Builtins (restart, batch, async*, status) bypass the template entirely —
+	// they have no server prefix, keep their literal names, and never enter the
+	// registry (the meta-tool bypass).
 	if p.builtinTools != nil {
 		builtinResult, _ := p.builtinTools.ListToolsV1(ctx, "")
 		if builtinResult != nil {
@@ -665,28 +685,127 @@ func (p *Proxy) ListToolsV1(
 		}
 	}
 
-	allTools = p.applyToolFilter(allTools)
+	reg, collErr := tb.Build()
+	p.mu.Lock()
+	p.toolRegistry = reg
+	p.toolCollision = collErr
+	p.mu.Unlock()
+	if collErr != nil {
+		debugLog("ListToolsV1: name-template collision: %v", collErr)
+		fmt.Fprintf(os.Stderr, "moxy: name-template tool collision (later tool dropped): %v\n", collErr)
+	}
+
+	allTools = p.applyToolFilter(allTools, reg)
 
 	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
 }
 
+// addSyntheticResourceTools appends the resource-read / resource-templates bridge
+// tools for a resource-capable server via addTool (so they land in both the list
+// and the registry, classified ResourceBridge). addTool's seen check skips either
+// one whose rendered name a real child tool already claimed.
+func (p *Proxy) addSyntheticResourceTools(
+	serverName string,
+	seen map[string]bool,
+	addTool func(server, original string, cat naming.Category, tool protocol.ToolV1),
+) {
+	if !seen[p.nameTemplate.Render(serverName, "resource-read")] {
+		addTool(serverName, "resource-read", naming.CategoryResourceBridge, protocol.ToolV1{
+			Title:       serverName + ": Read Resource",
+			Description: fmt.Sprintf("Read a resource from %s by URI", serverName),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","description":"Resource URI"}},"required":["uri"]}`),
+			Annotations: readOnlyAnnotations(),
+		})
+	}
+	if !seen[p.nameTemplate.Render(serverName, "resource-templates")] {
+		addTool(serverName, "resource-templates", naming.CategoryResourceBridge, protocol.ToolV1{
+			Title:       serverName + ": List Resource Templates",
+			Description: fmt.Sprintf("List available resource templates for %s", serverName),
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+			Annotations: readOnlyAnnotations(),
+		})
+	}
+}
+
 // applyToolFilter drops tools whose category the configured --expose filter
-// excludes. Categorization is by name (toolfilter.Categorize), the same
-// function CallToolV1 uses to gate dispatch, so the advertised surface and the
-// callable surface never disagree. The default All() filter short-circuits to
-// a no-op.
-func (p *Proxy) applyToolFilter(tools []protocol.ToolV1) []protocol.ToolV1 {
+// excludes. The category comes from the just-built registry (reg), not from
+// re-parsing the rendered name — under a custom template the name no longer
+// reveals its category. CallToolV1 gates dispatch with the same category source,
+// so the advertised and callable surfaces never disagree. The default All()
+// filter short-circuits to a no-op.
+func (p *Proxy) applyToolFilter(tools []protocol.ToolV1, reg naming.Registry) []protocol.ToolV1 {
 	if p.toolFilter.IsAll() {
 		return tools
 	}
 	kept := tools[:0]
 	for _, t := range tools {
-		if p.toolFilter.Allows(toolfilter.Categorize(t.Name)) {
+		if p.toolFilter.Allows(categoryFromRegistry(t.Name, reg)) {
 			kept = append(kept, t)
 		}
 	}
 	return kept
+}
+
+// categoryFromRegistry resolves a rendered tool name to its --expose category.
+// A registered name carries its category from build time; anything absent (the
+// builtins, which bypass the template) is classified by toolfilter.Categorize,
+// which maps a prefixless name to Meta.
+func categoryFromRegistry(name string, reg naming.Registry) toolfilter.Category {
+	if e, ok := reg.Lookup(name); ok {
+		return mapCategory(e.Category)
+	}
+	return toolfilter.Categorize(name)
+}
+
+// mapCategory translates a naming.Category to its toolfilter.Category twin. The
+// two enums are kept separate to avoid an import cycle; this is the single
+// translation site.
+func mapCategory(c naming.Category) toolfilter.Category {
+	switch c {
+	case naming.CategoryResourceBridge:
+		return toolfilter.ResourceBridge
+	case naming.CategoryMeta:
+		return toolfilter.Meta
+	default:
+		return toolfilter.Child
+	}
+}
+
+// resolveToolName maps an advertised (rendered) tool name back to its canonical
+// (server, original). Under the default template it keeps the historical
+// splitPrefix fast path (zero behaviour change for every existing deployment);
+// under a custom template it consults the cached registry, refreshing it once on
+// a miss in case a client dispatches before ever listing.
+func (p *Proxy) resolveToolName(ctx context.Context, name string) (server, original string, ok bool) {
+	if p.nameTemplate.IsDefault() {
+		return splitPrefix(name, ".")
+	}
+	p.mu.RLock()
+	e, found := p.toolRegistry.Lookup(name)
+	p.mu.RUnlock()
+	if !found {
+		_, _ = p.ListToolsV1(ctx, "") // refresh the registry as a side effect
+		p.mu.RLock()
+		e, found = p.toolRegistry.Lookup(name)
+		p.mu.RUnlock()
+	}
+	if !found {
+		return "", "", false
+	}
+	return e.Server, e.Original, true
+}
+
+// toolCategory resolves a rendered tool name to its --expose category for the
+// dispatch gate, using the same source as the list filter.
+func (p *Proxy) toolCategory(name string) toolfilter.Category {
+	if p.nameTemplate.IsDefault() {
+		return toolfilter.Categorize(name)
+	}
+	p.mu.RLock()
+	reg := p.toolRegistry
+	p.mu.RUnlock()
+	return categoryFromRegistry(name, reg)
 }
 
 // CallToolV1 dispatches a tool call and emits fire-and-forget statsd
@@ -701,17 +820,34 @@ func (p *Proxy) CallToolV1(
 ) (*protocol.ToolCallResultV1, error) {
 	start := time.Now()
 	result, err := p.callToolV1(ctx, name, args)
-	serverName, toolName, ok := splitPrefix(name, ".")
-	if !ok {
-		// Builtin meta tools (restart, batch, ...) have no server prefix.
-		serverName, toolName = "builtin", name
-	}
+	serverName, toolName := p.metricSegments(name)
 	statsd.EmitToolDispatch(
 		serverName, toolName,
 		time.Since(start),
 		dispatchOutcome(ctx, result, err),
 	)
 	return result, err
+}
+
+// metricSegments splits a rendered tool name into the (server, tool) statsd
+// segments. Under the default template this is the historical first-dot split;
+// under a custom template it reads the registry (already populated by the
+// dispatch that precedes this call). A prefixless / unregistered name (a
+// builtin) reports "builtin".
+func (p *Proxy) metricSegments(name string) (server, tool string) {
+	if p.nameTemplate.IsDefault() {
+		if s, t, ok := splitPrefix(name, "."); ok {
+			return s, t
+		}
+		return "builtin", name
+	}
+	p.mu.RLock()
+	e, ok := p.toolRegistry.Lookup(name)
+	p.mu.RUnlock()
+	if ok {
+		return e.Server, e.Original
+	}
+	return "builtin", name
 }
 
 // dispatchOutcome classifies one dispatch for metrics — see
@@ -735,7 +871,7 @@ func (p *Proxy) callToolV1(
 	// category is excluded is not callable, even by a client that already
 	// knows its name. This is what makes `--expose no-meta` / `resources-only`
 	// a real boundary on a public origin rather than a cosmetic list filter.
-	if !p.toolFilter.Allows(toolfilter.Categorize(name)) {
+	if !p.toolFilter.Allows(p.toolCategory(name)) {
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("tool %q is not exposed by this server", name),
 		), nil
@@ -750,7 +886,7 @@ func (p *Proxy) callToolV1(
 	failed := p.failed
 	p.mu.RUnlock()
 
-	serverName, toolName, ok := splitPrefix(name, ".")
+	serverName, toolName, ok := p.resolveToolName(ctx, name)
 	if !ok {
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("invalid tool name %q: missing server prefix", name),
@@ -1129,6 +1265,24 @@ func (p *Proxy) ListPromptsV1(
 
 	allPrompts := make([]protocol.PromptV1, 0)
 
+	// Prompts get an independent registry (a tool and a prompt may share a
+	// rendered name — they are dispatched by different MCP methods), built the
+	// same way as the tool registry: render forward, record canonical identity
+	// for reverse dispatch, drop duplicate rendered names first-wins.
+	pb := naming.NewBuilder(p.nameTemplate)
+	seen := make(map[string]bool)
+	addPrompt := func(server, original string, pr protocol.PromptV1) {
+		rendered := p.nameTemplate.Render(server, original)
+		pb.Add(naming.Entry{Server: server, Original: original, Kind: naming.KindPrompt, Category: naming.CategoryChild})
+		if seen[rendered] {
+			debugLog("ListPromptsV1: dropping duplicate rendered prompt name %q (server %q, prompt %q)", rendered, server, original)
+			return
+		}
+		seen[rendered] = true
+		pr.Name = rendered
+		allPrompts = append(allPrompts, pr)
+	}
+
 	for _, child := range children {
 		if child.Capabilities.Prompts == nil {
 			continue
@@ -1157,16 +1311,24 @@ func (p *Proxy) ListPromptsV1(
 		}
 
 		for _, pr := range prompts {
-			pr.Name = child.Client.Name() + "." + pr.Name
-			allPrompts = append(allPrompts, pr)
+			addPrompt(child.Client.Name(), pr.Name, pr)
 		}
 	}
 
 	for serverName, meta := range p.ephemeral {
 		for _, pr := range meta.Prompts {
-			pr.Name = serverName + "." + pr.Name
-			allPrompts = append(allPrompts, pr)
+			addPrompt(serverName, pr.Name, pr)
 		}
+	}
+
+	reg, collErr := pb.Build()
+	p.mu.Lock()
+	p.promptRegistry = reg
+	p.promptCollision = collErr
+	p.mu.Unlock()
+	if collErr != nil {
+		debugLog("ListPromptsV1: name-template collision: %v", collErr)
+		fmt.Fprintf(os.Stderr, "moxy: name-template prompt collision (later prompt dropped): %v\n", collErr)
 	}
 
 	return &protocol.PromptsListResultV1{Prompts: allPrompts}, nil
@@ -1182,7 +1344,7 @@ func (p *Proxy) GetPromptV1(
 ) (*protocol.PromptGetResultV1, error) {
 	start := time.Now()
 	result, err := p.getPromptV1(ctx, name, args)
-	segment, _, ok := splitPrefix(name, ".")
+	segment, _, ok := p.resolvePromptName(ctx, name)
 	if !ok {
 		segment = "_"
 	}
@@ -1194,12 +1356,35 @@ func (p *Proxy) GetPromptV1(
 	return result, err
 }
 
+// resolvePromptName maps an advertised (rendered) prompt name back to its
+// canonical (server, original), mirroring resolveToolName: splitPrefix under the
+// default template, the prompt registry (with a one-shot refresh on a miss)
+// under a custom one.
+func (p *Proxy) resolvePromptName(ctx context.Context, name string) (server, original string, ok bool) {
+	if p.nameTemplate.IsDefault() {
+		return splitPrefix(name, ".")
+	}
+	p.mu.RLock()
+	e, found := p.promptRegistry.Lookup(name)
+	p.mu.RUnlock()
+	if !found {
+		_, _ = p.ListPromptsV1(ctx, "") // refresh the registry as a side effect
+		p.mu.RLock()
+		e, found = p.promptRegistry.Lookup(name)
+		p.mu.RUnlock()
+	}
+	if !found {
+		return "", "", false
+	}
+	return e.Server, e.Original, true
+}
+
 func (p *Proxy) getPromptV1(
 	ctx context.Context,
 	name string,
 	args map[string]string,
 ) (*protocol.PromptGetResultV1, error) {
-	serverName, promptName, ok := splitPrefix(name, ".")
+	serverName, promptName, ok := p.resolvePromptName(ctx, name)
 	if !ok {
 		return nil, fmt.Errorf(
 			"invalid prompt name %q: missing server prefix",

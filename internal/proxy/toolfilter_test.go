@@ -6,6 +6,7 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
+	"github.com/amarbel-llc/moxy/internal/naming"
 	"github.com/amarbel-llc/moxy/internal/toolfilter"
 )
 
@@ -40,9 +41,9 @@ func TestApplyToolFilter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Parse(%q): %v", c.spec, err)
 		}
-		p := &Proxy{toolFilter: f}
+		p := &Proxy{toolFilter: f, nameTemplate: naming.DefaultTemplate()}
 		cp := append([]protocol.ToolV1(nil), base...)
-		got := toolNameSet(p.applyToolFilter(cp))
+		got := toolNameSet(p.applyToolFilter(cp, naming.Registry{}))
 		if len(got) != len(c.want) {
 			t.Errorf("spec %q: got %d tools %v, want %d %v", c.spec, len(got), got, len(c.want), c.want)
 		}
@@ -58,7 +59,7 @@ func TestApplyToolFilter(t *testing.T) {
 // security boundary for a public --expose origin.
 func TestCallToolFilterGate(t *testing.T) {
 	f, _ := toolfilter.Parse("resources-only")
-	p := &Proxy{toolFilter: f}
+	p := &Proxy{toolFilter: f, nameTemplate: naming.DefaultTemplate()}
 
 	for _, name := range []string{"restart", "grit.status", "madder-mcp.resource-read"} {
 		res, err := p.callToolV1(context.Background(), name, nil)

@@ -69,12 +69,22 @@ then serves as a unified MCP server via `internal/proxy`.
 ### Dot-Separator Naming Convention
 
 Tool and prompt names from child servers are namespaced as
-`<server-name>.<original-tool-name>`. The dot separator is unambiguous because
-server names must not contain dots (validated at config load). `splitPrefix` on
-the first dot recovers the server name and original tool/prompt name exactly ---
-no encoding or decoding is needed. Resources and resource templates use
-`<server-name>/` prefix with a slash separator instead. Server names may contain
-hyphens (e.g., `just-us-agents.list-recipes`).
+`<server-name>.<original-tool-name>` by default. The dot separator is
+unambiguous because server names must not contain dots (validated at config
+load). `splitPrefix` on the first dot recovers the server name and original
+tool/prompt name exactly --- no encoding or decoding is needed. Resources and
+resource templates use `<server-name>/` prefix with a slash separator instead.
+Server names may contain hyphens (e.g., `just-us-agents.list-recipes`).
+
+The dot join is the default of a configurable **name template**
+(`serve-http --name-template`, FDR 0007). A custom template (e.g.
+`{server}_{tool}` for claude.ai-safe dot-free names) is not parseable back to
+its inputs, so under one the proxy reverse-resolves dispatch through a registry
+(`internal/naming`, rendered name -> canonical server+tool+category, built at
+list time) instead of `splitPrefix`, and rejects a colliding template at
+startup. The default template keeps the `splitPrefix` fast path unchanged. The
+`moxy render` subcommand is the renderer's out-of-process surface. Resource URIs
+are not templated.
 
 ### Ephemeral Server Mode
 
