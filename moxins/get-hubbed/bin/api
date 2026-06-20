@@ -11,6 +11,22 @@ params_json="${4:-}"
 headers_json="${5:-}"
 paginate="${6:-}"
 
+# GitHub code search (/search/code) returns confidently-wrong false
+# negatives: its index lags for new/private repos and silently omits files
+# (notably templated *.in files), yet surfaces a clean total_count:0 that
+# reads as ground truth. Reject it outright so the unreliable surface can't
+# be reached indirectly via the adhoc client. Use get-hubbed.content-tree
+# (exhaustive git-tree listing) + content-get, or rg over a fetched tree,
+# for reliable code discovery. Metadata search (/search/issues, repositories,
+# users, …) is unaffected. See issue #373.
+endpoint_path="${endpoint#http*://*/}" # strip scheme://host/ when a full URL
+case "/${endpoint_path#/}" in
+/search/code | /search/code/* | /search/code\?*)
+  echo "get-hubbed.api: /search/code is disabled — GitHub code search returns false negatives that read as authoritative (issue #373). Use get-hubbed.content-tree + content-get, or rg over a fetched tree, for reliable code discovery." >&2
+  exit 1
+  ;;
+esac
+
 gh_args=(api "$endpoint" --method "$method")
 
 [ "$paginate" = "true" ] && gh_args+=(--paginate)

@@ -1,3 +1,3 @@
 schema = 1
 name = "get-hubbed"
-description = "GitHub MCP server. Tools default to <gh-authenticated-user>/<gh-default-name> resolved from the current cwd; pass repo_owner_name in OWNER/NAME format to target a different repo. Write tools auto-allow when the owner is the authenticated user or one of their orgs, and prompt otherwise."
+description = "GitHub MCP server. Tools default to <gh-authenticated-user>/<gh-default-name> resolved from the current cwd; pass repo_owner_name in OWNER/NAME format to target a different repo. Write tools auto-allow when the owner is the authenticated user or one of their orgs, and prompt otherwise. For code discovery use content-tree (exhaustive git-tree listing) + content-get, or rg over a fetched tree; GitHub code search is intentionally not exposed because it returns authoritative-looking false negatives (issue #373)."

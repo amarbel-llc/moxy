@@ -13,6 +13,12 @@ is inherited from `gh`'s own credentials.
 `endpoint` accepts paths like `/repos/{owner}/{repo}/issues/1` or full
 URLs that `gh api` understands.
 
+`/search/code` is rejected: GitHub code search returns false negatives
+that read as authoritative (an empty result silently omits files). For
+code discovery use `content-tree` (exhaustive git-tree listing) +
+`content-get`, or `rg` over a fetched tree. Metadata search
+(`/search/issues`, `/search/repositories`, …) is unaffected.
+
 Permission policy: GET/HEAD/OPTIONS auto-allow; POST/PUT/PATCH/DELETE
 require user confirmation per call.
 """
