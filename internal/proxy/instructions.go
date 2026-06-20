@@ -58,3 +58,52 @@ func FormatInstructions(servers []ServerSummary) string {
 
 	return b.String()
 }
+
+// FormatSystemPromptFragment builds the dynamic system-prompt fragment clown
+// fetches at session launch (RFC-0002 §5) and appends to claude's system
+// prompt. It surfaces live child-server state the static prompt structurally
+// can't express: which children failed to start this session (otherwise
+// invisible to the agent until a tool call fails) and a compact roster of the
+// connected servers with tool counts. ok is false when there are no child
+// servers at all, which the HTTP handler maps to 204 (nothing to add).
+func FormatSystemPromptFragment(servers []ServerSummary) (string, bool) {
+	var running, failed []ServerSummary
+	for _, s := range servers {
+		if s.Status == "failed" {
+			failed = append(failed, s)
+		} else {
+			running = append(running, s)
+		}
+	}
+	if len(running) == 0 && len(failed) == 0 {
+		return "", false
+	}
+
+	var b strings.Builder
+	b.WriteString("## moxy child servers (this session)\n")
+
+	if len(failed) > 0 {
+		b.WriteString("\n**Failed to start this session — their tools and resources are unavailable:**\n")
+		for _, s := range failed {
+			if s.Error != "" {
+				fmt.Fprintf(&b, "- `%s` — %s\n", s.Name, s.Error)
+			} else {
+				fmt.Fprintf(&b, "- `%s`\n", s.Name)
+			}
+		}
+	}
+
+	if len(running) > 0 {
+		parts := make([]string, 0, len(running))
+		for _, s := range running {
+			parts = append(parts, fmt.Sprintf("%s (%d tools)", s.Name, s.Tools))
+		}
+		fmt.Fprintf(&b, "\nConnected: %s.\n", strings.Join(parts, ", "))
+	}
+
+	b.WriteString("\nDiscover a server's tools with the `moxy://tools/{server}` resource. ")
+	b.WriteString("Large tool outputs are streamed to the madder blob store and returned as ")
+	b.WriteString("`madder://blobs/<digest>` URIs, usable anywhere a file path is accepted.\n")
+
+	return b.String(), true
+}

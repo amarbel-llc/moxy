@@ -9,6 +9,7 @@
       ],
       "transport": "streamable-http",
       "timeout": 300000,
+      "systemPromptPath": "/clown/system-prompt",
       "healthcheck": {
         "path": "/healthz",
         "interval": "1s",

@@ -635,6 +635,10 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose string) 
 
 	summaries := p.CollectServerSummaries(ctx)
 	instructions := proxy.FormatInstructions(summaries)
+	// Dynamic system-prompt fragment for clown's RFC-0002 §5 contribution,
+	// served over HTTP at /clown/system-prompt. Empty (ok=false) => the
+	// handler returns 204 and clown keeps the static prompt.
+	systemPrompt, _ := proxy.FormatSystemPromptFragment(summaries)
 
 	switch mode {
 	case transportHTTP:
@@ -643,7 +647,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose string) 
 		// clown-plugin-host on the other end of stdout, so suppress the
 		// handshake line and report the bound address on stderr only.
 		if listenAddr != "" {
-			return runHTTPServer(ctx, listenAddr, "--listen", p, children, instructions)
+			return runHTTPServer(ctx, listenAddr, "--listen", p, children, instructions, systemPrompt)
 		}
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
@@ -654,11 +658,11 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose string) 
 		}
 		fmt.Fprintf(os.Stdout, "1|1|tcp|%s|streamable-http\n", ln.Addr())
 		fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (clown-plugin-protocol)\n", ln.Addr())
-		return runHTTPServerOnListener(ctx, ln, p, children, instructions)
+		return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt)
 
 	default:
 		if httpAddr := os.Getenv("MOXY_HTTP_ADDR"); httpAddr != "" {
-			return runHTTPServer(ctx, httpAddr, "MOXY_HTTP_ADDR", p, children, instructions)
+			return runHTTPServer(ctx, httpAddr, "MOXY_HTTP_ADDR", p, children, instructions, systemPrompt)
 		}
 
 		fmt.Fprintf(os.Stderr, "moxy: serving stdio\n")
@@ -697,23 +701,24 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose string) 
 // source labels the stderr line with what selected the fixed bind (e.g.
 // "--listen" or "MOXY_HTTP_ADDR") and never reaches the wire — unlike the
 // ephemeral path, no clown-plugin handshake is printed to stdout.
-func runHTTPServer(ctx context.Context, addr, source string, p *proxy.Proxy, children []proxy.ChildEntry, instructions string) error {
+func runHTTPServer(ctx context.Context, addr, source string, p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", addr, err)
 	}
 	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (%s)\n", ln.Addr(), source)
-	return runHTTPServerOnListener(ctx, ln, p, children, instructions)
+	return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt)
 }
 
-func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Proxy, children []proxy.ChildEntry, instructions string) error {
+func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt string) error {
 	httpSrv := streamhttp.New(streamhttp.Options{
-		Tools:         p,
-		Resources:     p,
-		Prompts:       p,
-		ServerName:    "moxy",
-		ServerVersion: version,
-		Instructions:  instructions,
+		Tools:                p,
+		Resources:            p,
+		Prompts:              p,
+		ServerName:           "moxy",
+		ServerVersion:        version,
+		Instructions:         instructions,
+		SystemPromptFragment: systemPrompt,
 	})
 	p.SetNotifier(httpSrv.Notify)
 

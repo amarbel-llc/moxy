@@ -42,9 +42,13 @@ Shuts down gracefully on
 .Dv SIGINT .
 .It Cm serve-http Op Fl -listen Ar addr Op Fl -expose Ar selector
 Run as an MCP proxy server over streamable HTTP, serving
-.Pa /healthz
+.Pa /healthz ,
+.Pa /mcp ,
 and
-.Pa /mcp .
+.Pa /clown/system-prompt
+(a dynamic system-prompt fragment clown fetches once at session launch,
+reflecting live child-server state \(em connected servers with tool counts
+and any that failed to start; 204 when there is nothing to add).
 With no
 .Fl -listen
 flag, binds an ephemeral port on

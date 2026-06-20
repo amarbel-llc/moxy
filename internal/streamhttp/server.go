@@ -22,13 +22,18 @@ type Options struct {
 	ServerName    string
 	ServerVersion string
 	Instructions  string
+	// SystemPromptFragment is the Markdown body served at
+	// /clown/system-prompt for clown's dynamic system-prompt contribution
+	// (RFC-0002 §5). Empty means nothing to add (the handler returns 204).
+	SystemPromptFragment string
 }
 
 type Server struct {
-	dispatcher *dispatcher
-	streams    *streamRegistry
-	sessionID  string
-	mu         sync.RWMutex
+	dispatcher           *dispatcher
+	streams              *streamRegistry
+	sessionID            string
+	systemPromptFragment string
+	mu                   sync.RWMutex
 }
 
 func New(opts Options) *Server {
@@ -41,7 +46,8 @@ func New(opts Options) *Server {
 			serverVersion: opts.ServerVersion,
 			instructions:  opts.Instructions,
 		},
-		streams: newStreamRegistry(),
+		streams:              newStreamRegistry(),
+		systemPromptFragment: opts.SystemPromptFragment,
 	}
 }
 
@@ -49,11 +55,32 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/healthz":
 		w.WriteHeader(http.StatusOK)
+	case "/clown/system-prompt":
+		s.handleSystemPrompt(w, r)
 	case "/mcp", "/":
 		s.handleMCP(w, r)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// handleSystemPrompt serves the dynamic system-prompt fragment clown fetches
+// once at session launch (RFC-0002 §5), after health and before claude is
+// exec'd. A 200 Markdown body is appended last to claude's system prompt; 204
+// means nothing to add and degrades cleanly to the static prompt.
+func (s *Server) handleSystemPrompt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.systemPromptFragment == "" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	io.WriteString(w, s.systemPromptFragment)
 }
 
 func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {

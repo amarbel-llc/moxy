@@ -135,6 +135,22 @@ function expose_invalid_selector_refuses_to_start { # @test
   assert_failure
 }
 
+function clown_system_prompt_fragment_served { # @test
+  # clown fetches /clown/system-prompt once after health, before claude
+  # launches (RFC-0002 §5). It returns a 200 Markdown fragment listing live
+  # child-server state — here the connected `srv` fixture.
+  start_moxy_http
+
+  run curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/clown/system-prompt"
+  assert_success
+  assert_output "200"
+
+  run curl -sS "$MOXY_HTTP_URL/clown/system-prompt"
+  assert_success
+  assert_output --partial "child servers"
+  assert_output --partial "srv"
+}
+
 function tools_list_without_session_returns_404 { # @test
   start_moxy_http
 
