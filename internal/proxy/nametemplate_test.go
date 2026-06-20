@@ -74,3 +74,32 @@ func TestApplyToolFilterCustomTemplate(t *testing.T) {
 		t.Errorf("applyToolFilter under -resource-bridge = %+v, want only grit_status", got)
 	}
 }
+
+// TestApplyToolFilterDefaultTemplateResourceReadEdge locks in the FDR-0006
+// edge under the *default* template: a child's OWN tool literally named
+// resource-read is classified ResourceBridge (by name), so --expose
+// -resource-bridge drops it. Under the default template applyToolFilter must
+// classify by name (toolfilter.Categorize), NOT by the registry — where that
+// tool is recorded as a plain Child and would otherwise survive the filter.
+// This test distinguishes the IsDefault-branch implementation from a
+// registry-only one (which would wrongly keep server.resource-read).
+func TestApplyToolFilterDefaultTemplateResourceReadEdge(t *testing.T) {
+	// Registry as ListToolsV1 builds it under the default template: a child's
+	// own resource-read tool is a normal Child entry (it was added in the
+	// child-tools loop, not as a synthetic bridge).
+	b := naming.NewBuilder(naming.DefaultTemplate())
+	b.Add(naming.Entry{Server: "srv", Original: "resource-read", Kind: naming.KindTool, Category: naming.CategoryChild})
+	b.Add(naming.Entry{Server: "srv", Original: "foo", Kind: naming.KindTool, Category: naming.CategoryChild})
+	reg, _ := b.Build()
+
+	f, _ := toolfilter.Parse("-resource-bridge")
+	p := &Proxy{toolFilter: f, nameTemplate: naming.DefaultTemplate()}
+	tools := []protocol.ToolV1{
+		{Name: "srv.resource-read"},
+		{Name: "srv.foo"},
+	}
+	got := p.applyToolFilter(append([]protocol.ToolV1(nil), tools...), reg)
+	if len(got) != 1 || got[0].Name != "srv.foo" {
+		t.Errorf("applyToolFilter under default template + -resource-bridge = %+v, want only srv.foo (srv.resource-read is ResourceBridge by name, FDR-0006 edge)", got)
+	}
+}

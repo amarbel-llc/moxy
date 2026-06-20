@@ -729,18 +729,28 @@ func (p *Proxy) addSyntheticResourceTools(
 }
 
 // applyToolFilter drops tools whose category the configured --expose filter
-// excludes. The category comes from the just-built registry (reg), not from
-// re-parsing the rendered name — under a custom template the name no longer
-// reveals its category. CallToolV1 gates dispatch with the same category source,
-// so the advertised and callable surfaces never disagree. The default All()
-// filter short-circuits to a no-op.
+// excludes. Under the default template it classifies by name
+// (toolfilter.Categorize) exactly as before — preserving every existing
+// deployment's behaviour, including the documented edge where a child's own tool
+// named resource-read is treated as a resource bridge. Under a custom template
+// the rendered name no longer reveals its category, so the category comes from
+// the just-built registry instead. CallToolV1's dispatch gate (toolCategory)
+// uses the identical source, so the advertised and callable surfaces never
+// disagree. The default All() filter short-circuits to a no-op.
 func (p *Proxy) applyToolFilter(tools []protocol.ToolV1, reg naming.Registry) []protocol.ToolV1 {
 	if p.toolFilter.IsAll() {
 		return tools
 	}
+	isDefault := p.nameTemplate.IsDefault()
 	kept := tools[:0]
 	for _, t := range tools {
-		if p.toolFilter.Allows(categoryFromRegistry(t.Name, reg)) {
+		var cat toolfilter.Category
+		if isDefault {
+			cat = toolfilter.Categorize(t.Name)
+		} else {
+			cat = categoryFromRegistry(t.Name, reg)
+		}
+		if p.toolFilter.Allows(cat) {
 			kept = append(kept, t)
 		}
 	}
