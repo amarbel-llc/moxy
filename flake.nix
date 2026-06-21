@@ -570,6 +570,7 @@
           pkgs.file
           pkgs.findutils
           pkgs.gawk
+          pkgs.git # folio-perms resolves the repo's main worktree to allow sibling-repo reads
           pkgs.gnugrep
           pkgs.gnutar
           pkgs.gzip

@@ -12,7 +12,7 @@ required = ["source", "destination"]
 
 [input.properties.source]
 type = "string"
-description = "Source path. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+description = "Source path. Auto-allowed inside CWD, /nix/store, sibling repo checkouts, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.destination]
 type = "string"

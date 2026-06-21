@@ -11,7 +11,7 @@ required = ["path"]
 
 [input.properties.path]
 type = "string"
-description = "File or directory path. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+description = "File or directory path. Auto-allowed inside CWD, /nix/store, sibling repo checkouts, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.flags]
 type = "string"

@@ -12,7 +12,7 @@ required = ["path"]
 
 [input.properties.path]
 type = "string"
-description = "Path to the file to identify. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+description = "Path to the file to identify. Auto-allowed inside CWD, /nix/store, sibling repo checkouts, and Claude-native dirs; prompts elsewhere."
 
 [annotations]
 read-only-hint = true

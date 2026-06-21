@@ -16,7 +16,7 @@ required = ["file_path"]
 
 [input.properties.file_path]
 type = "string"
-description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts madder://blobs/<digest> result URIs."
+description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, sibling repo checkouts (siblings of this repo's main worktree), and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts madder://blobs/<digest> result URIs."
 
 [input.properties.start]
 type = "integer"

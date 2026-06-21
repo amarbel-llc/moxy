@@ -958,3 +958,34 @@ debug-extra-sandbox-paths:
     --file "$drv" 2>&1) || { echo "BUILD FAILED:"; echo "$out"; exit 1; }
   cat "$out/result"
 
+# Reproduce the folio-perms sibling-repo read decision for a spinclass-style
+# linked worktree (debugging the git-root resolution in bin/folio-perms).
+# Builds a main repo + commit + linked worktree under a temp dir, then runs
+# the SOURCE folio-perms (with the devshell's git on PATH) under `bash -x`
+# so the git resolution, siblings_root, and main_worktree values are visible.
+[group("debug")]
+debug-folio-perms-linked-worktree:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  cd {{justfile_directory()}}
+  # Must live OUTSIDE the moxy worktree, else the sibling path falls under
+  # CWD and is allowed by the CWD rule instead of the siblings rule.
+  root=$(mktemp -d -p /tmp folio-dbg.XXXXXX)
+  trap 'rm -rf "$root"' EXIT
+  mkdir -p "$root/repos/myrepo" "$root/repos/sibling"
+  git -C "$root/repos/myrepo" init -q
+  git -C "$root/repos/myrepo" -c user.email=t@t -c user.name=t \
+    -c commit.gpgsign=false commit -q --allow-empty -m init
+  git -C "$root/repos/myrepo" worktree add -q "$root/repos/myrepo/.worktrees/wt"
+  echo data > "$root/repos/sibling/file.txt"
+  echo "=== git --git-common-dir from linked worktree ==="
+  git -C "$root/repos/myrepo/.worktrees/wt" rev-parse \
+    --path-format=absolute --git-common-dir
+  echo "=== folio-perms read of sibling (expect exit 0) ==="
+  # Must cd into the worktree: folio-perms reads $PWD, and bash recomputes
+  # PWD to getcwd() at startup, so a bare `PWD=... ` prefix is ignored.
+  ( cd "$root/repos/myrepo/.worktrees/wt" \
+    && bash -x {{justfile_directory()}}/moxins/folio/bin/folio-perms \
+      read "$root/repos/sibling/file.txt" )
+  echo "exit=$?"
+

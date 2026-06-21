@@ -17,7 +17,7 @@ description = "The glob pattern to match files against (e.g. \"**/*.go\", \"src/
 
 [input.properties.path]
 type = "string"
-description = "The directory to search in. Defaults to current working directory. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+description = "The directory to search in. Defaults to current working directory. Auto-allowed inside CWD, /nix/store, sibling repo checkouts, and Claude-native dirs; prompts elsewhere."
 
 [annotations]
 read-only-hint = true

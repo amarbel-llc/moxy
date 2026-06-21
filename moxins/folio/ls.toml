@@ -12,7 +12,7 @@ type = "object"
 
 [input.properties.path]
 type = "string"
-description = "Directory path to list. Defaults to current working directory. Auto-allowed inside CWD, /nix/store, and Claude-native dirs; prompts elsewhere."
+description = "Directory path to list. Defaults to current working directory. Auto-allowed inside CWD, /nix/store, sibling repo checkouts, and Claude-native dirs; prompts elsewhere."
 
 [input.properties.flags]
 type = "string"

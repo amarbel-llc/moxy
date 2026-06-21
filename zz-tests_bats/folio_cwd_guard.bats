@@ -127,6 +127,81 @@ function folio_perms_asks_read_outside_allowed_dirs { # @test
   [[ "$output" == *"confirmation required"* ]]
 }
 
+# ----- Sibling-repo reads (git-root relative) -----
+#
+# folio-perms resolves the current repo's MAIN worktree from the CWD and
+# read-allows everything under that worktree's PARENT dir (its sibling
+# repos), EXCEPT the main worktree itself. These tests build real git
+# repos so the `git rev-parse --git-common-dir` resolution fires.
+
+# Make a one-commit git repo at $1 (identity/signing forced off so it works
+# in the sandbox's config-less HOME).
+make_repo() {
+  git -C "$1" init -q
+  git -C "$1" -c user.email=t@t -c user.name=t -c commit.gpgsign=false \
+    commit -q --allow-empty -m init
+}
+
+function folio_perms_allows_read_in_sibling_repo { # @test
+  setup_perms
+  mkdir -p "$HOME/repos/myrepo" "$HOME/repos/sibling"
+  git -C "$HOME/repos/myrepo" init -q
+  echo "data" > "$HOME/repos/sibling/file.txt"
+  cd "$HOME/repos/myrepo"
+
+  # CWD is the main worktree; a sibling checkout under the shared parent is
+  # read-allowed.
+  PWD="$HOME/repos/myrepo" run "$PERMS" read "$HOME/repos/sibling/file.txt"
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_allows_sibling_read_from_linked_worktree { # @test
+  setup_perms
+  mkdir -p "$HOME/repos/myrepo" "$HOME/repos/sibling"
+  make_repo "$HOME/repos/myrepo"
+  git -C "$HOME/repos/myrepo" worktree add -q "$HOME/repos/myrepo/.worktrees/wt"
+  echo "data" > "$HOME/repos/sibling/file.txt"
+
+  # CWD is a spinclass-style linked worktree; the main worktree (hence its
+  # sibling parent) is still resolved via --git-common-dir. folio-perms reads
+  # $PWD, so the process must actually cd here (a bare PWD= env prefix is
+  # recomputed away by bash at startup).
+  cd "$HOME/repos/myrepo/.worktrees/wt"
+  PWD="$HOME/repos/myrepo/.worktrees/wt" \
+    run "$PERMS" read "$HOME/repos/sibling/file.txt"
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_asks_read_of_main_worktree_from_linked { # @test
+  setup_perms
+  mkdir -p "$HOME/repos/myrepo"
+  make_repo "$HOME/repos/myrepo"
+  git -C "$HOME/repos/myrepo" worktree add -q "$HOME/repos/myrepo/.worktrees/wt"
+  echo "secret" > "$HOME/repos/myrepo/secret.txt"
+
+  # The main checkout itself is explicitly excluded — reading it from a
+  # linked worktree still prompts (work belongs in the worktree).
+  cd "$HOME/repos/myrepo/.worktrees/wt"
+  PWD="$HOME/repos/myrepo/.worktrees/wt" \
+    run "$PERMS" read "$HOME/repos/myrepo/secret.txt"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"confirmation required"* ]]
+}
+
+function folio_perms_asks_read_outside_repo_parent { # @test
+  setup_perms
+  mkdir -p "$HOME/repos/myrepo"
+  git -C "$HOME/repos/myrepo" init -q
+  # A path outside the repo's parent dir is not a sibling — still prompts.
+  mkdir -p "$HOME/elsewhere"
+  echo "x" > "$HOME/elsewhere/file.txt"
+  cd "$HOME/repos/myrepo"
+
+  PWD="$HOME/repos/myrepo" run "$PERMS" read "$HOME/elsewhere/file.txt"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"confirmation required"* ]]
+}
+
 function folio_perms_allows_write_in_cwd { # @test
   setup_perms
   mkdir -p "$HOME/project"
