@@ -710,11 +710,34 @@
             ]
             {
               extraWrapArgs = [
-                # Prefix moxy's own man pages while preserving the caller's MANPATH.
-                "--prefix"
+                # Default MANPATH to moxy's own man dir followed by a trailing
+                # colon. Per manpath(5), a trailing colon makes man-db append
+                # its *determined* default search path (man_db.conf + the
+                # PATH-derived dirs, incl. the user's home-manager profile and
+                # system pages) after moxy's bundled set.
+                #
+                # Why --set-default and not --prefix/--suffix: makeWrapper's
+                # --prefix/--suffix UNCONDITIONALLY strip leading & trailing
+                # separators from the result (see make-shell-wrapper-hook), so
+                # they can never emit the trailing-colon empty entry man-db
+                # needs. With MANPATH unset (the normal runtime case under moxy)
+                # the old `--prefix MANPATH : <dir>` therefore produced a single
+                # authoritative entry and man-db never derived the
+                # profile/system set — which is why `man spinclass` / `man eng-*`
+                # failed through this moxin while the user's shell found them.
+                # Only --set / --set-default write the value verbatim (colon
+                # preserved); --set-default is chosen over --set so a caller that
+                # HAS set MANPATH wins (the bats sandbox exports `$HOME/man:` to
+                # reach its pivy-tool fixture — --set would clobber it).
+                #
+                # Edge note: --set-default uses `${MANPATH-...}` (`-`, not `:-`),
+                # so a set-but-EMPTY MANPATH ("") is left empty rather than
+                # defaulted. The moxy process always has MANPATH unset (defaulted
+                # here) and the bats sandbox sets it non-empty, so neither path
+                # hits that case.
+                "--set-default"
                 "MANPATH"
-                ":"
-                "${moxy-man}/share/man"
+                "${moxy-man}/share/man:"
               ];
               pathMode = "suffix";
             };
