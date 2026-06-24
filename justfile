@@ -989,3 +989,13 @@ debug-folio-perms-linked-worktree:
       read "$root/repos/sibling/file.txt" )
   echo "exit=$?"
 
+# Prototype: build the moxy Linux OCI image and run it via Apple `container`.
+# Requires `container` installed + `container system start`. The image is the
+# moxy binary alone (no moxins/maneater); `version` is the smoke test.
+[group("explore")]
+container-prototype:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  nix build .#moxy-oci-image
+  container image load -i result
+  container run --rm moxy:latest version

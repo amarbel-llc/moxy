@@ -101,7 +101,7 @@ func Init(version string) error {
 		f.Close()
 		return fmt.Errorf("pipe: %w", err)
 	}
-	if err := syscall.Dup2(int(pw.Fd()), 2); err != nil {
+	if err := dupOntoStderr(int(pw.Fd())); err != nil {
 		pr.Close()
 		pw.Close()
 		origStderr.Close()

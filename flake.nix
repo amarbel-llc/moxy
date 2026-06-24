@@ -893,6 +893,97 @@
           ];
         };
 
+        # --- Apple `container` prototype (Nix -> OCI Linux image) ---------
+        #
+        # Apple's `container` (nixpkgs `container`) runs *Linux* containers as
+        # per-container lightweight VMs and consumes standard OCI Linux images.
+        # There is no macOS-userland container; the prototype is "Nix builds a
+        # Linux OCI image of moxy, `container` runs it". See the
+        # `container-prototype` justfile recipe.
+        #
+        # moxy is pure Go (CGO off), so Go's own cross-compiler emits the
+        # aarch64-linux binary with no Linux build VM and no nixpkgs cross set.
+        #
+        # The mechanism: gomod2nix's buildGoApplication takes the target from
+        # the `go` package itself (`inherit (go) GOOS GOARCH`, builder
+        # default.nix:507), NOT from passed GOOS/GOARCH attrs. So the cross
+        # target is selected by handing it a `go` whose GOOS/GOARCH passthru say
+        # linux/arm64 — while the binary on PATH stays the *native* (Darwin) Go,
+        # which cross-compiles fine via those env vars. Staying on the native
+        # `pkgs` (not pkgsCross) is deliberate: pkgsCross trips an igloo bug
+        # where mkMergedGoMod puts `go` in buildInputs (target-platform, not on
+        # PATH under cross) → "go: command not found" (filed upstream).
+        #
+        # CGO stays off so no C toolchain is needed. The Darwin-only postInstall
+        # (plugin/hook/man wiring + `wrapProgram` baking a Darwin bash path) is
+        # dropped — the image just needs `$out/bin/moxy`. The full moxy package
+        # (moxins + maneater's CGo llama-cpp) does NOT cross-compile and is out
+        # of scope for this prototype.
+        goLinuxArm64 = pkgs-master.go_1_26 // {
+          GOOS = "linux";
+          GOARCH = "arm64";
+        };
+        moxy-linux = pkgs.buildGoApplication {
+          pname = "moxy";
+          commit = moxyCommit;
+          src = moxySrc;
+          pwd = moxySrc;
+          inherit goFlakeInputs;
+          subPackages = [ "cmd/moxy" ];
+          modules = ./gomod2nix.toml;
+          go = goLinuxArm64;
+          GOTOOLCHAIN = "local";
+          CGO_ENABLED = "0";
+          # The check phase runs `go test`, which can't exec a linux/arm64
+          # test binary on the darwin builder ("exec format error"). Tests run
+          # natively in the gate; skip them for the cross artifact.
+          doCheck = false;
+          # Cross builds nest the binary under bin/<goos>_<goarch>/ (Go's
+          # GOOS/GOARCH-suffixed output dir). Flatten it back to bin/moxy so the
+          # image entrypoint /bin/moxy resolves. Unconditional: if Go ever stops
+          # nesting, the mv should fail loudly rather than silently no-op.
+          postInstall = ''
+            mv "$out/bin/linux_arm64/moxy" "$out/bin/moxy"
+            rmdir "$out/bin/linux_arm64"
+          '';
+        };
+
+        # Layered image assembled by streamLayeredImage (pure-Nix, runs on
+        # Darwin); only the *contents* are the cross-built aarch64-linux
+        # closure. `architecture` is set explicitly because the build host is
+        # darwin and the default would pick up hostPlatform. This is the
+        # Docker-format archive (manifest.json + layer dirs) — an intermediate;
+        # Apple's `container image load` wants OCI layout, so it's converted
+        # below.
+        moxy-docker-image = pkgs.dockerTools.buildLayeredImage {
+          name = "moxy";
+          tag = "latest";
+          architecture = "arm64";
+          contents = [ moxy-linux ];
+          # Entrypoint (not Cmd) so `container run moxy:latest <args>` appends
+          # args to the moxy binary rather than treating the first arg as the
+          # executable to run. With a bare Cmd, `container run moxy:latest
+          # --version` tries to exec `--version`.
+          config.Entrypoint = [ "/bin/moxy" ];
+        };
+
+        # `container image load` rejects the Docker-format archive
+        # (`oci-layout` not found). skopeo converts the docker-archive into an
+        # oci-archive tarball (oci-layout + index.json + blobs/) that
+        # `container` accepts. skopeo runs natively on Darwin — this is a pure
+        # format transcode, no Linux execution. The result is a single
+        # `moxy-oci.tar` the recipe loads directly.
+        moxy-oci-image =
+          pkgs.runCommand "moxy-oci.tar"
+            {
+              nativeBuildInputs = [ pkgs.skopeo ];
+            }
+            ''
+              skopeo --insecure-policy copy \
+                docker-archive:${moxy-docker-image} \
+                oci-archive:$out:moxy:latest
+            '';
+
         # Bats integration test source tree, fed to `batsLane` to run the
         # suite inside the nix build sandbox. See #249 for the
         # batman/sandcastle interaction this replaces.
@@ -1073,7 +1164,12 @@
       in
       {
         packages = batsLaneOutputs // {
-          inherit moxy moxy-moxins;
+          inherit
+            moxy
+            moxy-moxins
+            moxy-linux
+            moxy-oci-image
+            ;
           default = combined;
           # The wrapped lenient-mypy checker (#10), exposed so the
           # debug-py-typecheck recipe runs the exact same binary the gate's
