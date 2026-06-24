@@ -687,6 +687,28 @@ debug-arboretum-regen-goldens:
     echo "wrote $f.golden"
   done
 
+# Reconcile gate for the arboretum tree-sitter stack: rebuild the grammar
+# wasm from source and verify every grammar's ABI is in the running
+# web-tree-sitter's supported range (arboretum.abi-check). Run this after
+# bumping a grammar source rev or the web-tree-sitter pin — it fails loudly if
+# the two drift out of compatibility.
+#
+# The three version inputs and how to bump each:
+#   1. runtime web-tree-sitter: edit package.json, `just debug-bun-install`,
+#      `just debug-bun2nix`. (Also update webTreeSitterWasm's url+hash in
+#      flake.nix to the same version.)
+#   2. grammars: edit the rev+hash in flake.nix's `treeSitterGrammars`
+#      (rev from upstream; hash from `nix store prefetch-file --unpack
+#      https://github.com/tree-sitter/tree-sitter-<lang>/archive/<rev>.tar.gz`).
+#   3. wasi-sdk (build toolchain): edit wasiSdkVersion + wasiSdkBySystem.
+# After any bump, run this recipe; abi-check is the shared compatibility gate.
+[group("post-build")]
+verify-arboretum-grammars: build-moxins
+  #!/usr/bin/env bash
+  set -euo pipefail
+  bin={{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/abi-check
+  "$bin"
+
 # Integration test for moxin discovery via a fresh temp workspace
 [group("post-build")]
 test-moxin-loading:

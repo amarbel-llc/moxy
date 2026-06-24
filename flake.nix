@@ -497,10 +497,11 @@
         # The grammars used to be hand-copied binaries from tree-sitter-wasms
         # (moxins/arboretum/wasm/, ABI 14) with no reproducible pipeline — and
         # that vendored bash grammar crashed web-tree-sitter on `case`
-        # statements (moxy#379). Building from source against a tree-sitter CLI
-        # matching the runtime fixes both: the grammar version is now derived
-        # from a pinned source rev, and a fresh build emits ABI 15 which parses
-        # `case` correctly.
+        # statements (moxy#379). Now every grammar is built from a pinned
+        # source rev against a tree-sitter CLI matching the runtime, so the
+        # grammar version is derived (not a frozen blob) and fresh builds emit
+        # an ABI the runtime accepts. The vendored moxins/arboretum/wasm/ dir
+        # is gone — this derivation is the sole source of the wasm.
         #
         # tree-sitter 0.26's `build --wasm` compiles via wasi-sdk's clang. By
         # default it DOWNLOADS wasi-sdk at build time (network — hostile to a
@@ -522,17 +523,73 @@
           hash = wasiSdkInfo.hash;
         };
 
-        # Each grammar: { src; subdir ? "."; }. Phase A ships bash only; the
-        # rest follow once this is proven end-to-end.
+        # tree-sitter grammar sources, pinned by rev. ts and tsx share one
+        # repo (two subdir grammars); php's grammar lives in the `php/` subdir
+        # (vs `php_only/`). Each entry maps a wasm OUTPUT name to its source +
+        # the subdir within that source to build (default ".").
+        tsGrammarSrc =
+          owner: repo: rev: hash:
+          pkgs.fetchFromGitHub {
+            inherit
+              owner
+              repo
+              rev
+              hash
+              ;
+          };
+        tsTypescriptSrc =
+          tsGrammarSrc "tree-sitter" "tree-sitter-typescript" "75b3874edb2dc714fb1fd77a32013d0f8699989f"
+            "sha256-A0M6IBoY87ekSV4DfGHDU5zzFWdLjGqSyVr6VENgA+s=";
         treeSitterGrammars = {
           bash = {
-            src = pkgs.fetchFromGitHub {
-              owner = "tree-sitter";
-              repo = "tree-sitter-bash";
-              rev = "a06c2e4415e9bc0346c6b86d401879ffb44058f7";
-              hash = "sha256-ONQ1Ljk3aRWjElSWD2crCFZraZoRj3b3/VELz1789GE=";
-            };
+            src =
+              tsGrammarSrc "tree-sitter" "tree-sitter-bash" "a06c2e4415e9bc0346c6b86d401879ffb44058f7"
+                "sha256-ONQ1Ljk3aRWjElSWD2crCFZraZoRj3b3/VELz1789GE=";
           };
+          go = {
+            src =
+              tsGrammarSrc "tree-sitter" "tree-sitter-go" "2346a3ab1bb3857b48b29d779a1ef9799a248cd7"
+                "sha256-fifTM/m2Mxd7kpJBlzwWGheAKGq6QbbzyxpBSyplYa0=";
+          };
+          rust = {
+            src =
+              tsGrammarSrc "tree-sitter" "tree-sitter-rust" "77a3747266f4d621d0757825e6b11edcbf991ca5"
+                "sha256-Ls6tB6IxXDQDWwx0BJ7RgbheelC4MH8z97E7wwhkDcY=";
+          };
+          python = {
+            src =
+              tsGrammarSrc "tree-sitter" "tree-sitter-python" "26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64"
+                "sha256-gHeja/X/Ux8fa5rh0b69/bcUcmHBcXsK5uJ1ibtuI20=";
+          };
+          javascript = {
+            src =
+              tsGrammarSrc "tree-sitter" "tree-sitter-javascript" "58404d8cf191d69f2674a8fd507bd5776f46cb11"
+                "sha256-+fbTNX7qz6Ew1NrXF49wQh3RVl2ZQ3R7YXMkclUoNT8=";
+          };
+          typescript = {
+            src = tsTypescriptSrc;
+            subdir = "typescript";
+          };
+          tsx = {
+            src = tsTypescriptSrc;
+            subdir = "tsx";
+          };
+          php = {
+            src =
+              tsGrammarSrc "tree-sitter" "tree-sitter-php" "38216983c07bf9e1b56e16acde53b25adaeab61c"
+                "sha256-Y02akiL95WGV8J3gd6FXQ0XHPoE59d2zuFQkXh6eyAQ=";
+            subdir = "php";
+          };
+        };
+
+        # The runtime wasm web-tree-sitter loads at Parser.init (outline.ts /
+        # abi-check.ts ask for "tree-sitter.wasm" via locateFile). Source it
+        # from the SAME web-tree-sitter version pinned in bun.lock (0.25.10) so
+        # the runtime wasm name + version track the runtime — closing the third
+        # drift dimension (the file was renamed across a web-tree-sitter major).
+        webTreeSitterWasm = pkgs.fetchurl {
+          url = "https://registry.npmjs.org/web-tree-sitter/-/web-tree-sitter-0.25.10.tgz";
+          hash = "sha256-ZjZFespeaUX7c2cTYq4ZycTlE7tRalPVjEorTRJTPg8=";
         };
 
         # Build one grammar's wasm. Output: $out/tree-sitter-<name>.wasm.
@@ -561,17 +618,15 @@
 
         builtGrammarWasms = pkgs.lib.mapAttrs buildGrammarWasm treeSitterGrammars;
 
-        # The WASM_DIR the arboretum moxin loads from: the still-vendored set
-        # (runtime tree-sitter.wasm + the not-yet-rebuilt grammars) with the
-        # freshly-built grammars layered on top (later cp wins). Phase B will
-        # build every grammar + source the runtime wasm here and drop the
-        # vendored dir entirely.
+        # The WASM_DIR the arboretum moxin loads from, built entirely from
+        # source: every grammar wasm + the runtime tree-sitter.wasm sourced
+        # from the pinned web-tree-sitter. No vendored binaries.
         arboretumWasmDir = pkgs.runCommand "arboretum-wasm" { } ''
           mkdir -p $out
-          cp ${./moxins/arboretum/wasm}/* $out/
-          chmod -R +w $out
+          tar -xzf ${webTreeSitterWasm} -C $out --strip-components=1 \
+            package/tree-sitter.wasm
           ${pkgs.lib.concatStringsSep "\n" (
-            pkgs.lib.mapAttrsToList (name: drv: "cp -f ${drv}/tree-sitter-${name}.wasm $out/") builtGrammarWasms
+            pkgs.lib.mapAttrsToList (name: drv: "cp ${drv}/tree-sitter-${name}.wasm $out/") builtGrammarWasms
           )}
         '';
 
