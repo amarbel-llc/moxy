@@ -1,4 +1,5 @@
 import { $ } from "zx";
+import { readMarkdownStdin } from "./md-input.ts";
 
 $.verbose = false;
 
@@ -7,10 +8,7 @@ if (!anchorName) {
   throw new Error("usage: anchor <anchor-name>");
 }
 
-const markdown = await Bun.stdin.text();
-if (!markdown.trim()) {
-  throw new Error("no markdown input on stdin");
-}
+const markdown = await readMarkdownStdin();
 
 // gfm reader keeps a Header following an inline `<a name="X">` as a real
 // Header block. The default markdown reader collapses them into a single

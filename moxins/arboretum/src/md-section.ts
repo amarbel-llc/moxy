@@ -1,4 +1,5 @@
 import { $ } from "zx";
+import { readMarkdownStdin } from "./md-input.ts";
 
 $.verbose = false;
 
@@ -7,10 +8,7 @@ if (!sectionName) {
   throw new Error("usage: section <heading-name>");
 }
 
-const markdown = await Bun.stdin.text();
-if (!markdown.trim()) {
-  throw new Error("no markdown input on stdin");
-}
+const markdown = await readMarkdownStdin();
 
 const { stdout } = await $({ input: markdown })`pandoc -f markdown -t json`;
 const ast = JSON.parse(stdout);

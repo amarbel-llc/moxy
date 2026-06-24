@@ -1,4 +1,10 @@
-import { Parser, Language, type Node } from "web-tree-sitter";
+import {
+  Parser,
+  Language,
+  LANGUAGE_VERSION,
+  MIN_COMPATIBLE_VERSION,
+  type Node,
+} from "web-tree-sitter";
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { extname, join } from "node:path";
 
@@ -235,6 +241,25 @@ async function getLang(
   let entry = langCache.get(ext);
   if (entry) return entry;
   const lang = await Language.load(readFileSync(config.wasm));
+  // Defense-in-depth against a grammar/runtime ABI mismatch. tree-sitter is
+  // backwards- but not forwards-compatible: a grammar whose ABI is outside the
+  // runtime's supported range can fault deep in the parser instead of failing
+  // cleanly. This converts genuine ABI drift into an actionable message and
+  // pairs with the planned CI drift gate. NOTE: this does NOT catch moxy#379
+  // (bash `case` crash) — those grammars measure abiVersion 14, inside the
+  // current [13,15] range; that crash is a wasm external-scanner symbol that
+  // fails to bind, a separate web-tree-sitter-level issue.
+  if (
+    lang.abiVersion < MIN_COMPATIBLE_VERSION ||
+    lang.abiVersion > LANGUAGE_VERSION
+  ) {
+    throw new Error(
+      `grammar for ${ext} has ABI version ${lang.abiVersion}, outside the ` +
+        `runtime's supported range [${MIN_COMPATIBLE_VERSION}, ${LANGUAGE_VERSION}]. ` +
+        `The vendored tree-sitter grammars are out of sync with web-tree-sitter ` +
+        `— rebuild the grammars against a matching tree-sitter version.`,
+    );
+  }
   const parser = new Parser();
   parser.setLanguage(lang);
   entry = { parser, rules: config.rules };
@@ -245,7 +270,21 @@ async function getLang(
 async function outlineFile(path: string): Promise<string> {
   const ext = extname(path);
   const got = await getLang(ext);
-  if (!got) return `# ${path}\n  (unsupported extension: ${ext})`;
+  if (!got) {
+    // outline keys language off the file extension. A /dev/fd/N path (what
+    // moxy rewrites a madder://blobs/<digest> arg to) or any extension-less
+    // path can't be classified — surface that distinctly from a genuinely
+    // unsupported language so the caller knows to pass a real source-file
+    // path, not a blob/fd reference (moxy#387).
+    if (ext === "") {
+      return (
+        `# ${path}\n  (no file extension — outline needs a real source-file ` +
+        `path to detect the language; it can't outline a /dev/fd or ` +
+        `extension-less input)`
+      );
+    }
+    return `# ${path}\n  (unsupported extension: ${ext})`;
+  }
   const src = readFileSync(path, "utf8");
   const tree = got.parser.parse(src);
   if (!tree) return `# ${path}\n  (parse failed)`;
