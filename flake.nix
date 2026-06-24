@@ -161,10 +161,27 @@
           ];
         };
 
+        # tommy's conformist codegen linter driver, owned by the tommy flake so
+        # the pinned tommy input resolves which tommy backs it (here it
+        # regenerates internal/config/schema/schema_tommy.go). It bakes that
+        # tommy in and skips when go is absent — so the sandboxed conformistCheck
+        # (which only runs the no-op `true` check appended below) and bare
+        # `nix fmt` stay safe, while a devshell-driven `conformist --commit`
+        # regenerates schema_tommy.go into the chore. Referenced by absolute
+        # store path in the appended config so it resolves without a PATH dep.
+        tommyCodegenDriver = tommy.packages.${system}.conformist-tommy-codegen;
+
         # conformist reads the treefmt-era config name (rename out of scope per
         # RFC 0001 §Compatibility). Take treefmt-nix's generated formatter
         # config and append moxy's [linter.*] sections — treefmt has no linter
         # table, so a plain append is a valid, order-independent merge.
+        #
+        # tommy-codegen: CHECK is a no-op `true` (the sandboxed conformistCheck
+        # lacks the go toolchain `tommy generate --check` needs; true staleness
+        # stays gated by `just generate`); REPAIR runs the driver by absolute
+        # store path so it resolves in the sandbox and the wrapper without a PATH
+        # dependency, regenerating schema_tommy.go into the `conformist --commit`
+        # chore.
         conformistConfig = pkgs.runCommand "conformist-config.toml" { } ''
           cat ${treefmtEval.config.build.configFile} > $out
           cat >> $out <<EOF
@@ -176,6 +193,12 @@
           [linter.mypy]
           command = "${pyTypesChecker}/bin/lint-py-types"
           includes = ["moxins/sisyphus/lib/*.py", "moxins/sisyphus/bin/*", "moxins/freud/bin/*"]
+
+          [linter.tommy-codegen]
+          command = "true"
+          repair-command = "${tommyCodegenDriver}/bin/conformist-tommy-codegen"
+          includes = ["*.go", "**/*.go"]
+          passes-files = false
           EOF
         '';
 
