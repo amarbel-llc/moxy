@@ -515,6 +515,18 @@
             arch = "arm64-macos";
             hash = "sha256-4RVSkT4/meg01/59ob0IGrr3ZHWe12tgl6NMY/yDZl4=";
           };
+          x86_64-darwin = {
+            arch = "x86_64-macos";
+            hash = "sha256-0N4v0+pcVwYO+ofkNWwWS+w2iZcvI4bwyaicWOEM7I0=";
+          };
+          aarch64-linux = {
+            arch = "arm64-linux";
+            hash = "sha256-BSrXczl9yeWqmftM/vaUF15rHoG7KtHTyOez/IFEG3w=";
+          };
+          x86_64-linux = {
+            arch = "x86_64-linux";
+            hash = "sha256-h9HRooedE5zcYkuWjvrT1Kl7gHjN/5XmOsiOyv0aAXE=";
+          };
         };
         wasiSdkInfo =
           wasiSdkBySystem.${system} or (throw "arboretum-grammars: no wasi-sdk pinned for ${system}");
