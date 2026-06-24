@@ -1,0 +1,13 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Diagnostic: report each vendored tree-sitter grammar's ABI version and verify it is within the running web-tree-sitter's supported range (drift gate for moxy#379). Exits non-zero on any out-of-range grammar or a missing runtime wasm."
+command = "@BIN@/abi-check"
+
+[input]
+type = "object"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

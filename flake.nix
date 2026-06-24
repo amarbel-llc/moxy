@@ -510,6 +510,9 @@
               "outline" = "moxins/arboretum/src/outline.ts";
               "search" = "moxins/arboretum/src/search.ts";
               "rewrite" = "moxins/arboretum/src/rewrite.ts";
+              # Drift gate: asserts vendored grammar ABIs are in the runtime's
+              # supported range + the runtime wasm exists (moxy#379).
+              "abi-check" = "moxins/arboretum/src/abi-check.ts";
               # md-* tools shell out to pandoc for markdown AST work. Same gfm
               # reader the (now-retired) pandoc moxin used.
               "md-toc" = "moxins/arboretum/src/md-toc.ts";

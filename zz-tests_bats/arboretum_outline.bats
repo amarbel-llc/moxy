@@ -36,6 +36,33 @@ EOF
   echo "$text" | grep -qE "\[3-3\]"
 }
 
+function arboretum_outline_bash_case_statement { # @test
+  # Exercises the bash grammar's external scanner via a `case` statement, which
+  # currently crashes web-tree-sitter ("resolved is not a function"). Skipped
+  # until the bash grammar is rebuilt; un-skip when moxy#379 lands.
+  skip "blocked on moxy#379 (bash case scanner symbol-bind crash)"
+
+  cat > "$HOME/sample.sh" <<'EOF'
+#!/usr/bin/env bash
+handle() {
+  case "$1" in
+    a) echo a ;;
+    b) echo b ;;
+  esac
+}
+EOF
+
+  local params
+  params=$(jq -cn --arg n "arboretum.outline" --arg p "$HOME/sample.sh" \
+    '{name: $n, arguments: {path: $p}}')
+  run_moxy_mcp_v1 "tools/call" "$params"
+  assert_success
+
+  local text
+  text=$(echo "$output" | jq -r '.content[0].resource.text // .content[0].text')
+  echo "$text" | grep -q "func handle"
+}
+
 function arboretum_outline_walks_a_directory { # @test
   mkdir -p "$HOME/pkg"
   cat > "$HOME/pkg/a.go" <<'EOF'

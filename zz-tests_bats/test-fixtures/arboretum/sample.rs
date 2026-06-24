@@ -36,3 +36,8 @@ pub enum Color {
 pub type Score = u32;
 
 static GLOBAL: u32 = 42;
+
+// Raw string literal exercises the rust grammar's external scanner.
+pub fn banner() -> &'static str {
+    r#"--- "raw" banner ---"#
+}
