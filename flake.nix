@@ -492,13 +492,96 @@
               done
             '';
 
+        # --- arboretum tree-sitter grammar wasm, built from source ----------
+        #
+        # The grammars used to be hand-copied binaries from tree-sitter-wasms
+        # (moxins/arboretum/wasm/, ABI 14) with no reproducible pipeline — and
+        # that vendored bash grammar crashed web-tree-sitter on `case`
+        # statements (moxy#379). Building from source against a tree-sitter CLI
+        # matching the runtime fixes both: the grammar version is now derived
+        # from a pinned source rev, and a fresh build emits ABI 15 which parses
+        # `case` correctly.
+        #
+        # tree-sitter 0.26's `build --wasm` compiles via wasi-sdk's clang. By
+        # default it DOWNLOADS wasi-sdk at build time (network — hostile to a
+        # hermetic build); loader.rs checks TREE_SITTER_WASI_SDK_PATH first, so
+        # we fetch the prebuilt sdk as an FOD and point that env var at it. The
+        # output wasm is platform-independent, but the build needs the sdk for
+        # the *builder* platform — hence the per-system map.
+        wasiSdkVersion = "29.0";
+        wasiSdkBySystem = {
+          aarch64-darwin = {
+            arch = "arm64-macos";
+            hash = "sha256-4RVSkT4/meg01/59ob0IGrr3ZHWe12tgl6NMY/yDZl4=";
+          };
+        };
+        wasiSdkInfo =
+          wasiSdkBySystem.${system} or (throw "arboretum-grammars: no wasi-sdk pinned for ${system}");
+        wasiSdkTarball = pkgs.fetchurl {
+          url = "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${builtins.head (pkgs.lib.splitString "." wasiSdkVersion)}/wasi-sdk-${wasiSdkVersion}-${wasiSdkInfo.arch}.tar.gz";
+          hash = wasiSdkInfo.hash;
+        };
+
+        # Each grammar: { src; subdir ? "."; }. Phase A ships bash only; the
+        # rest follow once this is proven end-to-end.
+        treeSitterGrammars = {
+          bash = {
+            src = pkgs.fetchFromGitHub {
+              owner = "tree-sitter";
+              repo = "tree-sitter-bash";
+              rev = "a06c2e4415e9bc0346c6b86d401879ffb44058f7";
+              hash = "sha256-ONQ1Ljk3aRWjElSWD2crCFZraZoRj3b3/VELz1789GE=";
+            };
+          };
+        };
+
+        # Build one grammar's wasm. Output: $out/tree-sitter-<name>.wasm.
+        buildGrammarWasm =
+          name: spec:
+          pkgs.stdenv.mkDerivation {
+            name = "tree-sitter-${name}-wasm";
+            src = spec.src;
+            nativeBuildInputs = [
+              pkgs.tree-sitter
+              pkgs.gnutar
+            ];
+            buildPhase = ''
+              export HOME=$TMPDIR
+              mkdir -p wasi-sdk
+              tar -xzf ${wasiSdkTarball} -C wasi-sdk --strip-components=1
+              export TREE_SITTER_WASI_SDK_PATH=$PWD/wasi-sdk
+              mkdir -p $out
+              tree-sitter build --wasm \
+                -o $out/tree-sitter-${name}.wasm \
+                ${spec.subdir or "."}
+            '';
+            dontInstall = true;
+            dontFixup = true;
+          };
+
+        builtGrammarWasms = pkgs.lib.mapAttrs buildGrammarWasm treeSitterGrammars;
+
+        # The WASM_DIR the arboretum moxin loads from: the still-vendored set
+        # (runtime tree-sitter.wasm + the not-yet-rebuilt grammars) with the
+        # freshly-built grammars layered on top (later cp wins). Phase B will
+        # build every grammar + source the runtime wasm here and drop the
+        # vendored dir entirely.
+        arboretumWasmDir = pkgs.runCommand "arboretum-wasm" { } ''
+          mkdir -p $out
+          cp ${./moxins/arboretum/wasm}/* $out/
+          chmod -R +w $out
+          ${pkgs.lib.concatStringsSep "\n" (
+            pkgs.lib.mapAttrsToList (name: drv: "cp -f ${drv}/tree-sitter-${name}.wasm $out/") builtGrammarWasms
+          )}
+        '';
+
         # Per-moxin derivations — each moxin is self-contained with its deps.
-        # @WASM_DIR@ resolves at build time to the moxin's vendored wasm dir
-        # (the source `moxins/arboretum/wasm` becomes a deterministic store
-        # path). Same convention as hamster's @GOMARKDOC@/@PANDOC@: pre-bundle
-        # substitution bakes the absolute store path into outline.js so the
-        # bundled JS can locate both web-tree-sitter's runtime wasm and the
-        # language grammars without any PATH or env-var indirection.
+        # @WASM_DIR@ resolves at build time to the arboretum wasm dir (built
+        # grammars overlaid on the vendored runtime/grammar set). Same
+        # convention as hamster's @GOMARKDOC@/@PANDOC@: pre-bundle substitution
+        # bakes the absolute store path into outline.js so the bundled JS can
+        # locate both web-tree-sitter's runtime wasm and the language grammars
+        # without any PATH or env-var indirection.
         arboretum-moxin =
           mkBunMoxin "arboretum"
             [
@@ -521,7 +604,7 @@
             }
             {
               extraSubstitutions = {
-                WASM_DIR = "${./moxins/arboretum/wasm}";
+                WASM_DIR = "${arboretumWasmDir}";
               };
             };
         # chix uses pathMode = "suffix" so the user's nix binary wins (and

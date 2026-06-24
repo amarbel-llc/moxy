@@ -38,10 +38,9 @@ EOF
 
 function arboretum_outline_bash_case_statement { # @test
   # Exercises the bash grammar's external scanner via a `case` statement, which
-  # currently crashes web-tree-sitter ("resolved is not a function"). Skipped
-  # until the bash grammar is rebuilt; un-skip when moxy#379 lands.
-  skip "blocked on moxy#379 (bash case scanner symbol-bind crash)"
-
+  # crashed web-tree-sitter ("resolved is not a function") with the old
+  # vendored ABI-14 grammar (moxy#379). The from-source ABI-15 rebuild parses
+  # it correctly.
   cat > "$HOME/sample.sh" <<'EOF'
 #!/usr/bin/env bash
 handle() {

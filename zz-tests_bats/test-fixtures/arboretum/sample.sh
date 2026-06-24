@@ -19,4 +19,14 @@ main() {
   shout "$(greet "$@")"
 }
 
+# A `case` statement exercises the bash grammar's external scanner — the
+# construct that crashed the old vendored grammar (moxy#379).
+dispatch() {
+  case "$1" in
+    shout) shout "$2" ;;
+    greet) greet "$2" ;;
+    *) main "$@" ;;
+  esac
+}
+
 main "$@"
