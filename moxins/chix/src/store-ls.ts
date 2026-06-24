@@ -1,7 +1,5 @@
-import { $ } from "zx";
-import { realpathSync, statSync } from "fs";
-
-$.verbose = false;
+import { lstatSync, readdirSync, realpathSync, statSync } from "fs";
+import { join } from "path";
 
 const [path, long = "false"] = process.argv.slice(2);
 
@@ -21,40 +19,26 @@ interface Entry {
   size?: number | null;
 }
 
-let entries: Entry[];
-
-if (long === "true") {
-  const out = (
-    await $`find ${resolved} -maxdepth 1 -mindepth 1 -printf ${"%y\\t%s\\t%f\\n"}`
-  ).stdout;
-  entries = out
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [typeChar, sizeStr, name] = line.split("\t");
-      const type =
-        typeChar === "d" ? "directory" : typeChar === "l" ? "symlink" : "file";
-      return {
-        name,
-        type,
-        size: typeChar === "f" ? parseInt(sizeStr) : null,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
-} else {
-  const out = (
-    await $`find ${resolved} -maxdepth 1 -mindepth 1 -printf ${"%y\\t%f\\n"}`
-  ).stdout;
-  entries = out
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [typeChar, name] = line.split("\t");
-      const type =
-        typeChar === "d" ? "directory" : typeChar === "l" ? "symlink" : "file";
-      return { name, type };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
+// Enumerate via Node's fs (Dirent) rather than `find -printf`: the latter is a
+// GNU findutils extension that BSD `find` (macOS) rejects with "-printf:
+// unknown primary or operator" (#359, #360). withFileTypes gives the entry
+// type without following symlinks, matching `find -printf %y`.
+const entries: Entry[] = readdirSync(resolved, { withFileTypes: true })
+  .map((dirent) => {
+    const type: Entry["type"] = dirent.isDirectory()
+      ? "directory"
+      : dirent.isSymbolicLink()
+        ? "symlink"
+        : "file";
+    if (long !== "true") {
+      return { name: dirent.name, type };
+    }
+    // Preserve the prior shape: size only for regular files (lstat so a
+    // symlink reports as a symlink, never followed), null otherwise.
+    const size =
+      type === "file" ? lstatSync(join(resolved, dirent.name)).size : null;
+    return { name: dirent.name, type, size };
+  })
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 process.stdout.write(JSON.stringify(entries));
