@@ -606,6 +606,32 @@ debug-bun2nix:
 debug-arboretum-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
 
+# Print the ELF interpreter of a wasi-sdk's clang — the root-cause probe for
+# #388. The prebuilt Linux clang ships with interpreter /lib64/ld-linux-x86-64.so.2,
+# a path the Nix build sandbox lacks, so `tree-sitter build --wasm` can't exec it
+# (execve → ENOENT, surfaced as "Failed to run wasi-sdk clang"). The `wasiSdk`
+# derivation runs the SDK through autoPatchelfHook on Linux, rewriting the
+# interpreter to a /nix/store glibc loader. Pass either a realized SDK dir (the
+# `wasiSdk` output, e.g. `nix-store -r` of the wasi-sdk-<ver>.drv) or the raw
+# release tarball — this reports the interpreter so you can tell patched
+# (/nix/store/...) from unpatched (/lib64/...). On macOS clang is Mach-O with no
+# interpreter, which is why the from-source path only broke once ea54cee enabled
+# it on Linux.
+[group("debug")]
+debug-arboretum-wasi-clang-interp sdk:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [[ -d {{sdk}} ]]; then
+    clang={{sdk}}/bin/clang-21
+  else
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    tar -xzf {{sdk}} -C "$tmp" --strip-components=1 --wildcards 'wasi-sdk-*/bin/clang-21'
+    clang="$tmp"/bin/clang-21
+  fi
+  echo "--- readelf -l clang-21 | interpreter ---"
+  readelf -l "$clang" | grep -i interpreter || echo "(statically linked / no interpreter)"
+
 # Fast local dead-jq check (the conformist [linter.dead-jq] command, run
 # directly without the nix build wrapper). The gating path is `just lint-fmt`
 # (conformist check); this recipe is a quicker loop while editing bats files.

@@ -535,6 +535,36 @@
           hash = wasiSdkInfo.hash;
         };
 
+        # The prebuilt wasi-sdk release ships dynamically-linked host binaries:
+        # its clang's ELF interpreter is /lib64/ld-linux-x86-64.so.2, a path the
+        # Nix build sandbox lacks, so `tree-sitter build --wasm` can't exec it
+        # (execve → ENOENT, surfaced as "Failed to run wasi-sdk clang"). Extract
+        # the SDK once and, on Linux, run it through autoPatchelfHook so clang +
+        # its shared libs point at the Nix glibc loader. On Darwin the binaries
+        # are Mach-O with no interpreter indirection, so no patching is needed —
+        # which is why the from-source path only broke once ea54cee turned it on
+        # for Linux. The whole SDK tree is copied (not just bin/clang) so the
+        # CFGDIR-relative paths in bin/clang.cfg still resolve to the sysroot.
+        # (#388)
+        wasiSdk = pkgs.stdenv.mkDerivation {
+          name = "wasi-sdk-${wasiSdkVersion}";
+          src = wasiSdkTarball;
+          nativeBuildInputs = pkgs.lib.optional pkgs.stdenv.isLinux pkgs.autoPatchelfHook;
+          buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+            pkgs.stdenv.cc.cc.lib # libstdc++ / libgcc_s for clang
+            pkgs.zlib # libz
+            pkgs.ncurses # libtinfo for clang
+          ];
+          # Stay in the build root so the unpacked wasi-sdk-*/ dir is a child
+          # (default unpack auto-cd's into it, which breaks the glob copy).
+          sourceRoot = ".";
+          dontBuild = true;
+          installPhase = ''
+            mkdir -p $out
+            cp -a wasi-sdk-*/. $out/
+          '';
+        };
+
         # tree-sitter grammar sources, pinned by rev. ts and tsx share one
         # repo (two subdir grammars); php's grammar lives in the `php/` subdir
         # (vs `php_only/`). Each entry maps a wasm OUTPUT name to its source +
@@ -612,13 +642,10 @@
             src = spec.src;
             nativeBuildInputs = [
               pkgs.tree-sitter
-              pkgs.gnutar
             ];
             buildPhase = ''
               export HOME=$TMPDIR
-              mkdir -p wasi-sdk
-              tar -xzf ${wasiSdkTarball} -C wasi-sdk --strip-components=1
-              export TREE_SITTER_WASI_SDK_PATH=$PWD/wasi-sdk
+              export TREE_SITTER_WASI_SDK_PATH=${wasiSdk}
               mkdir -p $out
               tree-sitter build --wasm \
                 -o $out/tree-sitter-${name}.wasm \
