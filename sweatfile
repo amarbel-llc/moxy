@@ -18,10 +18,13 @@ pre-merge = "just"
 # already-running session must `sc resume` to pick it up.
 pre-commit = "conformist-pre-commit"
 
-# NOTE: the pre-merge REPAIR hook (`repair = "conformist-repair"`, the
-# store-pinned `--commit --amend` counterpart) is intentionally NOT wired yet.
-# spinclass runs `repair` DURING the merge, but conformist-repair only lands on
-# the devShell PATH after this flake's devShell bump takes effect (a session
-# restart / `direnv reload`), so wiring it in the very commit that introduces it
-# would 127 the bootstrap merge. Add it in a follow-up once conformist-repair is
-# on PATH (the pre-commit hook above is best-effort and does not block).
+# Pre-merge REPAIR phase (spinclass FDR 0018): before the pre-merge verify gate,
+# auto-fold mechanical fixes (formatting) into the commit being merged via
+# `git commit --amend`. `conformist-repair` is the store-pinned `--commit --amend`
+# counterpart of conformist-pre-commit (the module's build.repair output); both
+# share one wrapper body, on the devShell PATH via flake.nix. spinclass runs this
+# during the merge from the worktree's ambient (direnv) environment, so the
+# devShell must be active — a session created BEFORE the conformist migration
+# landed lacks conformist-repair on PATH and will 127; merge from a session
+# whose devShell already carries it.
+repair = "conformist-repair"
