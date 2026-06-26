@@ -33,21 +33,20 @@ function push_stack_pushes_a_clean_three_branch_chain { # @test
   assert_success
   echo "$output" | jq -e '.phase == "push"' >/dev/null || fail "expected .phase == push; got: $output"
   echo "$output" | jq -e '.results | length == 3' >/dev/null || fail "expected .results length == 3; got: $output"
-  echo "$output" | jq -e '[.results[].status] | all(. == "ok")' >/dev/null \
-    || { echo "expected all .results[].status == ok; got: $output" >&2; false; }
+  echo "$output" | jq -e '[.results[].status] | all(. == "ok")' >/dev/null || fail "expected all .results[].status == ok; got: $output"
 }
 
 function push_stack_dry_run_rejects_when_remote_has_diverged { # @test
   cd "$STACK_WORK"
   # advance branch B's remote ref out from under us
   git clone -q "$STACK_REMOTE" "$HOME/other"
-  (cd "$HOME/other" \
-    && git config user.email t@t \
-    && git config user.name t \
-    && git config commit.gpgSign false \
-    && git checkout -q "$STACK_BRANCH_B" \
-    && git commit --allow-empty -m sneak -q \
-    && git push -q origin "$STACK_BRANCH_B")
+  (cd "$HOME/other" &&
+    git config user.email t@t &&
+    git config user.name t &&
+    git config commit.gpgSign false &&
+    git checkout -q "$STACK_BRANCH_B" &&
+    git commit --allow-empty -m sneak -q &&
+    git push -q origin "$STACK_BRANCH_B")
 
   cd "$STACK_WORK"
   for b in "$STACK_BRANCH_A" "$STACK_BRANCH_B" "$STACK_BRANCH_C"; do
@@ -68,8 +67,11 @@ function push_stack_dry_run_rejects_when_remote_has_diverged { # @test
   remote_a=$(cd "$STACK_REMOTE" && git rev-parse "refs/heads/$STACK_BRANCH_A")
   cd "$STACK_WORK"
   local_a=$(git rev-parse "$STACK_BRANCH_A")
-  [ "$remote_a" != "$local_a" ] \
-    || { echo "expected remote A ($remote_a) to differ from local A ($local_a) — push-stack must not have actually pushed A when dry-run failed" >&2; false; }
+  [ "$remote_a" != "$local_a" ] ||
+    {
+      echo "expected remote A ($remote_a) to differ from local A ($local_a) — push-stack must not have actually pushed A when dry-run failed" >&2
+      false
+    }
 }
 
 function push_stack_rejects_main_master_in_branches_list { # @test

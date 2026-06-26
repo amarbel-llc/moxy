@@ -15,8 +15,8 @@ teardown() {
 function folio_ls_lists_directory_contents { # @test
   # Create project dir with known contents (ls within CWD)
   mkdir -p "$HOME/project/testdir/subdir"
-  echo "hello" > "$HOME/project/testdir/file1.txt"
-  echo "world" > "$HOME/project/testdir/file2.txt"
+  echo "hello" >"$HOME/project/testdir/file1.txt"
+  echo "world" >"$HOME/project/testdir/file2.txt"
   ln -s "$HOME/project/testdir/file1.txt" "$HOME/project/testdir/link1"
 
   cd "$HOME/project"
@@ -39,7 +39,7 @@ function folio_ls_lists_directory_contents { # @test
 
 function folio_ls_shows_entry_types { # @test
   mkdir -p "$HOME/project/testdir/subdir"
-  echo "hello" > "$HOME/project/testdir/file.txt"
+  echo "hello" >"$HOME/project/testdir/file.txt"
   ln -s "$HOME/project/testdir/file.txt" "$HOME/project/testdir/link"
 
   cd "$HOME/project"
@@ -74,7 +74,7 @@ function folio_ls_large_listing { # @test
   # ~3000 entries x ~50-char names ≈ 150 KB of ls -1 output.
   local i
   for i in $(seq 3000); do
-    : > "big/file-with-a-long-padding-name-to-inflate-listing-$i"
+    : >"big/file-with-a-long-padding-name-to-inflate-listing-$i"
   done
 
   local params='{"name":"folio.ls","arguments":{"path":"big","flags":"-1"}}'
@@ -87,7 +87,7 @@ function folio_ls_large_listing { # @test
 
 function folio_ls_defaults_to_cwd { # @test
   mkdir -p "$HOME/project"
-  echo "hello" > "$HOME/project/readme.txt"
+  echo "hello" >"$HOME/project/readme.txt"
 
   cd "$HOME/project"
 

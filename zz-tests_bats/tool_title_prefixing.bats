@@ -54,4 +54,3 @@ EOF
   # tool-server.bash tools have no title, should remain null/absent
   echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command") | .title == null'
 }
-

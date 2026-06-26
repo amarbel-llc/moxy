@@ -44,7 +44,7 @@ _moxy_spawn_dir() {
     return
   fi
   case "$PWD" in
-    "$HOME"|"$HOME"/*) echo "$PWD" ;;
+    "$HOME" | "$HOME"/*) echo "$PWD" ;;
     *) echo "$HOME" ;;
   esac
 }

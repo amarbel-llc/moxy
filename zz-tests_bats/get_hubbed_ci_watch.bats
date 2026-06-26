@@ -33,7 +33,7 @@ setup() {
   # completed/success; answer the /jobs endpoint too for robustness.
   # Note: no shebang — the nix sandbox lacks /usr/bin/env, so bash falls back to
   # executing shebang-less scripts as shell scripts.
-  cat > "$HOME/bin/gh" <<'EOF'
+  cat >"$HOME/bin/gh" <<'EOF'
 set -euo pipefail
 endpoint="${2:-}"
 case "$endpoint" in
@@ -45,7 +45,7 @@ EOF
 
   # clown stub: record every argv line; print a fixed id for `job start` so the
   # parent's watching envelope and the poller's `job done` share it.
-  cat > "$HOME/bin/clown" <<'EOF'
+  cat >"$HOME/bin/clown" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$*" >> "${CLOWN_RECORD:-/dev/null}"
 if [ "${1:-}" = "job" ] && [ "${2:-}" = "start" ]; then

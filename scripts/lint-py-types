@@ -42,4 +42,8 @@ if [ "${#pyfiles[@]}" -eq 0 ]; then
   exit 0
 fi
 
-exec mypy "${pyfiles[@]}"
+# --cache-dir=/dev/null disables mypy's incremental cache. conformist's
+# build.check runs this against a READ-ONLY /nix/store source copy, where mypy's
+# default attempt to write .mypy_cache in the tree root fails; a one-shot check
+# needs no cache. (Mirrors the ruff-check --no-cache wiring in conformist.nix.)
+exec mypy --cache-dir=/dev/null "${pyfiles[@]}"

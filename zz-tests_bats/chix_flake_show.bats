@@ -37,7 +37,7 @@ function flake_show_surfaces_underlying_nix_error_not_bun_stack_trace { # @test
   fi
 
   # Output must be non-empty — the underlying nix error must be surfaced.
-  [[ -n "$output" ]] || {
+  [[ -n $output ]] || {
     echo "output was empty — underlying nix error was swallowed" >&2
     return 1
   }

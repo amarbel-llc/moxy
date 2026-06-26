@@ -20,7 +20,7 @@ setup() {
   # so the recipe actually runs.
   mkdir -p "$HOME/bin"
   # Note: no shebang — the nix sandbox lacks /usr/bin/env.
-  cat > "$HOME/bin/nix" <<'STUB'
+  cat >"$HOME/bin/nix" <<'STUB'
 set -euo pipefail
 printf '%s\n' "$@" > "$HOME/nix-argv"
 # shift past "develop [--impure] -c" to find "just <args>"
@@ -31,7 +31,7 @@ STUB
   chmod +x "$HOME/bin/nix"
 
   # Stub just: records argv one-per-line to $HOME/just-argv and exits 0.
-  cat > "$HOME/bin/just" <<'STUB'
+  cat >"$HOME/bin/just" <<'STUB'
 set -euo pipefail
 printf '%s\n' "$@" > "$HOME/just-argv"
 STUB
@@ -66,7 +66,7 @@ function run_recipe_JUST_US_AGENTS_IMPURE_1_passes_impure_to_nix_develop { # @te
 }
 
 function run_recipe_no_flake_nix_skips_nix_develop_entirely { # @test
-  cd "$HOME"  # no flake.nix here
+  cd "$HOME"                                                  # no flake.nix here
   JUST_US_AGENTS_IMPURE=1 run "$BIN/run-recipe" "build" "" "" ""
   assert_success
   # nix was never called — nix-argv file should not exist

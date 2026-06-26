@@ -6,7 +6,7 @@
 // for the same reason — go mod verify exercises the same code path safely).
 //
 // Usage:
-//   just test-hamster
+//   just run-hamster-smoke
 //   zx bin/test-hamster.mjs
 //
 // Requires: nix-built moxins (just build-moxins) and the moxy devshell (so

@@ -4,7 +4,7 @@
 
 # Repo-level lint guards over the bats suite itself. These run in the default
 # lane (the `lint` tag is neither net_cap nor host_only) and as
-# `just test-bats-tag lint`. Both guards defend against ARG_MAX (E2BIG) blowups
+# `just run-bats-tag lint`. Both guards defend against ARG_MAX (E2BIG) blowups
 # caused by stuffing large captured $output into a process's argv or envp.
 
 load 'common'
@@ -29,7 +29,7 @@ function no_bats_file_exports_output { # @test
     "${files[@]}" || true)
   if [ -n "$hits" ]; then
     echo "Found 'export output' — an ARG_MAX env-bloat bomb (see #284)." >&2
-    echo "Use \$output in-shell; do not export it:" >&2
+    echo 'Use $output in-shell; do not export it:' >&2
     echo "$hits" >&2
     return 1
   fi

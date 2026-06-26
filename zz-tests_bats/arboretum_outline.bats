@@ -12,7 +12,7 @@ teardown() {
 }
 
 function arboretum_outline_returns_a_go_outline_for_a_single_file { # @test
-  cat > "$HOME/sample.go" <<'EOF'
+  cat >"$HOME/sample.go" <<'EOF'
 package main
 
 func Hello() string { return "hi" }
@@ -41,7 +41,7 @@ function arboretum_outline_bash_case_statement { # @test
   # crashed web-tree-sitter ("resolved is not a function") with the old
   # vendored ABI-14 grammar (moxy#379). The from-source ABI-15 rebuild parses
   # it correctly.
-  cat > "$HOME/sample.sh" <<'EOF'
+  cat >"$HOME/sample.sh" <<'EOF'
 #!/usr/bin/env bash
 handle() {
   case "$1" in
@@ -64,12 +64,12 @@ EOF
 
 function arboretum_outline_walks_a_directory { # @test
   mkdir -p "$HOME/pkg"
-  cat > "$HOME/pkg/a.go" <<'EOF'
+  cat >"$HOME/pkg/a.go" <<'EOF'
 package pkg
 
 func A() {}
 EOF
-  cat > "$HOME/pkg/b.py" <<'EOF'
+  cat >"$HOME/pkg/b.py" <<'EOF'
 def b():
     pass
 EOF

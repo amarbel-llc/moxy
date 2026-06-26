@@ -32,7 +32,7 @@ function clock_utc_field_is_zulu { # @test
   run "$BIN/clock"
   assert_success
   utc=$(jq -r '.utc' <<<"$output")
-  [[ "$utc" == *Z ]]
+  [[ $utc == *Z ]]
 }
 
 function clock_explicit_utc_timezone { # @test
@@ -49,7 +49,7 @@ function clock_explicit_iana_timezone_offset { # @test
   assert_success
   assert_equal "$(jq -r '.timezone' <<<"$output")" "America/New_York"
   off=$(jq -r '.offset' <<<"$output")
-  [[ "$off" == "-0500" || "$off" == "-0400" ]]
+  [[ $off == "-0500" || $off == "-0400" ]]
 }
 
 function clock_invalid_timezone_errors { # @test

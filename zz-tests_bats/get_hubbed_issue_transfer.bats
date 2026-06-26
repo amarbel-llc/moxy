@@ -19,7 +19,7 @@ setup() {
   mkdir -p "$HOME/bin"
   # No shebang — the nix sandbox lacks /usr/bin/env; bash runs shebang-less
   # scripts as shell scripts (ENOEXEC retry).
-  cat > "$HOME/bin/gh" <<'EOF'
+  cat >"$HOME/bin/gh" <<'EOF'
 set -euo pipefail
 if [ "${1:-}" = "api" ] && [ "${2:-}" = "graphql" ]; then
   case "$*" in

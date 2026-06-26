@@ -48,21 +48,12 @@
       inputs.utils.follows = "utils";
     };
 
-    # treefmt-nix is the formatter source-of-truth: ./treefmt.nix's
-    # `programs.*.enable` resolves each formatter binary, and we consume its
-    # generated config file (config.build.configFile). The conformist binary
-    # (below) is the actual runner for both `nix fmt` and the check gate.
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "igloo";
-    };
-
     # conformist — the linter+formatter multiplexer (formerly treelint; RFC
-    # 0001). Runs the formatters from the generated treefmt config plus moxy's
-    # own [linter.*] sections (currently dead-jq) under one `conformist check`
-    # gate. conformist still reads the legacy treefmt-style config (and the
-    # treelint.toml / TREELINT_ env surface), so the config wiring below is
-    # unchanged by the rename.
+    # 0001). moxy's formatter + linter config lives in ./conformist.nix, merged
+    # with conformist.lib.presets.eng via conformist.lib.evalModule (see the
+    # outputs below). The module produces the `nix fmt` wrapper, the read-only
+    # `conformist check` gate, and the store-pinned conformist-pre-commit /
+    # conformist-repair git hooks — replacing the former treefmt-nix config.
     conformist = {
       url = "github:amarbel-llc/conformist";
       inputs.igloo.follows = "igloo";
@@ -82,7 +73,6 @@
       tommy,
       bats,
       madder,
-      treefmt-nix,
       conformist,
     }:
     (utils.lib.eachDefaultSystem (
@@ -115,23 +105,14 @@
             ];
         };
 
-        # Formatter source-of-truth. treefmt-nix's programs.*.enable resolves
-        # each formatter binary; we consume its generated config below and feed
-        # it to the conformist runner. The tommy TOML formatter binary is
-        # injected via _module.args.tommy (see ./treefmt.nix).
-        treefmtEval = treefmt-nix.lib.evalModule pkgs {
-          imports = [ ./treefmt.nix ];
-          _module.args.tommy = tommy.packages.${system}.default;
-        };
-
-        conformistBin = conformist.packages.${system}.conformist;
+        conformistPkg = conformist.packages.${system}.conformist;
 
         # The dead-jq bats linter (scripts/lint-dead-jq), packaged via
         # conformist's sandbox-safe helper (conformist#19): it patchShebangs the
         # `#!/usr/bin/env bash` script so it execs inside the pure-nix check
         # sandbox, then --prefix-wraps PATH with runtimeInputs (a superset of
-        # the old --set PATH). This is the [linter.dead-jq] command in the
-        # merged conformist config.
+        # the old --set PATH). This is the [linter.dead-jq] command in
+        # ./conformist.nix.
         deadJqChecker = conformist.lib.writeCheckScript pkgs {
           name = "lint-dead-jq";
           src = ./scripts/lint-dead-jq;
@@ -145,8 +126,8 @@
         # python env bundles mypy with types-requests so the `requests` stub
         # resolves; mypy.ini at the tree root supplies ignore_missing_imports +
         # scripts_are_modules. Wrapped the same way as deadJqChecker and wired as
-        # the [linter.mypy] command below; also exposed as packages.lint-py-types
-        # for the debug-py-typecheck dev-loop.
+        # the [linter.mypy] command in ./conformist.nix; also exposed as
+        # packages.lint-py-types for the debug-py-typecheck dev-loop.
         mypyEnv = pkgs.python3.withPackages (ps: [
           ps.mypy
           ps.types-requests
@@ -161,55 +142,35 @@
           ];
         };
 
-        # conformist reads the treefmt-era config name (rename out of scope per
-        # RFC 0001 §Compatibility). Take treefmt-nix's generated formatter
-        # config and append moxy's [linter.*] sections — treefmt has no linter
-        # table, so a plain append is a valid, order-independent merge.
-        conformistConfig = pkgs.runCommand "conformist-config.toml" { } ''
-          cat ${treefmtEval.config.build.configFile} > $out
-          cat >> $out <<EOF
+        # moxy's formatter + linter config, merged with the eng preset. The
+        # pure eval (presets.eng + ./conformist.nix) drives `nix fmt`
+        # (build.wrapper), the read-only gate (build.check), and the
+        # store-pinned git hooks (build.preCommit / build.repair). tommy (TOML
+        # formatter) and the two custom check scripts are store-path deps built
+        # here, injected into the module via _module.args — same pattern moxy
+        # used to inject tommy into treefmt. See ./conformist.nix.
+        conformistEval = conformist.lib.evalModule pkgs {
+          imports = [
+            conformist.lib.presets.eng
+            ./conformist.nix
+          ];
+          package = conformistPkg;
+          _module.args = {
+            inherit deadJqChecker pyTypesChecker;
+            tommy = tommy.packages.${system}.default;
+          };
+        };
 
-          [linter.dead-jq]
-          command = "${deadJqChecker}/bin/lint-dead-jq"
-          includes = ["zz-tests_bats/*.bats"]
-
-          [linter.mypy]
-          command = "${pyTypesChecker}/bin/lint-py-types"
-          includes = ["moxins/sisyphus/lib/*.py", "moxins/sisyphus/bin/*", "moxins/freud/bin/*"]
-          EOF
-        '';
-
-        # `nix fmt` repair entrypoint: run conformist against the merged
-        # config. --config-file points at a /nix/store path, and conformist
-        # defaults --tree-root to the config's directory (conformist#2
-        # footgun), so we MUST pass an explicit --tree-root or it would walk
-        # /nix/store.
-        conformistFormatter = pkgs.writeShellScriptBin "conformist-fmt" ''
-          exec ${conformistBin}/bin/conformist \
-            --config-file ${conformistConfig} \
-            --tree-root "''${PRJ_ROOT:-$PWD}" \
-            "$@"
-        '';
-
-        # Read-only gate (replaces checks.treefmt). Copy the source into the
-        # sandbox (the tree must be writable for fix-only formatters' sandbox
-        # checks, and we never write back to the real tree), then run
-        # `conformist check` rooted at that copy. Non-zero exit fails the
-        # build.
-        conformistCheck =
-          pkgs.runCommand "conformist-check"
-            {
-              nativeBuildInputs = [ conformistBin ];
-            }
-            ''
-              cp -r ${self} src
-              chmod -R u+w src
-              cd src
-              conformist check \
-                --config-file ${conformistConfig} \
-                --tree-root .
-              touch $out
-            '';
+        # Impure git-state lane: the eng-convention checks that need a live .git
+        # or host tools (git-remotes, git-default-branch, sweatfile's `spinclass
+        # validate`, agents-md, gomod2nix). They can't run in the sandboxed
+        # gate, so this config drives a working-tree `conformist check` via
+        # `just lint-worktree`. See the eng-impure preset and conformist-nix(7).
+        conformistImpureEval = conformist.lib.evalModule pkgs {
+          imports = [ conformist.lib.presets.eng-impure ];
+          package = conformistPkg;
+          projectRootFile = "flake.nix";
+        };
 
         moxySrc = pkgs.lib.fileset.toSource {
           root = ./.;
@@ -246,7 +207,12 @@
           };
         };
 
-        gwsVersion = "0.22.5";
+        # google-workspace-cli release pin (a third-party binary, not moxy's own
+        # version). Named `gwsRelease`, NOT `gwsVersion`: the eng-versioning
+        # deprecated-file linter flags any `*Version = "<semver>"` let-binding in
+        # flake.nix (it wants moxy's version in version.env), and this is an
+        # unrelated vendored-tool pin.
+        gwsRelease = "0.22.5";
         gwsPlatform =
           {
             "aarch64-darwin" = {
@@ -270,9 +236,9 @@
 
         gws-bin = pkgs.stdenv.mkDerivation {
           pname = "gws";
-          version = gwsVersion;
+          version = gwsRelease;
           src = pkgs.fetchurl {
-            url = "https://github.com/googleworkspace/cli/releases/download/v${gwsVersion}/google-workspace-cli-${gwsPlatform.name}.tar.gz";
+            url = "https://github.com/googleworkspace/cli/releases/download/v${gwsRelease}/google-workspace-cli-${gwsPlatform.name}.tar.gz";
             hash = gwsPlatform.hash;
           };
           sourceRoot = ".";
@@ -1297,7 +1263,7 @@
 
         # Hermetic Go test + vet checks (#347, folds #348). A lean base off
         # `moxy`: doCheck on, the plugin-gen postInstall dropped (irrelevant to
-        # a test run), MOXIN_PATH unset to match `just test-go`. The build
+        # a test run), MOXIN_PATH unset to match `just run-go-test`. The build
         # sandbox gives each a fresh HOME/TMPDIR, so env-dependent tests (e.g.
         # discovery's MOXIN_PATH/HOME fallback) are isolated by construction —
         # the class that leaked into the merge hook. buildGoRace flips
@@ -1355,25 +1321,39 @@
           # debug-py-typecheck recipe runs the exact same binary the gate's
           # [linter.mypy] uses.
           lint-py-types = pyTypesChecker;
+          # The store-pinned, toolchain-hermetic git hooks from the pure
+          # conformist eval (conformist#47/#51/#54): conformist-pre-commit runs
+          # `conformist --staged --exit-zero-on-fix`, conformist-repair runs
+          # `conformist --commit --amend --exit-zero-on-fix`. On the devShell
+          # PATH under these names; moxy's sweatfile [hooks] names them. Every
+          # formatter's command is store-pinned in the baked config, so they
+          # cannot silently skip a file type the ambient PATH happens to lack.
+          conformist-pre-commit = conformistEval.config.build.preCommit;
+          conformist-repair = conformistEval.config.build.repair;
+          # The impure-lane config (eng-impure preset). `just lint-worktree`
+          # runs `conformist check` against the working tree with this config
+          # to exercise the git-state linters (git-remotes, git-default-branch,
+          # sweatfile, agents-md, gomod2nix) the sandboxed gate cannot.
+          conformist-impure-config = conformistImpureEval.config.build.configFile;
         };
 
-        # `nix fmt` runs conformist in repair mode (formatters from the
-        # generated treefmt config + any [linter.*] repair actions).
-        # `checks.conformist` is the sandboxed read-only gate (built by
-        # `just lint-fmt`, and evaluated by `nix flake check`): it runs
-        # `conformist check`, which also runs the dead-jq linter over
-        # zz-tests_bats/*.bats.
-        formatter = conformistFormatter;
+        # `nix fmt` runs the conformist wrapper in repair mode (every formatter
+        # from ./conformist.nix + presets.eng, plus any linter repair actions).
+        # `checks.conformist` is the sandboxed read-only gate (built by `just
+        # lint-fmt`, and evaluated by `nix flake check`): it runs `conformist
+        # check`, covering the formatters, the dead-jq + mypy linters, and the
+        # eng-preset conventions (eng-versioning, flake-*, justfile-*).
+        formatter = conformistEval.config.build.wrapper;
         # `nix flake check` is the single hermetic gate: conformist (fmt +
         # dead-jq + mypy), the Go test (-race) / vet / golangci-lint checks, and the
         # comprehensive `bats-default` lane (every test except the net_cap and
         # host_only tags, which need sandbox capabilities a flake check can't
         # grant — those stay as their own `nix build` recipes). The per-tag
-        # lanes remain in `packages` for focused `just test-bats-tag` runs;
+        # lanes remain in `packages` for focused `just run-bats-tag` runs;
         # bats-default already covers them in aggregate, so re-listing each as
         # a check would only double-build.
         checks = {
-          conformist = conformistCheck;
+          conformist = conformistEval.config.build.check self;
           go-test-race = goTestRace;
           go-vet = goVet;
           go-lint = goLint;
@@ -1416,12 +1396,21 @@
             pkgs.jq
             # Vanilla bats — we used to pull bats.packages.${system}.batman
             # (the sandcastle-wrapping wrapper), but #249 moved the suite
-            # to batsLane (`just test-bats`). Devshell needs only the raw
-            # bats binary now, for the self-contained `poc-test-dynamic-perms`
-            # explore recipe; the test suite itself runs through nix lanes.
+            # to batsLane (`just run-bats`). Devshell needs only the raw
+            # bats binary now, for the self-contained
+            # `explore-poc-test-dynamic-perms` recipe; the test suite itself
+            # runs through nix lanes.
             pkgs.bats
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default
+            # The raw conformist runner (`nix fmt` / lint-worktree) plus the
+            # config-specific, toolchain-hermetic git hooks on PATH under the
+            # names moxy's sweatfile references (conformist#47/#51/#54). The
+            # pre-commit hook is auto-installed per-worktree by spinclass at
+            # `sc start`/`sc resume` from the sweatfile.
+            conformistPkg
+            conformistEval.config.build.preCommit
+            conformistEval.config.build.repair
           ];
         };
       }

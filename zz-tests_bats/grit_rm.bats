@@ -18,9 +18,9 @@ setup() {
   git config user.email "test@test.com"
   git config user.name "Test"
 
-  echo "top" > file.txt
+  echo "top" >file.txt
   mkdir -p subdir
-  echo "nested" > subdir/nested.txt
+  echo "nested" >subdir/nested.txt
   git add file.txt subdir/nested.txt
   git commit -m "initial"
 }

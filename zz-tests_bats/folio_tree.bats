@@ -19,8 +19,8 @@ teardown() {
 # surfaces directly.
 function folio_tree_returns_listing_not_wrapped_envelope { # @test
   mkdir -p "$HOME/project/sub"
-  : > "$HOME/project/top.txt"
-  : > "$HOME/project/sub/nested.txt"
+  : >"$HOME/project/top.txt"
+  : >"$HOME/project/sub/nested.txt"
   cd "$HOME/project"
 
   local params='{"name":"folio.tree","arguments":{"path":"."}}'
@@ -47,7 +47,7 @@ function folio_tree_large_listing { # @test
   # ~3000 entries x ~58-char lines ≈ 175 KB of tree output.
   local i
   for i in $(seq 3000); do
-    : > "big/file-with-a-long-padding-name-to-inflate-listing-$i"
+    : >"big/file-with-a-long-padding-name-to-inflate-listing-$i"
   done
 
   local params='{"name":"folio.tree","arguments":{"path":"big"}}'

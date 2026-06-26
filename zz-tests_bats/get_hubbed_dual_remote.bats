@@ -42,7 +42,7 @@ setup() {
   # Note: no shebang line. The nix sandbox lacks /usr/bin/env, so
   # #!/usr/bin/env bash would fail. Bash falls back to executing
   # shebang-less scripts as shell scripts (ENOEXEC → shell retry).
-  cat > "$GH_STUB" <<'EOF'
+  cat >"$GH_STUB" <<'EOF'
 # Minimal gh stub for dual-remote tests.
 set -euo pipefail
 

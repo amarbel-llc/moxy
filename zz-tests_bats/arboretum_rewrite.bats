@@ -12,7 +12,7 @@ teardown() {
 }
 
 function arboretum_rewrite_dry_run_emits_diff_without_modifying_file { # @test
-  cat > "$HOME/app.js" <<'EOF'
+  cat >"$HOME/app.js" <<'EOF'
 console.log("startup");
 EOF
 
@@ -22,8 +22,8 @@ EOF
   local params
   params=$(jq -cn \
     --arg n "arboretum.rewrite" \
-    --arg pat "console.log(\$MSG)" \
-    --arg rep "logger.info(\$MSG)" \
+    --arg pat 'console.log($MSG)' \
+    --arg rep 'logger.info($MSG)' \
     --arg path "$HOME" \
     '{name: $n, arguments: {pattern: $pat, rewrite: $rep, path: $path, dry_run: true}}')
   run_moxy_mcp_v1 "tools/call" "$params"
@@ -42,7 +42,7 @@ EOF
 }
 
 function arboretum_rewrite_apply_modifies_the_file { # @test
-  cat > "$HOME/app.js" <<'EOF'
+  cat >"$HOME/app.js" <<'EOF'
 console.log("startup");
 console.log("done");
 EOF
@@ -50,8 +50,8 @@ EOF
   local params
   params=$(jq -cn \
     --arg n "arboretum.rewrite" \
-    --arg pat "console.log(\$MSG)" \
-    --arg rep "logger.info(\$MSG)" \
+    --arg pat 'console.log($MSG)' \
+    --arg rep 'logger.info($MSG)' \
     --arg path "$HOME" \
     '{name: $n, arguments: {pattern: $pat, rewrite: $rep, path: $path}}')
   run_moxy_mcp_v1 "tools/call" "$params"
@@ -68,7 +68,7 @@ function arboretum_rewrite_applies_a_go_call_rename_via_auto_wrap { # @test
   # would fail to match `fmt.Println($X)` due to Go's call-vs-conversion
   # parser ambiguity; the wrapper synthesizes a YAML rule with
   # `selector: call_expression` via --inline-rules.
-  cat > "$HOME/main.go" <<'EOF'
+  cat >"$HOME/main.go" <<'EOF'
 package main
 
 import "fmt"
@@ -82,8 +82,8 @@ EOF
   local params
   params=$(jq -cn \
     --arg n "arboretum.rewrite" \
-    --arg pat "fmt.Println(\$X)" \
-    --arg rep "log.Info(\$X)" \
+    --arg pat 'fmt.Println($X)' \
+    --arg rep 'log.Info($X)' \
     --arg path "$HOME" \
     --arg lang "go" \
     '{name: $n, arguments: {pattern: $pat, rewrite: $rep, path: $path, lang: $lang}}')

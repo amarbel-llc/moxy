@@ -37,7 +37,7 @@ teardown() {
 assert_v0_text_field_present() {
   local missing
   missing=$(echo "$output" | jq '[.content // [] | .[] | select(.text == null or (.text | type) != "string")] | length')
-  if [[ "$missing" -ne 0 ]]; then
+  if [[ $missing -ne 0 ]]; then
     echo "Found $missing content block(s) with missing or non-string 'text' field" >&2
     echo "Output: $output" >&2
     return 1
@@ -49,7 +49,7 @@ assert_v0_text_field_present() {
 assert_v0_no_resource_type() {
   local count
   count=$(echo "$output" | jq '[.content // [] | .[] | select(.type == "resource")] | length')
-  if [[ "$count" -ne 0 ]]; then
+  if [[ $count -ne 0 ]]; then
     echo "Found $count content block(s) with type='resource' — V0 downgrade should flatten these to 'text'" >&2
     echo "Output: $output" >&2
     return 1
@@ -60,7 +60,7 @@ assert_v0_no_resource_type() {
 assert_no_mimetype_on_text_blocks() {
   local count
   count=$(echo "$output" | jq '[.content // [] | .[] | select(.type == "text" and .mimeType != null and .mimeType != "")] | length')
-  if [[ "$count" -ne 0 ]]; then
+  if [[ $count -ne 0 ]]; then
     echo "Found $count text block(s) with mimeType set — violates MCP spec" >&2
     echo "Output: $output" >&2
     return 1
@@ -83,7 +83,7 @@ assert_valid_v0_content() {
 assert_v1_resource_blocks_valid() {
   local malformed
   malformed=$(echo "$output" | jq '[.content // [] | .[] | select(.type == "resource" and .resource == null)] | length')
-  if [[ "$malformed" -ne 0 ]]; then
+  if [[ $malformed -ne 0 ]]; then
     echo "Found $malformed resource block(s) missing the 'resource' sub-object" >&2
     echo "Output: $output" >&2
     return 1
@@ -95,7 +95,7 @@ assert_v1_resource_blocks_valid() {
 assert_v1_text_blocks_valid() {
   local malformed
   malformed=$(echo "$output" | jq '[.content // [] | .[] | select(.type == "text" and (.text == null or (.text | type) != "string"))] | length')
-  if [[ "$malformed" -ne 0 ]]; then
+  if [[ $malformed -ne 0 ]]; then
     echo "Found $malformed text block(s) with missing or non-string 'text' field" >&2
     echo "Output: $output" >&2
     return 1
@@ -450,10 +450,10 @@ function v0_grit_diff_content_blocks_claude_compatible { # @test
   git config user.email "test@test.com"
   git config user.name "Test"
 
-  echo "original" > file.txt
+  echo "original" >file.txt
   git add file.txt
   git commit -m "initial"
-  echo "modified" > file.txt
+  echo "modified" >file.txt
 
   local params='{"name":"grit.diff"}'
   run_moxy_mcp "tools/call" "$params"

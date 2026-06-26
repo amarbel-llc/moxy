@@ -29,12 +29,12 @@ setup() {
   # each-use tool (must be rejected by the allow-only preflight).
   local moxin="$HOME/moxins/testmoxin"
   mkdir -p "$moxin"
-  cat > "$moxin/_moxin.toml" <<'EOF'
+  cat >"$moxin/_moxin.toml" <<'EOF'
 schema = 1
 name = "testmoxin"
 description = "async e2e fixture"
 EOF
-  cat > "$moxin/echo.toml" <<'EOF'
+  cat >"$moxin/echo.toml" <<'EOF'
 schema = 3
 result-type = "text"
 content-type = "text/plain"
@@ -46,7 +46,7 @@ args = ["-c", "printf 'hello async'"]
 [input]
 type = "object"
 EOF
-  cat > "$moxin/asky.toml" <<'EOF'
+  cat >"$moxin/asky.toml" <<'EOF'
 schema = 3
 perms-request = "each-use"
 description = "ask-tier tool"
@@ -56,7 +56,7 @@ args = ["-c", "true"]
 [input]
 type = "object"
 EOF
-  cat > "$moxin/noasync.toml" <<'EOF'
+  cat >"$moxin/noasync.toml" <<'EOF'
 schema = 3
 perms-request = "always-allow"
 permit-async = false
@@ -77,7 +77,7 @@ EOF
   # the nix sandbox guarantees.
   mkdir -p "$HOME/bin"
   export CLOWN_RECORD="$HOME/clown-record"
-  cat > "$HOME/bin/clown" <<'EOF'
+  cat >"$HOME/bin/clown" <<'EOF'
 #!/bin/sh
 set -eu
 printf '%s\n' "$*" >> "${CLOWN_RECORD:-/dev/null}"
@@ -169,7 +169,7 @@ function async_rejects_permit_async_false_tool { # @test
 # (the CLOWN_DISABLE_JOB_WAKEUP=1 signature) must mint a local id of the
 # same shape — async keeps working as a poll surface.
 function async_mints_local_id_when_channel_disabled { # @test
-  cat > "$HOME/bin/clown" <<'EOF'
+  cat >"$HOME/bin/clown" <<'EOF'
 #!/bin/sh
 exit 0
 EOF

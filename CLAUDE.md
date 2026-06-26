@@ -18,8 +18,8 @@ just                  # build + test (default target)
 just build-go         # go build only -> build/moxy
 just build-nix        # nix build (runs gomod2nix first)
 just test             # the gate: nix flake check + net_cap bats + runtime smokes
-just test-go          # fast devshell loop: go vet + go test (NOT the gate)
-just test-bats        # fast devshell loop: bats-default lane (NOT the gate)
+just run-go-test      # fast devshell loop: go vet + go test (NOT the gate)
+just run-bats         # fast devshell loop: bats-default lane (NOT the gate)
 just test-bats-net_cap  # loopback-binding lane (streamable_http.bats)
 
 # Single Go test
@@ -29,7 +29,7 @@ go test ./internal/config/... -v -run TestParse
 # tag's lane (tags are auto-discovered from `# bats file_tags=` directives,
 # e.g. grit, folio, chix, host_only). This is the nix-only way to run
 # specific bats tests — there is no devshell/raw-bats path.
-just test-bats-tag grit
+just run-bats-tag grit
 ```
 
 `nix flake check` is the single hermetic gate: it runs `go-test-race`
@@ -38,7 +38,7 @@ just test-bats-tag grit
 all in the build sandbox, so
 env-dependent and race bugs can't slip through the way they do in the
 devshell. `just test` (hence `just` / the `merge-this-session` pre-merge
-hook) routes through it. The devshell `test-go` / `test-bats` / `lint-*`
+hook) routes through it. The devshell `run-go-test` / `run-bats` / `lint-*`
 recipes stay as fast inner-loop iteration; the flake check is the source of
 truth. `-race` lives in the gate (#348), so it runs on every merge.
 

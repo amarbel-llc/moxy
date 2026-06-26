@@ -15,14 +15,14 @@ setup() {
   # marker so a single pattern matches across them.
   mkdir -p "$HOME/tree"
   cd "$HOME/tree"
-  printf 'case MARKER\n' > a.sh
-  printf 'case MARKER\n' > b.bash
-  printf 'case MARKER\n' > c.bats
-  printf 'case MARKER\n' > d.txt
+  printf 'case MARKER\n' >a.sh
+  printf 'case MARKER\n' >b.bash
+  printf 'case MARKER\n' >c.bats
+  printf 'case MARKER\n' >d.txt
 
   # A match inside a hidden directory — skipped by default, found with hidden.
   mkdir -p .hidden
-  printf 'case MARKER\n' > .hidden/h.txt
+  printf 'case MARKER\n' >.hidden/h.txt
 }
 
 teardown() {
@@ -34,8 +34,8 @@ teardown() {
 # `jq -e` exit status would be discarded; route it through a guard that
 # fails the test.
 assert_not_iserror() {
-  echo "$output" | jq -e '.isError != true' >/dev/null \
-    || fail "tool returned isError: $output"
+  echo "$output" | jq -e '.isError != true' >/dev/null ||
+    fail "tool returned isError: $output"
 }
 
 # Count the file paths in a files_with_matches result. rg's output is merged
@@ -124,8 +124,8 @@ function rg_search_hidden_opt_in_finds_dotdirs { # @test
 
   # Four top-level files + .hidden/h.txt = 5.
   assert_equal "$(result_file_count)" 5
-  echo "$output" | jq -r '.content[0].text' | grep -q '.hidden/h.txt' \
-    || fail ".hidden/h.txt not found with hidden=true: $output"
+  echo "$output" | jq -r '.content[0].text' | grep -q '.hidden/h.txt' ||
+    fail ".hidden/h.txt not found with hidden=true: $output"
 }
 
 # A genuine no-match (rg exit 1) must remain a non-error success — it must not
@@ -147,10 +147,10 @@ function rg_search_invalid_regex_is_error { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.isError == true' >/dev/null \
-    || fail "invalid regex should surface isError: $output"
-  echo "$output" | jq -r '.content[0].text' | grep -qi 'regex' \
-    || fail "error text should mention the regex problem: $output"
+  echo "$output" | jq -e '.isError == true' >/dev/null ||
+    fail "invalid regex should surface isError: $output"
+  echo "$output" | jq -r '.content[0].text' | grep -qi 'regex' ||
+    fail "error text should mention the regex problem: $output"
 }
 
 # Regression test for #296: passing a glob-shaped value to `type` (rg exit 2 —
@@ -161,8 +161,8 @@ function rg_search_unrecognized_type_is_error { # @test
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
-  echo "$output" | jq -e '.isError == true' >/dev/null \
-    || fail "unrecognized type should surface isError: $output"
-  echo "$output" | jq -r '.content[0].text' | grep -qi 'file type' \
-    || fail "error text should mention the unrecognized file type: $output"
+  echo "$output" | jq -e '.isError == true' >/dev/null ||
+    fail "unrecognized type should surface isError: $output"
+  echo "$output" | jq -r '.content[0].text' | grep -qi 'file type' ||
+    fail "error text should mention the unrecognized file type: $output"
 }

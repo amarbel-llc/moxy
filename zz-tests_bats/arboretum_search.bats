@@ -12,7 +12,7 @@ teardown() {
 }
 
 function arboretum_search_finds_a_pattern_in_a_js_file { # @test
-  cat > "$HOME/app.js" <<'EOF'
+  cat >"$HOME/app.js" <<'EOF'
 console.log("startup");
 console.log("done");
 function inner() {
@@ -21,7 +21,7 @@ function inner() {
 EOF
 
   local params
-  params=$(jq -cn --arg n "arboretum.search" --arg p "console.log(\$MSG)" --arg path "$HOME" \
+  params=$(jq -cn --arg n "arboretum.search" --arg p 'console.log($MSG)' --arg path "$HOME" \
     '{name: $n, arguments: {pattern: $p, path: $path}}')
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
@@ -46,7 +46,7 @@ function arboretum_search_matches_go_call_via_auto_wrap { # @test
   # --inline-rules. See moxins/arboretum/src/astgrep.ts for the heuristic
   # and https://ast-grep.github.io/catalog/go/#match-function-call-in-golang
   # for the underlying issue.
-  cat > "$HOME/main.go" <<'EOF'
+  cat >"$HOME/main.go" <<'EOF'
 package main
 
 import "fmt"
@@ -58,7 +58,7 @@ func main() {
 EOF
 
   local params
-  params=$(jq -cn --arg n "arboretum.search" --arg p "fmt.Println(\$X)" --arg path "$HOME" --arg lang "go" \
+  params=$(jq -cn --arg n "arboretum.search" --arg p 'fmt.Println($X)' --arg path "$HOME" --arg lang "go" \
     '{name: $n, arguments: {pattern: $p, path: $path, lang: $lang}}')
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success

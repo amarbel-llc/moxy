@@ -24,7 +24,7 @@ setup() {
   # found. No shebang: the nix sandbox lacks /usr/bin/env (matches the other
   # just-us-agents stubs).
   mkdir -p "$HOME/bin"
-  cat > "$HOME/bin/just" <<'STUB'
+  cat >"$HOME/bin/just" <<'STUB'
 printf '%s\n' "tsconfig warning: baseUrl is deprecated"
 STUB
   chmod +x "$HOME/bin/just"

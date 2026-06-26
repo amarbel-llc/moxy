@@ -18,7 +18,7 @@ setup() {
   NIX_STUB="$HOME/bin/nix"
   mkdir -p "$HOME/bin"
   # Note: no shebang — nix sandbox lacks /usr/bin/env.
-  cat > "$NIX_STUB" <<'EOF'
+  cat >"$NIX_STUB" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$@" > "$HOME/nix-argv"
 echo "fake build log output for testing"
@@ -53,7 +53,7 @@ function chix_log_accepts_an_installable_not_just_a_drv_path { # @test
 
 function chix_log_propagates_nix_failure { # @test
   # Overwrite stub to fail
-  cat > "$NIX_STUB" <<'EOF'
+  cat >"$NIX_STUB" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$@" > "$HOME/nix-argv"
 echo "error: derivation not found" >&2

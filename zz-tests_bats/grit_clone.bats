@@ -148,7 +148,7 @@ function grit_clone_perms_denies_destination_in_nix_store { # @test
 
   PWD="$HOME/project" run "$PERMS" /nix/store/foo
   [ "$status" -eq 2 ]
-  [[ "$output" == *"immutable"* ]]
+  [[ $output == *"immutable"* ]]
 }
 
 function grit_clone_perms_asks_destination_outside_allowed_dirs { # @test
@@ -159,7 +159,7 @@ function grit_clone_perms_asks_destination_outside_allowed_dirs { # @test
   HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" \
     run "$PERMS" /var/empty/clone
   [ "$status" -eq 1 ]
-  [[ "$output" == *"confirmation required"* ]]
+  [[ $output == *"confirmation required"* ]]
 }
 
 function grit_clone_perms_allows_destination_in_session_tmpdir { # @test

@@ -56,13 +56,13 @@ function push_force_with_lease_blocks_detached_HEAD_with_no_branch_arg { # @test
 function push_force_with_lease_rejects_when_remote_has_moved { # @test
   cd "$WORK"
   git clone -q "$REMOTE" "$HOME/other"
-  (cd "$HOME/other" \
-    && git config user.email t@t \
-    && git config user.name t \
-    && git config commit.gpgSign false \
-    && git checkout -q feat \
-    && git commit --allow-empty -m sneak -q \
-    && git push -q origin feat)
+  (cd "$HOME/other" &&
+    git config user.email t@t &&
+    git config user.name t &&
+    git config commit.gpgSign false &&
+    git checkout -q feat &&
+    git commit --allow-empty -m sneak -q &&
+    git push -q origin feat)
   cd "$WORK"
   git commit --amend --allow-empty -m c1-amended -q
   run "$BIN/push" "origin" "feat" "" true "" "$WORK"

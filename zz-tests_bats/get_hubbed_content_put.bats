@@ -29,7 +29,7 @@ setup() {
   #   - --method PUT --input - → records the request body for assertions.
   #   - GH_STUB_NO_FILE=1 → lookups 404 (creating a brand-new file).
   # Note: no shebang — the nix sandbox lacks /usr/bin/env.
-  cat > "$HOME/bin/gh" <<'EOF'
+  cat >"$HOME/bin/gh" <<'EOF'
 set -euo pipefail
 [ "${1:-}" = "api" ] || { echo "gh stub: unexpected subcommand: $*" >&2; exit 64; }
 shift
@@ -124,7 +124,7 @@ function content_put_create_new_file_omits_sha { # @test
 # list too long".
 function content_put_large_content_round_trips { # @test
   seq -f 'content line %.0f with some padding to inflate the payload' 1 4000 \
-    > "$HOME/big-content.txt"
+    >"$HOME/big-content.txt"
   # ~230 KB — comfortably past the 128 KiB per-arg limit.
   [ "$(stat -c '%s' "$HOME/big-content.txt")" -gt 131072 ] || fail "fixture too small"
 
@@ -132,23 +132,23 @@ function content_put_large_content_round_trips { # @test
     "$BIN" "$HOME/big-content.txt"
   assert_success
 
-  jq -r '.content' "$HOME/put-body.json" | base64 -d > "$HOME/round-trip.txt"
-  cmp "$HOME/big-content.txt" "$HOME/round-trip.txt" \
-    || fail "decoded PUT content differs from input"
+  jq -r '.content' "$HOME/put-body.json" | base64 -d >"$HOME/round-trip.txt"
+  cmp "$HOME/big-content.txt" "$HOME/round-trip.txt" ||
+    fail "decoded PUT content differs from input"
 }
 
 # Content fidelity: trailing newlines must survive (a $(cat)-style capture
 # would strip them and corrupt the committed file).
 function content_put_preserves_trailing_newline { # @test
-  printf 'line1\nline2\n' > "$HOME/nl-content.txt"
+  printf 'line1\nline2\n' >"$HOME/nl-content.txt"
 
   run bash -c '"$0/content-put" "dir/nl.txt" "nl msg" "" "owner/repo" < "$1"' \
     "$BIN" "$HOME/nl-content.txt"
   assert_success
 
-  jq -r '.content' "$HOME/put-body.json" | base64 -d > "$HOME/nl-round-trip.txt"
-  cmp "$HOME/nl-content.txt" "$HOME/nl-round-trip.txt" \
-    || fail "trailing newline lost in round-trip"
+  jq -r '.content' "$HOME/put-body.json" | base64 -d >"$HOME/nl-round-trip.txt"
+  cmp "$HOME/nl-content.txt" "$HOME/nl-round-trip.txt" ||
+    fail "trailing newline lost in round-trip"
 }
 
 # The stdin-param wiring end-to-end: moxy extracts `content` from the tool

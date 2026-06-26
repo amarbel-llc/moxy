@@ -5,3 +5,23 @@ envrc = ["source_up", "use flake", "export MOXIN_PATH=$PWD/result/share/moxy/mox
 
 [hooks]
 pre-merge = "just"
+
+# Per-commit repair: format the index-staged content at authoring time so every
+# commit is conformant in history. `conformist-pre-commit` is the config-specific,
+# toolchain-hermetic wrapper the conformist module exposes
+# (conformistEval.config.build.preCommit, on the devShell PATH via flake.nix). It
+# bakes moxy's generated store-path config and store-pins every formatter, with
+# `--exit-zero-on-fix` so a successful repair lets the commit proceed. Do NOT use
+# a bare `conformist --staged`: that resolves formatters from PATH and silently
+# skips file types the shell lacks (conformist#51). Requires the devShell active
+# (direnv); installed per-worktree by spinclass at `sc start`/`sc resume`, so an
+# already-running session must `sc resume` to pick it up.
+pre-commit = "conformist-pre-commit"
+
+# NOTE: the pre-merge REPAIR hook (`repair = "conformist-repair"`, the
+# store-pinned `--commit --amend` counterpart) is intentionally NOT wired yet.
+# spinclass runs `repair` DURING the merge, but conformist-repair only lands on
+# the devShell PATH after this flake's devShell bump takes effect (a session
+# restart / `direnv reload`), so wiring it in the very commit that introduces it
+# would 127 the bootstrap merge. Add it in a follow-up once conformist-repair is
+# on PATH (the pre-commit hook above is best-effort and does not block).

@@ -22,7 +22,7 @@ teardown() {
 
 function folio_read_allows_file_within_cwd { # @test
   mkdir -p "$HOME/project"
-  echo "hello world" > "$HOME/project/test.txt"
+  echo "hello world" >"$HOME/project/test.txt"
 
   cd "$HOME/project"
 
@@ -34,9 +34,9 @@ function folio_read_allows_file_within_cwd { # @test
 
   # Small inline content lands in .content[0].text; large content blob
   # cache lands in .content[0].resource.text. Read both and grep.
-  echo "$output" \
-    | jq -r '.content[0].text // .content[0].resource.text // empty' \
-    | grep -q "hello world"
+  echo "$output" |
+    jq -r '.content[0].text // .content[0].resource.text // empty' |
+    grep -q "hello world"
 }
 
 function folio_read_allows_dev_fd_path { # @test
@@ -46,7 +46,7 @@ function folio_read_allows_dev_fd_path { # @test
   local params
   params=$(jq -cn --arg n "folio.read" \
     '{name: $n, arguments: {file_path: "/dev/fd/0"}}')
-  run_moxy_mcp_v1 "tools/call" "$params" <<< "stdin line"
+  run_moxy_mcp_v1 "tools/call" "$params" <<<"stdin line"
   assert_success
 }
 
@@ -55,7 +55,7 @@ function folio_read_now_succeeds_outside_cwd { # @test
   # happens at the Claude Code hook layer (dynamic-perms predicate).
   mkdir -p "$HOME/project"
   mkdir -p "$HOME/other"
-  echo "accessible" > "$HOME/other/file.txt"
+  echo "accessible" >"$HOME/other/file.txt"
 
   cd "$HOME/project"
 
@@ -89,7 +89,7 @@ function folio_perms_allows_read_in_cwd { # @test
   setup_perms
   mkdir -p "$HOME/project"
   cd "$HOME/project"
-  echo "data" > a.txt
+  echo "data" >a.txt
 
   PWD="$HOME/project" run "$PERMS" read a.txt
   [ "$status" -eq 0 ]
@@ -124,7 +124,7 @@ function folio_perms_asks_read_outside_allowed_dirs { # @test
   HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" \
     run "$PERMS" read /var/empty/secret.txt
   [ "$status" -eq 1 ]
-  [[ "$output" == *"confirmation required"* ]]
+  [[ $output == *"confirmation required"* ]]
 }
 
 # ----- Sibling-repo reads (git-root relative) -----
@@ -146,7 +146,7 @@ function folio_perms_allows_read_in_sibling_repo { # @test
   setup_perms
   mkdir -p "$HOME/repos/myrepo" "$HOME/repos/sibling"
   git -C "$HOME/repos/myrepo" init -q
-  echo "data" > "$HOME/repos/sibling/file.txt"
+  echo "data" >"$HOME/repos/sibling/file.txt"
   cd "$HOME/repos/myrepo"
 
   # CWD is the main worktree; a sibling checkout under the shared parent is
@@ -160,7 +160,7 @@ function folio_perms_allows_sibling_read_from_linked_worktree { # @test
   mkdir -p "$HOME/repos/myrepo" "$HOME/repos/sibling"
   make_repo "$HOME/repos/myrepo"
   git -C "$HOME/repos/myrepo" worktree add -q "$HOME/repos/myrepo/.worktrees/wt"
-  echo "data" > "$HOME/repos/sibling/file.txt"
+  echo "data" >"$HOME/repos/sibling/file.txt"
 
   # CWD is a spinclass-style linked worktree; the main worktree (hence its
   # sibling parent) is still resolved via --git-common-dir. folio-perms reads
@@ -177,7 +177,7 @@ function folio_perms_asks_read_of_main_worktree_from_linked { # @test
   mkdir -p "$HOME/repos/myrepo"
   make_repo "$HOME/repos/myrepo"
   git -C "$HOME/repos/myrepo" worktree add -q "$HOME/repos/myrepo/.worktrees/wt"
-  echo "secret" > "$HOME/repos/myrepo/secret.txt"
+  echo "secret" >"$HOME/repos/myrepo/secret.txt"
 
   # The main checkout itself is explicitly excluded — reading it from a
   # linked worktree still prompts (work belongs in the worktree).
@@ -185,7 +185,7 @@ function folio_perms_asks_read_of_main_worktree_from_linked { # @test
   PWD="$HOME/repos/myrepo/.worktrees/wt" \
     run "$PERMS" read "$HOME/repos/myrepo/secret.txt"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"confirmation required"* ]]
+  [[ $output == *"confirmation required"* ]]
 }
 
 function folio_perms_asks_read_outside_repo_parent { # @test
@@ -194,12 +194,12 @@ function folio_perms_asks_read_outside_repo_parent { # @test
   git -C "$HOME/repos/myrepo" init -q
   # A path outside the repo's parent dir is not a sibling — still prompts.
   mkdir -p "$HOME/elsewhere"
-  echo "x" > "$HOME/elsewhere/file.txt"
+  echo "x" >"$HOME/elsewhere/file.txt"
   cd "$HOME/repos/myrepo"
 
   PWD="$HOME/repos/myrepo" run "$PERMS" read "$HOME/elsewhere/file.txt"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"confirmation required"* ]]
+  [[ $output == *"confirmation required"* ]]
 }
 
 function folio_perms_allows_write_in_cwd { # @test
@@ -218,7 +218,7 @@ function folio_perms_denies_write_in_nix_store { # @test
 
   PWD="$HOME/project" run "$PERMS" write /nix/store/foo
   [ "$status" -eq 2 ]
-  [[ "$output" == *"immutable"* ]]
+  [[ $output == *"immutable"* ]]
 }
 
 function folio_perms_asks_write_outside_allowed_dirs { # @test
@@ -259,7 +259,7 @@ function folio_perms_write_does_not_whitespace_split_positional { # @test
   HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" \
     run "$PERMS" write "//! some doc"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"//! some doc"* ]]
+  [[ $output == *"//! some doc"* ]]
 }
 
 # Regression: the `rm` op is the only one that splits a positional on
@@ -371,5 +371,5 @@ function folio_perms_still_denies_write_into_nix_store_proper { # @test
 
   PWD="$HOME/project" run "$PERMS" write /nix/store/foo/bar
   [ "$status" -eq 2 ]
-  [[ "$output" == *"immutable"* ]]
+  [[ $output == *"immutable"* ]]
 }

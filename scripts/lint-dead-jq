@@ -81,6 +81,17 @@ state == "IN_TEST" {
     cont = cont stripped_bs " "
     next
   }
+  # A line ending in a bare `||` or `&&` operator continues onto the next
+  # physical line: shfmt wraps `cmd || fail …` this way (operator at EOL, RHS
+  # on the next line), replacing the older `cmd \` backslash form. Coalesce so
+  # the operator and its `fail`/`return` RHS land on one logical line and the
+  # `|| fail` exclusion below sees them together. Without this, the conformist
+  # shfmt toolchain reflows a load-bearing `… | jq -e … || fail` into a false
+  # positive.
+  if ($0 ~ /(\|\||&&)[[:space:]]*$/) {
+    cont = cont $0 " "
+    next
+  }
   record_logical(cont $0, logical_start)
   cont = ""
   next

@@ -17,7 +17,7 @@ teardown() {
 
 make_lines() {
   mkdir -p "$HOME/project"
-  printf 'alpha\nbravo\ncharlie\ndelta\necho\n' > "$HOME/project/lines.txt"
+  printf 'alpha\nbravo\ncharlie\ndelta\necho\n' >"$HOME/project/lines.txt"
   cd "$HOME/project"
 }
 
@@ -63,8 +63,8 @@ function folio_read_rejects_both_range_pairs { # @test
 
 make_tarball() {
   mkdir -p "$HOME/project/src/nested"
-  echo "file one" > "$HOME/project/src/one.txt"
-  echo "file two" > "$HOME/project/src/nested/two.txt"
+  echo "file one" >"$HOME/project/src/one.txt"
+  echo "file two" >"$HOME/project/src/nested/two.txt"
   cd "$HOME/project"
   tar -czf bundle.tar.gz src
 }

@@ -30,7 +30,6 @@ EOF
   [[ $tool_count -eq 0 ]]
 }
 
-
 function moxy_tools_resource_template_appears { # @test
   mkdir -p "$HOME/repo"
   cat >"$HOME/repo/moxyfile" <<EOF
@@ -74,7 +73,6 @@ EOF
   echo "$output" | jq -r '.contents[0].text' | jq -e '.name == "execute-command"' || fail ".name == \"execute-command\" check failed: $output"
   echo "$output" | jq -r '.contents[0].text' | jq -e '.inputSchema.properties.cmd' || fail ".inputSchema.properties.cmd check failed: $output"
 }
-
 
 function global_progressive_disclosure_hides_all_server_tools { # @test
   mkdir -p "$HOME/repo"

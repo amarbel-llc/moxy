@@ -1,18 +1,11 @@
 export MOXIN_PATH := justfile_directory() / "result-moxins" / "share" / "moxy" / "moxins"
 
-# The hermetic gate is `nix flake check` (via `test`): it runs conformist
-# (fmt + dead-jq), go-test-race, go-vet, go-lint, and every bats lane in the
-# build sandbox — so the formatting/lint/go-test/bats coverage `lint` and the
-# old devshell `test-*` recipes provided is now subsumed there and not
-# repeated here. `lint`, `test-go`, `test-bats`, etc. remain as fast
-# devshell loops for iteration; `nix flake check` is the source of truth.
-default: build test test-status-clean-env
+default: build test
 
-# Fast devshell lint loop (treefmt check + golangci-lint). NOT the gate — the
-# hermetic equivalents (conformist + go-lint) run inside `nix flake check`.
 [group("pre-build")]
-lint: lint-fmt lint-go
+lint: lint-fmt lint-go lint-worktree
 
+# Build moxy then run the dev driver (bin/dev.mjs).
 [group("operational")]
 run-dev: build-go
   zx bin/dev.mjs
@@ -35,12 +28,14 @@ run-poc-list-changed:
   zx bin/serve-poc-list-changed.mjs
 
 [group("build")]
-build: build-go build-nix
+build: build-gomod2nix build-moxins build-go build-nix
 
+# Compile the moxy binary to build/moxy (after codemod-generate + build-moxins).
 [group("build")]
-build-go: generate build-moxins
+build-go: codemod-generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
+# Build the moxins nix output and link it at result-moxins.
 [group("build")]
 build-moxins:
   nix build --keep-going --out-link result-moxins .#moxy-moxins
@@ -61,33 +56,39 @@ build-moxins:
 # `nix fmt` last applies the flake treefmt (gofumpt): tommy emits plain gofmt
 # with no blank lines between top-level funcs, which lint-fmt would reject.
 [group("build")]
-generate:
+codemod-generate:
   #!/usr/bin/env bash
   set -euo pipefail
   rm -f internal/config/schema/schema_tommy.go
   nix develop -c go generate ./internal/config/...
   nix fmt internal/config
 
+# Regenerate gomod2nix.toml from go.mod/go.sum.
 [group("build")]
 build-gomod2nix:
   gomod2nix
 
+# Build the moxy nix package (regenerates gomod2nix.toml first).
 [group("build")]
 build-nix: build-gomod2nix
   nix build --keep-going --show-trace
 
-# Format the whole tree via treefmt-nix (goimports→gofumpt, nixfmt, shfmt for
-# shell/bats, prettier for ts/mjs, tommy for toml). Config: ./treefmt.nix.
-# `nix fmt` runs the same wrapper.
 [group("codemod")]
-codemod-fmt-treefmt *args:
+codemod: codemod-fmt codemod-generate
+
+# Format + repair the whole tree via conformist (goimports→gofumpt, nixfmt,
+# shfmt for shell/bats, prettier for ts/mjs/cjs, ruff for python, tommy for
+# toml) plus the eng-preset linters' repair actions. Config: ./conformist.nix +
+# conformist.lib.presets.eng. Read-only counterpart: lint-fmt.
+[group("codemod")]
+codemod-fmt *args:
   nix fmt {{args}}
 
 # Read-only lint+format gate: build the sandboxed conformist check derivation,
-# which runs every formatter (drift check) plus moxy's [linter.*] sections
-# (dead-jq over the bats suite) and exits non-zero on any finding, with no
-# working-tree side effects. Write-mode counterpart: codemod-fmt-treefmt
-# (`nix fmt`, conformist repair mode).
+# which runs every formatter (drift check), moxy's dead-jq + mypy linters, and
+# the eng-preset conventions (eng-versioning, flake-*, justfile-*), exiting
+# non-zero on any finding with no working-tree side effects. Write-mode
+# counterpart: codemod-fmt (`nix fmt`, conformist repair mode).
 [group("pre-build")]
 lint-fmt:
   #!/usr/bin/env bash
@@ -111,26 +112,35 @@ lint-fmt:
 lint-go:
   GOLANGCI_LINT_CACHE='{{ justfile_directory() }}/.tmp/golangci-lint' MOXIN_PATH="" golangci-lint run
 
+# Impure eng-convention checks against the WORKING TREE (not the sandbox): the
+# eng-impure preset's git-state linters — git-remotes, git-default-branch,
+# sweatfile (`spinclass validate`), agents-md, gomod2nix — which need a live
+# .git plus host tools and so cannot run in the sandboxed lint-fmt gate. Builds
+# the impure config in /nix/store, then runs `conformist check` rooted at the
+# worktree.
+[group("pre-build")]
+lint-worktree:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd '{{ justfile_directory() }}'
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  cfg=$(nix build --no-link --print-out-paths ".#packages.${system}.conformist-impure-config")
+  conformist check --config-file "$cfg" --tree-root .
+
 dir_build := "build"
 
-# The gate. `test-flake-check` (= `nix flake check`) runs the hermetic
-# go-test-race / go-vet / go-lint / conformist / bats-default checks, so the
-# devshell test-go/test-bats and lint recipes are NOT repeated here (they stay
-# as standalone fast loops). test-bats-net_cap stays explicit: the loopback
-# lane needs a sandbox capability a flake check can't grant. The runtime
-# smokes (validate-mcp, status) aren't expressible as flake checks either.
 [group("post-build")]
-test: test-flake-check test-bats-net_cap test-validate-mcp test-status
+test: test-flake-check test-bats-net_cap test-validate-mcp test-status test-status-clean-env
 
 # Run the bats integration suite inside the nix build sandbox via
 # `nix build .#bats-default`. The default lane filters
 # `!net_cap,!host_only` — tests that need loopback binding (net_cap)
 # get covered by `test-bats-net_cap`; host_only is reserved for
-# tests that need host paths and runs only via `test-bats-tag
+# tests that need host paths and runs only via `run-bats-tag
 # host_only`. See #249 for why we don't run bats through
 # batman/sandcastle anymore.
 [group("post-build")]
-test-bats:
+run-bats:
   nix build --keep-going .#bats-default --no-link --print-build-logs
 
 # Run the loopback-binding lane (streamable_http.bats). Verifies that
@@ -147,18 +157,18 @@ test-bats-net_cap:
 test-flake-check:
   nix flake check
 
-# Run a single tag's bats lane (e.g. test-bats-tag grit, test-bats-tag
-# folio, test-bats-tag net_cap). See `nix flake show` for the full list
+# Run a single tag's bats lane (e.g. run-bats-tag grit, run-bats-tag
+# folio, run-bats-tag net_cap). See `nix flake show` for the full list
 # — auto-discovered from `# bats file_tags=` directives in
 # zz-tests_bats/*.bats.
 [group("post-build")]
-test-bats-tag tag:
+run-bats-tag tag:
   nix build --keep-going .#bats-{{tag}} --no-link --print-build-logs
 
 # End-to-end: verify claude -p can see and call moxy MCP tools.
 # Requires: claude CLI on PATH and authenticated.
 [group("post-build")]
-test-smoke-claude-p: build-nix
+run-smoke-claude-p: build-nix
   #!/usr/bin/env bash
   set -euo pipefail
   moxy="{{justfile_directory()}}/result/bin/moxy"
@@ -200,24 +210,25 @@ test-smoke-claude-p: build-nix
 
 # Smoke-test migrated bun+zx tool scripts against real APIs
 [group("post-build")]
-test-migrated-tools: build-moxins
+run-migrated-tools: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
 
 # Smoke-test the locally-built hamster moxin (doc, src, mod-read, go-mod)
 [group("post-build")]
-test-hamster: build-moxins
+run-hamster-smoke: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-hamster.mjs
 
+# Fast devshell loop: go vet then go test over all packages (MOXIN_PATH cleared).
 [group("post-build")]
-test-go:
+run-go-test:
   MOXIN_PATH="" go vet ./...
   MOXIN_PATH="" go test ./... -v
 
 # Per-function coverage report for a Go package.
 # Used during refactors to identify untested branches before moving code.
-# Example: just test-go-cover ./internal/hook/...
+# Example: just run-go-cover ./internal/hook/...
 [group("post-build")]
-test-go-cover pkg=".":
+run-go-cover pkg=".":
   #!/usr/bin/env bash
   set -euo pipefail
   mkdir -p .tmp
@@ -233,9 +244,9 @@ test-go-cover pkg=".":
 # inside an interactive Claude Code session can't see new builtins. This
 # recipe launches a fresh `claude -p` process configured to use the
 # worktree's just-built moxy via --mcp-config, so the new builtin is
-# visible. Mirrors test-smoke-claude-p's shape.
+# visible. Mirrors run-smoke-claude-p's shape.
 [group("post-build")]
-test-batch-via-claude-p: build-nix
+run-batch-via-claude-p: build-nix
   #!/usr/bin/env bash
   set -euo pipefail
   moxy="{{justfile_directory()}}/result/bin/moxy"
@@ -268,6 +279,7 @@ test-batch-via-claude-p: build-nix
     --allowedTools "mcp__moxy__batch,mcp__moxy__folio.glob" \
     --disallowedTools "$disallowed"
 
+# Run `moxy status` against the devshell-built binary as a runtime smoke check.
 [group("post-build")]
 test-status: build-go
   {{justfile_directory()}}/{{dir_build}}/moxy status
@@ -290,6 +302,8 @@ test-status-clean-env: build-nix
   echo "$out" | grep -q "moxin(s)"
   echo "$out" | grep -q "all checks passed"
 
+# Runtime smoke: run purse-first validate-mcp against the devshell-built moxy
+# serve mcp under a throwaway HOME + moxyfile + .default madder store.
 [group("post-build")]
 test-validate-mcp: build-go
   #!/usr/bin/env bash
@@ -465,14 +479,16 @@ debug-bisect: build-go
 
 mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
 
+# List moxy's tools via the MCP inspector CLI against the devshell-built binary.
 [group("post-build")]
-test-mcp: build-go
+run-mcp: build-go
   #!/usr/bin/env nix
   #! nix shell nixpkgs#nodejs --command bash
   set -euo pipefail
   tools=$({{mcp-inspect}} --method tools/list {{justfile_directory()}}/{{dir_build}}/moxy serve mcp)
   echo "$tools" | jq .
 
+# Run the flake's default app (`nix run .`) with the given arguments.
 [group("operational")]
 run-nix *ARGS:
   nix run . -- {{ARGS}}
@@ -480,28 +496,33 @@ run-nix *ARGS:
 [group("maintenance")]
 update: update-go
 
+# Update all Go module dependencies to latest and tidy go.mod/go.sum.
 [group("maintenance")]
 update-go:
   env GOPROXY=direct go get -u -t ./...
   go mod tidy
 
+# List all unique man-page names in the given section (default 1).
 [group("inspection")]
-man-list section="1":
+list-man section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u
 
+# Count the unique man pages in the given section (default 1).
 [group("inspection")]
-man-count section="1":
+list-man-count section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u | wc -l
 
+# Print the unique man-page count for every section 1 through 8.
 [group("inspection")]
-man-count-all:
+list-man-count-all:
   @for s in 1 2 3 4 5 6 7 8; do \
     count=$(apropos -s $s . 2>/dev/null | sort -u | wc -l | tr -d ' '); \
     printf "section %s: %s pages\n" "$s" "$count"; \
   done
 
+# Search man pages matching a query in the given section (default 1).
 [group("inspection")]
-man-search query section="1":
+list-man-search query section="1":
   apropos -s {{section}} {{query}} 2>/dev/null | sort -u
 
 # Bump MOXY_VERSION in version.env to the given semver
@@ -587,6 +608,7 @@ release new_version notes_file="":
 [group("maintenance")]
 clean: clean-build
 
+# Remove the build/ directory and the result symlink.
 [group("maintenance")]
 clean-build:
   rm -rf result build/
@@ -713,6 +735,9 @@ debug-arboretum-regen-goldens:
     echo "wrote $f.golden"
   done
 
+[group("post-build")]
+verify: verify-arboretum-grammars
+
 # Reconcile gate for the arboretum tree-sitter stack: rebuild the grammar
 # wasm from source and verify every grammar's ABI is in the running
 # web-tree-sitter's supported range (arboretum.abi-check). Run this after
@@ -737,12 +762,12 @@ verify-arboretum-grammars: build-moxins
 
 # Integration test for moxin discovery via a fresh temp workspace
 [group("post-build")]
-test-moxin-loading:
+run-moxin-loading:
   zx bin/test-moxin-loading.mjs
 
 # Integration test for internal/stderrlog per-session logging + rotation flow.
 [group("post-build")]
-test-stderrlog:
+run-stderrlog:
   zx bin/test-stderrlog.mjs
 
 # Debug: look for OOM kills in kernel ring buffer (needs pkexec; user sasha not in adm/systemd-journal groups)
@@ -764,6 +789,8 @@ debug-pkexec-oom days='8':
   pkexec journalctl --since "{{days}} days ago" --no-pager -u systemd-oomd.service 2>&1 | tail -50
   rm -f /tmp/_dmesg.out /tmp/_jk.out
 
+# Build the nix moxy, hand it an MCP initialize+tools/list handshake, and report
+# the tool count and stderr — for inspecting the nix-built tool surface.
 [group("explore")]
 explore-nix-tools-list: build-nix
   #!/usr/bin/env bash
@@ -870,12 +897,12 @@ explore-claude-p: build-nix
 
 # Build the dynamic-perms POC driver. POC scope only — not wired into main test.
 [group("explore")]
-poc-build-dynamic-perms:
+explore-poc-build-dynamic-perms:
   go build -o build/moxy-exporel-dynamic-perms ./cmd/moxy-exporel-dynamic-perms
 
 # Run the dynamic-perms POC bats wrapper. Driver self-asserts.
 [group("explore")]
-poc-test-dynamic-perms: poc-build-dynamic-perms
+explore-poc-test-dynamic-perms: explore-poc-build-dynamic-perms
   bats {{justfile_directory()}}/zz-bats_explore/dynamic_perms_poc.bats
 
 # Enable impure-derivations + ca-derivations on the nix-daemon and restart it.
@@ -1041,7 +1068,7 @@ debug-folio-perms-linked-worktree:
 # Requires `container` installed + `container system start`. The image is the
 # moxy binary alone (no moxins/maneater); `version` is the smoke test.
 [group("explore")]
-container-prototype:
+explore-container-prototype:
   #!/usr/bin/env bash
   set -euo pipefail
   nix build .#moxy-oci-image

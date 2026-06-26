@@ -31,8 +31,8 @@ golden_test() {
   assert_success
 
   local got
-  got=$(echo "$output" | jq -r '.content[0].resource.text // .content[0].text' \
-    | sed "s|$HOME/sample.$ext|samples/sample.$ext|g")
+  got=$(echo "$output" | jq -r '.content[0].resource.text // .content[0].text' |
+    sed "s|$HOME/sample.$ext|samples/sample.$ext|g")
 
   diff <(echo "$got") "$golden"
 }

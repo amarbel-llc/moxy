@@ -21,7 +21,7 @@ setup() {
   # Note: no shebang line. The nix sandbox lacks /usr/bin/env, so
   # #!/usr/bin/env bash would fail. Bash falls back to executing
   # shebang-less scripts as shell scripts (ENOEXEC → shell retry).
-  cat > "$GH_STUB" <<'EOF'
+  cat >"$GH_STUB" <<'EOF'
 # Minimal gh stub for api-delete tests. Records argv to $HOME/gh-argv
 # and returns canned JSON so the bin script sees a successful response.
 set -euo pipefail

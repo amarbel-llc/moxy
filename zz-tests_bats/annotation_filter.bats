@@ -80,4 +80,3 @@ EOF
   delete_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.delete-item")] | length')
   [[ $delete_count -eq 0 ]]
 }
-

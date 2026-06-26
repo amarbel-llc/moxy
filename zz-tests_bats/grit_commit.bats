@@ -35,11 +35,11 @@ function commit_allow_empty_creates_a_commit_with_no_changes { # @test
 
 function commit_fixup_creates_a_fixup_commit_targeting_the_named_ref { # @test
   cd "$REPO"
-  echo "v1" > f.txt
+  echo "v1" >f.txt
   git add f.txt
   git commit -m "add f" -q
   target=$(git rev-parse HEAD)
-  echo "v2" > f.txt
+  echo "v2" >f.txt
   git add f.txt
   run "$BIN/commit" "" "" "$target" "" "" "$REPO"
   assert_success
@@ -50,11 +50,11 @@ function commit_fixup_creates_a_fixup_commit_targeting_the_named_ref { # @test
 
 function commit_squash_creates_a_squash_commit_targeting_the_named_ref { # @test
   cd "$REPO"
-  echo "v1" > f.txt
+  echo "v1" >f.txt
   git add f.txt
   git commit -m "add f" -q
   target=$(git rev-parse HEAD)
-  echo "v2" > f.txt
+  echo "v2" >f.txt
   git add f.txt
   run "$BIN/commit" "" "" "" "$target" "" "$REPO"
   assert_success
@@ -65,11 +65,11 @@ function commit_squash_creates_a_squash_commit_targeting_the_named_ref { # @test
 
 function commit_fixup_ignores_message_argument { # @test
   cd "$REPO"
-  echo "v1" > f.txt
+  echo "v1" >f.txt
   git add f.txt
   git commit -m "add f" -q
   target=$(git rev-parse HEAD)
-  echo "v2" > f.txt
+  echo "v2" >f.txt
   git add f.txt
   # message is "irrelevant" — should be ignored when fixup is set
   run "$BIN/commit" "irrelevant" "" "$target" "" "" "$REPO"
@@ -82,11 +82,11 @@ function commit_fixup_ignores_message_argument { # @test
 
 function commit_fails_when_both_fixup_and_squash_are_set { # @test
   cd "$REPO"
-  echo "v1" > f.txt
+  echo "v1" >f.txt
   git add f.txt
   git commit -m "add f" -q
   target=$(git rev-parse HEAD)
-  echo "v2" > f.txt
+  echo "v2" >f.txt
   git add f.txt
   run "$BIN/commit" "" "" "$target" "$target" "" "$REPO"
   assert_failure
@@ -95,7 +95,7 @@ function commit_fails_when_both_fixup_and_squash_are_set { # @test
 
 function commit_fails_when_message_is_missing_and_fixup_squash_are_not_set { # @test
   cd "$REPO"
-  echo "v1" > f.txt
+  echo "v1" >f.txt
   git add f.txt
   run "$BIN/commit" "" "" "" "" "" "$REPO"
   assert_failure
@@ -106,18 +106,18 @@ function commit_fixup_followed_by_restack_autosquashes_the_fixup { # @test
   cd "$REPO"
   # build a tiny stack: main → A → B, then add a fixup on B targeting A.
   git checkout -q -b A
-  echo "a content" > a.txt
+  echo "a content" >a.txt
   git add a.txt
   git commit -m "add a.txt" -q
   a_sha=$(git rev-parse HEAD)
 
   git checkout -q -b B
-  echo "b content" > b.txt
+  echo "b content" >b.txt
   git add b.txt
   git commit -m "add b.txt" -q
 
   # fixup on B targeting A. Use grit.commit --fixup (the new flag).
-  echo "a content with annotation" > a.txt
+  echo "a content with annotation" >a.txt
   git add a.txt
   run "$BIN/commit" "" "" "$a_sha" "" "" "$REPO"
   assert_success
@@ -147,7 +147,7 @@ function commit_fixup_followed_by_restack_autosquashes_the_fixup { # @test
 # bypasses moxy's arg layer and would not catch the bug.
 function commit_message_with_madder_uri_is_written_verbatim { # @test
   cd "$REPO"
-  echo "change" > tracked.txt
+  echo "change" >tracked.txt
   git add tracked.txt
 
   local msg='ref madder://blobs/blake2b256-deadbeefcafe and madder://blobs/blake2b256-secondref'

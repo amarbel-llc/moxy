@@ -28,7 +28,7 @@ setup() {
   mkdir -p "$HOME/bin"
   # Note: no shebang — nix sandbox lacks /usr/bin/env.
   # base64("hello world\n") = aGVsbG8gd29ybGQK (no embedded newlines)
-  cat > "$HOME/bin/gh" <<'GHSTUB'
+  cat >"$HOME/bin/gh" <<'GHSTUB'
 set -euo pipefail
 printf '%s\n' "$@" >> "$HOME/gh-calls"
 
