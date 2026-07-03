@@ -227,47 +227,56 @@
           };
         };
 
-        # google-workspace-cli release pin (a third-party binary, not moxy's own
-        # version). Named `gwsRelease`, NOT `gwsVersion`: the eng-versioning
-        # deprecated-file linter flags any `*Version = "<semver>"` let-binding in
-        # flake.nix (it wants moxy's version in version.env), and this is an
-        # unrelated vendored-tool pin.
-        gwsRelease = "0.22.5";
-        gwsPlatform =
-          {
-            "aarch64-darwin" = {
-              name = "aarch64-apple-darwin";
-              hash = "sha256-HSqf/VvJssLEtIYw2vCC+tE9nlfXQZiKLCSO7VYvfaw=";
-            };
-            "x86_64-darwin" = {
-              name = "x86_64-apple-darwin";
-              hash = "sha256-Ufm9cxQE1LuibDbi4w3WjFbczR+DTAElLLCxTWplRLI=";
-            };
-            "x86_64-linux" = {
-              name = "x86_64-unknown-linux-gnu";
-              hash = "sha256-3njs29LxqEzKAGOn7LxEAkD8FLbrzLsX9GRreSqMXB8=";
-            };
-            "aarch64-linux" = {
-              name = "aarch64-unknown-linux-gnu";
-              hash = "sha256-lEkCldlYDh6IV05xWgoWKZF0fRLWL4x7jcyCaLbBzqA=";
-            };
-          }
-          .${system} or (throw "gws: unsupported system ${system}");
+        # The google-workspace (gws) moxins — gmail, calendar, car, gws, piers,
+        # prison — are excluded from the build closure for now (#391): they need
+        # the `gws` OAuth CLI most users lack, so they'd fail on probe / clutter
+        # the default tool surface. Commented out (not deleted) pending the
+        # proper disabled-by-default opt-in mechanism (#391). To restore:
+        # uncomment this block, the gwsDeps + moxin defs below, and their
+        # moxy-moxins symlinks.
+        /*
+            # google-workspace-cli release pin (a third-party binary, not moxy's own
+            # version). Named `gwsRelease`, NOT `gwsVersion`: the eng-versioning
+          # deprecated-file linter flags any `*Version = "<semver>"` let-binding in
+          # flake.nix (it wants moxy's version in version.env), and this is an
+          # unrelated vendored-tool pin.
+          gwsRelease = "0.22.5";
+          gwsPlatform =
+            {
+              "aarch64-darwin" = {
+                name = "aarch64-apple-darwin";
+                hash = "sha256-HSqf/VvJssLEtIYw2vCC+tE9nlfXQZiKLCSO7VYvfaw=";
+              };
+              "x86_64-darwin" = {
+                name = "x86_64-apple-darwin";
+                hash = "sha256-Ufm9cxQE1LuibDbi4w3WjFbczR+DTAElLLCxTWplRLI=";
+              };
+              "x86_64-linux" = {
+                name = "x86_64-unknown-linux-gnu";
+                hash = "sha256-3njs29LxqEzKAGOn7LxEAkD8FLbrzLsX9GRreSqMXB8=";
+              };
+              "aarch64-linux" = {
+                name = "aarch64-unknown-linux-gnu";
+                hash = "sha256-lEkCldlYDh6IV05xWgoWKZF0fRLWL4x7jcyCaLbBzqA=";
+              };
+            }
+            .${system} or (throw "gws: unsupported system ${system}");
 
-        gws-bin = pkgs.stdenv.mkDerivation {
-          pname = "gws";
-          version = gwsRelease;
-          src = pkgs.fetchurl {
-            url = "https://github.com/googleworkspace/cli/releases/download/v${gwsRelease}/google-workspace-cli-${gwsPlatform.name}.tar.gz";
-            hash = gwsPlatform.hash;
+          gws-bin = pkgs.stdenv.mkDerivation {
+            pname = "gws";
+            version = gwsRelease;
+            src = pkgs.fetchurl {
+              url = "https://github.com/googleworkspace/cli/releases/download/v${gwsRelease}/google-workspace-cli-${gwsPlatform.name}.tar.gz";
+              hash = gwsPlatform.hash;
+            };
+            sourceRoot = ".";
+            installPhase = ''
+              mkdir -p $out/bin
+              cp gws $out/bin/gws
+              chmod +x $out/bin/gws
+            '';
           };
-          sourceRoot = ".";
-          installPhase = ''
-            mkdir -p $out/bin
-            cp gws $out/bin/gws
-            chmod +x $out/bin/gws
-          '';
-        };
+        */
 
         # version.env at repo root is the single source of truth for the
         # release version. The moxy Go binary gets it for free via the
@@ -919,52 +928,58 @@
             };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] { };
 
-        gwsDeps = [
-          pkgs.bash
-          pkgs.coreutils
-          gws-bin
-        ];
-        piers-moxin = mkBunMoxin "piers" gwsDeps {
-          "get" = "moxins/piers/src/get.ts";
-          "create" = "moxins/piers/src/create.ts";
-          "update" = "moxins/piers/src/update.ts";
-          "batch-update" = "moxins/piers/src/batch-update.ts";
-          "replace-text" = "moxins/piers/src/replace-text.ts";
-          "insert-text" = "moxins/piers/src/insert-text.ts";
-          "delete-content-range" = "moxins/piers/src/delete-content-range.ts";
-          "update-text-style" = "moxins/piers/src/update-text-style.ts";
-          "update-paragraph-style" = "moxins/piers/src/update-paragraph-style.ts";
-          "comments-list" = "moxins/piers/src/comments-list.ts";
-          "comment-reply" = "moxins/piers/src/comment-reply.ts";
-          "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
-          "outline" = "moxins/piers/src/outline.ts";
-          "tab-create" = "moxins/piers/src/tab-create.ts";
-          "tab-delete" = "moxins/piers/src/tab-delete.ts";
-          "tab-update" = "moxins/piers/src/tab-update.ts";
-        } { };
-        car-moxin = mkBunMoxin "car" gwsDeps {
-          "search" = "moxins/car/src/search.ts";
-          "get" = "moxins/car/src/get.ts";
-          "list" = "moxins/car/src/list.ts";
-          "export" = "moxins/car/src/export.ts";
-          "doc-graph" = "moxins/car/src/doc-graph.ts";
-        } { };
+        # gws moxins excluded from the build closure for now (#391) — see the
+        # commented gws-bin block above. Restore by uncommenting.
+        /*
+            gwsDeps = [
+            pkgs.bash
+            pkgs.coreutils
+            gws-bin
+          ];
+          piers-moxin = mkBunMoxin "piers" gwsDeps {
+            "get" = "moxins/piers/src/get.ts";
+            "create" = "moxins/piers/src/create.ts";
+            "update" = "moxins/piers/src/update.ts";
+            "batch-update" = "moxins/piers/src/batch-update.ts";
+            "replace-text" = "moxins/piers/src/replace-text.ts";
+            "insert-text" = "moxins/piers/src/insert-text.ts";
+            "delete-content-range" = "moxins/piers/src/delete-content-range.ts";
+            "update-text-style" = "moxins/piers/src/update-text-style.ts";
+            "update-paragraph-style" = "moxins/piers/src/update-paragraph-style.ts";
+            "comments-list" = "moxins/piers/src/comments-list.ts";
+            "comment-reply" = "moxins/piers/src/comment-reply.ts";
+            "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
+            "outline" = "moxins/piers/src/outline.ts";
+            "tab-create" = "moxins/piers/src/tab-create.ts";
+            "tab-delete" = "moxins/piers/src/tab-delete.ts";
+            "tab-update" = "moxins/piers/src/tab-update.ts";
+          } { };
+          car-moxin = mkBunMoxin "car" gwsDeps {
+            "search" = "moxins/car/src/search.ts";
+            "get" = "moxins/car/src/get.ts";
+            "list" = "moxins/car/src/list.ts";
+            "export" = "moxins/car/src/export.ts";
+            "doc-graph" = "moxins/car/src/doc-graph.ts";
+          } { };
+        */
         slip-moxin = pkgs.runCommand "slip-moxin" { } ''
           cp -r ${./moxins/slip} $out
         '';
-        prison-moxin = mkBunMoxin "prison" gwsDeps {
-          "get" = "moxins/prison/src/get.ts";
-        } { };
-        gmail-moxin = mkBunMoxin "gmail" gwsDeps {
-          "triage" = "moxins/gmail/src/triage.ts";
-          "read" = "moxins/gmail/src/read.ts";
-        } { };
-        calendar-moxin = mkBunMoxin "calendar" gwsDeps {
-          "agenda" = "moxins/calendar/src/agenda.ts";
-        } { };
-        gws-moxin = mkBunMoxin "gws" gwsDeps {
-          "api" = "moxins/gws/src/api.ts";
-        } { };
+        /*
+            prison-moxin = mkBunMoxin "prison" gwsDeps {
+            "get" = "moxins/prison/src/get.ts";
+          } { };
+          gmail-moxin = mkBunMoxin "gmail" gwsDeps {
+            "triage" = "moxins/gmail/src/triage.ts";
+            "read" = "moxins/gmail/src/read.ts";
+          } { };
+          calendar-moxin = mkBunMoxin "calendar" gwsDeps {
+            "agenda" = "moxins/calendar/src/agenda.ts";
+          } { };
+          gws-moxin = mkBunMoxin "gws" gwsDeps {
+            "api" = "moxins/gws/src/api.ts";
+          } { };
+        */
 
         # Symlink-only aggregation of all per-moxin derivations.
         moxy-moxins = pkgs.runCommand "moxy-moxins" { } ''
@@ -982,13 +997,8 @@
           ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents
           ln -s ${man-moxin} $out/share/moxy/moxins/man
           ln -s ${rg-moxin} $out/share/moxy/moxins/rg
-          ln -s ${piers-moxin} $out/share/moxy/moxins/piers
-          ln -s ${car-moxin} $out/share/moxy/moxins/car
           ln -s ${slip-moxin} $out/share/moxy/moxins/slip
-          ln -s ${prison-moxin} $out/share/moxy/moxins/prison
-          ln -s ${gmail-moxin} $out/share/moxy/moxins/gmail
-          ln -s ${calendar-moxin} $out/share/moxy/moxins/calendar
-          ln -s ${gws-moxin} $out/share/moxy/moxins/gws
+          # gws moxins (piers car prison gmail calendar gws) excluded for now (#391).
         '';
 
         madder-bin = madder.packages.${system}.default;
