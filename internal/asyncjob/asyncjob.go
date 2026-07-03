@@ -61,11 +61,20 @@ type DispatchFunc func(ctx context.Context, tool string, args json.RawMessage) (
 // digest/reference. Production writes to the user-level madder store.
 type WriteResultFunc func(ctx context.Context, content []byte) (string, error)
 
+// defaultRingmasterBin is the ringmaster binary path burned in at nix build
+// time via -ldflags "-X <pkg>.defaultRingmasterBin=<store>/bin/ringmaster", so
+// a packaged moxy runs a hermetic, version-pinned ringmaster (clown RFC-0015)
+// without depending on ambient PATH. It is empty under a plain `go build`
+// (devshell, tests), where resolution falls back to bare "ringmaster".
+var defaultRingmasterBin string
+
 // Options configures a Manager.
 type Options struct {
 	// RingmasterBin is the ringmaster binary to shell out to. Empty falls
-	// back to $RINGMASTER_BIN, then bare "ringmaster" (PATH lookup at exec
-	// time — ringmaster ships on PATH wherever clown is installed, RFC-0015).
+	// back to $RINGMASTER_BIN (the test/override seam), then the build-time
+	// pinned default (defaultRingmasterBin), then bare "ringmaster" (PATH
+	// lookup at exec time — ringmaster ships on PATH wherever clown is
+	// installed, RFC-0015).
 	RingmasterBin string
 	// WriteResult persists terminal results. Required.
 	WriteResult WriteResultFunc
@@ -117,6 +126,9 @@ func New(opts Options) *Manager {
 	bin := opts.RingmasterBin
 	if bin == "" {
 		bin = os.Getenv("RINGMASTER_BIN")
+	}
+	if bin == "" {
+		bin = defaultRingmasterBin
 	}
 	if bin == "" {
 		bin = "ringmaster"

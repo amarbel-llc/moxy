@@ -322,6 +322,36 @@ func TestMissingRingmasterBinStillDispatches(t *testing.T) {
 	}
 }
 
+// The nix-built moxy burns in a pinned ringmaster store path via ldflag
+// (defaultRingmasterBin, clown RFC-0015). It is the default when neither
+// Options.RingmasterBin nor $RINGMASTER_BIN is set; $RINGMASTER_BIN still
+// overrides it (the test/pinning seam), and an explicit Options value wins
+// over both.
+func TestRingmasterBinResolutionPrecedence(t *testing.T) {
+	old := defaultRingmasterBin
+	defaultRingmasterBin = "/nix/store/pinned/bin/ringmaster"
+	t.Cleanup(func() { defaultRingmasterBin = old })
+
+	writer := func(context.Context, []byte) (string, error) { return "", nil }
+
+	// Burned-in default applies when Options + env are both empty.
+	t.Setenv("RINGMASTER_BIN", "")
+	if got := New(Options{WriteResult: writer}).ringmasterBin; got != defaultRingmasterBin {
+		t.Errorf("ringmasterBin = %q, want the burned-in default %q", got, defaultRingmasterBin)
+	}
+
+	// $RINGMASTER_BIN overrides the burned-in default.
+	t.Setenv("RINGMASTER_BIN", "/override/ringmaster")
+	if got := New(Options{WriteResult: writer}).ringmasterBin; got != "/override/ringmaster" {
+		t.Errorf("ringmasterBin = %q, want the env override", got)
+	}
+
+	// An explicit Options.RingmasterBin wins over everything.
+	if got := New(Options{RingmasterBin: "/explicit/ringmaster", WriteResult: writer}).ringmasterBin; got != "/explicit/ringmaster" {
+		t.Errorf("ringmasterBin = %q, want the explicit option", got)
+	}
+}
+
 func TestDispatchErrorIsFailed(t *testing.T) {
 	bin, record := writeRingmasterStub(t, "boom-11112222")
 	m := newTestManager(bin)

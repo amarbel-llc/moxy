@@ -60,6 +60,25 @@
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
+
+    # clown ships the ringmaster job-control binary (RFC-0015). moxy pins it
+    # so the async producers (internal/asyncjob, the get-hubbed ci-watch moxin)
+    # run a hermetic, version-locked ringmaster rather than resolving it off
+    # ambient PATH. Referenced as clown.packages.${system}.ringmaster and baked
+    # in via ldflag + wrapper (see the moxy package and get-hubbed-moxin below).
+    #
+    # Interim per the job-platform extraction plan: clown's provider inputs
+    # (llm-agents, the claude-code/codex/llama nixpkgs pins, treefmt-nix) still
+    # enter moxy's flake.lock because moxy has nothing to `follows` them onto —
+    # only the shared inputs below dedup. When the lightweight job-platform
+    # flake lands this becomes a one-line input swap to that repo.
+    clown = {
+      url = "github:amarbel-llc/clown";
+      inputs.igloo.follows = "igloo";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+      inputs.bats.follows = "bats";
+    };
   };
 
   outputs =
@@ -74,6 +93,7 @@
       bats,
       madder,
       conformist,
+      clown,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -725,7 +745,10 @@
         ] { };
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] { };
         # pathMode = "suffix" so user PATH wins (and can shadow gh with a
-        # stub in tests).
+        # stub in tests). ci-watch resolves the ringmaster job-control CLI
+        # (clown RFC-0015) at runtime via RINGMASTER_BIN; --set-default pins the
+        # hermetic store path while still letting a test-provided RINGMASTER_BIN
+        # win (the bats ci_watch lane injects a stub through it).
         get-hubbed-moxin =
           mkBunMoxin "get-hubbed"
             [
@@ -744,7 +767,14 @@
               "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
               "ci-watch" = "moxins/get-hubbed/src/ci-watch.ts";
             }
-            { pathMode = "suffix"; };
+            {
+              pathMode = "suffix";
+              extraWrapArgs = [
+                "--set-default"
+                "RINGMASTER_BIN"
+                "${clown-ringmaster}/bin/ringmaster"
+              ];
+            };
         # grit deliberately uses pathMode = "inherit" with no nix-pinned deps:
         # it must run the user's own git (matching the repo they're operating
         # on, with their configured aliases/templates/credential helpers). Under
@@ -963,6 +993,12 @@
 
         madder-bin = madder.packages.${system}.default;
 
+        # ringmaster (clown RFC-0015 job-control CLI). Its absolute store path
+        # is baked into the moxy binary (asyncjob ldflag) and the get-hubbed
+        # ci-watch moxin (RINGMASTER_BIN wrapper) so async producers run a
+        # hermetic, pinned ringmaster instead of relying on ambient PATH.
+        clown-ringmaster = clown.packages.${system}.ringmaster;
+
         moxy = pkgs.buildGoApplication {
           pname = "moxy";
           commit = moxyCommit;
@@ -988,6 +1024,11 @@
             "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
             "-X"
             "github.com/amarbel-llc/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"
+            # Pin the ringmaster job-control CLI (clown RFC-0015) as the async
+            # producer's default, so wakeups don't depend on ambient PATH. The
+            # RINGMASTER_BIN env var still overrides this (tests/pinning).
+            "-X"
+            "github.com/amarbel-llc/moxy/internal/asyncjob.defaultRingmasterBin=${clown-ringmaster}/bin/ringmaster"
           ];
           postInstall = ''
             MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out

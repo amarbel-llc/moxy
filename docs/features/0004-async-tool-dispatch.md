@@ -54,10 +54,13 @@ unparseable or non-positive `timeout` is rejected synchronously.
    --label <tool>` and adopts the printed job id (e.g. `rg.search-3f2a8b1c`
    — ringmaster's label sanitizer keeps dots; the job-id charset is
    `[A-Za-z0-9._-]`) as the async handle. (clown RFC-0015 promoted the job
-   verbs off `clown job <verb>` onto the standalone `ringmaster` binary, on
-   PATH wherever clown is installed; the swap is behavior-preserving, and
-   `RINGMASTER_BIN` is an optional override for tests/pinning.) Implementers
-   MUST NOT assume an id always comes
+   verbs off `clown job <verb>` onto the standalone `ringmaster` binary; the
+   swap is behavior-preserving. moxy pins `clown` as a flake input and bakes
+   ringmaster's store path in as the default via the `defaultRingmasterBin`
+   ldflag, so a packaged moxy runs a hermetic, version-locked ringmaster rather
+   than relying on ambient PATH; `$RINGMASTER_BIN` overrides it for
+   tests/pinning, and a plain `go build` falls back to bare `ringmaster` on
+   PATH.) Implementers MUST NOT assume an id always comes
    back: with `CLOWN_DISABLE_JOB_WAKEUP=1` the `ringmaster` commands are
    exit-0 no-ops that print **nothing** — empty stdout on a zero exit is the
    normal disabled-channel signature, not an error. In that case (and when the

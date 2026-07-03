@@ -123,9 +123,13 @@ permission preflight; tools may additionally opt out via the top-level
 `permit-async = false` TOML key, #317), returns `{job_id, status:"running"}`
 immediately,
 and wakes the agent on the terminal state via clown's job-wakeup channel by
-shelling out to the `ringmaster` job-control CLI (`${RINGMASTER_BIN:-ringmaster}`
-— clown RFC-0015 promoted the job verbs off `clown job <verb>` onto the
-standalone `ringmaster` binary, on PATH wherever clown is installed); results
+shelling out to the `ringmaster` job-control CLI (clown RFC-0015 promoted the
+job verbs off `clown job <verb>` onto the standalone `ringmaster` binary). moxy
+pins `clown` as a flake input and bakes ringmaster's store path in as the
+default — an asyncjob ldflag (`defaultRingmasterBin`) for the Go binary, a
+`--set-default RINGMASTER_BIN` wrapper for the get-hubbed ci-watch moxin — so
+wakeups don't depend on ambient PATH; `$RINGMASTER_BIN` still overrides it (the
+test/pinning seam). Results
 are written to the user-level `moxy-async`
 madder store (provisioned by home-manager — moxy never creates it) with the
 digest embedded in the wake message. The optional `timeout` (duration string
