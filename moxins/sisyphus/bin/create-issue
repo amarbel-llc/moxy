@@ -44,7 +44,14 @@ if assignee:
     fields["assignee"] = {"id": _lib.resolve_assignee(jira, assignee)}
 result = _lib.create_issue_with_issuetype_hint(jira, fields, project, issuetype)
 
+key = result.get("key")
+url = _lib.browse_url(jira, key)
 if output_format == "json":
+    if url:
+        result = {**result, "browse_url": url}
     _lib.emit(result)
 else:
-    _lib.emit(f"Created {result.get('key', 'unknown')}: {summary}")
+    line = f"Created {key or 'unknown'}: {summary}"
+    if url:
+        line += f"\n{url}"
+    _lib.emit(line)

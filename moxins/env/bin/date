@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Convert epoch timestamp(s) or date string(s) to calendar dates as JSON (#336).
+# Agents were converting epochs by in-head arithmetic and getting them ~months
+# wrong; this is the always-allow paved path. Batch input is comma- or
+# newline-separated (space is NOT a separator, so date strings with spaces
+# survive). Zone files resolve via TZDIR (pinned to nix tzdata by the wrapper),
+# mirroring env.clock.
+set -euo pipefail
+input="${1:-}"
+req_tz="${2:-}"
+
+if [ -z "$input" ]; then
+  echo "Error: input required (an epoch or a date string)" >&2
+  exit 1
+fi
+
+# Reject path-shaped input before it reaches TZDIR/$tz or the TZ env var.
+case "$req_tz" in
+*..* | /*)
+  echo "Error: invalid timezone: $req_tz" >&2
+  exit 1
+  ;;
+esac
+if [ -n "$req_tz" ]; then
+  if [ -n "${TZDIR:-}" ] && [ ! -e "$TZDIR/$req_tz" ]; then
+    echo "Error: unknown timezone: $req_tz" >&2
+    exit 1
+  fi
+  export TZ="$req_tz"
+fi
+
+convert_one() {
+  local raw="$1" ep
+  # Trim leading/trailing whitespace.
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  [ -z "$raw" ] && return 0
+
+  if [[ "$raw" =~ ^-?[0-9]+$ ]]; then
+    # Pure integer ⇒ epoch. 13+ digits ⇒ milliseconds (seconds won't reach 13
+    # digits until year ~33658), so scale to seconds.
+    if [ "${#raw}" -ge 13 ]; then
+      ep=$((raw / 1000))
+    else
+      ep="$raw"
+    fi
+  else
+    # Date string: let `date` parse it, then normalize from its epoch.
+    if ! ep=$(date -d "$raw" +%s 2>/dev/null); then
+      echo "Error: cannot parse timestamp: $raw" >&2
+      exit 1
+    fi
+  fi
+
+  jq -cn \
+    --arg input "$raw" \
+    --argjson epoch "$ep" \
+    --arg utc "$(date -u -d "@$ep" +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg local "$(date -d "@$ep" +%Y-%m-%dT%H:%M:%S%:z)" \
+    --arg weekday "$(date -d "@$ep" +%A)" \
+    --arg offset "$(date -d "@$ep" +%z)" \
+    '{input: $input, epoch: $epoch, utc: $utc, local: $local, weekday: $weekday, offset: $offset}'
+}
+
+# Split on commas and newlines only; convert each; slurp to a JSON array.
+# Buffer results so a mid-batch parse error fails cleanly with no partial JSON.
+results=""
+normalized=$(printf '%s' "$input" | tr ',' '\n')
+while IFS= read -r line || [ -n "$line" ]; do
+  obj=$(convert_one "$line") || exit 1
+  [ -n "$obj" ] && results+="$obj"$'\n'
+done <<<"$normalized"
+
+printf '%s' "$results" | jq -cs '.'

@@ -175,6 +175,22 @@ def make_client():
     )
 
 
+def browse_url(jira, key):
+    """Return the human-facing browse URL ``<base>/browse/<KEY>`` for an issue.
+
+    Built from the configured JIRA_URL site base (the same root the SDK client
+    is created with), so callers can hand the user a clickable link instead of
+    a bare key (#361). Returns "" when no key or base is available, so callers
+    can append it unconditionally.
+    """
+    if not key:
+        return ""
+    base = (getattr(jira, "url", "") or os.environ.get("JIRA_URL", "")).rstrip("/")
+    if not base:
+        return ""
+    return f"{base}/browse/{key}"
+
+
 def parse_argv_list(value):
     """Coerce a CLI-arg `value` to a Python list when it looks list-shaped.
 

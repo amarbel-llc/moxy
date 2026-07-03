@@ -233,3 +233,108 @@ func TestHandleAsyncResultBlobReapedFallsBackToLocal(t *testing.T) {
 		t.Fatalf("result = %+v, want the locally-cached result (journal blob reaped)", res)
 	}
 }
+
+// writeRunningRingmasterStub writes a ringmaster stub whose `read` cats
+// journalFile (a running, no-terminal journal) and whose `status` runs
+// statusCmd (a bash snippet — e.g. a printf of live JSON, or `exit 1`).
+func writeRunningRingmasterStub(t *testing.T, journalFile, statusCmd string) string {
+	t.Helper()
+	shell, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skipf("no bash on PATH for ringmaster stub: %v", err)
+	}
+	bin := filepath.Join(t.TempDir(), "ringmaster")
+	script := "#!" + shell + "\ncase \"$1\" in\n" +
+		"  read) cat " + journalFile + " ;;\n" +
+		"  status) " + statusCmd + " ;;\n" +
+		"  *) : ;;\nesac\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return bin
+}
+
+// The running-job branch of HandleAsyncResult surfaces clown's live status
+// probe (RFC-0010 §3 / FDR-0005): a job whose journal carries a started record
+// but no terminal one reads back as `running`, and mergeLiveStatus merges
+// elapsed_sec/last_activity/spool_bytes/progress/tail from `ringmaster status`
+// verbatim onto the response. #352 — the proxy-level merge wiring had no direct
+// assertion; asyncjob.JobStatus's parse was unit-tested, but not that
+// async-result actually carries the merged fields on a running job.
+func TestHandleAsyncResultMergesRunningStatus(t *testing.T) {
+	journal := writeJournalFile(t,
+		`{"job":"rg.search-live","type":"started","ts":"2026-06-13T00:00:00Z"}`)
+	status := `{"state":"running","elapsed_sec":312,"last_activity":"2026-06-08T00:17:40Z",` +
+		`"spool_bytes":48211,"progress":"step 3/5","tail":"moxy-bats-grit> ok 24"}`
+	mgr := asyncjob.New(asyncjob.Options{
+		RingmasterBin: writeRunningRingmasterStub(t, journal, "printf '%s' '"+status+"'"),
+		WriteResult:   func(context.Context, []byte) (string, error) { return "unused", nil },
+		MaxRuntime:    time.Minute,
+	})
+	p := asyncJournalProxy(t, newProxyFakeMadder(), mgr)
+
+	res, err := p.HandleAsyncResult(context.Background(),
+		json.RawMessage(`{"job_id":"rg.search-live"}`))
+	if err != nil {
+		t.Fatalf("HandleAsyncResult: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("unexpected error result: %+v", res)
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(res.Content[0].Text), &out); err != nil {
+		t.Fatalf("parsing result %q: %v", res.Content[0].Text, err)
+	}
+	if out["status"] != asyncjob.StateRunning {
+		t.Errorf("status = %v, want running", out["status"])
+	}
+	// The FDR-0005 merged spool fields must ride back on the running response.
+	// JSON numbers decode as float64.
+	if out["elapsed_sec"] != float64(312) {
+		t.Errorf("elapsed_sec = %v, want 312", out["elapsed_sec"])
+	}
+	if out["spool_bytes"] != float64(48211) {
+		t.Errorf("spool_bytes = %v, want 48211", out["spool_bytes"])
+	}
+	if out["last_activity"] != "2026-06-08T00:17:40Z" {
+		t.Errorf("last_activity = %v, want the probe value", out["last_activity"])
+	}
+	if out["progress"] != "step 3/5" {
+		t.Errorf("progress = %v, want the probe value", out["progress"])
+	}
+	if out["tail"] != "moxy-bats-grit> ok 24" {
+		t.Errorf("tail = %v, want the probe value", out["tail"])
+	}
+}
+
+// When the live-status probe fails (channel disabled, ringmaster absent, or an
+// installed ringmaster without the probe), a running-job response keeps its
+// base shape — the probe is a façade, never a hard dependency (RFC-0010 §3).
+func TestHandleAsyncResultRunningKeepsBaseShapeWhenProbeFails(t *testing.T) {
+	journal := writeJournalFile(t,
+		`{"job":"rg.search-noprobe","type":"started","ts":"2026-06-13T00:00:00Z"}`)
+	mgr := asyncjob.New(asyncjob.Options{
+		RingmasterBin: writeRunningRingmasterStub(t, journal, "exit 1"),
+		WriteResult:   func(context.Context, []byte) (string, error) { return "unused", nil },
+		MaxRuntime:    time.Minute,
+	})
+	p := asyncJournalProxy(t, newProxyFakeMadder(), mgr)
+
+	res, err := p.HandleAsyncResult(context.Background(),
+		json.RawMessage(`{"job_id":"rg.search-noprobe"}`))
+	if err != nil {
+		t.Fatalf("HandleAsyncResult: %v", err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(res.Content[0].Text), &out); err != nil {
+		t.Fatalf("parsing result %q: %v", res.Content[0].Text, err)
+	}
+	if out["status"] != asyncjob.StateRunning {
+		t.Errorf("status = %v, want running", out["status"])
+	}
+	for _, f := range []string{"elapsed_sec", "last_activity", "spool_bytes", "progress", "tail"} {
+		if _, ok := out[f]; ok {
+			t.Errorf("field %q present, want base shape when the probe fails", f)
+		}
+	}
+}

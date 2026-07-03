@@ -1,0 +1,38 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = """Trace why a dependency is in a closure (nix why-depends) — the reverse of forward-closure \
+tools like store-path-info: it answers "what pulls X into this closure". Shows the dependency chain from \
+`dependent` to `dependency`. Pass `derivation` to trace the .drv graph eval-only (no realize), important \
+for tracing without building a large closure. A bare-name `dependency` (e.g. 'ffmpeg-headless') is resolved \
+to its exact instance inside dependent's closure automatically. Read-only."""
+command = "@BIN@/why-depends"
+arg-order = ["dependent", "dependency", "derivation", "all", "precise"]
+
+[input]
+required = ["dependent", "dependency"]
+
+[input.properties.dependent]
+type = "string"
+description = "Installable or store path whose closure is searched (e.g. '.#devShells.default', '/nix/store/...')."
+
+[input.properties.dependency]
+type = "string"
+description = "The dependency to trace to: a store path, an installable, or a bare package name (auto-resolved to the exact instance in dependent's closure)."
+
+[input.properties.derivation]
+type = "boolean"
+description = "Operate on the .drv graph (--derivation): eval-only, no build. Traces without realizing a possibly-huge closure. Defaults to false."
+
+[input.properties.all]
+type = "boolean"
+description = "Show every dependency path, not just the shortest (--all). Defaults to false."
+
+[input.properties.precise]
+type = "boolean"
+description = "For each edge, show the exact references into the target (--precise). Defaults to false."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

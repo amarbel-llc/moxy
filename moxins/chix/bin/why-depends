@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# chix why-depends: trace WHY a dependency is in a dependent's closure (#380).
+# Wraps `nix why-depends` — the reverse of the forward-closure tools. When
+# `dependency` is a bare name (not a store path or installable), resolve it to
+# the exact instance inside dependent's closure, so callers can ask "why is
+# ffmpeg in here" without first knowing the /nix/store path.
+set -euo pipefail
+dependent="$1"
+dependency="$2"
+derivation="${3:-false}"
+all="${4:-false}"
+precise="${5:-false}"
+
+why_args=(why-depends)
+[ "$derivation" = "true" ] && why_args+=(--derivation)
+[ "$all" = "true" ] && why_args+=(--all)
+[ "$precise" = "true" ] && why_args+=(--precise)
+
+# Bare-name resolution nicety. A bare name has no path separator and no
+# installable marker (leading '.', or a '#' flake attribute). Resolve it to a
+# concrete path in dependent's closure; best-effort — on any failure fall
+# through and pass the bare name to nix, which produces its own clear error.
+case "$dependency" in
+/* | .* | *"#"*) : ;; # store path or installable — use as-is
+*)
+  base=""
+  match=""
+  if [ "$derivation" = "true" ]; then
+    # Drv graph: dependent's .drv (eval-only, no realize); grep its requisites
+    # for a matching .drv.
+    base=$(nix path-info --derivation "$dependent" 2>/dev/null | head -n1) || true
+    if [ -n "$base" ]; then
+      match=$(nix-store -q --requisites "$base" 2>/dev/null | grep -- "$dependency" | grep '\.drv$' | head -n1) || true
+    fi
+  else
+    # Output graph: dependent's out path; grep its requisites for a matching
+    # non-.drv path.
+    base=$(nix path-info "$dependent" 2>/dev/null | head -n1) || true
+    if [ -n "$base" ]; then
+      match=$(nix-store -q --requisites "$base" 2>/dev/null | grep -- "$dependency" | grep -v '\.drv$' | head -n1) || true
+    fi
+  fi
+  [ -n "$match" ] && dependency="$match"
+  ;;
+esac
+
+why_args+=("$dependent" "$dependency")
+nix "${why_args[@]}"

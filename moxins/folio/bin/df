@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Report filesystem free space for the fs holding a path, as JSON (#378).
+# The free-space counterpart to folio.du. `df -P` guarantees one line per
+# filesystem (no device-name wrapping); --block-size=1 reports bytes.
+set -euo pipefail
+path="${1:-.}"
+[ -z "$path" ] && path="."
+
+if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+  echo "no such file or directory: $path" >&2
+  exit 1
+fi
+
+# Data row (skip header). Fields: fs, size, used, avail, capacity, mount...
+# The mount point (field 6..NF) may contain spaces; capacity is always field 5.
+line=$(df -P --block-size=1 -- "$path" | awk 'NR==2')
+fs=$(awk '{print $1}' <<<"$line")
+size=$(awk '{print $2}' <<<"$line")
+used=$(awk '{print $3}' <<<"$line")
+avail=$(awk '{print $4}' <<<"$line")
+capacity=$(awk '{print $5}' <<<"$line")
+mount=$(awk '{for (i = 6; i <= NF; i++) printf "%s%s", $i, (i < NF ? " " : "")}' <<<"$line")
+use_percent="${capacity%\%}"
+# Guard: a non-numeric capacity (e.g. "-") degrades to 0 so --argjson is valid.
+[[ "$use_percent" =~ ^[0-9]+$ ]] || use_percent=0
+
+human=$(df -Ph -- "$path" | awk 'NR==2 {print $4 " avail of " $2 " (" $5 " used)"}')
+
+text=$(jq -cn \
+  --arg filesystem "$fs" \
+  --argjson size_bytes "$size" \
+  --argjson used_bytes "$used" \
+  --argjson avail_bytes "$avail" \
+  --argjson use_percent "$use_percent" \
+  --arg mount_point "$mount" \
+  --arg human "$human" \
+  '{filesystem: $filesystem, size_bytes: $size_bytes, used_bytes: $used_bytes, avail_bytes: $avail_bytes, use_percent: $use_percent, mount_point: $mount_point, human: $human}')
+
+jq -cn --arg text "$text" --arg mime "application/json" \
+  '{content: [{type: "text", text: $text, mimeType: $mime}]}'

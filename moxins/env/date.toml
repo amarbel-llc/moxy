@@ -1,0 +1,23 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Convert epoch timestamp(s) or date string(s) to calendar dates, so agents stop hand-converting and getting them wrong. Accepts an epoch (seconds, or milliseconds auto-detected by magnitude) or any date string `date -d` understands; convert several at once by separating them with commas or newlines. Returns a JSON array (one object per input): {input, epoch, utc (ISO-8601 Z), local (ISO-8601 with offset), weekday, offset}. Pass an optional IANA timezone for the local fields."
+command = "@BIN@/date"
+arg-order = ["input", "timezone"]
+
+[input]
+type = "object"
+required = ["input"]
+
+[input.properties.input]
+type = "string"
+description = "One or more timestamps: an epoch (seconds or milliseconds) or a date string `date -d` understands. Separate multiple values with commas or newlines for batch conversion (spaces are NOT separators, so date strings survive)."
+
+[input.properties.timezone]
+type = "string"
+description = "Optional IANA timezone name (e.g. 'America/New_York', 'UTC', 'Asia/Tokyo') for the `local` fields. Defaults to the host's zone."
+
+[annotations]
+read-only-hint = true
+open-world-hint = false

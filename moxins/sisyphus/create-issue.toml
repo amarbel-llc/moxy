@@ -1,6 +1,6 @@
 schema = 3
 substitute-result-uris = false
-description = "Create a new Jira issue"
+description = "Create a new Jira issue. Returns the new key and its human-facing browse URL (<host>/browse/<KEY>) so you can hand the user a clickable link."
 command = "@BIN@/create-issue"
 arg-order = ["project", "summary", "description", "issuetype", "priority", "labels", "assignee", "parent", "output_format"]
 

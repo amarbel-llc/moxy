@@ -1,12 +1,15 @@
 ---
-status: testing
+status: accepted
 date: 2026-06-06
 promotion-criteria: live smoke passed 2026-06-06 (real dispatches woken via the
   clown channel with succeeded/failed/cancelled states, full results via
   `async-result`, digests resolved from the user-level store by an independent
-  process, allow-only and permit-async rejections verified); remaining gate for
-  accepted — no tuning-lever adjustment needed for 2 weeks of real use, and
-  the #322 cancellation-kill gap resolved or explicitly accepted
+  process, allow-only and permit-async rejections verified); promoted to
+  accepted 2026-07-03 — the journal-as-state-authority redesign (e3ca11c,
+  2026-06-13) ran ~3 weeks with no tuning-lever adjustment, and the #322
+  cancellation-kill gap was resolved by the native-exec process-group kill
+  (Setpgid + group SIGTERM + WaitDelay, #344/#345). The RFC-0015 ringmaster CLI
+  rename (2026-07-03) was behavior-preserving and did not reset the clock.
 ---
 
 # Async tool dispatch (meta tools + clown job-wakeups)

@@ -18,7 +18,13 @@ jira = _lib.make_client()
 with _lib.jira_call():
     result = jira.issue_add_comment(issue_key, _lib.md_to_adf(body))
 
+url = _lib.browse_url(jira, issue_key)
 if output_format == "json":
+    if url:
+        result = {**result, "browse_url": url}
     _lib.emit(result)
 else:
-    _lib.emit(f"Comment added to {issue_key}")
+    line = f"Comment added to {issue_key}"
+    if url:
+        line += f"\n{url}"
+    _lib.emit(line)

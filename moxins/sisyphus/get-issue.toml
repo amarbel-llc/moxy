@@ -1,6 +1,6 @@
 schema = 3
 perms-request = "always-allow"
-description = "Get a Jira issue by key"
+description = "Get a Jira issue by key. Results include the human-facing browse URL (<host>/browse/<KEY>) so you can hand the user a clickable link."
 command = "@BIN@/get-issue"
 arg-order = ["issue_key", "fields", "output_format"]
 

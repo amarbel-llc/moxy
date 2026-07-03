@@ -15,8 +15,11 @@ output_format = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ""
 
 jira = _lib.make_client()
 result = _lib.render_issue_body_fields(jira.get_issue(issue_key, fields=fields))
+url = _lib.browse_url(jira, result.get("key"))
 
 if output_format == "json":
+    if url:
+        result = {**result, "browse_url": url}
     _lib.emit(result)
 else:
     f = result.get("fields", {})
@@ -27,6 +30,8 @@ else:
         f"Priority: {(f.get('priority') or {}).get('name', '')}",
         f"Assignee: {(f.get('assignee') or {}).get('displayName', 'Unassigned')}",
     ]
+    if url:
+        lines.append(f"Browse: {url}")
     desc = f.get("description", "")
     if desc:
         lines.append(f"\n{desc}")

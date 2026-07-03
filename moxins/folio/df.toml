@@ -1,0 +1,18 @@
+schema = 3
+perms-request = "always-allow"
+description = """Filesystem free space (df) for the filesystem holding a path. Defaults to the current \
+working directory. Returns JSON {filesystem, size_bytes, used_bytes, avail_bytes, use_percent, \
+mount_point, human}, the free-space counterpart to folio.du. Read-only."""
+command = "@BIN@/df"
+arg-order = ["path"]
+
+[input]
+type = "object"
+
+[input.properties.path]
+type = "string"
+description = "File or directory whose containing filesystem is reported. Defaults to the current working directory."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true

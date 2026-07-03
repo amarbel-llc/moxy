@@ -44,7 +44,14 @@ if assignee:
 with _lib.jira_call():
     jira.update_issue_field(issue_key, fields)
 
+url = _lib.browse_url(jira, issue_key)
 if output_format == "json":
-    _lib.emit(_lib.render_issue_body_fields(jira.get_issue(issue_key)))
+    result = _lib.render_issue_body_fields(jira.get_issue(issue_key))
+    if url:
+        result = {**result, "browse_url": url}
+    _lib.emit(result)
 else:
-    _lib.emit(f"Updated {issue_key}")
+    line = f"Updated {issue_key}"
+    if url:
+        line += f"\n{url}"
+    _lib.emit(line)
