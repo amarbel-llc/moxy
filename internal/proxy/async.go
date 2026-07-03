@@ -226,7 +226,7 @@ func (p *Proxy) HandleAsyncResult(
 // mergeLiveStatus augments a running-job response with clown's journal+spool
 // probe (RFC-0010 §3 / FDR-0005): elapsed_sec, last_activity, spool_bytes,
 // progress, and a bounded output tail, surfaced under clown's own field names
-// so an agent sees the same shape via async-result or `clown job status`. On
+// so an agent sees the same shape via async-result or `ringmaster status`. On
 // any error (clown disabled/absent, a locally-minted id, or an installed clown
 // without the probe) the response keeps its base shape — the probe is a
 // façade, never a second source of truth.

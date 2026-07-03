@@ -9,7 +9,7 @@ promotion-criteria: a real multi-minute async job (just-us-agents.run-recipe
   file globbing) no longer observed in session transcripts
 ---
 
-# Async job live status (output spool + clown job status)
+# Async job live status (output spool + ringmaster status)
 
 ## Problem Statement
 
@@ -30,7 +30,7 @@ mirror the probe in its `async-result` poll surface.
 ### Producer: output spool from the native exec layer
 
 When `async` dispatches a job, moxy resolves the job's spool path via
-`${CLOWN_BIN:-clown} job spool-path <job_id>` (empty when the channel is
+`${RINGMASTER_BIN:-ringmaster} spool-path <job_id>` (empty when the channel is
 disabled — then no spool is written) and threads an output sink into the
 dispatch context. The native moxin exec layer (`runMoxinProcess`) tees the
 child's stdout and stderr into the sink as they arrive, interleaved in
@@ -59,13 +59,15 @@ resolves to a child MCP server writes no spool (see Limitations).
     }
 
 The spool-derived fields are NOT recomputed by moxy: `async-result` shells
-`clown job status <job_id> --json` and merges its `elapsed_sec`,
+`ringmaster status <job_id> --json` and merges its `elapsed_sec`,
 `last_activity`, `spool_bytes`, `progress`, and `tail` verbatim onto the
 in-memory `{job_id, tool, status, started}`, so an agent sees the same field
-names and values whether it probes via `async-result` or `clown job status`
-— the channel is the single source of truth (RFC-0010 §3). When the probe
+names and values whether it probes via `async-result` or `ringmaster status`
+— the channel is the single source of truth (RFC-0010 §3). (clown RFC-0015
+promoted the job verbs off `clown job <verb>` onto the standalone `ringmaster`
+binary; the probe is behavior-preserving.) When the probe
 errors (channel disabled, child-server tool, a locally-minted id with no
-journal, or an installed clown without the probe) the spool-derived fields
+journal, or an installed ringmaster without the probe) the spool-derived fields
 are omitted and the response is exactly the v1 shape. **Terminal** jobs now
 also read through the journal: `async-result` takes the terminal record's
 `result_ref` (a `madder://blobs/<digest>` URI) and fetches the full stored
@@ -75,7 +77,7 @@ terminal result are journal-backed, and `async-result` now resolves jobs
 launched by another session too (moxy#321), not only its own.
 
 Cross-producer and cross-session consumers may also use the channel-owned
-probe directly — `clown job status <job_id>` reports the same fields from the
+probe directly — `ringmaster status <job_id>` reports the same fields from the
 same files (RFC-0010 §3). `async-result` is moxy's MCP façade over the journal,
 not a second source of truth.
 
@@ -97,7 +99,7 @@ Dispatch a long recipe, probe it mid-flight, get woken as before:
 
 The same job, probed from a shell or another session:
 
-    clown job status just-us-agents.run-recipe-b496fe63
+    ringmaster status just-us-agents.run-recipe-b496fe63
     → job just-us-agents.run-recipe-b496fe63 (moxy): running, elapsed 5m12s, last activity 4s ago
       --- tail ---
       moxy-bats-grit> ok 24 grit_diff_stat_only
@@ -110,8 +112,8 @@ The same job, probed from a shell or another session:
   and elapsed, but `last_activity` stays at the journal's `started` record
   and no spool is written. Surfacing child-server MCP progress
   notifications as spool lines is deliberate future work.
-- **No spool without clown.** When `clown job spool-path` yields nothing
-  (channel disabled, clown absent), running `async-result` responses keep
+- **No spool without ringmaster.** When `ringmaster spool-path` yields nothing
+  (channel disabled, ringmaster absent), running `async-result` responses keep
   the v1 shape. A moxy-private fallback spool was considered and rejected:
   it would re-create exactly the per-producer divergence RFC-0010 removes.
 - **Stale tails on wedged children survive.** The tee observes the same

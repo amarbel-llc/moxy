@@ -15,10 +15,10 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
 
-// writeClownStub writes an argv-recording clown stub. `job start` prints
+// writeRingmasterStub writes an argv-recording ringmaster stub. `start` prints
 // startOutput (empty string = the CLOWN_DISABLE_JOB_WAKEUP=1 no-op
 // signature: exit 0, no output).
-func writeClownStub(t *testing.T, startOutput string) (bin, record string) {
+func writeRingmasterStub(t *testing.T, startOutput string) (bin, record string) {
 	t.Helper()
 	// Resolve a real interpreter rather than hardcoding `/usr/bin/env bash`:
 	// the hermetic nix-check sandbox has bash on PATH but no /usr/bin/env, so
@@ -27,14 +27,14 @@ func writeClownStub(t *testing.T, startOutput string) (bin, record string) {
 	// works in both the sandbox and the devshell.
 	shell, err := exec.LookPath("bash")
 	if err != nil {
-		t.Skipf("no bash on PATH for clown stub: %v", err)
+		t.Skipf("no bash on PATH for ringmaster stub: %v", err)
 	}
 	dir := t.TempDir()
 	record = filepath.Join(dir, "record")
-	bin = filepath.Join(dir, "clown")
+	bin = filepath.Join(dir, "ringmaster")
 	script := "#!" + shell + "\n" +
 		"printf '%s\\n' \"$*\" >> " + record + "\n" +
-		"if [ \"$1\" = job ] && [ \"$2\" = start ]; then\n"
+		"if [ \"$1\" = start ]; then\n"
 	if startOutput != "" {
 		script += "  echo " + startOutput + "\n"
 	}
@@ -45,16 +45,16 @@ func writeClownStub(t *testing.T, startOutput string) (bin, record string) {
 	return bin, record
 }
 
-// writeClownScript writes an executable clown stub whose body is `body` (a
-// bash snippet receiving the `clown` argv as $@). Used by the spool-path /
-// status tests where the stub needs custom per-subcommand output.
-func writeClownScript(t *testing.T, body string) string {
+// writeRingmasterScript writes an executable ringmaster stub whose body is
+// `body` (a bash snippet receiving the `ringmaster` argv as $@). Used by the
+// spool-path / status tests where the stub needs custom per-verb output.
+func writeRingmasterScript(t *testing.T, body string) string {
 	t.Helper()
 	shell, err := exec.LookPath("bash")
 	if err != nil {
-		t.Skipf("no bash on PATH for clown stub: %v", err)
+		t.Skipf("no bash on PATH for ringmaster stub: %v", err)
 	}
-	bin := filepath.Join(t.TempDir(), "clown")
+	bin := filepath.Join(t.TempDir(), "ringmaster")
 	if err := os.WriteFile(bin, []byte("#!"+shell+"\n"+body), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func writeClownScript(t *testing.T, body string) string {
 }
 
 func TestResolveSpoolPath(t *testing.T) {
-	bin := writeClownScript(t, `[ "$1" = job ] && [ "$2" = spool-path ] && echo "/spool/$3.out"`)
+	bin := writeRingmasterScript(t, `[ "$1" = spool-path ] && echo "/spool/$2.out"`)
 	m := newTestManager(bin)
 	if got := m.resolveSpoolPath(context.Background(), "rg.search-1a2b"); got != "/spool/rg.search-1a2b.out" {
 		t.Errorf("resolveSpoolPath = %q, want /spool/rg.search-1a2b.out", got)
@@ -71,18 +71,18 @@ func TestResolveSpoolPath(t *testing.T) {
 
 func TestResolveSpoolPathEmptyOnDisabledOrAbsent(t *testing.T) {
 	// Disabled channel: spool-path exits 0 with no output.
-	empty := writeClownScript(t, `exit 0`)
+	empty := writeRingmasterScript(t, `exit 0`)
 	if got := newTestManager(empty).resolveSpoolPath(context.Background(), "x"); got != "" {
 		t.Errorf("disabled: got %q, want empty", got)
 	}
-	// Absent clown / old clown without the subcommand: exec fails.
-	if got := newTestManager("/nonexistent/clown").resolveSpoolPath(context.Background(), "x"); got != "" {
+	// Absent ringmaster / old ringmaster without the verb: exec fails.
+	if got := newTestManager("/nonexistent/ringmaster").resolveSpoolPath(context.Background(), "x"); got != "" {
 		t.Errorf("absent: got %q, want empty", got)
 	}
 }
 
 func TestJobStatusParsesJSON(t *testing.T) {
-	bin := writeClownScript(t, `[ "$2" = status ] && echo '{"state":"running","elapsed_sec":42,"last_activity":"2026-06-08T00:00:00Z","spool_bytes":17,"tail":"hello"}'`)
+	bin := writeRingmasterScript(t, `[ "$1" = status ] && echo '{"state":"running","elapsed_sec":42,"last_activity":"2026-06-08T00:00:00Z","spool_bytes":17,"tail":"hello"}'`)
 	m := newTestManager(bin)
 	st, err := m.JobStatus(context.Background(), "x.y-1")
 	if err != nil {
@@ -96,22 +96,22 @@ func TestJobStatusParsesJSON(t *testing.T) {
 	}
 }
 
-func TestJobStatusErrorWhenClownFails(t *testing.T) {
-	// A locally-minted id has no journal → clown job status exits 1.
-	bin := writeClownScript(t, `exit 1`)
+func TestJobStatusErrorWhenRingmasterFails(t *testing.T) {
+	// A locally-minted id has no journal → ringmaster status exits 1.
+	bin := writeRingmasterScript(t, `exit 1`)
 	if _, err := newTestManager(bin).JobStatus(context.Background(), "x"); err == nil {
-		t.Error("want error when clown job status exits 1")
+		t.Error("want error when ringmaster status exits 1")
 	}
-	if _, err := newTestManager("/nonexistent/clown").JobStatus(context.Background(), "x"); err == nil {
-		t.Error("want error when clown is absent")
+	if _, err := newTestManager("/nonexistent/ringmaster").JobStatus(context.Background(), "x"); err == nil {
+		t.Error("want error when ringmaster is absent")
 	}
 }
 
 func TestReadJournalParsesTerminal(t *testing.T) {
-	body := `[ "$2" = read ] && printf '%s\n' ` +
+	body := `[ "$1" = read ] && printf '%s\n' ` +
 		`'{"job":"x.y-1","type":"started","ts":"2026-06-13T00:00:00Z"}' ` +
 		`'{"job":"x.y-1","type":"succeeded","ts":"2026-06-13T00:01:00Z","message":"done","result_ref":"madder://blobs/abc123"}'`
-	m := newTestManager(writeClownScript(t, body))
+	m := newTestManager(writeRingmasterScript(t, body))
 	view, err := m.ReadJournal(context.Background(), "x.y-1")
 	if err != nil {
 		t.Fatalf("ReadJournal: %v", err)
@@ -137,10 +137,10 @@ func TestReadJournalParsesTerminal(t *testing.T) {
 // NOT be inferred dead (RFC-0010 §3: status is journal-derived and never
 // detects a producer that died without a terminal).
 func TestReadJournalRunningNoTerminal(t *testing.T) {
-	body := `[ "$2" = read ] && printf '%s\n' ` +
+	body := `[ "$1" = read ] && printf '%s\n' ` +
 		`'{"job":"x.y-1","type":"started","ts":"2026-06-13T00:00:00Z"}' ` +
 		`'{"job":"x.y-1","type":"progress","ts":"2026-06-13T00:00:30Z","message":"working"}'`
-	m := newTestManager(writeClownScript(t, body))
+	m := newTestManager(writeRingmasterScript(t, body))
 	view, err := m.ReadJournal(context.Background(), "x.y-1")
 	if err != nil {
 		t.Fatalf("ReadJournal: %v", err)
@@ -153,14 +153,14 @@ func TestReadJournalRunningNoTerminal(t *testing.T) {
 	}
 }
 
-func TestReadJournalErrorWhenClownFails(t *testing.T) {
+func TestReadJournalErrorWhenRingmasterFails(t *testing.T) {
 	// Disabled channel / locally-minted id with no journal → exit 1.
-	if _, err := newTestManager(writeClownScript(t, `exit 1`)).ReadJournal(context.Background(), "x"); err == nil {
-		t.Error("want error when clown job read exits 1")
+	if _, err := newTestManager(writeRingmasterScript(t, `exit 1`)).ReadJournal(context.Background(), "x"); err == nil {
+		t.Error("want error when ringmaster read exits 1")
 	}
-	// Absent clown.
-	if _, err := newTestManager("/nonexistent/clown").ReadJournal(context.Background(), "x"); err == nil {
-		t.Error("want error when clown is absent")
+	// Absent ringmaster.
+	if _, err := newTestManager("/nonexistent/ringmaster").ReadJournal(context.Background(), "x"); err == nil {
+		t.Error("want error when ringmaster is absent")
 	}
 }
 
@@ -176,20 +176,20 @@ func recordLines(t *testing.T, record string) []string {
 	return strings.Split(strings.TrimRight(string(data), "\n"), "\n")
 }
 
-// waitDoneLine polls the stub record for a `job done` line. The index goes
-// terminal BEFORE the done emit completes (a hung clown must not make jobs
+// waitDoneLine polls the stub record for a `done` line. The index goes
+// terminal BEFORE the done emit completes (a hung ringmaster must not make jobs
 // look stuck), so tests asserting on the emit must poll.
 func waitDoneLine(t *testing.T, record string) string {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		lines := recordLines(t, record)
-		if n := len(lines); n > 0 && strings.Contains(lines[n-1], "job done") {
+		if n := len(lines); n > 0 && strings.Contains(lines[n-1], "done") {
 			return lines[n-1]
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("clown stub never recorded a job done line")
+	t.Fatal("ringmaster stub never recorded a done line")
 	return ""
 }
 
@@ -217,9 +217,9 @@ func waitTerminal(t *testing.T, m *Manager, id string) Snapshot {
 	return Snapshot{}
 }
 
-func newTestManager(clownBin string) *Manager {
+func newTestManager(ringmasterBin string) *Manager {
 	return New(Options{
-		ClownBin: clownBin,
+		RingmasterBin: ringmasterBin,
 		// Fake result writer: digest is derived from length so tests can
 		// assert it flowed through without real madder.
 		WriteResult: func(_ context.Context, content []byte) (string, error) {
@@ -230,9 +230,9 @@ func newTestManager(clownBin string) *Manager {
 	})
 }
 
-func TestProducerStartAdoptsClownID(t *testing.T) {
-	// clown's label sanitizer KEEPS dots (job-id charset [A-Za-z0-9._-]).
-	bin, record := writeClownStub(t, "rg.search-3f2a8b1c")
+func TestProducerStartAdoptsRingmasterID(t *testing.T) {
+	// ringmaster's label sanitizer KEEPS dots (job-id charset [A-Za-z0-9._-]).
+	bin, record := writeRingmasterStub(t, "rg.search-3f2a8b1c")
 	m := newTestManager(bin)
 
 	id, err := m.Dispatch(context.Background(), "rg.search", nil, 0,
@@ -243,7 +243,7 @@ func TestProducerStartAdoptsClownID(t *testing.T) {
 		t.Fatalf("Dispatch: %v", err)
 	}
 	if id != "rg.search-3f2a8b1c" {
-		t.Errorf("id = %q, want clown-issued id", id)
+		t.Errorf("id = %q, want ringmaster-issued id", id)
 	}
 
 	snap := waitTerminal(t, m, id)
@@ -259,16 +259,16 @@ func TestProducerStartAdoptsClownID(t *testing.T) {
 	// start, then spool-path (FDR-0005 resolves the spool before dispatch),
 	// then done.
 	if len(lines) != 3 {
-		t.Fatalf("clown invocations = %v, want start+spool-path+done", lines)
+		t.Fatalf("ringmaster invocations = %v, want start+spool-path+done", lines)
 	}
-	if !strings.Contains(lines[0], "job start --source moxy --label rg.search") {
+	if !strings.Contains(lines[0], "start --source moxy --label rg.search") {
 		t.Errorf("start line = %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "job spool-path rg.search-3f2a8b1c") {
-		t.Errorf("second invocation = %q, want job spool-path", lines[1])
+	if !strings.Contains(lines[1], "spool-path rg.search-3f2a8b1c") {
+		t.Errorf("second invocation = %q, want spool-path", lines[1])
 	}
 	for _, want := range []string{
-		"job done rg.search-3f2a8b1c",
+		"done rg.search-3f2a8b1c",
 		"--state succeeded",
 		"412 matches",
 		snap.Digest,
@@ -285,10 +285,10 @@ func TestProducerStartAdoptsClownID(t *testing.T) {
 	}
 }
 
-// CLOWN_DISABLE_JOB_WAKEUP=1 contract: `job start` exits 0 printing NOTHING.
-// moxy must mint a local id of the same shape and async must keep working.
+// CLOWN_DISABLE_JOB_WAKEUP=1 contract: `ringmaster start` exits 0 printing
+// NOTHING. moxy must mint a local id of the same shape and async keeps working.
 func TestEmptyStdoutMintsLocalID(t *testing.T) {
-	bin, _ := writeClownStub(t, "")
+	bin, _ := writeRingmasterStub(t, "")
 	m := newTestManager(bin)
 
 	id, err := m.Dispatch(context.Background(), "rg.search", nil, 0,
@@ -307,8 +307,8 @@ func TestEmptyStdoutMintsLocalID(t *testing.T) {
 	}
 }
 
-func TestMissingClownBinStillDispatches(t *testing.T) {
-	m := newTestManager("/nonexistent/clown")
+func TestMissingRingmasterBinStillDispatches(t *testing.T) {
+	m := newTestManager("/nonexistent/ringmaster")
 	id, err := m.Dispatch(context.Background(), "grit.status", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			return okResult("clean"), nil
@@ -323,7 +323,7 @@ func TestMissingClownBinStillDispatches(t *testing.T) {
 }
 
 func TestDispatchErrorIsFailed(t *testing.T) {
-	bin, record := writeClownStub(t, "boom-11112222")
+	bin, record := writeRingmasterStub(t, "boom-11112222")
 	m := newTestManager(bin)
 	id, _ := m.Dispatch(context.Background(), "x.boom", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -339,7 +339,7 @@ func TestDispatchErrorIsFailed(t *testing.T) {
 }
 
 func TestIsErrorResultIsFailed(t *testing.T) {
-	bin, _ := writeClownStub(t, "boom-33334444")
+	bin, _ := writeRingmasterStub(t, "boom-33334444")
 	m := newTestManager(bin)
 	id, _ := m.Dispatch(context.Background(), "x.boom", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -355,7 +355,7 @@ func TestIsErrorResultIsFailed(t *testing.T) {
 }
 
 func TestCancelProducesCancelled(t *testing.T) {
-	bin, record := writeClownStub(t, "slow-55556666")
+	bin, record := writeRingmasterStub(t, "slow-55556666")
 	m := newTestManager(bin)
 	started := make(chan struct{})
 	id, _ := m.Dispatch(context.Background(), "x.slow", nil, 0,
@@ -384,9 +384,9 @@ func TestCancelProducesCancelled(t *testing.T) {
 // The default max-runtime deadline produces the moxy status `timeout`, which
 // async-result reports as-is, but emits clown wire state `interrupted` (#345).
 func TestMaxRuntimeProducesTimeout(t *testing.T) {
-	bin, record := writeClownStub(t, "slow-77778888")
+	bin, record := writeRingmasterStub(t, "slow-77778888")
 	m := New(Options{
-		ClownBin: bin,
+		RingmasterBin: bin,
 		WriteResult: func(_ context.Context, _ []byte) (string, error) {
 			return "d", nil
 		},
@@ -414,9 +414,9 @@ func TestMaxRuntimeProducesTimeout(t *testing.T) {
 // A per-call timeout overrides a generous manager default and terminalizes the
 // same way as the default deadline (#345).
 func TestPerCallTimeoutOverridesDefault(t *testing.T) {
-	bin, record := writeClownStub(t, "slow-aaaa1111")
+	bin, record := writeRingmasterStub(t, "slow-aaaa1111")
 	m := New(Options{
-		ClownBin: bin,
+		RingmasterBin: bin,
 		WriteResult: func(_ context.Context, _ []byte) (string, error) {
 			return "d", nil
 		},
@@ -441,7 +441,7 @@ func TestPerCallTimeoutOverridesDefault(t *testing.T) {
 }
 
 func TestSweepInterruptsInFlight(t *testing.T) {
-	bin, record := writeClownStub(t, "slow-9999aaaa")
+	bin, record := writeRingmasterStub(t, "slow-9999aaaa")
 	m := newTestManager(bin)
 	started := make(chan struct{})
 	id, _ := m.Dispatch(context.Background(), "x.slow", nil, 0,
@@ -467,7 +467,7 @@ func TestSweepInterruptsInFlight(t *testing.T) {
 // summary must come from there too. Round-trip through JSON to mirror the
 // proxy's decodeToolCallResult path exactly.
 func TestSummaryFromEmbeddedResourceBlock(t *testing.T) {
-	bin, record := writeClownStub(t, "res-dddd0000")
+	bin, record := writeRingmasterStub(t, "res-dddd0000")
 	m := newTestManager(bin)
 
 	raw := []byte(`{"content":[{"type":"resource","resource":{"uri":"moxy.native://x","text":"hello async","mimeType":"text/plain"}}]}`)
@@ -491,7 +491,7 @@ func TestSummaryFromEmbeddedResourceBlock(t *testing.T) {
 }
 
 func TestLookupReturnsStoredResult(t *testing.T) {
-	bin, _ := writeClownStub(t, "res-bbbbcccc")
+	bin, _ := writeRingmasterStub(t, "res-bbbbcccc")
 	m := newTestManager(bin)
 	id, _ := m.Dispatch(context.Background(), "x.res", nil, 0,
 		func(ctx context.Context, tool string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {

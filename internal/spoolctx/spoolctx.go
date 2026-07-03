@@ -2,7 +2,7 @@
 // from the dispatch layer down to the native exec layer through the call
 // context. It exists as its own package so neither side has to import the
 // other: internal/asyncjob sets the path after resolving it via
-// `clown job spool-path`, and internal/native reads it in runMoxinProcess to
+// `ringmaster spool-path`, and internal/native reads it in runMoxinProcess to
 // tee the child's output into the spool. An empty/absent value means "no
 // spool" (clown disabled or absent), and the tee is skipped.
 package spoolctx

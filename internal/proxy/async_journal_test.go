@@ -42,8 +42,8 @@ func (f *proxyFakeMadder) CatBytes(_ context.Context, digest string) ([]byte, er
 	return b, nil
 }
 
-// writeJournalFile writes NDJSON journal records to a temp file the clown stub
-// cats for `job read`.
+// writeJournalFile writes NDJSON journal records to a temp file the ringmaster
+// stub cats for `read`.
 func writeJournalFile(t *testing.T, lines ...string) string {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "journal")
@@ -53,17 +53,17 @@ func writeJournalFile(t *testing.T, lines ...string) string {
 	return f
 }
 
-// writeProxyClownStub writes a clown stub that echoes startID for `job start`
-// (empty = no job launched) and cats journalFile for `job read` (empty = exit
-// 1, the no-journal signal). Other subcommands (done/spool-path/status) no-op.
-func writeProxyClownStub(t *testing.T, startID, journalFile string) string {
+// writeProxyRingmasterStub writes a ringmaster stub that echoes startID for
+// `start` (empty = no job launched) and cats journalFile for `read` (empty =
+// exit 1, the no-journal signal). Other verbs (done/spool-path/status) no-op.
+func writeProxyRingmasterStub(t *testing.T, startID, journalFile string) string {
 	t.Helper()
 	shell, err := exec.LookPath("bash")
 	if err != nil {
-		t.Skipf("no bash on PATH for clown stub: %v", err)
+		t.Skipf("no bash on PATH for ringmaster stub: %v", err)
 	}
-	bin := filepath.Join(t.TempDir(), "clown")
-	script := "#!" + shell + "\ncase \"$2\" in\n"
+	bin := filepath.Join(t.TempDir(), "ringmaster")
+	script := "#!" + shell + "\ncase \"$1\" in\n"
 	if startID != "" {
 		script += "  start) echo " + startID + " ;;\n"
 	} else {
@@ -133,9 +133,9 @@ func TestHandleAsyncResultJournalFirstCrossSession(t *testing.T) {
 		`{"job":"rg.search-xsession","type":"succeeded","ts":"2026-06-13T00:01:00Z","message":"412 matches","result_ref":"madder://blobs/blake2b256-xsession"}`,
 	)
 	mgr := asyncjob.New(asyncjob.Options{
-		ClownBin:    writeProxyClownStub(t, "", journal),
-		WriteResult: func(context.Context, []byte) (string, error) { return "unused", nil },
-		MaxRuntime:  time.Minute,
+		RingmasterBin: writeProxyRingmasterStub(t, "", journal),
+		WriteResult:   func(context.Context, []byte) (string, error) { return "unused", nil },
+		MaxRuntime:    time.Minute,
 	})
 	p := asyncJournalProxy(t, madder, mgr)
 
@@ -162,9 +162,9 @@ func TestHandleAsyncResultTimeoutUpgrade(t *testing.T) {
 		`{"job":"slow-deadbeef","type":"interrupted","ts":"2026-06-13T00:00:01Z","message":"timed out after 20ms"}`,
 	)
 	mgr := asyncjob.New(asyncjob.Options{
-		ClownBin:    writeProxyClownStub(t, "slow-deadbeef", journal),
-		WriteResult: func(context.Context, []byte) (string, error) { return "unused", nil },
-		MaxRuntime:  20 * time.Millisecond,
+		RingmasterBin: writeProxyRingmasterStub(t, "slow-deadbeef", journal),
+		WriteResult:   func(context.Context, []byte) (string, error) { return "unused", nil },
+		MaxRuntime:    20 * time.Millisecond,
 	})
 	p := asyncJournalProxy(t, newProxyFakeMadder(), mgr)
 
@@ -202,9 +202,9 @@ func TestHandleAsyncResultBlobReapedFallsBackToLocal(t *testing.T) {
 		`{"job":"rg.search-reaped","type":"succeeded","ts":"2026-06-13T00:01:00Z","message":"ok","result_ref":"madder://blobs/blake2b256-gone"}`,
 	)
 	mgr := asyncjob.New(asyncjob.Options{
-		ClownBin:    writeProxyClownStub(t, "rg.search-reaped", journal),
-		WriteResult: func(context.Context, []byte) (string, error) { return "blake2b256-local", nil },
-		MaxRuntime:  time.Minute,
+		RingmasterBin: writeProxyRingmasterStub(t, "rg.search-reaped", journal),
+		WriteResult:   func(context.Context, []byte) (string, error) { return "blake2b256-local", nil },
+		MaxRuntime:    time.Minute,
 	})
 	// Empty store: blake2b256-gone is absent, so the journal blob fetch fails.
 	p := asyncJournalProxy(t, newProxyFakeMadder(), mgr)

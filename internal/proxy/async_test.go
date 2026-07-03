@@ -25,7 +25,7 @@ func newAsyncProxy(t *testing.T) *Proxy {
 		"fake.tool": {Perm: native.PermsAlwaysAllow},
 	}))
 	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		ClownBin: "/nonexistent/clown",
+		RingmasterBin: "/nonexistent/ringmaster",
 		WriteResult: func(_ context.Context, _ []byte) (string, error) {
 			return "fake-digest", nil
 		},
@@ -126,7 +126,7 @@ func TestHandleBatchAsyncRunsAsOneJob(t *testing.T) {
 		},
 	)
 	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		ClownBin: "/nonexistent/clown",
+		RingmasterBin: "/nonexistent/ringmaster",
 		WriteResult: func(_ context.Context, _ []byte) (string, error) {
 			return "fake-digest", nil
 		},
@@ -194,7 +194,7 @@ func TestHandleBatchAsyncRejectsAskTier(t *testing.T) {
 		},
 	)
 	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		ClownBin: "/nonexistent/clown",
+		RingmasterBin: "/nonexistent/ringmaster",
 		WriteResult: func(_ context.Context, _ []byte) (string, error) {
 			return "fake-digest", nil
 		},
@@ -224,7 +224,7 @@ func TestHandleAsyncRejectsPermitAsyncFalse(t *testing.T) {
 		"fake.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
 	}))
 	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		ClownBin: "/nonexistent/clown",
+		RingmasterBin: "/nonexistent/ringmaster",
 		WriteResult: func(_ context.Context, _ []byte) (string, error) {
 			return "fake-digest", nil
 		},
@@ -312,7 +312,7 @@ func TestHandleBatchAsyncRejectsBuiltinSubCall(t *testing.T) {
 	)
 	registerBuiltins(t, p, "restart", "batch", "async")
 	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		ClownBin: "/nonexistent/clown",
+		RingmasterBin: "/nonexistent/ringmaster",
 		WriteResult: func(_ context.Context, _ []byte) (string, error) {
 			return "fake-digest", nil
 		},

@@ -9,7 +9,7 @@ promotion-criteria: live smoke passed 2026-06-06 (real dispatches woken via the
   the #322 cancellation-kill gap resolved or explicitly accepted
 ---
 
-# Async tool dispatch (meta tools + clown job wakeups)
+# Async tool dispatch (meta tools + clown job-wakeups)
 
 ## Problem Statement
 
@@ -50,15 +50,19 @@ unparseable or non-positive `timeout` is rejected synchronously.
    `execution.taskSupport` (`forbidden`/`optional`) but is NOT yet emitted
    on `tools/list` — surfacing it before moxy wires a `TaskProvider` could
    bait tasks-aware clients into task-augmented calls moxy can't serve.
-2. **Job open**: moxy runs `${CLOWN_BIN:-clown} job start --source moxy
+2. **Job open**: moxy runs `${RINGMASTER_BIN:-ringmaster} start --source moxy
    --label <tool>` and adopts the printed job id (e.g. `rg.search-3f2a8b1c`
-   — clown's label sanitizer keeps dots; the job-id charset is
-   `[A-Za-z0-9._-]`) as the async handle. Implementers MUST NOT assume an id always comes
-   back: with `CLOWN_DISABLE_JOB_WAKEUP=1` the `clown job` commands are
+   — ringmaster's label sanitizer keeps dots; the job-id charset is
+   `[A-Za-z0-9._-]`) as the async handle. (clown RFC-0015 promoted the job
+   verbs off `clown job <verb>` onto the standalone `ringmaster` binary, on
+   PATH wherever clown is installed; the swap is behavior-preserving, and
+   `RINGMASTER_BIN` is an optional override for tests/pinning.) Implementers
+   MUST NOT assume an id always comes
+   back: with `CLOWN_DISABLE_JOB_WAKEUP=1` the `ringmaster` commands are
    exit-0 no-ops that print **nothing** — empty stdout on a zero exit is the
-   normal disabled-channel signature, not an error. In that case (and when
-   `CLOWN_BIN` is unset or the call fails outright), moxy mints a local id
-   of the same shape — async still works, the agent just polls
+   normal disabled-channel signature, not an error. In that case (and when the
+   call fails outright — e.g. `ringmaster` absent from PATH), moxy mints a
+   local id of the same shape — async still works, the agent just polls
    `async-result` instead of being woken.
 3. **Detached dispatch**: the call runs through the normal `CallToolV1`
    dispatch (statsd metrics included) on a context detached from the
@@ -67,7 +71,7 @@ unparseable or non-positive `timeout` is rejected synchronously.
 4. **Immediate return**: `{job_id, tool, status: "running"}`.
 5. **Terminal**: the full result is written to the madder store, the
    in-memory index is updated, and moxy emits
-   `clown job done <job_id> --state <state> --message "<tool>:
+   `ringmaster done <job_id> --state <state> --message "<tool>:
    <first-line summary> (madder <digest>)" --result-ref
    "madder://blobs/<digest>"`. The `result_ref` is the **machine-readable
    artifact URI** (a terminal that produced no result carries none), so a
@@ -98,7 +102,7 @@ failure-to-act.
 
 Input: `{job_id}`. **Journal-first**: when clown's journal is reachable it is
 the authority for state and the result reference — `async-result` reads
-`clown job read --job <id> --json`, takes the last terminal record's
+`ringmaster read --job <id> --json`, takes the last terminal record's
 `result_ref`, and fetches the `ToolCallResultV1` from the `moxy-async` store.
 This resolves jobs launched by **another** moxy process or session (#321), not
 just this process's own. When the journal is unavailable (channel disabled,
@@ -106,7 +110,7 @@ clown absent, or a locally-minted id) it falls back to the in-memory index,
 which also owns the moxy-only `timeout` distinction (a journal read of a
 timed-out job sees the wire state `interrupted`, upgraded back to `timeout`
 only for this process's own jobs). Running jobs return `{status: "running",
-...}` merged with the live `clown job status` probe (elapsed/last_activity/
+...}` merged with the live `ringmaster status` probe (elapsed/last_activity/
 spool_bytes/tail, FDR-0005) so the tool doubles as a poll surface when wakeups
 are disabled. Unknown ids return a structured error listing live job ids.
 
@@ -282,6 +286,6 @@ not part of v1.
   design reuses)
 - Pinned clown contract (2026-06-13, clown/fond-sycamore): source=`moxy`,
   label=tool name or `batch`, `result_ref` = `madder://blobs/<digest>` (the
-  machine-readable artifact URI), read back via `clown job read --job <id>
-  --json`, shell-out producer only (no native journal speaker), job-id is the
-  agent's dedupe key
+  machine-readable artifact URI), read back via `ringmaster read --job <id>
+  --json` (was `clown job read` before the RFC-0015 CLI rename), shell-out
+  producer only (no native journal speaker), job-id is the agent's dedupe key

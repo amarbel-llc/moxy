@@ -4,8 +4,8 @@
 
 # E2E for the async dispatch meta tools (FDR 0004): a real moxy session
 # backgrounds a moxin tool call, the detached job writes its result to the
-# user-level madder store (hermetic via XDG_DATA_HOME), and the clown stub
-# records the producer contract (`job start` → `job done --state succeeded
+# user-level madder store (hermetic via XDG_DATA_HOME), and the ringmaster stub
+# records the producer contract (`start` → `done --state succeeded
 # --message "<tool>: <summary> (madder <digest>)" --result-ref
 # madder://blobs/<digest>`). The result-ref is the machine-readable artifact
 # URI so a journal reader recovers the result from the done record alone.
@@ -69,49 +69,49 @@ type = "object"
 EOF
   export MOXIN_PATH="$HOME/moxins"
 
-  # clown stub: records argv; `job start` prints a fixed id.
-  # NEEDS a real shebang: moxy (a Go process) execs CLOWN_BIN directly, so
+  # ringmaster stub: records argv; `start` prints a fixed id.
+  # NEEDS a real shebang: moxy (a Go process) execs RINGMASTER_BIN directly, so
   # the shebang-less trick used by bash-invoked stubs (ENOEXEC shell retry)
   # does not apply — a shebang-less script fails with exec format error and
   # moxy silently falls back to minting a local id. /bin/sh is the one path
   # the nix sandbox guarantees.
   mkdir -p "$HOME/bin"
-  export CLOWN_RECORD="$HOME/clown-record"
-  cat >"$HOME/bin/clown" <<'EOF'
+  export RINGMASTER_RECORD="$HOME/ringmaster-record"
+  cat >"$HOME/bin/ringmaster" <<'EOF'
 #!/bin/sh
 set -eu
-printf '%s\n' "$*" >> "${CLOWN_RECORD:-/dev/null}"
-if [ "${1:-}" = job ] && [ "${2:-}" = start ]; then
+printf '%s\n' "$*" >> "${RINGMASTER_RECORD:-/dev/null}"
+if [ "${1:-}" = start ]; then
   echo "testmoxin.echo-e2e00001"
 fi
 EOF
-  chmod +x "$HOME/bin/clown"
-  export CLOWN_BIN="$HOME/bin/clown"
+  chmod +x "$HOME/bin/ringmaster"
+  export RINGMASTER_BIN="$HOME/bin/ringmaster"
 }
 
 teardown() {
   teardown_test_home
 }
 
-# Wait up to $2 seconds for $CLOWN_RECORD to contain $1. On timeout, print
+# Wait up to $2 seconds for $RINGMASTER_RECORD to contain $1. On timeout, print
 # the record so the bats failure shows what WAS emitted.
 wait_for_record() {
   local pattern="$1"
   local timeout="${2:-10}"
   local deadline=$((SECONDS + timeout))
   while ((SECONDS < deadline)); do
-    if grep -qF "$pattern" "$CLOWN_RECORD" 2>/dev/null; then
+    if grep -qF "$pattern" "$RINGMASTER_RECORD" 2>/dev/null; then
       return 0
     fi
     sleep 0.1
   done
   echo "=== record after ${timeout}s without match: ==="
-  cat "$CLOWN_RECORD" 2>/dev/null || echo "(no record file)"
+  cat "$RINGMASTER_RECORD" 2>/dev/null || echo "(no record file)"
   return 1
 }
 
 # async returns a running handle immediately; the detached job completes and
-# the clown done line carries the summary, digest, and result-ref.
+# the ringmaster done line carries the summary, digest, and result-ref.
 function async_dispatch_full_producer_contract { # @test
   run_moxy_mcp "tools/call" \
     '{"name":"async","arguments":{"tool":"testmoxin.echo","args":{}}}'
@@ -119,24 +119,24 @@ function async_dispatch_full_producer_contract { # @test
   assert_output --partial '\"status\":\"running\"'
   assert_output --partial '\"job_id\":\"testmoxin.echo-e2e00001\"'
 
-  run wait_for_record "job start --source moxy --label testmoxin.echo" 10
+  run wait_for_record "start --source moxy --label testmoxin.echo" 10
   assert_success
-  run wait_for_record "job done testmoxin.echo-e2e00001 --state succeeded" 10
+  run wait_for_record "done testmoxin.echo-e2e00001 --state succeeded" 10
   assert_success
 
-  run cat "$CLOWN_RECORD"
+  run cat "$RINGMASTER_RECORD"
   assert_output --partial "testmoxin.echo: hello async (madder "
   assert_output --partial "--result-ref madder://blobs/"
 
   # The digest in the done line resolves in the user-level store: the
   # stored blob is the full marshaled ToolCallResultV1.
   local digest
-  digest=$(grep -oE 'madder [^)]+' "$CLOWN_RECORD" | head -1 | cut -d' ' -f2)
+  digest=$(grep -oE 'madder [^)]+' "$RINGMASTER_RECORD" | head -1 | cut -d' ' -f2)
   [ -n "$digest" ]
 
   # result-ref carries the SAME digest as the message, as a machine-readable
   # madder://blobs/<digest> URI — what a journal reader resolves the blob from.
-  run grep -F -- "--result-ref madder://blobs/$digest" "$CLOWN_RECORD"
+  run grep -F -- "--result-ref madder://blobs/$digest" "$RINGMASTER_RECORD"
   assert_success
 
   run "${MADDER_BIN:-madder}" cat "$digest"
@@ -145,35 +145,35 @@ function async_dispatch_full_producer_contract { # @test
 }
 
 # Ask-tier tools cannot background: there is no client to prompt once
-# detached, so the allow-only preflight rejects synchronously and the clown
-# channel is never touched.
+# detached, so the allow-only preflight rejects synchronously and ringmaster
+# is never invoked.
 function async_rejects_ask_tier_tool { # @test
   run_moxy_mcp "tools/call" \
     '{"name":"async","arguments":{"tool":"testmoxin.asky","args":{}}}'
   assert_success
   assert_output --partial "resolve to allow"
-  [ ! -f "$CLOWN_RECORD" ]
+  [ ! -f "$RINGMASTER_RECORD" ]
 }
 
 # permit-async = false forbids backgrounding even at allow tier (#317) —
-# distinct rejection text, and the clown channel is never touched.
+# distinct rejection text, and ringmaster is never invoked.
 function async_rejects_permit_async_false_tool { # @test
   run_moxy_mcp "tools/call" \
     '{"name":"async","arguments":{"tool":"testmoxin.noasync","args":{}}}'
   assert_success
   assert_output --partial "permit-async = false"
-  [ ! -f "$CLOWN_RECORD" ]
+  [ ! -f "$RINGMASTER_RECORD" ]
 }
 
-# Disabled-channel contract: `clown job start` exiting 0 with EMPTY stdout
+# Disabled-channel contract: `ringmaster start` exiting 0 with EMPTY stdout
 # (the CLOWN_DISABLE_JOB_WAKEUP=1 signature) must mint a local id of the
 # same shape — async keeps working as a poll surface.
 function async_mints_local_id_when_channel_disabled { # @test
-  cat >"$HOME/bin/clown" <<'EOF'
+  cat >"$HOME/bin/ringmaster" <<'EOF'
 #!/bin/sh
 exit 0
 EOF
-  chmod +x "$HOME/bin/clown"
+  chmod +x "$HOME/bin/ringmaster"
 
   run_moxy_mcp "tools/call" \
     '{"name":"async","arguments":{"tool":"testmoxin.echo","args":{}}}'

@@ -1,7 +1,9 @@
 // Package asyncjob backgrounds moxy tool dispatches: each job runs on a
 // detached context, writes its full result through a pluggable writer
 // (production: a user-level madder store), and reports terminal states over
-// clown's job-wakeup channel by shelling out to ${CLOWN_BIN:-clown}. See
+// clown's job-wakeup channel by shelling out to ${RINGMASTER_BIN:-ringmaster}.
+// clown RFC-0015 promoted the producer job verbs off `clown job <verb>` onto
+// the standalone `ringmaster` binary (behavior-preserving). See
 // docs/features/0004-async-tool-dispatch.md for the design and the pinned
 // producer contract (RFC-0009).
 package asyncjob
@@ -61,9 +63,10 @@ type WriteResultFunc func(ctx context.Context, content []byte) (string, error)
 
 // Options configures a Manager.
 type Options struct {
-	// ClownBin is the clown binary to shell out to. Empty falls back to
-	// $CLOWN_BIN, then bare "clown" (PATH lookup at exec time).
-	ClownBin string
+	// RingmasterBin is the ringmaster binary to shell out to. Empty falls
+	// back to $RINGMASTER_BIN, then bare "ringmaster" (PATH lookup at exec
+	// time — ringmaster ships on PATH wherever clown is installed, RFC-0015).
+	RingmasterBin string
 	// WriteResult persists terminal results. Required.
 	WriteResult WriteResultFunc
 	// MaxRuntime bounds each job so every job reaches a terminal state.
@@ -103,20 +106,20 @@ type Manager struct {
 	jobs map[string]*job
 	wg   sync.WaitGroup
 
-	clownBin    string
-	writeResult WriteResultFunc
-	maxRuntime  time.Duration
-	sem         chan struct{}
+	ringmasterBin string
+	writeResult   WriteResultFunc
+	maxRuntime    time.Duration
+	sem           chan struct{}
 }
 
 // New builds a Manager from Options.
 func New(opts Options) *Manager {
-	bin := opts.ClownBin
+	bin := opts.RingmasterBin
 	if bin == "" {
-		bin = os.Getenv("CLOWN_BIN")
+		bin = os.Getenv("RINGMASTER_BIN")
 	}
 	if bin == "" {
-		bin = "clown"
+		bin = "ringmaster"
 	}
 	maxRuntime := opts.MaxRuntime
 	if maxRuntime == 0 {
@@ -127,15 +130,15 @@ func New(opts Options) *Manager {
 		concurrency = 16
 	}
 	return &Manager{
-		jobs:        make(map[string]*job),
-		clownBin:    bin,
-		writeResult: opts.WriteResult,
-		maxRuntime:  maxRuntime,
-		sem:         make(chan struct{}, concurrency),
+		jobs:          make(map[string]*job),
+		ringmasterBin: bin,
+		writeResult:   opts.WriteResult,
+		maxRuntime:    maxRuntime,
+		sem:           make(chan struct{}, concurrency),
 	}
 }
 
-// Dispatch opens a clown job (or mints a local id when the channel is
+// Dispatch opens a ringmaster job (or mints a local id when the channel is
 // disabled/absent), starts the call on a detached context, and returns the
 // job id immediately. The permission decision is the CALLER's job — only
 // allow-resolved calls may reach Dispatch. timeout overrides the manager's
@@ -151,7 +154,7 @@ func (m *Manager) Dispatch(ctx context.Context, tool string, args json.RawMessag
 	jobCtx, cancel := context.WithTimeout(context.Background(), runtime)
 	// Resolve the clown output spool (RFC-0010) and thread it down to the
 	// native exec layer, which tees the child's output into it for live
-	// `async-result`/`clown job status` probing. Empty when clown is
+	// `async-result`/`ringmaster status` probing. Empty when clown is
 	// disabled/absent — the tee is then skipped (best-effort, FDR-0005).
 	jobCtx = spoolctx.WithPath(jobCtx, m.resolveSpoolPath(jobCtx, id))
 	j := &job{
@@ -307,34 +310,34 @@ func classify(jobCtx context.Context, result *protocol.ToolCallResultV1, err err
 	}
 }
 
-// startJob opens a clown job and returns its id. Per the pinned contract,
-// CLOWN_DISABLE_JOB_WAKEUP=1 makes `clown job start` an exit-0 no-op that
+// startJob opens a ringmaster job and returns its id. Per the pinned contract,
+// CLOWN_DISABLE_JOB_WAKEUP=1 makes `ringmaster start` an exit-0 no-op that
 // prints NOTHING — empty stdout on zero exit is the normal disabled-channel
 // signature, not an error. In that case (and on any exec failure) a local
 // id of the same shape is minted; async keeps working as a poll surface.
 func (m *Manager) startJob(ctx context.Context, label string) string {
-	cmd := exec.CommandContext(ctx, m.clownBin,
-		"job", "start", "--source", "moxy", "--label", label)
+	cmd := exec.CommandContext(ctx, m.ringmasterBin,
+		"start", "--source", "moxy", "--label", label)
 	out, err := cmd.Output()
 	id := strings.TrimSpace(string(out))
 	if err != nil || id == "" {
 		if err != nil {
-			lifecyclelog.Log("asyncjob: clown job start (%s): %v — minting local id", label, err)
+			lifecyclelog.Log("asyncjob: ringmaster start (%s): %v — minting local id", label, err)
 		}
 		return mintID(label)
 	}
 	return id
 }
 
-// resolveSpoolPath asks clown for the job's output spool path (RFC-0010 §2).
-// Empty string ("" → no spool) is the normal answer when the channel is
-// disabled (CLOWN_DISABLE_JOB_WAKEUP=1: exit 0, no output) or when clown is
-// absent / the id was minted locally / the installed clown predates the
+// resolveSpoolPath asks ringmaster for the job's output spool path (RFC-0010
+// §2). Empty string ("" → no spool) is the normal answer when the channel is
+// disabled (CLOWN_DISABLE_JOB_WAKEUP=1: exit 0, no output) or when ringmaster
+// is absent / the id was minted locally / the installed ringmaster predates the
 // spool surface (any exec failure). The native exec layer skips the tee on
 // an empty path, so async degrades to its v1 shape — best-effort per
 // FDR-0005.
 func (m *Manager) resolveSpoolPath(ctx context.Context, id string) string {
-	cmd := exec.CommandContext(ctx, m.clownBin, "job", "spool-path", id)
+	cmd := exec.CommandContext(ctx, m.ringmasterBin, "spool-path", id)
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -342,21 +345,22 @@ func (m *Manager) resolveSpoolPath(ctx context.Context, id string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// JobStatus shells `clown job status <id> --json` and returns the parsed
+// JobStatus shells `ringmaster status <id> --json` and returns the parsed
 // object (RFC-0010 §3: state, source, started, ended, elapsed_sec,
-// last_activity, spool_bytes, progress, tail). An error means clown couldn't
-// derive a status — channel disabled, clown absent, a locally-minted id with
-// no journal (exit 1), or an installed clown without the probe — and the
-// caller (async-result) falls back to its in-memory v1 shape.
+// last_activity, spool_bytes, progress, tail). An error means ringmaster
+// couldn't derive a status — channel disabled, ringmaster absent, a
+// locally-minted id with no journal (exit 1), or an installed ringmaster
+// without the probe — and the caller (async-result) falls back to its
+// in-memory v1 shape.
 func (m *Manager) JobStatus(ctx context.Context, id string) (map[string]any, error) {
-	cmd := exec.CommandContext(ctx, m.clownBin, "job", "status", id, "--json")
+	cmd := exec.CommandContext(ctx, m.ringmasterBin, "status", id, "--json")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("clown job status %s: %w", id, err)
+		return nil, fmt.Errorf("ringmaster status %s: %w", id, err)
 	}
 	var status map[string]any
 	if err := json.Unmarshal(out, &status); err != nil {
-		return nil, fmt.Errorf("clown job status %s: parsing %q: %w", id, string(out), err)
+		return nil, fmt.Errorf("ringmaster status %s: parsing %q: %w", id, string(out), err)
 	}
 	return status, nil
 }
@@ -398,22 +402,22 @@ type journalRecord struct {
 	ResultRef string `json:"result_ref"`
 }
 
-// ReadJournal shells `clown job read --job <id> --json` and reduces the job's
+// ReadJournal shells `ringmaster read --job <id> --json` and reduces the job's
 // record stream (NDJSON, one RFC-0009 record per line) to a JournalView. The
 // `--job` selector scopes the read to one job's full stream (mirroring the
 // job_read MCP `job` arg) rather than the channel firehose. The last terminal
 // record is authoritative for state and result_ref.
 //
 // An error means the journal is unavailable — the channel is disabled
-// (CLOWN_DISABLE_JOB_WAKEUP=1, clown's canonical kill switch), clown is absent,
-// or the id was minted locally and has no journal — and the caller
+// (CLOWN_DISABLE_JOB_WAKEUP=1, clown's canonical kill switch), ringmaster is
+// absent, or the id was minted locally and has no journal — and the caller
 // (async-result) falls back to the in-process snapshot. The error contract
 // mirrors JobStatus.
 func (m *Manager) ReadJournal(ctx context.Context, id string) (JournalView, error) {
-	cmd := exec.CommandContext(ctx, m.clownBin, "job", "read", "--job", id, "--json")
+	cmd := exec.CommandContext(ctx, m.ringmasterBin, "read", "--job", id, "--json")
 	out, err := cmd.Output()
 	if err != nil {
-		return JournalView{}, fmt.Errorf("clown job read %s: %w", id, err)
+		return JournalView{}, fmt.Errorf("ringmaster read %s: %w", id, err)
 	}
 
 	var view JournalView
@@ -441,7 +445,7 @@ func (m *Manager) ReadJournal(ctx context.Context, id string) (JournalView, erro
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return JournalView{}, fmt.Errorf("clown job read %s: scanning: %w", id, err)
+		return JournalView{}, fmt.Errorf("ringmaster read %s: scanning: %w", id, err)
 	}
 	return view, nil
 }
@@ -465,7 +469,7 @@ func parseJournalTime(s string) time.Time {
 //
 // result_ref carries the MACHINE-READABLE artifact reference — the
 // `madder://blobs/<digest>` URI — so a journal reader (this or another moxy
-// process, or `clown job read`) can recover the result from the terminal
+// process, or `ringmaster read`) can recover the result from the terminal
 // record alone (#321). It is kept strictly to the artifact URI; a terminal
 // with no result (a cancelled/interrupted job that produced none) carries no
 // ref, and human nuance like a timeout note lives only in the message.
@@ -478,16 +482,16 @@ func (m *Manager) emitDone(tool, id, state, summary, digest string) {
 		message += " (madder " + digest + ")"
 	}
 	args := []string{
-		"job", "done", id,
+		"done", id,
 		"--state", wireState(state),
 		"--message", message,
 	}
 	if digest != "" {
 		args = append(args, "--result-ref", "madder://blobs/"+digest)
 	}
-	cmd := exec.Command(m.clownBin, args...)
+	cmd := exec.Command(m.ringmasterBin, args...)
 	if err := cmd.Run(); err != nil {
-		lifecyclelog.Log("asyncjob: clown job done %s: %v", id, err)
+		lifecyclelog.Log("asyncjob: ringmaster done %s: %v", id, err)
 	}
 }
 

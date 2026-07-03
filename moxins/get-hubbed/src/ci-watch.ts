@@ -10,7 +10,7 @@ import { resolveRepo } from "./resolve-repo.ts";
 //
 // The tool runs in two modes, distinguished by the CI_WATCH_POLLER env var:
 //
-//   parent  — resolves the repo, opens a clown job, then DETACHES a poller
+//   parent  — resolves the repo, opens a ringmaster job, then DETACHES a poller
 //             (new session, stdio redirected to a logfile) and returns the
 //             {job_id, run_id, status:"watching", log} envelope immediately.
 //             It must return promptly: moxy reads the tool's stdout to EOF, so
@@ -19,20 +19,23 @@ import { resolveRepo } from "./resolve-repo.ts";
 //
 //   poller  — re-exec of this same entrypoint with CI_WATCH_POLLER=1. Polls
 //             the run via `gh api` until it completes, maps the conclusion to a
-//             clown state, and calls `clown job done`. A max-timeout guarantees
-//             every job reaches a terminal `done` so none is left stuck.
+//             clown wake state, and calls `ringmaster done`. A max-timeout
+//             guarantees every job reaches a terminal `done` so none is stuck.
 //
-// clown is located via ${CLOWN_BIN:-clown}: clown injects CLOWN_BIN (absolute
-// path) into every plugin MCP server env, and the bare-`clown` fallback covers
-// older clown releases. CLOWN_DISABLE_JOB_WAKEUP=1 is the kill switch — with no
-// wake path available, the tool refuses to watch and returns status:"disabled".
+// clown RFC-0015 promoted the job verbs off `clown job <verb>` onto the
+// standalone `ringmaster` binary, which ships on PATH wherever clown is
+// installed. ringmaster is located via ${RINGMASTER_BIN:-ringmaster} — the
+// bare-`ringmaster` fallback is the normal path (there is no injected
+// RINGMASTER_BIN today); the env override exists for tests/pinning.
+// CLOWN_DISABLE_JOB_WAKEUP=1 is the kill switch — with no wake path available,
+// the tool refuses to watch and returns status:"disabled".
 
 $.verbose = false;
 
 const POLLER_ENV = "CI_WATCH_POLLER";
 
-function clownBin(): string {
-  return process.env.CLOWN_BIN || "clown";
+function ringmasterBin(): string {
+  return process.env.RINGMASTER_BIN || "ringmaster";
 }
 
 function logPathFor(runId: string): string {
@@ -99,18 +102,18 @@ async function buildMessage(
   return msg;
 }
 
-async function clownJobDone(
+async function ringmasterDone(
   jobId: string,
   state: string,
   message: string,
   runId: string,
 ): Promise<void> {
-  const clown = clownBin();
+  const ringmaster = ringmasterBin();
   const resultRef = `get-hubbed ci-run-get ${runId}`;
   try {
-    await $`${clown} job done ${jobId} --state ${state} --message ${message} --result-ref ${resultRef}`;
+    await $`${ringmaster} done ${jobId} --state ${state} --message ${message} --result-ref ${resultRef}`;
   } catch (err) {
-    console.error(`ci-watch: clown job done failed: ${err}`);
+    console.error(`ci-watch: ringmaster done failed: ${err}`);
   }
 }
 
@@ -128,7 +131,7 @@ async function runPoller(): Promise<void> {
 
   for (;;) {
     if (Date.now() >= deadline) {
-      await clownJobDone(jobId, "interrupted", "watch timed out", runId);
+      await ringmasterDone(jobId, "interrupted", "watch timed out", runId);
       return;
     }
 
@@ -148,7 +151,7 @@ async function runPoller(): Promise<void> {
     if (run.status === "completed") {
       const state = mapConclusionToState(run.conclusion ?? null);
       const message = await buildMessage(repo, runId, run.conclusion ?? null);
-      await clownJobDone(jobId, state, message, runId);
+      await ringmasterDone(jobId, state, message, runId);
       return;
     }
 
@@ -172,10 +175,10 @@ async function runParent(): Promise<void> {
   }
 
   const repo = await resolveRepo(repoOwnerName);
-  const clown = clownBin();
+  const ringmaster = ringmasterBin();
 
   const jobId = (
-    await $`${clown} job start --source get-hubbed --label ${`ci-${runId}`}`
+    await $`${ringmaster} start --source get-hubbed --label ${`ci-${runId}`}`
   ).stdout.trim();
 
   const log = logPathFor(runId);
@@ -205,7 +208,7 @@ async function runParent(): Promise<void> {
 // No explicit process.exit(): the parent detaches and unref()'s the poller, so
 // the event loop drains and the process exits naturally once stdout is flushed
 // — keeping moxy's cmd.Wait() unblocked without tripping eslint's
-// n/no-process-exit. The poller likewise exits naturally after `clown job done`.
+// n/no-process-exit. The poller likewise exits naturally after `ringmaster done`.
 if (process.env[POLLER_ENV] === "1") {
   await runPoller();
 } else {

@@ -122,8 +122,11 @@ Moxy also injects `async`, `async-result`, and `async-cancel` meta tools
 permission preflight; tools may additionally opt out via the top-level
 `permit-async = false` TOML key, #317), returns `{job_id, status:"running"}`
 immediately,
-and wakes the agent on the terminal state via clown's job-wakeup channel
-(`${CLOWN_BIN:-clown}`); results are written to the user-level `moxy-async`
+and wakes the agent on the terminal state via clown's job-wakeup channel by
+shelling out to the `ringmaster` job-control CLI (`${RINGMASTER_BIN:-ringmaster}`
+— clown RFC-0015 promoted the job verbs off `clown job <verb>` onto the
+standalone `ringmaster` binary, on PATH wherever clown is installed); results
+are written to the user-level `moxy-async`
 madder store (provisioned by home-manager — moxy never creates it) with the
 digest embedded in the wake message. The optional `timeout` (duration string
 like `"10m"`; else the 30-min default) caps wall-clock time; on expiry moxy
@@ -132,10 +135,10 @@ native exec layer, #344/#345) and terminalizes with status `timeout` — a
 moxy-only status reported verbatim by `async-result` but emitted on clown's
 wire as `interrupted`. For live mid-flight observability (FDR 0005 /
 clown RFC-0010), moxy resolves a per-job output spool via
-`clown job spool-path` and tees the native-moxin child's stdout+stderr into
+`ringmaster spool-path` and tees the native-moxin child's stdout+stderr into
 it at the `runMoxinProcess` exec layer (threaded down via
 `internal/spoolctx`); `async-result` on a running job then shells
-`clown job status <id> --json` and surfaces `{elapsed_sec, last_activity,
+`ringmaster status <id> --json` and surfaces `{elapsed_sec, last_activity,
 spool_bytes, progress, tail}` verbatim — the clown channel is the single
 source of truth, and absent it the response keeps its v1 shape. `batch
 {async: true}` backgrounds a whole batch as one job. The manager lives in
