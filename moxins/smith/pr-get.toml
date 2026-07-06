@@ -1,0 +1,31 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "View a Forgejo pull request: body (default), comments, labels, diff, files, or commits"
+command = "@BIN@/pr-get"
+arg-order = ["number", "view", "repo", "host"]
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Pull request number"
+
+[input.properties.view]
+type = "string"
+description = "What to view: body (default), comments, labels, diff, files, or commits"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

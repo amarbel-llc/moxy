@@ -1,0 +1,40 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Create a new pull request on a Forgejo repository. Prefix the title with 'WIP: ' to mark it a draft."
+command = "@BIN@/pr-create"
+arg-order = ["title", "body", "base", "head", "autofill", "repo", "host"]
+
+[input]
+type = "object"
+
+[input.properties.title]
+type = "string"
+description = "Pull request title. Required unless autofill is true."
+
+[input.properties.body]
+type = "string"
+description = "Pull request body (markdown supported)"
+
+[input.properties.base]
+type = "string"
+description = "The branch to merge onto. Defaults to the repo's default branch."
+
+[input.properties.head]
+type = "string"
+description = "The branch to pull changes from. Defaults to the current branch."
+
+[input.properties.autofill]
+type = "boolean"
+description = "Populate the title and body from the branch's commits instead of title/body args. Default false."
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true

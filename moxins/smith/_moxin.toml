@@ -1,0 +1,3 @@
+schema = 1
+name = "smith"
+description = "Forgejo MCP server wrapping the fj CLI (forgejo-cli). Tools default to the repo resolved from the cwd's git remotes; pass repo (OWNER/NAME) and host (instance domain, e.g. 'codeberg.org') to target any repo on any Forgejo instance. Auth: run `fj auth login` (browser flow) or `fj auth add-key <user>` (application token via stdin) once per instance. fj has no structured/JSON output yet (upstream fj#213); results are plain text."

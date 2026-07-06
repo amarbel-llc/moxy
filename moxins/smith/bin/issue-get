@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+comments="${2:-false}"
+repo="${3:-}"
+host="${4:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+ref=$(qualify_ref "$number" "$repo")
+fj_base "$host"
+"${fj_cmd[@]}" issue view "$ref" body
+if [ "$comments" = "true" ]; then
+  echo
+  "${fj_cmd[@]}" issue view "$ref" comments
+fi

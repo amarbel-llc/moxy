@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+title="${2:-}"
+body="${3:-}"
+repo="${4:-}"
+host="${5:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+if [ -z "$title" ] && [ -z "$body" ]; then
+  echo "ERROR: provide title and/or body to edit" >&2
+  exit 2
+fi
+
+ref=$(qualify_ref "$number" "$repo")
+fj_base "$host"
+if [ -n "$title" ]; then
+  "${fj_cmd[@]}" issue edit "$ref" title "$title"
+fi
+if [ -n "$body" ]; then
+  "${fj_cmd[@]}" issue edit "$ref" body "$body"
+fi

@@ -1,0 +1,43 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+perms-request = "each-use"
+description = "Merge a Forgejo pull request"
+command = "@BIN@/pr-merge"
+arg-order = ["number", "method", "delete_branch", "title", "message", "repo", "host"]
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Pull request number"
+
+[input.properties.method]
+type = "string"
+description = "Merge style: merge, rebase, rebase-merge, squash, or manual. Defaults to the repo's configured style."
+
+[input.properties.delete_branch]
+type = "boolean"
+description = "Delete the source branch after merging. Default false."
+
+[input.properties.title]
+type = "string"
+description = "Title of the merge or squash commit to create"
+
+[input.properties.message]
+type = "string"
+description = "Body of the merge or squash commit to create"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+destructive-hint = true
+open-world-hint = true

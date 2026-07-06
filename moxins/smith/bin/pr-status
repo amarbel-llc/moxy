@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+repo="${2:-}"
+host="${3:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+ref=$(qualify_ref "$number" "$repo")
+fj_base "$host"
+"${fj_cmd[@]}" pr status "$ref"

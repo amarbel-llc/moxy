@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Shared helpers for smith bin scripts. Source this file.
+#
+# fj addresses issues and PRs with a qualified reference (OWNER/NAME#N) that
+# works from any cwd; a bare number relies on fj resolving the repo from the
+# cwd's git remotes. qualify_ref builds whichever form the repo arg implies.
+# fj_base seeds the global `fj_cmd` array with `fj` plus the instance host
+# flag when set; callers append subcommand words and exec "${fj_cmd[@]}".
+#
+# This is intentionally NOT set -e so callers control error handling.
+# Named with a leading dot so wrapProgram's `bin/*` glob skips it —
+# wrapProgram would otherwise exec-replace the sourced process.
+
+validate_repo() {
+  if [[ "$1" != */* ]]; then
+    echo "ERROR: repo must be in OWNER/NAME format" >&2
+    exit 2
+  fi
+}
+
+qualify_ref() {
+  local number="$1" repo="${2:-}"
+  if [ -n "$repo" ]; then
+    validate_repo "$repo"
+    printf '%s#%s' "$repo" "$number"
+  else
+    printf '%s' "$number"
+  fi
+}
+
+fj_base() {
+  local host="${1:-}"
+  fj_cmd=(fj)
+  if [ -n "$host" ]; then
+    fj_cmd+=(-H "$host")
+  fi
+}
+
+# run_fj_search <issue|pr> <query> <state> <labels> <creator> <assignee> <repo> <host>
+# `fj issue search` and `fj pr search` share their whole flag surface; this
+# threads the common filter args for both issue-list and pr-list.
+run_fj_search() {
+  local kind="$1" query="${2:-}" state="${3:-}" labels="${4:-}"
+  local creator="${5:-}" assignee="${6:-}" repo="${7:-}" host="${8:-}"
+
+  fj_base "$host"
+  fj_cmd+=("$kind" search)
+  if [ -n "$state" ]; then
+    fj_cmd+=(-s "$state")
+  fi
+  if [ -n "$labels" ]; then
+    fj_cmd+=(-l "$labels")
+  fi
+  if [ -n "$creator" ]; then
+    fj_cmd+=(-c "$creator")
+  fi
+  if [ -n "$assignee" ]; then
+    fj_cmd+=(-a "$assignee")
+  fi
+  if [ -n "$repo" ]; then
+    validate_repo "$repo"
+    fj_cmd+=(-r "$repo")
+  fi
+  if [ -n "$query" ]; then
+    fj_cmd+=("$query")
+  fi
+  "${fj_cmd[@]}"
+}

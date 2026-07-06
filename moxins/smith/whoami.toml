@@ -1,0 +1,18 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Show the Forgejo user you are authenticated as. Use to verify fj auth is set up for an instance."
+command = "@BIN@/whoami"
+arg-order = ["host"]
+
+[input]
+type = "object"
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

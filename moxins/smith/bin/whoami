@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+host="${1:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+fj_base "$host"
+"${fj_cmd[@]}" whoami

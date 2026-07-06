@@ -1,0 +1,29 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Create a new issue on a Forgejo repository"
+command = "@BIN@/issue-create"
+arg-order = ["title", "body", "repo", "host"]
+
+[input]
+type = "object"
+required = ["title"]
+
+[input.properties.title]
+type = "string"
+description = "Issue title"
+
+[input.properties.body]
+type = "string"
+description = "Issue body (markdown supported)"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true

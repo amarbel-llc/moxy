@@ -1,0 +1,29 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Post a comment on a Forgejo pull request"
+command = "@BIN@/pr-comment"
+arg-order = ["number", "body", "repo", "host"]
+
+[input]
+type = "object"
+required = ["number", "body"]
+
+[input.properties.number]
+type = "integer"
+description = "Pull request number"
+
+[input.properties.body]
+type = "string"
+description = "Comment body (markdown supported)"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true

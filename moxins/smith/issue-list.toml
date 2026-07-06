@@ -1,0 +1,42 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Search a Forgejo repository's issues with optional filters"
+command = "@BIN@/issue-list"
+arg-order = ["query", "state", "labels", "creator", "assignee", "repo", "host"]
+
+[input]
+type = "object"
+
+[input.properties.query]
+type = "string"
+description = "Free-text search query. Omit to list all issues matching the filters."
+
+[input.properties.state]
+type = "string"
+description = "Filter by state: open (default), closed, or all"
+
+[input.properties.labels]
+type = "string"
+description = "Comma-separated label names to filter by"
+
+[input.properties.creator]
+type = "string"
+description = "Filter by issue creator login"
+
+[input.properties.assignee]
+type = "string"
+description = "Filter by assignee login"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

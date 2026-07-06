@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+method="${2:-}"
+delete_branch="${3:-false}"
+title="${4:-}"
+message="${5:-}"
+repo="${6:-}"
+host="${7:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+ref=$(qualify_ref "$number" "$repo")
+fj_base "$host"
+fj_cmd+=(pr merge)
+if [ -n "$method" ]; then
+  fj_cmd+=(-M "$method")
+fi
+if [ "$delete_branch" = "true" ]; then
+  fj_cmd+=(-d)
+fi
+if [ -n "$title" ]; then
+  fj_cmd+=(-t "$title")
+fi
+if [ -n "$message" ]; then
+  # --message takes an optional value; the = form keeps clap from
+  # swallowing the PR ref as the message.
+  fj_cmd+=("--message=$message")
+fi
+fj_cmd+=("$ref")
+"${fj_cmd[@]}"

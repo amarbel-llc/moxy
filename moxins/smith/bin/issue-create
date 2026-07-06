@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+title="$1"
+body="${2:-}"
+repo="${3:-}"
+host="${4:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+fj_base "$host"
+# --no-template and an explicit --body (even empty) keep fj from opening an
+# editor or an interactive template picker — moxy tools run headless.
+fj_cmd+=(issue create --no-template --body "$body")
+if [ -n "$repo" ]; then
+  validate_repo "$repo"
+  fj_cmd+=(-r "$repo")
+fi
+fj_cmd+=("$title")
+"${fj_cmd[@]}"

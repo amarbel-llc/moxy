@@ -1,0 +1,30 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Close a Forgejo issue with an optional closing comment"
+command = "@BIN@/issue-close"
+arg-order = ["number", "comment", "repo", "host"]
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.comment]
+type = "string"
+description = "Optional comment to leave on the issue before closing it"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+destructive-hint = true
+open-world-hint = true

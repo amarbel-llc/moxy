@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+comment="${2:-}"
+repo="${3:-}"
+host="${4:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+ref=$(qualify_ref "$number" "$repo")
+fj_base "$host"
+fj_cmd+=(issue close)
+if [ -n "$comment" ]; then
+  # --with-msg takes an optional value; the = form keeps clap from
+  # swallowing the issue ref as the message.
+  fj_cmd+=("--with-msg=$comment")
+fi
+fj_cmd+=("$ref")
+"${fj_cmd[@]}"

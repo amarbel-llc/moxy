@@ -1,0 +1,31 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "View a Forgejo issue's title and body, optionally with its comments"
+command = "@BIN@/issue-get"
+arg-order = ["number", "comments", "repo", "host"]
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.comments]
+type = "boolean"
+description = "Also list every comment on the issue. Default false."
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

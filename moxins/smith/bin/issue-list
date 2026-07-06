@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+run_fj_search issue "$@"

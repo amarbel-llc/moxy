@@ -927,6 +927,13 @@
               pathMode = "suffix";
             };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] { };
+        # pathMode = "suffix" so user PATH wins (and tests can shadow fj
+        # with a stub, same pattern as get-hubbed's gh).
+        smith-moxin = mkMoxin "smith" [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.forgejo-cli
+        ] { pathMode = "suffix"; };
 
         # gws moxins excluded from the build closure for now (#391) — see the
         # commented gws-bin block above. Restore by uncommenting.
@@ -993,6 +1000,7 @@
           ln -s ${grit-moxin} $out/share/moxy/moxins/grit
           ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
           ln -s ${sisyphus-moxin} $out/share/moxy/moxins/sisyphus
+          ln -s ${smith-moxin} $out/share/moxy/moxins/smith
           ln -s ${jq-moxin} $out/share/moxy/moxins/jq
           ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents
           ln -s ${man-moxin} $out/share/moxy/moxins/man
@@ -1249,6 +1257,9 @@
               # man_*.bats invoke wrapped scripts via ${MAN_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               MAN_BIN = "${man-moxin}/bin";
+              # smith.bats invokes wrapped scripts via ${SMITH_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              SMITH_BIN = "${smith-moxin}/bin";
               # just_us_agents_*.bats invoke wrapped scripts via ${JUST_US_AGENTS_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               JUST_US_AGENTS_BIN = "${just-us-agents-moxin}/bin";
