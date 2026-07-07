@@ -124,7 +124,7 @@ function issue_close_resolves_to_origin_in_dual_remote_clone { # @test
 # issue-comment: should resolve to origin in dual-remote clone.
 function issue_comment_resolves_to_origin_in_dual_remote_clone { # @test
   cd "$REPO"
-  # arg-order: number body repo_owner_name
+  # arg-order: issue_number body repo_owner_name
   run "$BIN/issue-comment" "42" "hello" ""
   assert_success
   assert_output --partial "Resolved-repo: fork-org/myrepo"

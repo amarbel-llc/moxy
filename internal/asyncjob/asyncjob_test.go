@@ -520,6 +520,41 @@ func TestSummaryFromEmbeddedResourceBlock(t *testing.T) {
 	}
 }
 
+// A madder-cached result's summary (internal/native/cache.go formatSummary)
+// leads with banner lines — a truncation warning, blob URI, line count —
+// before the actual content. The wake-line summary must skip past those to
+// the first real line, not report the banner itself (#323).
+func TestFirstLineOfSkipsSummaryBanner(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "truncated banner then content",
+			in:   "⚠ TRUNCATED — showing 20 of 44 lines. Full output below.\nFull output: madder://blobs/abc\nLines: 44\n\nactual first line of output",
+			want: "actual first line of output",
+		},
+		{
+			name: "no-truncate banner then content",
+			in:   "Full output: madder://blobs/abc\nLines: 5\n\nactual first line of output",
+			want: "actual first line of output",
+		},
+		{
+			name: "no banner at all",
+			in:   "plain first line\nsecond line",
+			want: "plain first line",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := firstLineOf(tc.in); got != tc.want {
+				t.Errorf("firstLineOf(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLookupReturnsStoredResult(t *testing.T) {
 	bin, _ := writeRingmasterStub(t, "res-bbbbcccc")
 	m := newTestManager(bin)

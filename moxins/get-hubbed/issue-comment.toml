@@ -4,13 +4,13 @@ substitute-result-uris = false
 perms-request = "dynamic"
 description = "Post a comment on an issue or pull request"
 command = "@BIN@/issue-comment"
-arg-order = ["number", "body", "repo_owner_name"]
+arg-order = ["issue_number", "body", "repo_owner_name"]
 
 [input]
 type = "object"
-required = ["number", "body"]
+required = ["issue_number", "body"]
 
-[input.properties.number]
+[input.properties.issue_number]
 type = "integer"
 description = "Issue or pull request number"
 

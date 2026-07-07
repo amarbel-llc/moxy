@@ -549,10 +549,33 @@ func firstLine(result *protocol.ToolCallResultV1) string {
 
 const summaryMax = 120
 
+// summaryBannerPrefixes match the header lines formatSummary (in
+// internal/native/cache.go) prepends to a madder-cached result: a
+// truncation warning, a blob-URI pointer, and a line count. None of them
+// are the tool's actual output, so a wake-line summary skips past them to
+// the first real content line.
+var summaryBannerPrefixes = []string{"⚠ TRUNCATED", "Full output:", "Lines:"}
+
 func firstLineOf(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = s[:i]
+	for _, line := range strings.Split(s, "\n") {
+		if line == "" || isSummaryBannerLine(line) {
+			continue
+		}
+		return truncateSummary(line)
 	}
+	return ""
+}
+
+func isSummaryBannerLine(line string) bool {
+	for _, prefix := range summaryBannerPrefixes {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func truncateSummary(s string) string {
 	if len(s) > summaryMax {
 		s = s[:summaryMax] + "…"
 	}
