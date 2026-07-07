@@ -22,6 +22,7 @@ import (
 	"github.com/amarbel-llc/moxy/internal/paginate"
 	"github.com/amarbel-llc/moxy/internal/permcheck"
 	"github.com/amarbel-llc/moxy/internal/statsd"
+	"github.com/amarbel-llc/moxy/internal/toolexclude"
 	"github.com/amarbel-llc/moxy/internal/toolfilter"
 )
 
@@ -124,6 +125,7 @@ type Proxy struct {
 	bootstrapper                Bootstrapper
 	resolver                    *permcheck.Resolver
 	toolFilter                  toolfilter.Filter // which tool categories to expose; default All()
+	toolExclude                 toolexclude.Set   // dynamic per-name/per-server deny-set; default excludes nothing
 	nameTemplate                naming.Template   // how tool/prompt names are rendered; default {server}.{tool}
 	toolRegistry                naming.Registry   // rendered tool name → canonical Entry; rebuilt on every ListToolsV1
 	promptRegistry              naming.Registry   // rendered prompt name → canonical Entry; rebuilt on every ListPromptsV1
@@ -164,6 +166,50 @@ func (p *Proxy) SetBuiltinTools(registry *server.ToolRegistryV1) {
 // callable — see docs/features/0006-tool-exposure-filter.md.
 func (p *Proxy) SetToolFilter(f toolfilter.Filter) {
 	p.toolFilter = f
+}
+
+// SetToolExclude replaces the dynamic per-name/per-server deny-set and, if the
+// resulting set differs from the previous one, emits
+// notifications/tools/list_changed. Unlike SetToolFilter (a startup-only,
+// --expose-derived category filter), this is called at runtime — from the
+// POST /clown/exclude-tools handler (internal/streamhttp) — so it is
+// mutex-guarded. Excluded names are neither listed nor callable — see
+// docs/features/0010-tool-exclude-endpoint.md.
+func (p *Proxy) SetToolExclude(s toolexclude.Set) {
+	p.mu.Lock()
+	changed := !sameNames(p.toolExclude.Names(), s.Names())
+	p.toolExclude = s
+	p.mu.Unlock()
+	if changed {
+		p.notifyToolsChanged()
+	}
+}
+
+// ToolExclude returns the current dynamic deny-set, for the GET
+// /clown/exclude-tools readback.
+func (p *Proxy) ToolExclude() toolexclude.Set {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.toolExclude
+}
+
+// sameNames reports whether two name lists contain the same set of names,
+// order-independent. Used to skip a spurious list_changed notification when
+// SetToolExclude is called with an equivalent set.
+func sameNames(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := make(map[string]bool, len(a))
+	for _, n := range a {
+		set[n] = true
+	}
+	for _, n := range b {
+		if !set[n] {
+			return false
+		}
+	}
+	return true
 }
 
 // SetNameTemplate sets the template used to render child tool/prompt names. The
@@ -696,6 +742,7 @@ func (p *Proxy) ListToolsV1(
 	}
 
 	allTools = p.applyToolFilter(allTools, reg)
+	allTools = p.applyToolExclude(allTools, reg)
 
 	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
@@ -757,6 +804,46 @@ func (p *Proxy) applyToolFilter(tools []protocol.ToolV1, reg naming.Registry) []
 	return kept
 }
 
+// applyToolExclude drops tools whose rendered name or owning server is in the
+// dynamic exclude set (set via POST /clown/exclude-tools). Resolves each
+// tool's owning server the same way applyToolFilter resolves category: by
+// name under the default template, by registry lookup under a custom one.
+// CallToolV1's dispatch gate (excludeServerFor) uses the identical source, so
+// the advertised and callable surfaces never disagree. An empty exclude set
+// short-circuits to a no-op.
+func (p *Proxy) applyToolExclude(tools []protocol.ToolV1, reg naming.Registry) []protocol.ToolV1 {
+	p.mu.RLock()
+	exclude := p.toolExclude
+	p.mu.RUnlock()
+	if exclude.IsEmpty() {
+		return tools
+	}
+	isDefault := p.nameTemplate.IsDefault()
+	kept := tools[:0]
+	for _, t := range tools {
+		var srv string
+		if isDefault {
+			srv, _, _ = splitPrefix(t.Name, ".")
+		} else {
+			srv = serverFromRegistry(t.Name, reg)
+		}
+		if !exclude.Excludes(srv, t.Name) {
+			kept = append(kept, t)
+		}
+	}
+	return kept
+}
+
+// serverFromRegistry resolves a rendered tool name to its owning server name.
+// A registered name carries its server from build time; an unregistered name
+// (a builtin, which bypasses the template) has no owning server.
+func serverFromRegistry(name string, reg naming.Registry) string {
+	if e, ok := reg.Lookup(name); ok {
+		return e.Server
+	}
+	return ""
+}
+
 // categoryFromRegistry resolves a rendered tool name to its --expose category.
 // A registered name carries its category from build time; anything absent (the
 // builtins, which bypass the template) is classified by toolfilter.Categorize,
@@ -816,6 +903,20 @@ func (p *Proxy) toolCategory(name string) toolfilter.Category {
 	reg := p.toolRegistry
 	p.mu.RUnlock()
 	return categoryFromRegistry(name, reg)
+}
+
+// excludeServerFor resolves a rendered tool name to its owning server for the
+// dynamic-exclude dispatch gate, using the same source as the list filter
+// (applyToolExclude).
+func (p *Proxy) excludeServerFor(name string) string {
+	if p.nameTemplate.IsDefault() {
+		srv, _, _ := splitPrefix(name, ".")
+		return srv
+	}
+	p.mu.RLock()
+	reg := p.toolRegistry
+	p.mu.RUnlock()
+	return serverFromRegistry(name, reg)
 }
 
 // CallToolV1 dispatches a tool call and emits fire-and-forget statsd
@@ -884,6 +985,18 @@ func (p *Proxy) callToolV1(
 	if !p.toolFilter.Allows(p.toolCategory(name)) {
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("tool %q is not exposed by this server", name),
+		), nil
+	}
+
+	// Enforce the dynamic exclude set at the same funnel: a tool excluded via
+	// POST /clown/exclude-tools is not callable, even by a client that already
+	// knows its name — mirrors the --expose gate above (FDR 0010).
+	p.mu.RLock()
+	exclude := p.toolExclude
+	p.mu.RUnlock()
+	if !exclude.IsEmpty() && exclude.Excludes(p.excludeServerFor(name), name) {
+		return protocol.ErrorResultV1(
+			fmt.Sprintf("tool %q is excluded for this session", name),
 		), nil
 	}
 

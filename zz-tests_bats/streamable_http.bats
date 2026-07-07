@@ -382,3 +382,116 @@ function sse_gap_notifications_are_not_replayed { # @test
   sse_stop
   rm -f "$sse_out"
 }
+
+function exclude_tools_hides_and_gates_excluded_tool { # @test
+  # POST /clown/exclude-tools (FDR 0010, issue #399) is the dynamic runtime
+  # counterpart to --expose: excluding "srv" wholesale drops srv.execute-command
+  # from tools/list AND makes it uncallable, mirroring the --expose security
+  # boundary above rather than being a cosmetic list filter.
+  start_moxy_http
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  run jq -e '.result.tools[] | select(.name == "srv.execute-command")' <<<"$output"
+  assert_success
+
+  run curl -sS -X POST -o /dev/null -w "%{http_code}" \
+    -H "Content-Type: application/json" \
+    --data '{"exclude":["srv"]}' \
+    "$MOXY_HTTP_URL/clown/exclude-tools"
+  assert_success
+  assert_output "200"
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  run jq -e '.result.tools[] | select(.name == "srv.execute-command")' <<<"$output"
+  assert_failure
+
+  http_post_mcp "tools/call" '{"name":"srv.execute-command","arguments":{"cmd":"echo hi"}}' "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  local body="$output"
+  run jq -e '.result.isError == true' <<<"$body"
+  assert_success
+  run jq -e '.result.content[0].text | test("excluded")' <<<"$body"
+  assert_success
+}
+
+function exclude_tools_get_reads_back_current_set { # @test
+  start_moxy_http
+
+  run curl -sS "$MOXY_HTTP_URL/clown/exclude-tools"
+  assert_success
+  run jq -e '.exclude | length == 0' <<<"$output"
+  assert_success
+
+  curl -sS -X POST -H "Content-Type: application/json" \
+    --data '{"exclude":["srv.execute-command"]}' \
+    "$MOXY_HTTP_URL/clown/exclude-tools" >/dev/null
+
+  run curl -sS "$MOXY_HTTP_URL/clown/exclude-tools"
+  assert_success
+  run jq -e '.exclude == ["srv.execute-command"]' <<<"$output"
+  assert_success
+}
+
+function exclude_tools_post_fully_replaces_prior_set { # @test
+  # Full-replace semantics: a second POST with a different list must NOT
+  # merge with the first — the prior exclusion is gone entirely.
+  start_moxy_http
+
+  curl -sS -X POST -H "Content-Type: application/json" \
+    --data '{"exclude":["srv"]}' \
+    "$MOXY_HTTP_URL/clown/exclude-tools" >/dev/null
+
+  curl -sS -X POST -H "Content-Type: application/json" \
+    --data '{"exclude":["restart"]}' \
+    "$MOXY_HTTP_URL/clown/exclude-tools" >/dev/null
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  # srv.execute-command survived the replace; only "restart" stays excluded.
+  run jq -e '.result.tools[] | select(.name == "srv.execute-command")' <<<"$output"
+  assert_success
+  run jq -e '.result.tools[] | select(.name == "restart")' <<<"$output"
+  assert_failure
+}
+
+function exclude_tools_post_notifies_sse_list_changed { # @test
+  # Mirrors the restart -> list_changed SSE tests above: POST
+  # /clown/exclude-tools with a set that actually changes state must also
+  # emit notifications/tools/list_changed on any open SSE stream.
+  start_moxy_http
+
+  http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  local sid="$MOXY_SESSION_ID"
+
+  local sse_out
+  sse_out=$(mktemp)
+  sse_start "$sid" "$sse_out"
+
+  run curl -sS -X POST -o /dev/null -w "%{http_code}" \
+    -H "Content-Type: application/json" \
+    --data '{"exclude":["srv"]}' \
+    "$MOXY_HTTP_URL/clown/exclude-tools"
+  assert_success
+  assert_output "200"
+
+  run sse_wait_for "$sse_out" "notifications/tools/list_changed" 5
+  if [[ $status -ne 0 ]]; then
+    echo "--- SSE stream contents ---" >&2
+    cat "$sse_out" >&2
+    dump_moxy_http_stderr
+    sse_stop
+    rm -f "$sse_out"
+    false
+  fi
+
+  sse_stop
+  rm -f "$sse_out"
+}

@@ -10,10 +10,22 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
+	"github.com/amarbel-llc/moxy/internal/toolexclude"
+
 	"github.com/google/uuid"
 )
 
 const headerMCPSessionID = "Mcp-Session-Id"
+
+// ToolExcluder is the optional capability a Tools provider may implement to
+// back /clown/exclude-tools (FDR 0010). *proxy.Proxy implements it; the route
+// 501s against any Tools provider that doesn't, so this stays an optional
+// capability rather than a hard streamhttp -> proxy dependency (mirrors how
+// Notify/SetNotifier bridge the two packages).
+type ToolExcluder interface {
+	SetToolExclude(toolexclude.Set)
+	ToolExclude() toolexclude.Set
+}
 
 type Options struct {
 	Tools         server.ToolProviderV1
@@ -33,10 +45,12 @@ type Server struct {
 	streams              *streamRegistry
 	sessionID            string
 	systemPromptFragment string
+	toolExcluder         ToolExcluder // nil if opts.Tools doesn't implement ToolExcluder
 	mu                   sync.RWMutex
 }
 
 func New(opts Options) *Server {
+	excluder, _ := opts.Tools.(ToolExcluder)
 	return &Server{
 		dispatcher: &dispatcher{
 			tools:         opts.Tools,
@@ -48,6 +62,7 @@ func New(opts Options) *Server {
 		},
 		streams:              newStreamRegistry(),
 		systemPromptFragment: opts.SystemPromptFragment,
+		toolExcluder:         excluder,
 	}
 }
 
@@ -57,6 +72,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	case "/clown/system-prompt":
 		s.handleSystemPrompt(w, r)
+	case "/clown/exclude-tools":
+		s.handleExcludeTools(w, r)
 	case "/mcp", "/":
 		s.handleMCP(w, r)
 	default:
@@ -81,6 +98,58 @@ func (s *Server) handleSystemPrompt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	io.WriteString(w, s.systemPromptFragment)
+}
+
+// excludeToolsBody is the JSON shape of both the POST request and the GET/POST
+// response for /clown/exclude-tools: a flat list of excluded names, each
+// either a whole moxin/server name (e.g. "chix") or a dotted rendered tool
+// name (e.g. "folio.write") — matching disable-moxins' entry syntax
+// (internal/config/schema). Full-replace: each POST overwrites the prior set.
+type excludeToolsBody struct {
+	Exclude []string `json:"exclude"`
+}
+
+// handleExcludeTools is clown's --cheap-context picker's dynamic counterpart
+// to /clown/system-prompt: a local, unauthenticated clown-to-moxy control
+// route (not part of the MCP protocol surface) letting clown set which
+// tools/moxins this session's tools/list advertises and tools/call accepts.
+// GET reads back the current set; POST replaces it wholesale. 501s if the
+// wired Tools provider doesn't implement ToolExcluder (e.g. a test double).
+// See docs/features/0010-tool-exclude-endpoint.md.
+func (s *Server) handleExcludeTools(w http.ResponseWriter, r *http.Request) {
+	if s.toolExcluder == nil {
+		http.Error(w, "tool exclusion not supported by this server", http.StatusNotImplemented)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		names := s.toolExcluder.ToolExclude().Names()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(excludeToolsBody{Exclude: names})
+
+	case http.MethodPost:
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusBadRequest)
+			return
+		}
+		var req excludeToolsBody
+		if len(body) > 0 {
+			if err := json.Unmarshal(body, &req); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
+		}
+		s.toolExcluder.SetToolExclude(toolexclude.Parse(req.Exclude))
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(excludeToolsBody{Exclude: s.toolExcluder.ToolExclude().Names()})
+
+	default:
+		w.Header().Set("Allow", http.MethodGet+", "+http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
