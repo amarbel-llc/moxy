@@ -161,3 +161,22 @@ function push_force_with_lease_explicit_sha_rejects_when_remote_has_moved { # @t
   run "$BIN/push" "origin" "feat" "" true "" "$WORK" "" "$remote_sha"
   assert_failure
 }
+
+function push_force_with_lease_explicit_sha_succeeds_after_rewritten_history_via_bare_refspec { # @test
+  # Reproduces issue #357's exact shape: a branch first pushed via a bare
+  # HEAD:remote-branch refspec (no -u, so no tracking ref is ever created),
+  # then rebuilt on a fresh base so the new tip does not contain the old
+  # remote tip (force_if_includes would also reject this).
+  cd "$WORK"
+  git checkout -q -b diverged main
+  git commit --allow-empty -m d1 -q
+  run "$BIN/push" "origin" "diverged" "" "" "" "$WORK" "diverged-remote"
+  assert_success
+  remote_sha=$(git --git-dir="$REMOTE" rev-parse diverged-remote)
+  # Rewrite history: reset onto a fresh base and commit anew, so the new
+  # tip's history does not include $remote_sha at all.
+  git reset -q --hard main
+  git commit --allow-empty -m d1-rewritten -q
+  run "$BIN/push" "origin" "diverged" "" true "" "$WORK" "diverged-remote" "$remote_sha"
+  assert_success
+}
