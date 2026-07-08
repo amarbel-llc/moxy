@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 description = "Push commits to a remote repository"
 command = "@BIN@/push"
-arg-order = ["remote", "branch", "set_upstream", "force_with_lease", "force_if_includes", "repo_path", "remote_branch"]
+arg-order = ["remote", "branch", "set_upstream", "force_with_lease", "force_if_includes", "repo_path", "remote_branch", "lease_ref_sha"]
 
 [input]
 type = "object"
@@ -18,6 +18,10 @@ description = "Force-push with lease (--force-with-lease). Refuses the push if t
 [input.properties.force_if_includes]
 type = "boolean"
 description = "Require that the pushed commit includes whatever is at the remote tip (--force-if-includes). Must be used together with force_with_lease; git docs recommend pairing the two for the safest forced push."
+
+[input.properties.lease_ref_sha]
+type = "string"
+description = "Expected current remote SHA for the branch being force-pushed. When set together with force_with_lease, uses the explicit-value form (--force-with-lease=<branch>:<lease_ref_sha>) instead of the bare boolean flag. Required when the local repo has no remote-tracking ref for the branch (e.g. a narrow fetch refspec, or a branch checked out without one) — the boolean form fails with 'stale info' in that case since git has no local baseline to compare against. Fetch the true remote SHA out-of-band (e.g. via the GitHub API) before passing it here."
 
 [input.properties.remote]
 type = "string"

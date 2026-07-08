@@ -7,6 +7,7 @@ force_with_lease="${4:-}"
 force_if_includes="${5:-}"
 repo="${6:-.}"
 remote_branch="${7:-}"
+lease_ref_sha="${8:-}"
 cd "$repo"
 
 if [ "$force_with_lease" = "true" ]; then
@@ -32,7 +33,17 @@ fi
 
 git_args=(push)
 
-[ "$force_with_lease" = "true" ] && git_args+=(--force-with-lease)
+if [ "$force_with_lease" = "true" ]; then
+  if [ -n "$lease_ref_sha" ]; then
+    # Explicit-value form: needed when there's no local remote-tracking ref
+    # for $target (narrow fetch refspec, DWIM checkout, etc.) since the
+    # boolean form has no local baseline to compare the remote against.
+    git_args+=("--force-with-lease=${target}:${lease_ref_sha}")
+  else
+    git_args+=(--force-with-lease)
+  fi
+fi
+
 [ "$force_if_includes" = "true" ] && git_args+=(--force-if-includes)
 [ "$set_upstream" = "true" ] && git_args+=(-u)
 
