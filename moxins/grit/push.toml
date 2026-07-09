@@ -17,7 +17,7 @@ description = "Force-push with lease (--force-with-lease). Refuses the push if t
 
 [input.properties.force_if_includes]
 type = "boolean"
-description = "Require that the pushed commit includes whatever is at the remote tip (--force-if-includes). Must be used together with force_with_lease; git docs recommend pairing the two for the safest forced push."
+description = "Require that the pushed commit includes whatever is at the remote tip (--force-if-includes). Must be used together with force_with_lease; git docs recommend pairing the two for the safest forced push. NOTE: this is a no-op when lease_ref_sha is also set — git only runs the includes reflog-reachability check for the implicit lease (bare --force-with-lease), not the explicit --force-with-lease=<ref>:<sha> form, so on the explicit-SHA path the expected-SHA lease is the only active check."
 
 [input.properties.lease_ref_sha]
 type = "string"

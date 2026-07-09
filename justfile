@@ -1074,3 +1074,82 @@ explore-container-prototype:
   nix build .#moxy-oci-image
   container image load -i result
   container run --rm moxy:latest version
+
+# Probe whether `git push --force-if-includes` still enforces its
+# reflog-reachability check when paired with the explicit-value
+# `--force-with-lease=<ref>:<sha>` form (as the grit push moxin emits when
+# lease_ref_sha is set). Review question for #390's explicit-SHA path: the
+# push.toml schema tells callers to pair force_if_includes with
+# force_with_lease "for the safest forced push", but git may treat
+# --force-if-includes as a no-op once the lease carries an explicit expected
+# value. Builds a bare remote + a branch pushed via a bare refspec (no tracking
+# ref), rewrites history so the new tip does NOT contain the old remote tip,
+# drops the tracking ref, then pushes with BOTH the explicit-SHA lease and
+# --force-if-includes. If --force-if-includes were enforced it would reject the
+# push (new tip's reflog does not include the remote tip); if it's a no-op the
+# push succeeds on the lease alone. Reports the observed outcome.
+[group("debug")]
+debug-force-if-includes-with-explicit-lease:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  # Source script is mode 644 (only the nix wrapper is +x), so invoke via
+  # `bash`; it only shells out to `git`, which is on the devshell PATH.
+  bin="{{justfile_directory()}}/moxins/grit/bin/push"
+
+  # Build a fresh bare remote + work tree where `diverged-remote` was pushed via
+  # a bare refspec (no tracking ref, the #357 shape), then local history is
+  # rewritten onto a new base so the new tip does NOT contain the remote tip.
+  # Echoes the true remote SHA on stdout for the caller to lease against.
+  build_scenario() {
+    local root="$1"
+    git init -q --bare "$root/remote.git"
+    git init -q -b main "$root/work"
+    (
+      cd "$root/work"
+      git config user.email t@t
+      git config user.name t
+      git config commit.gpgSign false
+      git remote add origin "$root/remote.git"
+      git commit --allow-empty -m base -q
+      git push -q -u origin main
+      git checkout -q -b diverged main
+      git commit --allow-empty -m d1 -q
+      git push -q origin diverged:diverged-remote
+      git reset -q --hard main
+      git commit --allow-empty -m d1-rewritten -q
+    )
+    git --git-dir="$root/remote.git" rev-parse diverged-remote
+  }
+
+  # grit push arg-order: remote branch set_upstream force_with_lease
+  #   force_if_includes repo_path remote_branch lease_ref_sha
+
+  # Pass 1: trace the emitted `git push` argv (against a throwaway remote) to
+  # confirm BOTH flags are actually present on the command line.
+  r1=$(mktemp -d -p /tmp fii-lease.XXXXXX)
+  sha1=$(build_scenario "$r1")
+  echo "--- emitted git push argv (both flags expected) ---"
+  bash -x "$bin" origin diverged "" true true "$r1/work" diverged-remote "$sha1" 2>&1 \
+    | grep -E "^\+ git push "
+  rm -rf "$r1"
+
+  # Pass 2: fresh scenario, observe the real outcome. The new tip provably does
+  # not contain the remote tip, so --force-if-includes WOULD reject if enforced.
+  r2=$(mktemp -d -p /tmp fii-lease.XXXXXX)
+  sha2=$(build_scenario "$r2")
+  trap 'rm -rf "$r2"' EXIT
+  echo ""
+  echo "remote diverged-remote tip: $sha2"
+  echo "new local tip:              $(git -C "$r2/work" rev-parse HEAD)"
+  if git -C "$r2/work" merge-base --is-ancestor "$sha2" HEAD; then
+    echo "new tip contains remote tip? yes"
+  else
+    echo "new tip contains remote tip? no  (force-if-includes would reject if enforced)"
+  fi
+  echo ""
+  echo "=== push with explicit-SHA lease + force_if_includes=true ==="
+  if bash "$bin" origin diverged "" true true "$r2/work" diverged-remote "$sha2"; then
+    echo "OUTCOME: push SUCCEEDED -> --force-if-includes is a NO-OP under explicit-value lease"
+  else
+    echo "OUTCOME: push REJECTED  -> --force-if-includes IS enforced alongside explicit-value lease"
+  fi

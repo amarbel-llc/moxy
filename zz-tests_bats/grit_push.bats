@@ -167,7 +167,11 @@ function push_force_with_lease_explicit_sha_succeeds_after_rewritten_history_via
   # Reproduces issue #357's exact shape: a branch first pushed via a bare
   # HEAD:remote-branch refspec (no -u, so no tracking ref is ever created),
   # then rebuilt on a fresh base so the new tip does not contain the old
-  # remote tip (force_if_includes would also reject this).
+  # remote tip. The explicit-SHA lease is what makes this push safe: note
+  # that --force-if-includes would NOT catch it here — git skips the includes
+  # reflog check under the explicit --force-with-lease=<ref>:<sha> form (only
+  # the implicit lease runs it), verified by
+  # `just debug-force-if-includes-with-explicit-lease`.
   cd "$WORK"
   git checkout -q -b diverged main
   git commit --allow-empty -m d1 -q
