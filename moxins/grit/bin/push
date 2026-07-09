@@ -10,6 +10,8 @@ remote_branch="${7:-}"
 lease_ref_sha="${8:-}"
 cd "$repo"
 
+git_args=(push)
+
 if [ "$force_with_lease" = "true" ]; then
   # The destination ref is what a force push clobbers, so the main/master
   # guard keys off remote_branch when a refspec is used. Falls back to the
@@ -29,15 +31,13 @@ if [ "$force_with_lease" = "true" ]; then
     echo "ERROR: force push to main/master is blocked for safety" >&2
     exit 1
   fi
-fi
 
-git_args=(push)
-
-if [ "$force_with_lease" = "true" ]; then
   if [ -n "$lease_ref_sha" ]; then
     # Explicit-value form: needed when there's no local remote-tracking ref
     # for $target (narrow fetch refspec, DWIM checkout, etc.) since the
     # boolean form has no local baseline to compare the remote against.
+    # $target must be the exact ref git will compare against here, unlike
+    # the main/master guard above where an approximate name is tolerable.
     git_args+=("--force-with-lease=${target}:${lease_ref_sha}")
   else
     git_args+=(--force-with-lease)

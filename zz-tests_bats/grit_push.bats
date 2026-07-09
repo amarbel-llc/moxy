@@ -28,6 +28,26 @@ teardown() {
   teardown_test_home
 }
 
+# Simulates a concurrent push landing on $REMOTE's feat branch behind our back.
+simulate_remote_move_on_feat() {
+  git clone -q "$REMOTE" "$HOME/other"
+  (cd "$HOME/other" &&
+    git config user.email t@t &&
+    git config user.name t &&
+    git config commit.gpgSign false &&
+    git checkout -q feat &&
+    git commit --allow-empty -m sneak -q &&
+    git push -q origin feat)
+}
+
+# Simulates a narrow fetch refspec / DWIM checkout: drop the local
+# remote-tracking ref for feat, then amend so the boolean force-with-lease
+# form has no local baseline to compare the remote against.
+drop_feat_tracking_ref_and_amend() {
+  git update-ref -d refs/remotes/origin/feat
+  git commit --amend --allow-empty -m c1-amended -q
+}
+
 function push_force_with_lease_succeeds_when_remote_matches_local { # @test
   cd "$WORK"
   git commit --amend --allow-empty -m c1-amended -q
@@ -55,14 +75,7 @@ function push_force_with_lease_blocks_detached_HEAD_with_no_branch_arg { # @test
 
 function push_force_with_lease_rejects_when_remote_has_moved { # @test
   cd "$WORK"
-  git clone -q "$REMOTE" "$HOME/other"
-  (cd "$HOME/other" &&
-    git config user.email t@t &&
-    git config user.name t &&
-    git config commit.gpgSign false &&
-    git checkout -q feat &&
-    git commit --allow-empty -m sneak -q &&
-    git push -q origin feat)
+  simulate_remote_move_on_feat
   cd "$WORK"
   git commit --amend --allow-empty -m c1-amended -q
   run "$BIN/push" "origin" "feat" "" true "" "$WORK"
@@ -123,10 +136,7 @@ function push_refspec_force_with_lease_blocks_main_destination { # @test
 
 function push_force_with_lease_boolean_fails_with_stale_info_when_no_tracking_ref { # @test
   cd "$WORK"
-  # Simulate a narrow fetch refspec / DWIM checkout: drop the local
-  # remote-tracking ref for feat so git has no baseline to compare against.
-  git update-ref -d refs/remotes/origin/feat
-  git commit --amend --allow-empty -m c1-amended -q
+  drop_feat_tracking_ref_and_amend
   run "$BIN/push" "origin" "feat" "" true "" "$WORK"
   assert_failure
   assert_output --partial "stale info"
@@ -137,8 +147,7 @@ function push_force_with_lease_explicit_sha_succeeds_without_tracking_ref { # @t
   remote_sha=$(git --git-dir="$REMOTE" rev-parse feat)
   # Same missing-tracking-ref situation, but the caller supplies the
   # expected remote SHA explicitly (e.g. fetched via the GitHub API).
-  git update-ref -d refs/remotes/origin/feat
-  git commit --amend --allow-empty -m c1-amended -q
+  drop_feat_tracking_ref_and_amend
   # arg-order: remote branch set_upstream force_with_lease force_if_includes repo_path remote_branch lease_ref_sha
   run "$BIN/push" "origin" "feat" "" true "" "$WORK" "" "$remote_sha"
   assert_success
@@ -147,17 +156,9 @@ function push_force_with_lease_explicit_sha_succeeds_without_tracking_ref { # @t
 function push_force_with_lease_explicit_sha_rejects_when_remote_has_moved { # @test
   cd "$WORK"
   remote_sha=$(git --git-dir="$REMOTE" rev-parse feat)
-  git clone -q "$REMOTE" "$HOME/other"
-  (cd "$HOME/other" &&
-    git config user.email t@t &&
-    git config user.name t &&
-    git config commit.gpgSign false &&
-    git checkout -q feat &&
-    git commit --allow-empty -m sneak -q &&
-    git push -q origin feat)
+  simulate_remote_move_on_feat
   cd "$WORK"
-  git update-ref -d refs/remotes/origin/feat
-  git commit --amend --allow-empty -m c1-amended -q
+  drop_feat_tracking_ref_and_amend
   run "$BIN/push" "origin" "feat" "" true "" "$WORK" "" "$remote_sha"
   assert_failure
 }
