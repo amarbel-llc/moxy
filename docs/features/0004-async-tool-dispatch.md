@@ -221,6 +221,10 @@ not part of v1.
 
 - **Ask-gated tools cannot run async.** Only calls whose permission resolves
   to allow may background. This is a safety posture, not a gap to fill.
+  *Revised by FDR 0011:* Unknown (no-perm-request) and `ask` inner tools become
+  backgroundable when the PreToolUse hook forces an at-dispatch consent while
+  the client is still attached; `deny` and `permit-async = false` remain
+  absolute. See FDR 0011 for the revised gate.
 - **Producer-death gap.** If moxy crashes (not graceful shutdown), in-flight
   jobs never emit a terminal `done`; they sit open until clown's 7-day
   journal GC. Accepted for v1, same posture as spinclass's interrupted case.
