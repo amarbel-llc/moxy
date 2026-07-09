@@ -9,6 +9,7 @@ context="${6:-}"
 case_insensitive="${7:-}"
 multiline="${8:-}"
 hidden="${9:-}"
+max_columns="${10:-500}"
 
 rg_args=()
 
@@ -59,6 +60,17 @@ fi
 [ -n "$filetype" ] && rg_args+=(--type "$filetype")
 
 [ -n "$context" ] && rg_args+=(-C "$context")
+
+# Cap per-line output bytes so a single physical long line (e.g. a wrapped /
+# pretty-printed JSON blob searched as one line) can't blow past the token
+# budget regardless of match count (#197). --max-columns-preview keeps a
+# truncated prefix plus a "[... N omitted]" marker so the hit stays visible and
+# the agent knows to narrow. Only meaningful in content mode (the other modes
+# emit paths/counts, not lines); max_columns=0 disables the cap (rg's
+# unlimited sentinel).
+if [ "$output_mode" = "content" ] && [ "$max_columns" != "0" ]; then
+  rg_args+=(--max-columns "$max_columns" --max-columns-preview)
+fi
 
 [ "$case_insensitive" = "true" ] && rg_args+=(-i)
 

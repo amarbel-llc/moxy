@@ -16,6 +16,7 @@ arg-order = [
   "case_insensitive",
   "multiline",
   "hidden",
+  "max_columns",
 ]
 
 [input]
@@ -57,6 +58,10 @@ description = "Enable multiline mode where . matches newlines and patterns can s
 [input.properties.hidden]
 type = "boolean"
 description = "Search hidden files and directories (e.g. .github/) that ripgrep skips by default (rg --hidden). .gitignore is still honored, so .git/ stays excluded."
+
+[input.properties.max_columns]
+type = "integer"
+description = "Max characters emitted per matching line in content mode (rg --max-columns, with --max-columns-preview so an over-long line is truncated to this prefix plus a \"[… omitted]\" marker rather than printed in full). Defaults to 500. Bounds output on single-physical-line inputs like wrapped/pretty-printed JSON, where one match would otherwise return the entire line regardless of match count. Set to 0 to disable the cap (unlimited). Ignored outside output_mode=content."
 
 [annotations]
 read-only-hint = true

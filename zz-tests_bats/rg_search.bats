@@ -23,6 +23,21 @@ setup() {
   # A match inside a hidden directory — skipped by default, found with hidden.
   mkdir -p .hidden
   printf 'case MARKER\n' >.hidden/h.txt
+
+  # A single very long physical line with the marker embedded among long
+  # padding runs — models a wrapped/pretty-printed JSON blob searched as one
+  # line (#197). rg emits the whole matching line, so without a per-line cap
+  # one match returns the entire (here ~1900-char) line. Kept in its own
+  # directory (searched by exact path) so it does not perturb the file-count
+  # assertions that sweep $HOME/tree.
+  mkdir -p "$HOME/longline"
+  {
+    printf 'START '
+    printf '%*s' 600 '' | tr ' ' A
+    printf ' MARKER '
+    printf '%*s' 600 '' | tr ' ' B
+    printf ' END\n'
+  } >"$HOME/longline/longline.txt"
 }
 
 teardown() {
@@ -165,4 +180,39 @@ function rg_search_unrecognized_type_is_error { # @test
     fail "unrecognized type should surface isError: $output"
   echo "$output" | jq -r '.content[0].text' | grep -qi 'file type' ||
     fail "error text should mention the unrecognized file type: $output"
+}
+
+# Regression test for #197: in content mode the default per-line cap
+# (max_columns=500) truncates a single over-long matching line instead of
+# emitting the whole physical line, which on a single-line JSON blob would blow
+# past the token budget regardless of match count. The truncated hit stays
+# visible via rg's --max-columns-preview marker.
+function rg_search_content_caps_long_line_by_default { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/longline/longline.txt"'","output_mode":"content"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  local text
+  text=$(echo "$output" | jq -r '.content[0].text')
+  # The raw line is ~1900 chars; capped output must be far shorter and carry
+  # the preview marker.
+  [ "${#text}" -lt 800 ] || fail "content output not capped (len ${#text}): $output"
+  echo "$text" | grep -q 'omitted' || fail "missing --max-columns-preview marker: $output"
+}
+
+# Companion to the above: max_columns=0 disables the cap, so the full physical
+# line comes back (the escape hatch for callers who genuinely want it).
+function rg_search_content_max_columns_zero_disables_cap { # @test
+  local params='{"name":"rg.search","arguments":{"pattern":"MARKER","path":"'"$HOME/longline/longline.txt"'","output_mode":"content","max_columns":0}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_not_iserror
+
+  local text
+  text=$(echo "$output" | jq -r '.content[0].text')
+  # Uncapped: the full ~1900-char line is present (both padding runs intact).
+  [ "${#text}" -gt 1200 ] || fail "expected full uncapped line (len ${#text}): $output"
+  echo "$text" | grep -q 'omitted' && fail "unexpected preview marker with cap disabled: $output"
+  true
 }
