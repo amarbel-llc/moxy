@@ -118,9 +118,12 @@ for the remainder. Sequential execution only in v1. See
 `docs/plans/2026-05-20-batch-tool.md`.
 
 Moxy also injects `async`, `async-result`, and `async-cancel` meta tools
-(FDR 0004): `async {tool, args, timeout?}` backgrounds one tool call (allow-only
-permission preflight; tools may additionally opt out via the top-level
-`permit-async = false` TOML key, #317), returns `{job_id, status:"running"}`
+(FDR 0004; permission gate revised by FDR 0011): `async {tool, args, timeout?}`
+backgrounds one tool call. The preflight rejects only an explicit `deny` (and
+the top-level `permit-async = false` opt-out, #317); `allow`, `ask`, and
+Unknown (no-perms-request) tools are all admitted, because the PreToolUse hook
+forces an at-dispatch consent for `ask`/Unknown inner tools before the call
+reaches moxy (#356/#370). It returns `{job_id, status:"running"}`
 immediately,
 and wakes the agent on the terminal state via clown's job-wakeup channel by
 shelling out to the `ringmaster` job-control CLI (clown RFC-0015 promoted the
