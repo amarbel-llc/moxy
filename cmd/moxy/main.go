@@ -663,7 +663,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	builtinRegistry.Register(
 		protocol.ToolV1{
 			Name:        "async",
-			Description: "Dispatch one tool call in the background. Returns {job_id, status:\"running\"} immediately; when the call reaches a terminal state the agent is woken via clown's job-wakeup channel with a summary and the result blob's madder://blobs/<digest> reference. Fetch the result with async-result. Only calls whose permission resolves to allow may background (ask/deny/unknown are rejected synchronously). The optional per-call `timeout` defaults to 30 minutes when omitted; a larger value is honored — there is no hard ceiling. On timeout the whole process tree is killed and the job terminalizes with status `timeout`. See docs/features/0004-async-tool-dispatch.md.",
+			Description: "Dispatch one tool call in the background. Returns {job_id, status:\"running\"} immediately; when the call reaches a terminal state the agent is woken via clown's job-wakeup channel with a summary and the result blob's madder://blobs/<digest> reference. Fetch the result with async-result. The returned job_id is a real clown ringmaster job — if you have the ringmaster job tools, ringmaster's job_wait blocks on this job_id until it terminalizes (and job_status reports it with source \"moxy\"); prefer that over hot-polling async-result. Only calls whose permission resolves to allow may background (ask/deny/unknown are rejected synchronously). The optional per-call `timeout` defaults to 30 minutes when omitted; a larger value is honored — there is no hard ceiling. On timeout the whole process tree is killed and the job terminalizes with status `timeout`. See docs/features/0004-async-tool-dispatch.md.",
 			InputSchema: json.RawMessage(`{
 				"type":"object",
 				"required":["tool"],
@@ -683,7 +683,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	builtinRegistry.Register(
 		protocol.ToolV1{
 			Name:        "async-result",
-			Description: "Fetch an async job's status, or its full stored tool result once terminal. Reads state from clown's job journal, so it resolves jobs launched by another session too, falling back to this process's in-memory index when the journal is unavailable. For a running job it also surfaces live progress when the clown output spool is available — elapsed_sec, last_activity, spool_bytes, and a bounded output tail — so you can tell a working job from a wedged one without waiting for the terminal wake. Doubles as the poll surface when job wakeups are disabled (CLOWN_DISABLE_JOB_WAKEUP=1).",
+			Description: "Fetch an async job's status, or its full stored tool result once terminal. Reads state from clown's job journal, so it resolves jobs launched by another session too, falling back to this process's in-memory index when the journal is unavailable. For a running job it also surfaces live progress when the clown output spool is available — elapsed_sec, last_activity, spool_bytes, and a bounded output tail — so you can tell a working job from a wedged one without waiting for the terminal wake. This is poll-only: to block until a running job finishes, use ringmaster's job_wait on the job_id (a moxy async job is a real ringmaster job) rather than looping on async-result. Doubles as the poll surface when job wakeups are disabled (CLOWN_DISABLE_JOB_WAKEUP=1).",
 			InputSchema: json.RawMessage(`{
 				"type":"object",
 				"required":["job_id"],
