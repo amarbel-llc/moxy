@@ -85,11 +85,18 @@ func (p *Proxy) HandleAsync(
 		), nil
 	}
 
+	// FDR 0011: only an explicit deny is an absolute synchronous reject here.
+	// Allow backgrounds directly; ask and Unknown (no perms-request) are
+	// admitted because the PreToolUse hook forces an at-dispatch consent before
+	// the async call reaches moxy (moxy's core model presumes the hook is the
+	// permission gate). This revises FDR 0004's allow-only posture for ask /
+	// Unknown; #403 (mid-dispatch elicitation) would let moxy own the consent
+	// itself and drop the reliance on the separate hook process.
 	dec, reason := p.resolver.Resolve(ctx, params.Tool, params.Args, ".")
-	if dec != permcheck.Allow {
+	if dec == permcheck.Deny {
 		return protocol.ErrorResultV1(fmt.Sprintf(
-			"async requires the call to resolve to allow; %s resolved to %s (%s)",
-			params.Tool, dec, reason,
+			"async refuses a denied call; %s resolved to deny (%s)",
+			params.Tool, reason,
 		)), nil
 	}
 	if !p.resolver.PermitsAsync(params.Tool) {

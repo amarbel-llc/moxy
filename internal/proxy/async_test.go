@@ -94,21 +94,44 @@ func TestHandleAsyncDispatchesAllowedTool(t *testing.T) {
 	}
 }
 
-func TestHandleAsyncRejectsNonAllowTools(t *testing.T) {
-	p := newAsyncProxy(t)
+// FDR 0011: Unknown (no perms-request) and ask inner tools are ADMITTED by the
+// async preflight — the PreToolUse hook forces an at-dispatch consent before
+// the call reaches moxy, so the preflight trusts the hook (moxy's core model)
+// and backgrounds them. This reverses FDR 0004's allow-only posture for these
+// two cases; deny and permit-async=false remain hard rejects (see below).
+func TestHandleAsyncAdmitsUnknownAndAskTools(t *testing.T) {
+	p := &Proxy{}
+	p.SetResolver(permcheck.NewResolverWithPerms(map[string]permcheck.ToolPermInfo{
+		"ask.tool": {Perm: native.PermsEachUse},
+		// unknown.tool is deliberately absent → Resolve returns Unknown.
+	}))
+	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
+		RingmasterBin: "/nonexistent/ringmaster",
+		WriteResult: func(_ context.Context, _ []byte) (string, error) {
+			return "fake-digest", nil
+		},
+		MaxRuntime: time.Minute,
+	}))
 
-	// unknown.tool has no perm entry → Unknown → must be rejected
-	// synchronously: once detached there is no client to prompt.
-	result, err := p.HandleAsync(context.Background(),
-		json.RawMessage(`{"tool":"unknown.tool","args":{}}`))
-	if err != nil {
-		t.Fatalf("HandleAsync: %v", err)
-	}
-	if !result.IsError {
-		t.Fatalf("expected rejection, got %+v", result)
-	}
-	if !strings.Contains(result.Content[0].Text, "resolve to allow") {
-		t.Errorf("rejection text = %q", result.Content[0].Text)
+	for _, tool := range []string{"unknown.tool", "ask.tool"} {
+		result, err := p.HandleAsync(context.Background(),
+			json.RawMessage(`{"tool":"`+tool+`","args":{}}`))
+		if err != nil {
+			t.Fatalf("HandleAsync(%s): %v", tool, err)
+		}
+		if result.IsError {
+			t.Fatalf("HandleAsync(%s) rejected, want admitted: %+v", tool, result)
+		}
+		var ref struct {
+			JobID  string `json:"job_id"`
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal([]byte(result.Content[0].Text), &ref); err != nil {
+			t.Fatalf("parsing handle for %s: %v", tool, err)
+		}
+		if ref.Status != "running" || ref.JobID == "" {
+			t.Fatalf("handle(%s) = %+v, want running with job id", tool, ref)
+		}
 	}
 }
 

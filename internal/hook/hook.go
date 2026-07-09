@@ -214,6 +214,10 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 		// PreToolUse (and any future event types): existing behavior.
 		parsed, ok := parseNativeToolName(hi.ToolName, prefix)
 		debugHook("  parsed=%q ok=%v", parsed, ok)
+		if tryAsyncInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
+			debugHook("  decision: async inner-tool resolved")
+			return nil
+		}
 		if tryBuiltinAutoAllow(hi.ToolName, prefix, w) {
 			debugHook("  decision: builtin auto-allowed")
 			return nil
@@ -233,16 +237,14 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 // after stripping the moxy prefix (e.g. "status" from
 // "mcp__plugin_moxy_moxy__status").
 //
-// The async meta tools qualify because they widen nothing (#314):
-// `async` rejects any call whose permission does not already resolve to
-// allow (and permit-async opt-outs), so it can only launch work that
-// would never have prompted; async-result/async-cancel only read or
-// cancel this session's own job handles. `restart` and `batch` stay
-// prompting — restart churns children, and batch's single prompt is its
-// design contract.
+// async-result/async-cancel qualify because they only read or cancel this
+// session's own job handles. `async` is NOT here (FDR 0011): it routes through
+// tryAsyncInnerDecision, which resolves the backgrounded inner tool and forces
+// a consent prompt for ask/Unknown inner tools rather than widening silently.
+// `restart` and `batch` stay prompting — restart churns children, and batch's
+// single prompt is its design contract.
 var builtinAutoAllow = map[string]bool{
 	"status":       true,
-	"async":        true,
 	"async-result": true,
 	"async-cancel": true,
 }
@@ -267,6 +269,95 @@ func tryBuiltinAutoAllow(toolName, prefix string, w io.Writer) bool {
 		return false
 	}
 	return true
+}
+
+// asyncBuiltinSuffixes maps the moxy-prefixed tool names that dispatch work
+// asynchronously to the inner-tool argument key that names the backgrounded
+// tool. Only `async` dispatches a fresh tool call; async-result/async-cancel
+// operate on existing handles and stay in builtinAutoAllow.
+var asyncBuiltinSuffixes = map[string]string{
+	"async": "tool",
+}
+
+// tryAsyncInnerDecision handles the `async` builtin (FDR 0011). Rather than
+// blanket-allowing async, it resolves the INNER tool being backgrounded and
+// emits its decision: an always-allow inner tool passes straight through
+// (allow); an ask or Unknown (no perms-request) inner tool is turned into an
+// `ask` — naming the inner tool so the user consents to the actual work —
+// because once the job detaches there is no client to prompt. A denied inner
+// tool is denied. Returns true if it wrote a decision (i.e. the tool was an
+// async-dispatch builtin), false to let normal handling proceed.
+func tryAsyncInnerDecision(toolName, prefix string, toolInput map[string]any, cwd string, w io.Writer) bool {
+	suffix := strings.TrimPrefix(toolName, prefix)
+	argKey, isAsyncDispatch := asyncBuiltinSuffixes[suffix]
+	if suffix == toolName || !isAsyncDispatch {
+		return false
+	}
+
+	innerWire, _ := toolInput[argKey].(string)
+	inner := underscoreToCanonical(innerWire)
+	if inner == "" {
+		// No parseable inner tool — let normal handling take over rather than
+		// emit a bogus decision.
+		return false
+	}
+
+	resolver, err := getResolver()
+	if err != nil {
+		debugHook("  async inner getResolver error: %v", err)
+		return false
+	}
+
+	// The inner call's args (used by dynamic-perms predicates) ride alongside
+	// the inner tool name in async's arguments.
+	var innerArgs json.RawMessage
+	if raw, ok := toolInput["args"]; ok {
+		innerArgs, _ = json.Marshal(raw)
+	}
+
+	decision, reason := resolver.Resolve(context.Background(), inner, innerArgs, cwd)
+	debugHook("  async inner=%q decision=%q reason=%q", inner, decision, reason)
+
+	var decStr, decReason string
+	switch decision {
+	case permcheck.Allow:
+		decStr = "allow"
+		decReason = fmt.Sprintf("async: inner tool %s is always-allow (%s)", inner, reason)
+	case permcheck.Deny:
+		decStr = "deny"
+		decReason = fmt.Sprintf("async: inner tool %s is denied (%s)", inner, reason)
+	default:
+		// Ask or Unknown: force a consent prompt now, while the client is
+		// attached — the backgrounded job cannot prompt later.
+		decStr = "ask"
+		decReason = fmt.Sprintf("async will background %s — approve to run it detached", inner)
+	}
+
+	out := hookOutput{
+		HookSpecificOutput: hookDecision{
+			HookEventName:            "PreToolUse",
+			PermissionDecision:       decStr,
+			PermissionDecisionReason: decReason,
+		},
+	}
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		log.Printf("hook: ignoring encode error (fail-open): %v", err)
+		return false
+	}
+	return true
+}
+
+// underscoreToCanonical converts an inner-tool name as it arrives in async's
+// arguments (wire form, e.g. "just-us-agents_run-recipe") to canonical
+// "server.tool" form ("just-us-agents.run-recipe"). Server names may contain
+// hyphens but not underscores or dots, so the first underscore separates
+// server from tool. Returns "" if there is no tool part.
+func underscoreToCanonical(wire string) string {
+	idx := strings.IndexByte(wire, '_')
+	if idx <= 0 || idx == len(wire)-1 {
+		return ""
+	}
+	return wire[:idx] + "." + wire[idx+1:]
 }
 
 // tryPermsDecision checks the tool's perms-request in moxin configs and writes

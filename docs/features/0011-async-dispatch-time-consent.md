@@ -58,10 +58,20 @@ carries the informed-consent payload.
 
 `Proxy.HandleAsync`'s preflight changes from "resolve != allow → reject" to:
 `deny` and `permit-async = false` remain hard synchronous rejects; `allow`
-backgrounds as before; **`ask`/Unknown are admitted**, because by the time the
-`async` call reaches moxy the hook has already forced (and the user has
+backgrounds as before; **`ask` and Unknown are admitted**, because by the time
+the `async` call reaches moxy the hook has already forced (and the user has
 granted) consent while attached. The preflight no longer re-derives a veto from
-Unknown — doing so would waste the consent the hook just obtained.
+Unknown or `ask` — doing so would waste the consent the hook just obtained.
+
+The preflight cannot verify that the hook actually ran (it is a separate
+process). Admitting `ask` — not just Unknown — rests on a **premise already
+core to moxy's model: the PreToolUse hook is the permission gate, and is
+assumed to be functioning.** A client with no moxy hook bypasses moxy's gate
+for *synchronous* calls too, so async is not uniquely weaker; it inherits the
+same trust boundary the whole model already stands on. Elicitation (#403)
+would replace this presumption with a server-owned prompt and dissolve the
+concern entirely — until then, admitting `ask` is the deliberate, model-
+consistent choice, not an oversight.
 
 ### Why the pair is coupled (and the risk it carries)
 

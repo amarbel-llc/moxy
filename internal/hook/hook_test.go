@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -145,12 +146,12 @@ func TestTryBuiltinAutoAllow(t *testing.T) {
 		}
 	})
 
-	// The async meta tools are auto-allowed (#314 smoke feedback): `async`
-	// admits only calls whose permission already resolves to allow, so
-	// allow-listing it widens nothing; async-result/async-cancel operate
-	// only on this session's own job handles.
-	t.Run("async meta tools are auto-allowed", func(t *testing.T) {
-		for _, tool := range []string{"async", "async-result", "async-cancel"} {
+	// async-result / async-cancel stay auto-allowed: they only read or cancel
+	// this session's own job handles. `async` itself is NO LONGER auto-allowed
+	// here (FDR 0011) — it routes through tryAsyncInnerDecision, which resolves
+	// the inner tool and can force a consent prompt.
+	t.Run("async-result and async-cancel are auto-allowed", func(t *testing.T) {
+		for _, tool := range []string{"async-result", "async-cancel"} {
 			var buf bytes.Buffer
 			ok := tryBuiltinAutoAllow("mcp__plugin_moxy_moxy__"+tool, "mcp__plugin_moxy_moxy__", &buf)
 			if !ok {
@@ -163,6 +164,17 @@ func TestTryBuiltinAutoAllow(t *testing.T) {
 			if decoded["hookSpecificOutput"]["permissionDecision"] != "allow" {
 				t.Errorf("%s: expected allow, got %q", tool, decoded["hookSpecificOutput"]["permissionDecision"])
 			}
+		}
+	})
+
+	t.Run("async is not builtin-auto-allowed (routes through inner-tool decision)", func(t *testing.T) {
+		var buf bytes.Buffer
+		ok := tryBuiltinAutoAllow("mcp__plugin_moxy_moxy__async", "mcp__plugin_moxy_moxy__", &buf)
+		if ok {
+			t.Fatal("expected tryBuiltinAutoAllow to return false for async under FDR 0011")
+		}
+		if buf.Len() != 0 {
+			t.Errorf("expected no output, got %q", buf.String())
 		}
 	})
 
@@ -273,6 +285,110 @@ func TestTryPermsDecision_NonMoxyPrefix(t *testing.T) {
 	)
 	if wrote {
 		t.Fatal("expected fall-through for non-prefixed tool name")
+	}
+}
+
+// FDR 0011: the `async` builtin is no longer blanket-auto-allowed. The hook
+// peeks at async's inner `tool`, resolves it, and forces a consent prompt for
+// ask / Unknown inner tools (naming the inner tool so the user consents to the
+// real work) while allowing always-allow inner tools straight through.
+func TestTryAsyncInnerDecision_AllowInnerTool(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryAsyncInnerDecision(
+		"mcp__moxy__async",
+		"mcp__moxy__",
+		map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryAsyncInnerDecision to write a decision for async")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v; raw: %s", err, buf.String())
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "allow" {
+		t.Fatalf("decision = %q, want allow (inner tool is always-allow)", got)
+	}
+}
+
+func TestTryAsyncInnerDecision_AskInnerTool(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-each")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryAsyncInnerDecision(
+		"mcp__moxy__async",
+		"mcp__moxy__",
+		map[string]any{"tool": "each-srv_echo", "args": map[string]any{}},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryAsyncInnerDecision to write a decision for async")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "ask" {
+		t.Fatalf("decision = %q, want ask (inner tool is each-use)", got)
+	}
+	// The consent must name the inner tool so the user consents to the work.
+	if !strings.Contains(out.HookSpecificOutput.PermissionDecisionReason, "each-srv.echo") {
+		t.Errorf("reason = %q, want it to name inner tool each-srv.echo",
+			out.HookSpecificOutput.PermissionDecisionReason)
+	}
+}
+
+// An Unknown inner tool (no perms-request) must force ask, not fall through —
+// once the job detaches there is no client to prompt, so consent must happen
+// now. This is the #356/#370 case (chix.develop-run et al).
+func TestTryAsyncInnerDecision_UnknownInnerToolForcesAsk(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryAsyncInnerDecision(
+		"mcp__moxy__async",
+		"mcp__moxy__",
+		map[string]any{"tool": "chix_develop-run", "args": map[string]any{}},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryAsyncInnerDecision to write a decision for async with unknown inner tool")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "ask" {
+		t.Fatalf("decision = %q, want ask (unknown inner tool must prompt)", got)
+	}
+	if !strings.Contains(out.HookSpecificOutput.PermissionDecisionReason, "chix.develop-run") {
+		t.Errorf("reason = %q, want it to name inner tool chix.develop-run",
+			out.HookSpecificOutput.PermissionDecisionReason)
+	}
+}
+
+// async-result / async-cancel are NOT async dispatch — they only read or
+// cancel this session's own handles, so they must not be intercepted here
+// (they stay in builtinAutoAllow).
+func TestTryAsyncInnerDecision_IgnoresNonAsyncBuiltins(t *testing.T) {
+	for _, tool := range []string{"async-result", "async-cancel", "status", "restart"} {
+		var buf bytes.Buffer
+		wrote := tryAsyncInnerDecision(
+			"mcp__moxy__"+tool,
+			"mcp__moxy__",
+			map[string]any{},
+			".",
+			&buf,
+		)
+		if wrote {
+			t.Errorf("%s: expected no interception (wrote=false), got wrote=true buf=%q", tool, buf.String())
+		}
 	}
 }
 
