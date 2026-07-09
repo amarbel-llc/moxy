@@ -36,9 +36,13 @@ if [ "$force_with_lease" = "true" ]; then
     # Explicit-value form: needed when there's no local remote-tracking ref
     # for $target (narrow fetch refspec, DWIM checkout, etc.) since the
     # boolean form has no local baseline to compare the remote against.
-    # $target must be the exact ref git will compare against here, unlike
-    # the main/master guard above where an approximate name is tolerable.
-    git_args+=("--force-with-lease=${target}:${lease_ref_sha}")
+    # lease_target is deliberately the same value as the guard's $target —
+    # both derive from the same remote_branch -> branch -> HEAD fallback —
+    # but they are logically distinct: the guard only needs an approximate
+    # name to catch main/master, while lease_target must be the exact ref
+    # git compares against for --force-with-lease=<ref>:<sha>.
+    lease_target="$target"
+    git_args+=("--force-with-lease=${lease_target}:${lease_ref_sha}")
   else
     git_args+=(--force-with-lease)
   fi
