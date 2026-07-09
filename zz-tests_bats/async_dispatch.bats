@@ -48,10 +48,12 @@ type = "object"
 EOF
   cat >"$moxin/asky.toml" <<'EOF'
 schema = 3
+result-type = "text"
+content-type = "text/plain"
 perms-request = "each-use"
 description = "ask-tier tool"
 command = "bash"
-args = ["-c", "true"]
+args = ["-c", "printf 'hello asky'"]
 
 [input]
 type = "object"
@@ -144,15 +146,25 @@ function async_dispatch_full_producer_contract { # @test
   assert_output --partial "hello async"
 }
 
-# Ask-tier tools cannot background: there is no client to prompt once
-# detached, so the allow-only preflight rejects synchronously and ringmaster
-# is never invoked.
-function async_rejects_ask_tier_tool { # @test
+# FDR 0011: ask-tier (and no-perms-request) tools ARE now backgroundable. The
+# server preflight admits them, trusting the PreToolUse hook to have forced an
+# at-dispatch consent while the client was attached (moxy's core model). This
+# harness drives raw MCP with no hook, so it exercises the relaxed preflight
+# directly: the ask tool backgrounds and ringmaster IS invoked. Only `deny`
+# and permit-async=false remain synchronous rejects (see below / next test).
+function async_admits_ask_tier_tool { # @test
   run_moxy_mcp "tools/call" \
     '{"name":"async","arguments":{"tool":"testmoxin.asky","args":{}}}'
   assert_success
-  assert_output --partial "resolve to allow"
-  [ ! -f "$RINGMASTER_RECORD" ]
+  assert_output --partial '\"status\":\"running\"'
+
+  # The stub prints a fixed id for every `start`, so the job id is
+  # testmoxin.echo-e2e00001 regardless of label; the label in the start line
+  # is what distinguishes this dispatch as the asky tool.
+  run wait_for_record "start --source moxy --label testmoxin.asky" 10
+  assert_success
+  run wait_for_record "done testmoxin.echo-e2e00001 --state succeeded" 10
+  assert_success
 }
 
 # permit-async = false forbids backgrounding even at allow tier (#317) —
