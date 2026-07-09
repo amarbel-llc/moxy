@@ -1,14 +1,22 @@
 ---
-status: proposed
+status: experimental
 date: 2026-07-09
-promotion-criteria: proposed → experimental once the bare-`async` hook-peek +
-  preflight relaxation lands with a bats repro (async{chix.develop-run}
-  backgrounds after one consent; deny / permit-async=false still reject
-  synchronously). experimental → testing once the hook and preflight are
-  confirmed to agree on the inner-tool classification under restart / reload
-  (the cross-process consistency risk this design carries). Batch parity (#404)
-  and the elicitation alternative (#403) are explicitly out of scope for
-  promotion of THIS record.
+promotion-criteria: proposed → experimental — DONE: the bare-`async` hook-peek
+  (tryAsyncInnerDecision) + preflight relaxation (HandleAsync admits ask /
+  Unknown, rejects deny) landed with Go unit tests covering allow / ask /
+  Unknown-forces-ask and the preserved deny / permit-async=false rejects. A
+  scripted end-to-end smoke was deliberately NOT added: the raw-MCP `claude -p`
+  harness runs no PreToolUse hook, so it cannot exercise the hook peek, and the
+  server-admit path is already integration-tested at the handler level plus
+  re-run against the built artifact by the merge gate's `nix flake check`.
+  experimental → testing requires the MANUAL interactive proof no script can
+  cover: in a real Claude session with the moxy plugin hook installed, an
+  `async{<no-perms-request tool>}` fires exactly one consent prompt naming the
+  inner tool, and on approval the job backgrounds — confirming the hook and the
+  preflight (two processes) agree, including after `restart` / `Proxy.Reload`
+  (the cross-process consistency risk this design carries; the hook's cached
+  resolver is not currently invalidated on reload). Batch parity (#404) and the
+  elicitation alternative (#403) are out of scope for promotion of THIS record.
 ---
 
 # Async dispatch-time consent for no-perm-request tools
