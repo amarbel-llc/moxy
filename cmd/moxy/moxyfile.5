@@ -35,6 +35,18 @@ Top-level boolean flags are replaced if present in the overlay.
 and
 .Va disable-servers
 entries are merged additively: each layer appends to the disabled set.
+.Pp
+A moxyfile may also pull in additional moxyfiles from arbitrary paths with
+the
+.Va include
+key (see
+.Sx TOP-LEVEL KEYS ) .
+Each included file is merged just before the file that includes it, so an
+include supplies defaults that the including file \(em and the rest of the
+hierarchy above it \(em can still override.
+This reaches configuration kept outside the
+.Ev HOME Ns \(-> Ns Pa CWD
+walk, e.g. a checkout mounted at a top-level path.
 .Sh TOP-LEVEL KEYS
 .Bl -tag -width "progressive-disclosure"
 .It Va ephemeral
@@ -82,6 +94,22 @@ A disabled server name still occupies the namespace, so a moxin with the
 same name remains shadowed (consistent with the normal collision rule).
 Entries are merged additively across the hierarchy, so a layer can add
 disables but not re-enable a server disabled by a higher-priority layer.
+Optional.
+Default: empty.
+.It Va include
+Array of paths to additional moxyfiles to merge.
+A leading
+.Pa ~/
+and
+.Ev $VAR
+references are expanded; a relative path is resolved against the directory
+of the including file.
+Each included file is merged just before the file that declares the include,
+in listed order, so includes act as defaults the including file can override.
+Included files may themselves declare
+.Va include ;
+an include cycle (a file that reaches itself, directly or transitively) is
+reported as an error rather than followed.
 Optional.
 Default: empty.
 .El

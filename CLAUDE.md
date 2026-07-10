@@ -60,6 +60,14 @@ merge logic. Comment-preserving edits use `amarbel-llc/tommy` (CST-based TOML
 library) in `internal/config/tommy.go`. The `config_tommy.go` file is generated
 by `//go:generate tommy generate` --- do not edit it directly.
 
+A moxyfile's top-level `include = ["/abs/path", ...]` key (#407) pulls in
+additional moxyfiles from arbitrary paths (relative paths resolve against the
+including file's dir; `~/` and `$VAR` are expanded). Each included file merges
+*just before* the file that includes it, so includes act as overridable
+defaults; the loader detects include cycles (`LoadHierarchy` in
+`internal/config/config.go`) and errors rather than looping. This reaches
+config kept outside the `$HOME`→`$CWD` walk.
+
 ### Proxy Flow
 
 On startup, moxy loads the merged config, spawns each non-ephemeral child server

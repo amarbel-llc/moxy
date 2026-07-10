@@ -239,12 +239,54 @@ func LoadHierarchy(home, dir string) (Hierarchy, error) {
 	var sources []LoadSource
 	merged := Config{}
 
+	// mergeIncludes recursively loads and merges the `include` files declared
+	// by cfg, in listed order, BEFORE the including file itself is merged — so
+	// an include acts as defaults the including file (and the rest of the
+	// $HOME→CWD walk) can still override. baseDir is the directory of the
+	// including file, against which relative include paths are resolved.
+	// visiting tracks the resolved absolute paths currently on the include
+	// stack so an include cycle (A→B→A, or a self-include) is reported instead
+	// of looping forever (#407).
+	var mergeIncludes func(cfg Config, baseDir string, visiting map[string]bool) error
+	mergeIncludes = func(cfg Config, baseDir string, visiting map[string]bool) error {
+		for _, raw := range cfg.Include {
+			incPath := resolveIncludePath(raw, baseDir)
+			if visiting[incPath] {
+				return fmt.Errorf("moxyfile include cycle detected at %q", incPath)
+			}
+			incCfg, err := Load(incPath)
+			if err != nil {
+				return fmt.Errorf("loading included moxyfile %q: %w", incPath, err)
+			}
+			_, found := fileExists(incPath)
+			visiting[incPath] = true
+			if err := mergeIncludes(incCfg, filepath.Dir(incPath), visiting); err != nil {
+				return err
+			}
+			delete(visiting, incPath)
+			sources = append(
+				sources,
+				LoadSource{Path: incPath, Found: found, File: incCfg},
+			)
+			if found {
+				merged = Merge(merged, incCfg)
+			}
+		}
+		return nil
+	}
+
 	loadAndMerge := func(path string) error {
 		cfg, err := Load(path)
 		if err != nil {
 			return err
 		}
 		_, found := fileExists(path)
+		if found {
+			visiting := map[string]bool{filepath.Clean(path): true}
+			if err := mergeIncludes(cfg, filepath.Dir(path), visiting); err != nil {
+				return err
+			}
+		}
 		sources = append(
 			sources,
 			LoadSource{Path: path, Found: found, File: cfg},
@@ -292,4 +334,21 @@ func fileExists(path string) (os.FileInfo, bool) {
 		return nil, false
 	}
 	return info, true
+}
+
+// resolveIncludePath expands $VAR and a leading ~/ in an `include` entry, then
+// resolves a still-relative path against baseDir (the directory of the file
+// that declared the include). The result is cleaned so cycle detection keys on
+// a canonical spelling.
+func resolveIncludePath(raw, baseDir string) string {
+	p := os.ExpandEnv(raw)
+	if strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			p = filepath.Join(home, p[2:])
+		}
+	}
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(baseDir, p)
+	}
+	return filepath.Clean(p)
 }

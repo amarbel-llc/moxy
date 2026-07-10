@@ -21,6 +21,7 @@ type Config struct {
 	BuiltinNative         *bool                      `toml:"builtin-native"`
 	DisableMoxins         []string                   `toml:"disable-moxins,omitempty"`
 	DisableServers        []string                   `toml:"disable-servers,omitempty"`
+	Include               []string                   `toml:"include,omitempty"`
 	Credentials           *credentials.CommandConfig `toml:"credentials"`
 	Servers               []ServerConfig             `toml:"servers"`
 }
