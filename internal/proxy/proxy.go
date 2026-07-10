@@ -1722,6 +1722,22 @@ func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 		p.ForwardNotification(msg)
 	})
 
+	// Probe tools/list before swapping the new child in, so "restarted
+	// successfully" actually means the child is serving. A child can complete
+	// `initialize` and then immediately drop its stdio pipe; without this probe
+	// restart reported success and the closed-pipe error ("write |1: file
+	// already closed") only surfaced later on the first real tools/list (#405).
+	// On probe failure, tear down the dead new client and leave the old child
+	// in place (still serving), mirroring the connectFunc-failure branch above.
+	if result.Capabilities.Tools != nil {
+		if _, probeErr := client.Call(ctx, protocol.MethodToolsList, nil); probeErr != nil {
+			_ = client.Close()
+			err := fmt.Errorf("listing tools from %s after restart: %w", serverName, probeErr)
+			p.markFailed(serverName, err)
+			return err
+		}
+	}
+
 	// Atomically swap old → new under one lock: close+remove the old child,
 	// drop any failed entry, add the new child. A concurrent tool call sees
 	// either the old or the new srv, never neither.
