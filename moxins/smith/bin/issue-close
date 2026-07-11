@@ -17,4 +17,4 @@ if [ -n "$comment" ]; then
   fj_cmd+=("--with-msg=$comment")
 fi
 fj_cmd+=("$ref")
-"${fj_cmd[@]}"
+fj_run "$repo" "$host"

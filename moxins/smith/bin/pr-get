@@ -18,4 +18,4 @@ esac
 
 ref=$(qualify_ref "$number" "$repo")
 fj_base "$host"
-"${fj_cmd[@]}" pr view "$ref" "$view"
+fj_run "$repo" "$host" pr view "$ref" "$view"

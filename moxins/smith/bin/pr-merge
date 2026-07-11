@@ -29,4 +29,4 @@ if [ -n "$message" ]; then
   fj_cmd+=("--message=$message")
 fi
 fj_cmd+=("$ref")
-"${fj_cmd[@]}"
+fj_run "$repo" "$host"

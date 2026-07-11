@@ -17,4 +17,4 @@ if [ -n "$repo" ]; then
   fj_cmd+=(-r "$repo")
 fi
 fj_cmd+=("$title")
-"${fj_cmd[@]}"
+fj_run "$repo" "$host"

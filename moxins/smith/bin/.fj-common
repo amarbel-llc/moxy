@@ -36,6 +36,40 @@ fj_base() {
   fi
 }
 
+# Lazily create (once per script run) a scratch directory outside any git
+# repo, and clean it up on exit. Sets the global $_fj_scratch rather than
+# printing the path via command substitution --- a `$(...)` subshell would
+# run the `trap ... EXIT` below on its OWN exit (i.e. immediately after
+# printing), deleting the directory before the caller ever cds into it.
+_fj_scratch=""
+_fj_scratch_dir() {
+  if [ -z "$_fj_scratch" ]; then
+    _fj_scratch=$(mktemp -d)
+    trap 'rm -rf "$_fj_scratch"' EXIT
+  fi
+}
+
+# fj_run <repo> <host> [extra fj_cmd args...]
+# Execs fj_cmd (plus any trailing args), redirecting fj's cwd to a scratch
+# dir when repo AND host are both already resolved explicitly --- fj's
+# RepoInfo::get_current (repo.rs) unconditionally inspects the cwd's git
+# remote via git2::Repository::discover(".") and crashes ("repo url too
+# short") on remotes with a single path segment (e.g. this forge's
+# owner-less "max-canonical" clone URLs), even when the remote is never
+# actually needed because repo+host were given explicitly
+# (amarbel-llc/moxy#398). When either is omitted, the caller is relying on
+# cwd auto-resolution, so run from the real cwd unchanged.
+fj_run() {
+  local repo="$1" host="$2"
+  shift 2
+  if [ -n "$repo" ] && [ -n "$host" ]; then
+    _fj_scratch_dir
+    (cd "$_fj_scratch" && "${fj_cmd[@]}" "$@")
+  else
+    "${fj_cmd[@]}" "$@"
+  fi
+}
+
 # run_fj_search <issue|pr> <query> <state> <labels> <creator> <assignee> <repo> <host>
 # `fj issue search` and `fj pr search` share their whole flag surface; this
 # threads the common filter args for both issue-list and pr-list.
@@ -64,5 +98,5 @@ run_fj_search() {
   if [ -n "$query" ]; then
     fj_cmd+=("$query")
   fi
-  "${fj_cmd[@]}"
+  fj_run "$repo" "$host"
 }

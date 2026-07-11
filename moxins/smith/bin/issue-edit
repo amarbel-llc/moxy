@@ -17,8 +17,8 @@ fi
 ref=$(qualify_ref "$number" "$repo")
 fj_base "$host"
 if [ -n "$title" ]; then
-  "${fj_cmd[@]}" issue edit "$ref" title "$title"
+  fj_run "$repo" "$host" issue edit "$ref" title "$title"
 fi
 if [ -n "$body" ]; then
-  "${fj_cmd[@]}" issue edit "$ref" body "$body"
+  fj_run "$repo" "$host" issue edit "$ref" body "$body"
 fi

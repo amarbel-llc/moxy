@@ -12,4 +12,4 @@ if [ -n "$name" ]; then
   validate_repo "$name"
   fj_cmd+=("$name")
 fi
-"${fj_cmd[@]}"
+fj_run "$name" "$host"

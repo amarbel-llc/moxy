@@ -34,4 +34,4 @@ else
   # moxy tools run headless.
   fj_cmd+=(--body "$body" "$title")
 fi
-"${fj_cmd[@]}"
+fj_run "$repo" "$host"

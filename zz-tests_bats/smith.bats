@@ -11,6 +11,10 @@
 #     an editor or an interactive template picker (moxy tools run headless)
 #   - clap optional-value flags passed in = form (--with-msg=, --message=)
 #     so the ref positional isn't swallowed as the flag's value
+#   - fj is invoked from a scratch cwd (outside any git repo) when repo AND
+#     host are both given explicitly, working around a forgejo-cli crash on
+#     owner-less git remotes (#398); the real cwd is preserved when either
+#     is omitted, since that means the caller relies on cwd auto-resolution
 
 load 'common'
 
@@ -21,11 +25,13 @@ setup() {
 
   mkdir -p "$HOME/bin"
   # fj stub: append each invocation's argv (one arg per line) plus a `---`
-  # separator to $HOME/fj-args. Note: no shebang — the nix sandbox lacks
-  # /usr/bin/env.
+  # separator to $HOME/fj-args, and its cwd to $HOME/fj-pwd (one line per
+  # invocation), so tests can assert #398's cwd-redirect fix without a real
+  # fj binary. Note: no shebang — the nix sandbox lacks /usr/bin/env.
   cat >"$HOME/bin/fj" <<'EOF'
 printf '%s\n' "$@" >> "$HOME/fj-args"
 printf -- '---\n' >> "$HOME/fj-args"
+printf '%s\n' "$PWD" >> "$HOME/fj-pwd"
 echo "fj-stub-ok"
 EOF
   chmod +x "$HOME/bin/fj"
@@ -155,6 +161,41 @@ function pr_get_rejects_unknown_view { # @test
   run "$BIN/pr-get" 4 "bogus" "" ""
   assert_failure 2
   assert_output --partial "view must be one of"
+}
+
+# When both repo and host are given, fj_run redirects fj's cwd to a scratch
+# dir outside any git repo (#398) since cwd-based resolution is unneeded.
+function redirects_cwd_when_repo_and_host_given { # @test
+  local orig_pwd="$PWD"
+  run "$BIN/issue-comment" 7 "hello" "owner/repo" "codeberg.org"
+  assert_success
+
+  run cat "$HOME/fj-pwd"
+  assert_success
+  [ "$output" != "$orig_pwd" ] || fail "expected fj to run outside the test cwd, got: $output"
+}
+
+# When host is omitted, the caller relies on cwd auto-resolution, so fj_run
+# must leave the real cwd alone.
+function no_redirect_when_host_omitted { # @test
+  local orig_pwd="$PWD"
+  run "$BIN/issue-comment" 7 "hello" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-pwd"
+  assert_success
+  assert_output "$orig_pwd"
+}
+
+# When repo is omitted, same as above: fj_run leaves the real cwd alone.
+function no_redirect_when_repo_omitted { # @test
+  local orig_pwd="$PWD"
+  run "$BIN/issue-comment" 7 "hello" "" "codeberg.org"
+  assert_success
+
+  run cat "$HOME/fj-pwd"
+  assert_success
+  assert_output "$orig_pwd"
 }
 
 # End-to-end through moxy: the smith.issue-list tool dispatches to the

@@ -10,8 +10,8 @@ host="${4:-}"
 
 ref=$(qualify_ref "$number" "$repo")
 fj_base "$host"
-"${fj_cmd[@]}" issue view "$ref" body
+fj_run "$repo" "$host" issue view "$ref" body
 if [ "$comments" = "true" ]; then
   echo
-  "${fj_cmd[@]}" issue view "$ref" comments
+  fj_run "$repo" "$host" issue view "$ref" comments
 fi

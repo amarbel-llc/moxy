@@ -10,4 +10,4 @@ host="${4:-}"
 
 ref=$(qualify_ref "$number" "$repo")
 fj_base "$host"
-"${fj_cmd[@]}" pr comment "$ref" "$body"
+fj_run "$repo" "$host" pr comment "$ref" "$body"
