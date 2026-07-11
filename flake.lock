@@ -168,11 +168,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783516935,
-        "narHash": "sha256-Yh4QUVml7o8F+CQo/lfEowkH36fg6Jx5zvHpCUAMNC8=",
+        "lastModified": 1783792766,
+        "narHash": "sha256-tYNrvi9nBZpfCt2Fi6AC6GFTBzyQhT143YvhAVBakZI=",
         "owner": "amarbel-llc",
         "repo": "clown",
-        "rev": "61245cab3c061b40f151564e5a6e828454c18d60",
+        "rev": "85872fa7e55f81318588cc8a325952c8c1f064d2",
         "type": "github"
       },
       "original": {
@@ -609,11 +609,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783492272,
-        "narHash": "sha256-4APwmEAAxW6MQAJgblXemdd0U5TkUa0w77/LpsPP8Po=",
+        "lastModified": 1783752748,
+        "narHash": "sha256-4+COAESx5tOc3gqKV2gjXUtviRohjO4RL3cPBACIVEw=",
         "owner": "numtide",
         "repo": "llm-agents.nix",
-        "rev": "e0319c8c10dffb2dc564417ce49baba49b149b33",
+        "rev": "a9de839fad56718bafd75a6267d2b5a6fc45d8fe",
         "type": "github"
       },
       "original": {
@@ -644,11 +644,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783518536,
-        "narHash": "sha256-RuEHvT/ZaDYej3P1xS6gOJ9WflP0DztEgY5w99Ajo9E=",
+        "lastModified": 1783788851,
+        "narHash": "sha256-dJLCS8aWvclH+Kpl/Lm9cNMviP/ON61anIMKT5MGFYc=",
         "owner": "amarbel-llc",
         "repo": "madder",
-        "rev": "7f7d27f0a1ebefbb8d925a6913d9d4de6c541a2c",
+        "rev": "93c4f68bcc21e25fbff1a7a58b868e2c66a7b01b",
         "type": "github"
       },
       "original": {
@@ -659,11 +659,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1783279667,
-        "narHash": "sha256-/NAkDSsve+GNM0Bt6tleJdCGfsTlK89nPjkVOzZMo0s=",
+        "lastModified": 1783475452,
+        "narHash": "sha256-3S92fSuv32mjJz2Qb2F4405c21J55F4NIphz5K6hxco=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "f205b5574fd0cb7da5b702a2da51507b7f4fdd1b",
+        "rev": "05988b07fb05cbcb50be6bce197b4b5f75b5e61b",
         "type": "github"
       },
       "original": {
@@ -981,11 +981,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783426623,
-        "narHash": "sha256-PAp2UjnxM0mSL1WepFQW5XtCyEV0lzRuPKNu/EnEqBs=",
+        "lastModified": 1783593443,
+        "narHash": "sha256-MWR2jbq005VZ/CFk2v68Ks4svLu6S+Z0DfZG0c0c4oI=",
         "ref": "refs/heads/master",
-        "rev": "39bf0078d2903c97f4a1fbe1f6a52d6f187ff2f0",
-        "revCount": 7,
+        "rev": "01649e68610b542f458da5d354e27df273a4fc9b",
+        "revCount": 10,
         "type": "git",
         "url": "https://code.linenisgreat.com/ringmaster.git"
       },
