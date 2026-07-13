@@ -1609,6 +1609,12 @@ func (p *Proxy) Reload(ctx context.Context) error {
 		return fmt.Errorf("bootstrapper not configured (cannot reload)")
 	}
 
+	// Reload re-spawns EVERY persistent child via exec.CommandContext. On the
+	// HTTP transport ctx is the per-request context (r.Context()), so completing
+	// the reload response would SIGKILL all children at once. Detach so the new
+	// child set outlives the triggering request (#408).
+	ctx = context.WithoutCancel(ctx)
+
 	res, err := p.bootstrapper.Bootstrap(ctx)
 	if err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
@@ -1684,6 +1690,15 @@ func (p *Proxy) getToolsForServer(ctx context.Context, serverName string) ([]pro
 
 func (p *Proxy) restartServer(ctx context.Context, serverName string) error {
 	debugLog("restartServer %s", serverName)
+
+	// A persistent child is spawned via exec.CommandContext, which SIGKILLs the
+	// process when its context is cancelled. On the HTTP transport the caller's
+	// ctx is the per-request context (r.Context()), cancelled by net/http when
+	// the restart response completes — which would kill the freshly-respawned
+	// child moments after this returns. Detach so a persistent child's lifetime
+	// is tied to the moxy process, not the triggering request (#408). Retains
+	// context values; ephemeral/moxin restart paths below are unaffected.
+	ctx = context.WithoutCancel(ctx)
 
 	// Moxin (native) servers: live in p.children but not in p.configs.
 	// Detect by ChildEntry.Client type and re-discover via MoxinReloader.
