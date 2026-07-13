@@ -3,6 +3,7 @@ package mcpclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -39,6 +40,13 @@ type Client struct {
 	pid       int
 	waitOnce  sync.Once
 	waitErr   error
+
+	// readErr records the error that terminated readLoop (io.EOF for a clean
+	// stdout close, i.e. child exit; a non-EOF error for a framing/pipe fault
+	// where the child may still be running). Written once in readLoop before
+	// close(c.done); safe to read after observing c.done closed, since the
+	// channel close synchronizes-after the write.
+	readErr error
 }
 
 func (c *Client) SetOnNotification(fn func(*jsonrpc.Message)) {
@@ -141,6 +149,10 @@ func (c *Client) readLoop() {
 	for {
 		msg, err := c.transport.Read()
 		if err != nil {
+			// Record why the connection died before close(c.done) unblocks
+			// any pending Call, so the child-gone error can distinguish a
+			// clean exit (EOF) from a framing/pipe fault (child may live).
+			c.readErr = err
 			if err == io.EOF {
 				logLifecycle("readLoop EOF %s (child exited)", c.name)
 			} else {
@@ -246,7 +258,7 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 		c.mu.Unlock()
 		logLifecycle("call CHILDGONE %s method=%s id=%s dur=%s",
 			c.name, method, idStr, time.Since(start))
-		return nil, fmt.Errorf("child process %s exited unexpectedly", c.name)
+		return nil, c.childGoneError()
 	case resp := <-ch:
 		if resp.Error != nil {
 			logLifecycle("call ERR %s method=%s id=%s dur=%s err=%v",
@@ -257,6 +269,25 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 			c.name, method, idStr, time.Since(start))
 		return resp.Result, nil
 	}
+}
+
+// childGoneError builds the error a Call returns when it finds c.done closed.
+// It reflects why readLoop terminated so the message is self-diagnosing: a
+// clean stdout EOF is a real child exit, while a non-EOF read error is a
+// framing/pipe fault where the child process may still be running. The numeric
+// exit code/signal, when the child is reaped, stays in lifecycle.log's
+// "exit ... code=... signal=..." line. See #275.
+func (c *Client) childGoneError() error {
+	if c.readErr == nil || errors.Is(c.readErr, io.EOF) {
+		return fmt.Errorf(
+			"child process %s exited (EOF on stdout; see lifecycle.log for exit code/signal)",
+			c.name,
+		)
+	}
+	return fmt.Errorf(
+		"child process %s stdout read error: %v — process may still be running (see lifecycle.log)",
+		c.name, c.readErr,
+	)
 }
 
 func (c *Client) Notify(method string, params any) error {
