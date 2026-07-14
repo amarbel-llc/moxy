@@ -956,6 +956,7 @@
         smith-moxin = mkMoxin "smith" [
           pkgs.bash
           pkgs.coreutils
+          pkgs.gawk
           forgejo-cli.packages.${system}.default
         ] { };
 
