@@ -275,6 +275,27 @@ instead of stdio.
 The
 .Cm serve-http Fl -listen
 flag is the first-class equivalent for the HTTP command.
+.It Ev MOXY_CHILD_MAX_MESSAGE
+Maximum size of a single newline-delimited JSON-RPC message
+.Nm
+will buffer from a child server's stdout before rejecting the line as an
+oversize fault.
+Accepts a raw byte count
+.Pq e.g. Li 67108864
+or a value with a unit suffix
+.Pq e.g. Li 64MB , Li 256MiB , Li 1G .
+Defaults to 64 MiB.
+A child that emits a larger single line has that one message refused with a
+self-diagnosing error naming this variable; the child keeps running and later
+calls still work.
+An unparseable or non-positive value falls back to the default.
+.It Ev MOXY_CHILD_SPILL_OVERSIZE
+When truthy
+.Pq Li 1 , Li true , Li yes , No or Li on ,
+spill an oversize child stdout line to a temporary file under
+.Pa $TMPDIR/moxy/oversize/
+while draining it, for post-mortem inspection or manual recovery.
+Off by default.
 .El
 .Sh FILES
 .Bl -tag -width "./.madder/local/share/blob_stores/default/"

@@ -285,7 +285,14 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
 
 - `internal/config` -- moxyfile parsing, hierarchy loading, merge semantics
 - `internal/mcpclient` -- JSON-RPC client that spawns and manages child
-  processes
+  processes. `stdioreader.go` is moxy's own `transport.Transport` for stdio
+  children (replacing go-mcp's fixed-cap scanner): it bounds each child's
+  newline-delimited stdout line at `MOXY_CHILD_MAX_MESSAGE` (default 64 MiB,
+  tunable; `parseSize` accepts `64MB`/`256MiB`/raw bytes), and on an oversize
+  line drains to the next newline to resync + report the true byte count,
+  returning a `*LineTooLongError` that names the knob instead of wedging the
+  child (#275). Opt-in `MOXY_CHILD_SPILL_OVERSIZE` spills the offending line to
+  `$TMPDIR/moxy/oversize/`.
 - `internal/proxy` -- aggregates children, implements `ToolProviderV1`,
   `ResourceProviderV1`, and `PromptProviderV1`
 - `internal/status` -- unified status display and validation of moxyfile hierarchy

@@ -74,9 +74,18 @@ func SpawnAndInitialize(ctx context.Context, name, command string, args []string
 	logLifecycle("spawn OK %s pid=%d cmd=%s", name, cmd.Process.Pid, command)
 
 	c := &Client{
-		name:      name,
-		cmd:       cmd,
-		transport: transport.NewStdioWithCloser(stdout, stdin, stdin),
+		name: name,
+		cmd:  cmd,
+		transport: newStdioReader(stdout, stdin, stdin, stdioReaderOpts{
+			server:  name,
+			ceiling: childMaxMessageBytes(),
+			// Drain up to one extra ceiling past the limit hunting for the
+			// terminating newline: enough to report the true size and resync
+			// the stream for a merely-large line, while still capping a child
+			// that streams with no newline at all (bounded memory either way).
+			drain: childMaxMessageBytes(),
+			spill: childSpillOversize(),
+		}),
 		pending:   make(map[string]chan *jsonrpc.Message),
 		done:      make(chan struct{}),
 		startedAt: time.Now(),
@@ -153,9 +162,16 @@ func (c *Client) readLoop() {
 			// any pending Call, so the child-gone error can distinguish a
 			// clean exit (EOF) from a framing/pipe fault (child may live).
 			c.readErr = err
-			if err == io.EOF {
+			var tooLong *LineTooLongError
+			switch {
+			case errors.Is(err, io.EOF):
 				logLifecycle("readLoop EOF %s (child exited)", c.name)
-			} else {
+			case errors.As(err, &tooLong):
+				logLifecycle(
+					"readLoop OVERSIZE %s bytes=%d ceiling=%d newline=%v spill=%q",
+					c.name, tooLong.Bytes, tooLong.Ceiling, tooLong.NewlineFound, tooLong.SpillPath,
+				)
+			default:
 				logLifecycle("readLoop ERROR %s: %v", c.name, err)
 			}
 			// Reap the child so we can log exit code/signal. Run in a
@@ -278,16 +294,26 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 // exit code/signal, when the child is reaped, stays in lifecycle.log's
 // "exit ... code=... signal=..." line. See #275.
 func (c *Client) childGoneError() error {
-	if c.readErr == nil || errors.Is(c.readErr, io.EOF) {
+	var tooLong *LineTooLongError
+	switch {
+	case c.readErr == nil || errors.Is(c.readErr, io.EOF):
 		return fmt.Errorf(
 			"child process %s exited (EOF on stdout; see lifecycle.log for exit code/signal)",
 			c.name,
 		)
+	case errors.As(c.readErr, &tooLong):
+		// The child is still alive — only its oversize message was refused.
+		// Name the knob so the fix is self-evident from the error alone.
+		return fmt.Errorf(
+			"child process %s: %v (child still running; raise MOXY_CHILD_MAX_MESSAGE or restart the child)",
+			c.name, c.readErr,
+		)
+	default:
+		return fmt.Errorf(
+			"child process %s stdout read error: %v — process may still be running (see lifecycle.log)",
+			c.name, c.readErr,
+		)
 	}
-	return fmt.Errorf(
-		"child process %s stdout read error: %v — process may still be running (see lifecycle.log)",
-		c.name, c.readErr,
-	)
 }
 
 func (c *Client) Notify(method string, params any) error {
