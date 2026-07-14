@@ -14,17 +14,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783992495,
-        "narHash": "sha256-Ur6JvfN6m3GBFpZ7QXuN0tClhij8pi0xvD9iwDzyg+w=",
-        "owner": "amarbel-llc",
-        "repo": "bats",
-        "rev": "cd0e74302b4535fccf3be6c3a37493d487d4e1da",
-        "type": "github"
+        "lastModified": 1784038869,
+        "narHash": "sha256-tXWylXtCnosOyuwFvRKlDOUql9GBX6CkD056B2lGc64=",
+        "ref": "refs/heads/master",
+        "rev": "5a5ed04052e2525080e474a3d2dabbea4367d2af",
+        "revCount": 2072,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/bats.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "bats",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/bats.git"
       }
     },
     "bun2nix": {
@@ -85,17 +85,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783998863,
-        "narHash": "sha256-FzlauS4kj8t89sUL7sEHOGopADPVZwqNQv/lyy/UbBs=",
-        "owner": "amarbel-llc",
-        "repo": "clown",
-        "rev": "1cb8383ef3006e1179952e14c7031d8ec2dc127e",
-        "type": "github"
+        "lastModified": 1784040094,
+        "narHash": "sha256-qCXtCk1YXy4lx/09/dM3ZBh2b2MGfwGd2BBuY1sJX6I=",
+        "ref": "refs/heads/master",
+        "rev": "9324c6a11c4978dd2c22fb4d2a71b4619dc163c7",
+        "revCount": 609,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/clown.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "clown",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/clown.git"
       }
     },
     "conformist": {
@@ -111,17 +111,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783949730,
-        "narHash": "sha256-ilEJ9Wp+yrc1/3CK7NRQDdmJ0PTB+xJoS8Grslo7itg=",
-        "owner": "amarbel-llc",
-        "repo": "conformist",
-        "rev": "1985c0c5fd4197ae944526ea9700caed259e1fe8",
-        "type": "github"
+        "lastModified": 1784038233,
+        "narHash": "sha256-S/zksNggY2sHwNWQUJ7zqATCXnWSClhDt4LYdsPv+lg=",
+        "ref": "refs/heads/master",
+        "rev": "ffaed59c883667056c2f5fa9a3f0d3077e89347d",
+        "revCount": 154,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/conformist.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "conformist",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/conformist.git"
       }
     },
     "crane": {
@@ -163,17 +163,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783993200,
-        "narHash": "sha256-bHyxOB3b7Yj+MwLzjQrdHoFZbGKvD+wG0cu8Oc0uPTs=",
-        "owner": "amarbel-llc",
-        "repo": "crap",
-        "rev": "26cb96f9dcdb9509dea124cb27cfb59ba816a969",
-        "type": "github"
+        "lastModified": 1784039967,
+        "narHash": "sha256-ZXWNJX6vhtKdcgW977noNVg9JnUSH6SxXrFStOHdXJU=",
+        "ref": "refs/heads/master",
+        "rev": "7a692ebd93fd5d36e11d703a86f98f41970d23f8",
+        "revCount": 170,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/crap.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "crap",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/crap.git"
       }
     },
     "doppelgang": {
@@ -196,17 +196,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783950862,
-        "narHash": "sha256-fsiElpufWfGHwmr2EXrvr2KAVAv95Tk3FGtgr5v9+QU=",
-        "owner": "amarbel-llc",
-        "repo": "doppelgang",
-        "rev": "6a807f46a4ef4b138962049bac29737055f0f397",
-        "type": "github"
+        "lastModified": 1784039462,
+        "narHash": "sha256-/K/rvqV22GH4NrWHNh9uqn363fndx/aUM198f1HbbQQ=",
+        "ref": "refs/heads/master",
+        "rev": "84565f1bea5e1c713f2373df66f19cb84bcf8cd3",
+        "revCount": 68,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/doppelgang.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "doppelgang",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/doppelgang.git"
       }
     },
     "flake-parts": {
@@ -267,15 +267,15 @@
       "locked": {
         "lastModified": 1782656014,
         "narHash": "sha256-/JTvDNbl9p6rK7XfFib9cbYJB6a3Td0nLW33tGOZMmI=",
-        "owner": "amarbel-llc",
-        "repo": "gomod2nix",
+        "ref": "refs/heads/master",
         "rev": "f2530333078779ff6565f2312ad891e82b233076",
-        "type": "github"
+        "revCount": 372,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/gomod2nix.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "gomod2nix",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/gomod2nix.git"
       }
     },
     "hyphence": {
@@ -310,17 +310,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783993959,
-        "narHash": "sha256-imcKusNy9mR7VPQFc52pUiq0mXiJm3bwKggTXv1TmSI=",
-        "owner": "amarbel-llc",
-        "repo": "hyphence",
-        "rev": "99ddf26980c8bc23e64b30cd25e61bf3a0b604ca",
-        "type": "github"
+        "lastModified": 1784040900,
+        "narHash": "sha256-vrRY3T7Z0J/+bfoqcBgRKAQ8A9BReM+Gmwdp03P/iys=",
+        "ref": "refs/heads/master",
+        "rev": "c0885d44799faafe7f79f5cf5a863d77be0d5184",
+        "revCount": 21,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/hyphence.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "hyphence",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/hyphence.git"
       }
     },
     "igloo": {
@@ -339,15 +339,15 @@
       "locked": {
         "lastModified": 1783896868,
         "narHash": "sha256-pN9WzpM9sBz6DmQIlALLhAKIC9yrbY9rLa+qrYr8Ph8=",
-        "owner": "amarbel-llc",
-        "repo": "igloo",
+        "ref": "refs/heads/master",
         "rev": "e04bba9f87552e4161ebec00c528361316d36d3c",
-        "type": "github"
+        "revCount": 73,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/igloo.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "igloo",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/igloo.git"
       }
     },
     "jcardsim": {
@@ -391,11 +391,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783998605,
-        "narHash": "sha256-FZa9vA21dkvLerk20uOt5Gn87VND4GBwXoPBk8JSobw=",
+        "lastModified": 1784012825,
+        "narHash": "sha256-lbdkOH57StVOFMEpFASzEmi+GlK3iX6Uu7Y2zGUgVFE=",
         "owner": "numtide",
         "repo": "llm-agents.nix",
-        "rev": "9e2dbe1e09a619318696da505dd183c4d36f3048",
+        "rev": "5c73869318afcf796a7a465b4b5e31b27f0819d4",
         "type": "github"
       },
       "original": {
@@ -434,17 +434,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783994284,
-        "narHash": "sha256-QA5y0YkD00Ls5ww+e5ZGrz/o1+nv0HdjXhNmBwTBbMw=",
-        "owner": "amarbel-llc",
-        "repo": "madder",
-        "rev": "a00d07019f6fcc831979d61eedc631712041ebc1",
-        "type": "github"
+        "lastModified": 1784041409,
+        "narHash": "sha256-KRLgTPGbWywli5XOtt7pzzinJA8cJwcV7UpRXd/FqgY=",
+        "ref": "refs/heads/master",
+        "rev": "531a6576749516a3c253d892500de1612618bed8",
+        "revCount": 742,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/madder.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "madder",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/madder.git"
       }
     },
     "nixpkgs": {
@@ -590,17 +590,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783993634,
-        "narHash": "sha256-dDbb1DFACgcdz1nKES+8xxcb6CtZZQW3lUX6lNZj45M=",
-        "owner": "amarbel-llc",
-        "repo": "piggy",
-        "rev": "8bebeaa66dcaf760bd8f8ab3c119da3b1f8a4f61",
-        "type": "github"
+        "lastModified": 1784040481,
+        "narHash": "sha256-cgpJj1aErS5sz3rYy4pfDIdENKZpHZo4x7qPoEbzRvU=",
+        "ref": "refs/heads/master",
+        "rev": "b762fd1979ff27dd0f173ac19bbeb5e54e747be9",
+        "revCount": 1033,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/piggy.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "piggy",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/piggy.git"
       }
     },
     "pivapplet": {
@@ -636,17 +636,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783992553,
-        "narHash": "sha256-nugXy3GOx6SVDokiQFimxeoTXZ+wbYz54Twzi4Pmmkk=",
-        "owner": "amarbel-llc",
-        "repo": "purse-first",
-        "rev": "f3ad3d58f15005c5caf0e32e85a1d48655ed25d6",
-        "type": "github"
+        "lastModified": 1784038924,
+        "narHash": "sha256-bTvaCStMprg1aoCVTBjRP2mWrkPOxtAlSPjazZMqUVU=",
+        "ref": "refs/heads/master",
+        "rev": "7e15e981e7494ce0286a7cb279bbda083f726b19",
+        "revCount": 1002,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/purse-first.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "purse-first",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/purse-first.git"
       }
     },
     "ringmaster": {
@@ -772,15 +772,15 @@
       "locked": {
         "lastModified": 1783517057,
         "narHash": "sha256-Sjkt4kFYqwTGK7slrM5PzIKF3fq8yzNZm14jVZrARbI=",
-        "owner": "amarbel-llc",
-        "repo": "tap",
+        "ref": "refs/heads/master",
         "rev": "4531c9f064d408f68963a5dc5198edc94e23c478",
-        "type": "github"
+        "revCount": 211,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/tap.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "tap",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/tap.git"
       }
     },
     "tommy": {
@@ -806,17 +806,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1783992999,
-        "narHash": "sha256-ycUAjU/j+YrDArjTIiVJ0wIkb58ez1/T3hgqc/a8Sew=",
-        "owner": "amarbel-llc",
-        "repo": "tommy",
-        "rev": "d9d65588e4af3e095d906cf4abf4fd4eff328dbb",
-        "type": "github"
+        "lastModified": 1784039647,
+        "narHash": "sha256-3v07/dtlga7P27mOANaL8P+MlYMKKWIAqhBMGmpseHk=",
+        "ref": "refs/heads/master",
+        "rev": "65f9ceec75d7c97798b613cc51cd5afec2ae4d83",
+        "revCount": 321,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/tommy.git"
       },
       "original": {
-        "owner": "amarbel-llc",
-        "repo": "tommy",
-        "type": "github"
+        "type": "git",
+        "url": "https://code.linenisgreat.com/tommy.git"
       }
     },
     "treefmt-nix": {
