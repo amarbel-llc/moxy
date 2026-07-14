@@ -214,7 +214,9 @@ moxins/<name>/
 The `_moxin.toml` manifest declares server identity (`schema`, `name`,
 `description`). Each tool file uses a flat structure (`[input]` not
 `[tools.input]`). Tools may declare `perms-request` to control permission
-behavior: `always-allow`, `each-use`, or `delegate-to-client` (default).
+behavior: `always-allow`, `each-use`, `delegate-to-client` (default), or
+`dynamic` (backed by a `[dynamic-perms]` section whose `command` exits 0 =
+allow, 1 = ask, 2 = deny).
 
 Result shaping (see moxin(7) RESULT SHAPING for the full system):
 `result-type` picks envelope ownership (`mcp-result` default = script emits
