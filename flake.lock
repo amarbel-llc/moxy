@@ -230,6 +230,29 @@
         "type": "github"
       }
     },
+    "forgejo-cli": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-master"
+        ],
+        "utils": [
+          "utils"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783990689,
+        "narHash": "sha256-499SPd4ks/IBgxLEx2pyo6R3nGhPPuyLF8z5k8NGMpM=",
+        "ref": "refs/heads/master",
+        "rev": "26e80e71c3196b0ce289c39843eaddc9097ce42b",
+        "revCount": 767,
+        "type": "git",
+        "url": "https://code.linenisgreat.com/forgejo-cli.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://code.linenisgreat.com/forgejo-cli.git"
+      }
+    },
     "gomod2nix": {
       "inputs": {
         "flake-utils": [
@@ -664,6 +687,7 @@
         "bats": "bats",
         "clown": "clown",
         "conformist": "conformist",
+        "forgejo-cli": "forgejo-cli",
         "igloo": "igloo",
         "madder": "madder",
         "nixpkgs-gomarkdoc-pin": "nixpkgs-gomarkdoc-pin",

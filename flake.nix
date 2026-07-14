@@ -79,6 +79,17 @@
       inputs.utils.follows = "utils";
       inputs.bats.follows = "bats";
     };
+
+    # linenisgreat fork of forgejo-cli (fj), carrying the FDR-0016
+    # vanity-discovery patches for owner-less vanity remotes
+    # (code.linenisgreat.com). Closed outputs: { self, nixpkgs, utils } only —
+    # do not add follows for inputs it doesn't declare.
+    forgejo-cli = {
+      url = "git+https://code.linenisgreat.com/forgejo-cli.git";
+      inputs.nixpkgs.follows = "nixpkgs-master";
+      inputs.utils.follows = "utils";
+    };
+
     madder.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
     igloo.inputs.treefmt-nix.follows = "bats/treefmt-nix";
@@ -107,6 +118,7 @@
       madder,
       conformist,
       clown,
+      forgejo-cli,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -945,7 +957,7 @@
         smith-moxin = mkMoxin "smith" [
           pkgs.bash
           pkgs.coreutils
-          pkgs.forgejo-cli
+          forgejo-cli.packages.${system}.default
         ] { pathMode = "suffix"; };
 
         # gws moxins excluded from the build closure for now (#391) — see the
