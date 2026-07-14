@@ -11,14 +11,14 @@
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     purse-first = {
-      url = "git+https://code.linenisgreat.com/purse-first.git";
+      url = "git+https://github.com/amarbel-llc/purse-first.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     tommy = {
-      url = "git+https://code.linenisgreat.com/tommy.git";
+      url = "git+https://github.com/amarbel-llc/tommy.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -42,7 +42,7 @@
     # auditable revision; users can override with
     # `nix build .#moxy --override-input madder github:amarbel-llc/madder/<rev>`.
     madder = {
-      url = "git+https://code.linenisgreat.com/madder.git";
+      url = "git+https://github.com/amarbel-llc/madder.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -73,7 +73,7 @@
     # only the shared inputs below dedup. When the lightweight job-platform
     # flake lands this becomes a one-line input swap to that repo.
     clown = {
-      url = "git+https://code.linenisgreat.com/clown.git";
+      url = "git+https://github.com/amarbel-llc/clown.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
