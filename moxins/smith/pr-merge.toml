@@ -1,6 +1,8 @@
 schema = 3
 result-type = "text"
 substitute-result-uris = false
+# each-use (not dynamic) — merging is irreversible so always confirm,
+# regardless of whether the repo owner matches the authenticated user.
 perms-request = "each-use"
 description = "Merge a Forgejo pull request"
 command = "@BIN@/pr-merge"

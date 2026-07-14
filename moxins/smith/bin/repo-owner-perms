@@ -7,11 +7,13 @@
 # Exit codes (per moxy native dynamic-perms contract):
 #   0 = allow
 #   1 = ask
-#   2 = deny
 set -euo pipefail
 
 repo="${1:-}"
 host="${2:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
 
 # No explicit repo means fj resolves from the cwd's git remote,
 # which is presumed to be the authenticated user's own repo.
@@ -22,14 +24,12 @@ fi
 
 owner="${repo%%/*}"
 
-fj_cmd=("${FJ_BIN:-fj}")
-if [ -n "$host" ]; then
-  fj_cmd+=(-H "$host")
-fi
+fj_base "$host"
 
-# Get the authenticated user login. awk 'END{print $NF}' handles both
-# "username" and "You are logged in as username" output shapes.
-self=$("${fj_cmd[@]}" whoami 2>/dev/null | awk 'END{print $NF}') || true
+# fj unconditionally inspects the cwd's git remote (#398); run whoami from
+# a scratch dir so owner-less remotes don't crash and produce a false ask.
+_fj_scratch_dir
+self=$(cd "$_fj_scratch" && "${fj_cmd[@]}" whoami 2>/dev/null | awk 'END{print $NF}') || true
 
 if [ -z "$self" ]; then
   echo "could not determine authenticated user — confirmation required"
