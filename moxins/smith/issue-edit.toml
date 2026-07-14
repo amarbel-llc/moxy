@@ -4,6 +4,7 @@ substitute-result-uris = false
 description = "Edit a Forgejo issue's title and/or body. Only fields you pass are changed; at least one is required."
 command = "@BIN@/issue-edit"
 arg-order = ["number", "title", "body", "repo", "host"]
+perms-request = "dynamic"
 
 [input]
 type = "object"
@@ -31,3 +32,8 @@ description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the 
 
 [annotations]
 open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

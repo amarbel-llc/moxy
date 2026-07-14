@@ -4,6 +4,7 @@ substitute-result-uris = false
 description = "Close a Forgejo issue with an optional closing comment"
 command = "@BIN@/issue-close"
 arg-order = ["number", "comment", "repo", "host"]
+perms-request = "dynamic"
 
 [input]
 type = "object"
@@ -28,3 +29,8 @@ description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the 
 [annotations]
 destructive-hint = true
 open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

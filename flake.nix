@@ -953,13 +953,11 @@
               pathMode = "suffix";
             };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] { };
-        # pathMode = "suffix" so user PATH wins (and tests can shadow fj
-        # with a stub, same pattern as get-hubbed's gh).
         smith-moxin = mkMoxin "smith" [
           pkgs.bash
           pkgs.coreutils
           forgejo-cli.packages.${system}.default
-        ] { pathMode = "suffix"; };
+        ] { };
 
         # gws moxins excluded from the build closure for now (#391) — see the
         # commented gws-bin block above. Restore by uncommenting.

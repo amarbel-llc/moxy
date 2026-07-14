@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for smith write tools. Allows when the resolved repo
+# owner matches the fj-authenticated user; asks otherwise.
+#
+# Receives: $1 = repo (OWNER/NAME, may be empty), $2 = host (may be empty)
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+set -euo pipefail
+
+repo="${1:-}"
+host="${2:-}"
+
+# No explicit repo means fj resolves from the cwd's git remote,
+# which is presumed to be the authenticated user's own repo.
+if [ -z "$repo" ]; then
+  echo "no explicit repo — auto-allowed (resolved from cwd)"
+  exit 0
+fi
+
+owner="${repo%%/*}"
+
+fj_cmd=("${FJ_BIN:-fj}")
+if [ -n "$host" ]; then
+  fj_cmd+=(-H "$host")
+fi
+
+# Get the authenticated user login. awk 'END{print $NF}' handles both
+# "username" and "You are logged in as username" output shapes.
+self=$("${fj_cmd[@]}" whoami 2>/dev/null | awk 'END{print $NF}') || true
+
+if [ -z "$self" ]; then
+  echo "could not determine authenticated user — confirmation required"
+  exit 1
+fi
+
+if [ "$self" = "$owner" ]; then
+  echo "owner ($owner) matches authenticated user — auto-allowed"
+  exit 0
+fi
+
+echo "owner ($owner) is not the authenticated user ($self) — confirmation required"
+exit 1

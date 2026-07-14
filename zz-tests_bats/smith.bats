@@ -36,8 +36,8 @@ echo "fj-stub-ok"
 EOF
   chmod +x "$HOME/bin/fj"
 
-  # Prepend so the stub shadows the nix-wrapped fj (suffix pathMode).
-  export PATH="$HOME/bin:$PATH"
+  # FJ_BIN lets the stub win regardless of wrapProgram's PATH mode.
+  export FJ_BIN="$HOME/bin/fj"
 }
 
 teardown() {

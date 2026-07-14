@@ -4,6 +4,7 @@ substitute-result-uris = false
 description = "Create a new issue on a Forgejo repository"
 command = "@BIN@/issue-create"
 arg-order = ["title", "body", "repo", "host"]
+perms-request = "dynamic"
 
 [input]
 type = "object"
@@ -27,3 +28,8 @@ description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the 
 
 [annotations]
 open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

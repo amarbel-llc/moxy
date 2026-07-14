@@ -30,7 +30,7 @@ qualify_ref() {
 
 fj_base() {
   local host="${1:-}"
-  fj_cmd=(fj)
+  fj_cmd=("${FJ_BIN:-fj}")
   if [ -n "$host" ]; then
     fj_cmd+=(-H "$host")
   fi

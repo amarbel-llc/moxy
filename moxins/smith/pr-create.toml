@@ -4,6 +4,7 @@ substitute-result-uris = false
 description = "Create a new pull request on a Forgejo repository. Prefix the title with 'WIP: ' to mark it a draft."
 command = "@BIN@/pr-create"
 arg-order = ["title", "body", "base", "head", "autofill", "repo", "host"]
+perms-request = "dynamic"
 
 [input]
 type = "object"
@@ -38,3 +39,8 @@ description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the 
 
 [annotations]
 open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000
