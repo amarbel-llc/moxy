@@ -5,13 +5,52 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 )
+
+// scriptedTransport returns a fixed sequence of (message, error) steps to
+// readLoop, then io.EOF. Read is only ever called by the single readLoop
+// goroutine, so no synchronization is needed.
+type scriptedTransport struct {
+	steps []scriptStep
+	i     int
+}
+
+type scriptStep struct {
+	msg *jsonrpc.Message
+	err error
+}
+
+func (s *scriptedTransport) Read() (*jsonrpc.Message, error) {
+	if s.i >= len(s.steps) {
+		return nil, io.EOF
+	}
+	step := s.steps[s.i]
+	s.i++
+	return step.msg, step.err
+}
+
+func (s *scriptedTransport) Write(*jsonrpc.Message) error { return nil }
+func (s *scriptedTransport) Close() error                 { return nil }
+
+// mustResponse builds a JSON-RPC response message with the given id and raw
+// result JSON.
+func mustResponse(t *testing.T, id int64, result string) *jsonrpc.Message {
+	t.Helper()
+	raw := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":%s}`, id, result)
+	var m jsonrpc.Message
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatalf("building response: %v", err)
+	}
+	return &m
+}
 
 func TestParseSize(t *testing.T) {
 	cases := []struct {
@@ -252,14 +291,17 @@ func TestLineTooLongErrorMessage(t *testing.T) {
 	}
 }
 
-// End-to-end: a LineTooLongError from the transport must surface through
-// Call's child-gone path with the byte count and the tuning knob named, so the
-// operator can act without digging in logs. Regression for #275.
+// End-to-end: an UNRECOVERABLE oversize line (no newline within the drain
+// budget) is terminal, and must surface through Call's child-gone path with
+// the byte count and the tuning knob named, so the operator can act without
+// digging in logs. A recoverable oversize line never reaches here — readLoop
+// skips it (see TestReadLoopRecoversFromRecoverableOversize). Regression for
+// #275.
 func TestCallSurfacesOversizeByteCount(t *testing.T) {
 	c := &Client{
 		name: "nebulous-cg",
 		transport: &stubTransport{readErr: &LineTooLongError{
-			Server: "nebulous-cg", Ceiling: 1 << 20, Bytes: 5 << 20, NewlineFound: true,
+			Server: "nebulous-cg", Ceiling: 1 << 20, Bytes: 5 << 20, NewlineFound: false,
 		}},
 		pending: make(map[string]chan *jsonrpc.Message),
 		done:    make(chan struct{}),
@@ -271,12 +313,47 @@ func TestCallSurfacesOversizeByteCount(t *testing.T) {
 		t.Fatal("Call returned nil error, want an oversize child-gone error")
 	}
 	msg := err.Error()
-	for _, want := range []string{"nebulous-cg", "MOXY_CHILD_MAX_MESSAGE", "5242880 bytes", "still running"} {
+	for _, want := range []string{"nebulous-cg", "MOXY_CHILD_MAX_MESSAGE", "5242880 bytes"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error %q missing %q", msg, want)
 		}
 	}
 	if strings.Contains(msg, "exited") {
-		t.Errorf("error %q should not claim the child exited (it is alive)", msg)
+		t.Errorf("error %q should not claim the child exited", msg)
+	}
+
+	// The wrap uses %w so the proxy can detect the type and respawn.
+	var tooLong *LineTooLongError
+	if !errors.As(err, &tooLong) {
+		t.Errorf("child-gone error does not unwrap to *LineTooLongError: %v", err)
+	}
+}
+
+// A recoverable oversize line (NewlineFound: the reader resynced past it) must
+// NOT kill the client: readLoop skips it and keeps processing subsequent
+// messages, so the child stays usable. Regression for #275 (Design B).
+func TestReadLoopRecoversFromRecoverableOversize(t *testing.T) {
+	resp := mustResponse(t, 1, `{"ok":true}`)
+	tr := &scriptedTransport{steps: []scriptStep{
+		{err: &LineTooLongError{Server: "s", Ceiling: 1024, Bytes: 5000, NewlineFound: true}},
+		{msg: resp},
+	}}
+	ch := make(chan *jsonrpc.Message, 1)
+	c := &Client{
+		name:      "s",
+		transport: tr,
+		pending:   map[string]chan *jsonrpc.Message{resp.ID.String(): ch},
+		done:      make(chan struct{}),
+	}
+
+	go c.readLoop()
+
+	select {
+	case got := <-ch:
+		if got == nil {
+			t.Fatal("nil response delivered after recoverable oversize")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("readLoop did not deliver the post-oversize response — recovery failed")
 	}
 }

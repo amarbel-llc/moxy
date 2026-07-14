@@ -158,18 +158,32 @@ func (c *Client) readLoop() {
 	for {
 		msg, err := c.transport.Read()
 		if err != nil {
-			// Record why the connection died before close(c.done) unblocks
-			// any pending Call, so the child-gone error can distinguish a
-			// clean exit (EOF) from a framing/pipe fault (child may live).
-			c.readErr = err
 			var tooLong *LineTooLongError
+			// A recoverable oversize line is NON-fatal: the reader drained
+			// past it to the next message boundary, so the child is still
+			// alive and the stream is back in frame. Keep serving — the one
+			// pending Call awaiting the dropped (uncorrelatable, we never
+			// parsed its id) response fails on its own context deadline. Only
+			// an unrecoverable oversize (no newline within the drain budget)
+			// or any other read error is terminal. See #275.
+			if errors.As(err, &tooLong) && tooLong.NewlineFound {
+				logLifecycle(
+					"readLoop OVERSIZE(recovered) %s bytes=%d ceiling=%d spill=%q",
+					c.name, tooLong.Bytes, tooLong.Ceiling, tooLong.SpillPath,
+				)
+				continue
+			}
+			// Terminal: record why before close(c.done) unblocks any pending
+			// Call, so the child-gone error can distinguish a clean exit (EOF)
+			// from a framing fault or an unrecoverable oversize line.
+			c.readErr = err
 			switch {
 			case errors.Is(err, io.EOF):
 				logLifecycle("readLoop EOF %s (child exited)", c.name)
-			case errors.As(err, &tooLong):
+			case errors.As(err, &tooLong): // NewlineFound == false
 				logLifecycle(
-					"readLoop OVERSIZE %s bytes=%d ceiling=%d newline=%v spill=%q",
-					c.name, tooLong.Bytes, tooLong.Ceiling, tooLong.NewlineFound, tooLong.SpillPath,
+					"readLoop OVERSIZE %s bytes=%d ceiling=%d spill=%q (unrecoverable)",
+					c.name, tooLong.Bytes, tooLong.Ceiling, tooLong.SpillPath,
 				)
 			default:
 				logLifecycle("readLoop ERROR %s: %v", c.name, err)
@@ -302,10 +316,12 @@ func (c *Client) childGoneError() error {
 			c.name,
 		)
 	case errors.As(c.readErr, &tooLong):
-		// The child is still alive — only its oversize message was refused.
-		// Name the knob so the fix is self-evident from the error alone.
+		// An unrecoverable oversize line (no newline within the drain budget);
+		// a recoverable one never reaches here — readLoop skips it and keeps
+		// serving. Wrap with %w so the proxy dispatch can detect the type and
+		// respawn the child. Name the knob so the fix is self-evident too.
 		return fmt.Errorf(
-			"child process %s: %v (child still running; raise MOXY_CHILD_MAX_MESSAGE or restart the child)",
+			"child process %s: %w (raise MOXY_CHILD_MAX_MESSAGE or restart the child)",
 			c.name, c.readErr,
 		)
 	default:
