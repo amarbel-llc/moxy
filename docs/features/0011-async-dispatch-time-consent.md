@@ -120,9 +120,14 @@ still wins regardless of permission.
 
 ## Limitations
 
-- **First cut is bare `async` only.** `batch {async: true}` — which must
-  resolve and summarize a *list* of inner sub-calls in one consent — is tracked
-  separately (#404) and is out of scope here.
+- **First cut was bare `async` only; `batch {async: true}` parity has since
+  landed (#404).** `tryBatchAsyncInnerDecision` (`internal/hook/hook.go`)
+  applies the same treatment to the whole `calls` list: any denied sub-call
+  vetoes the batch, an all-allow list passes straight through, and any other
+  mix forces one `ask` naming every sub-call. `handleBatchAsync`
+  (`internal/proxy/async.go`) mirrors `HandleAsync`'s preflight relaxation —
+  only Deny is an absolute synchronous reject; Ask and Unknown are admitted,
+  trusting the hook already gated the whole list.
 - **Consent is only as informative as the client renders.** The hook supplies
   the inner tool + args in `permissionDecisionReason`, but how prominently the
   client shows that reason is client-dependent; on a client that hides it, the

@@ -373,6 +373,205 @@ func TestTryAsyncInnerDecision_UnknownInnerToolForcesAsk(t *testing.T) {
 	}
 }
 
+// #404 (FDR 0011 batch parity): batch {async:true} peeks at the WHOLE
+// `calls` array and forces a single consent covering every sub-call,
+// mirroring bare async's per-tool treatment.
+func TestTryBatchAsyncInnerDecision_AllAllow(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchAsyncInnerDecision(
+		"mcp__moxy__batch",
+		"mcp__moxy__",
+		map[string]any{
+			"async": true,
+			"calls": []any{
+				map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+				map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+			},
+		},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryBatchAsyncInnerDecision to write a decision")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v; raw: %s", err, buf.String())
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "allow" {
+		t.Fatalf("decision = %q, want allow (every sub-call is always-allow)", got)
+	}
+}
+
+func TestTryBatchAsyncInnerDecision_MixedForcesAsk(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchAsyncInnerDecision(
+		"mcp__moxy__batch",
+		"mcp__moxy__",
+		map[string]any{
+			"async": true,
+			"calls": []any{
+				map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+				// unknown-srv_tool has no perms-request → Unknown.
+				map[string]any{"tool": "unknown-srv_tool", "args": map[string]any{}},
+			},
+		},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryBatchAsyncInnerDecision to write a decision")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "ask" {
+		t.Fatalf("decision = %q, want ask (mixed tiers force one consent)", got)
+	}
+	reason := out.HookSpecificOutput.PermissionDecisionReason
+	if !strings.Contains(reason, "allow-srv.echo") || !strings.Contains(reason, "unknown-srv.tool") {
+		t.Errorf("reason = %q, want it to name every sub-call", reason)
+	}
+}
+
+func TestTryBatchAsyncInnerDecision_AnyDenyForcesDeny(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-dynamic-deny")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchAsyncInnerDecision(
+		"mcp__moxy__batch",
+		"mcp__moxy__",
+		map[string]any{
+			"async": true,
+			"calls": []any{
+				map[string]any{"tool": "dyndeny-srv_echo", "args": map[string]any{}},
+			},
+		},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryBatchAsyncInnerDecision to write a decision")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "deny" {
+		t.Fatalf("decision = %q, want deny (a denied sub-call vetoes the batch)", got)
+	}
+	if !strings.Contains(out.HookSpecificOutput.PermissionDecisionReason, "dyndeny-srv.echo") {
+		t.Errorf("reason = %q, want it to name the denied tool", out.HookSpecificOutput.PermissionDecisionReason)
+	}
+}
+
+// Every denied sub-call must be named, not just the last one seen —
+// otherwise a batch with two denials silently drops the first from the
+// consent-denial message.
+func TestTryBatchAsyncInnerDecision_AllDeniedNamed(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-dynamic-deny")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchAsyncInnerDecision(
+		"mcp__moxy__batch",
+		"mcp__moxy__",
+		map[string]any{
+			"async": true,
+			"calls": []any{
+				map[string]any{"tool": "dyndeny-srv_echo", "args": map[string]any{}},
+				map[string]any{"tool": "dyndeny-srv_echo", "args": map[string]any{"a": 1}},
+			},
+		},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected tryBatchAsyncInnerDecision to write a decision")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "deny" {
+		t.Fatalf("decision = %q, want deny", got)
+	}
+	reason := out.HookSpecificOutput.PermissionDecisionReason
+	if strings.Count(reason, "dyndeny-srv.echo") != 2 {
+		t.Errorf("reason = %q, want both denied sub-calls named", reason)
+	}
+}
+
+// A synchronous batch (async omitted or false) is untouched — it stays on
+// the client's own single-prompt decision, unaffected by this function.
+func TestTryBatchAsyncInnerDecision_IgnoresSyncBatch(t *testing.T) {
+	var buf bytes.Buffer
+	wrote := tryBatchAsyncInnerDecision(
+		"mcp__moxy__batch",
+		"mcp__moxy__",
+		map[string]any{
+			"calls": []any{
+				map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+			},
+		},
+		".",
+		&buf,
+	)
+	if wrote {
+		t.Fatalf("expected no interception for a sync batch, got wrote=true buf=%q", buf.String())
+	}
+}
+
+// Only the `batch` builtin is in scope; other tools (including bare async)
+// fall through untouched.
+func TestTryBatchAsyncInnerDecision_IgnoresOtherTools(t *testing.T) {
+	for _, tool := range []string{"async", "restart", "status"} {
+		var buf bytes.Buffer
+		wrote := tryBatchAsyncInnerDecision(
+			"mcp__moxy__"+tool,
+			"mcp__moxy__",
+			map[string]any{"async": true, "calls": []any{}},
+			".",
+			&buf,
+		)
+		if wrote {
+			t.Errorf("%s: expected no interception, got wrote=true buf=%q", tool, buf.String())
+		}
+	}
+}
+
+// A malformed calls entry (missing/unparseable tool name) must not produce
+// a partial or bogus decision — fall through and let normal handling (the
+// client's own default) take over.
+func TestTryBatchAsyncInnerDecision_MalformedCallFallsThrough(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchAsyncInnerDecision(
+		"mcp__moxy__batch",
+		"mcp__moxy__",
+		map[string]any{
+			"async": true,
+			"calls": []any{
+				map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+				map[string]any{"tool": "", "args": map[string]any{}},
+			},
+		},
+		".",
+		&buf,
+	)
+	if wrote {
+		t.Fatalf("expected fall-through for malformed calls entry, got wrote=true buf=%q", buf.String())
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("expected empty buf on fall-through, got %q", buf.String())
+	}
+}
+
 // async-result / async-cancel are NOT async dispatch — they only read or
 // cancel this session's own handles, so they must not be intercepted here
 // (they stay in builtinAutoAllow).

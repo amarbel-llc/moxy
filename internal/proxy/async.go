@@ -337,10 +337,12 @@ func (p *Proxy) HandleAsyncCancel(
 	return asyncJSONResult(out), nil
 }
 
-// handleBatchAsync backgrounds a whole batch as ONE async job. The
-// preflight is stricter than the synchronous batch's (which admits Ask
-// under the client's single batch prompt): once detached there is no
-// client to prompt, so every sub-call must resolve to ALLOW.
+// handleBatchAsync backgrounds a whole batch as ONE async job. Per #404
+// (FDR 0011 batch parity), only an explicit deny is an absolute synchronous
+// reject here — ask and Unknown (no perms-request) sub-calls are admitted
+// because the PreToolUse hook forces one consent covering the whole `calls`
+// list before the batch call reaches moxy (tryBatchAsyncInnerDecision in
+// internal/hook), mirroring bare async's HandleAsync relaxation.
 func (p *Proxy) handleBatchAsync(
 	ctx context.Context,
 	params batchParams,
@@ -363,12 +365,12 @@ func (p *Proxy) handleBatchAsync(
 			continue
 		}
 		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, ".")
-		if dec != permcheck.Allow {
+		if dec == permcheck.Deny {
 			rejected = append(rejected, batchRejection{
 				index:  i,
 				call:   c,
 				dec:    dec,
-				reason: reason + " (async batches are allow-only)",
+				reason: reason,
 			})
 			continue
 		}

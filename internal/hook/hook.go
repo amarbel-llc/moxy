@@ -218,6 +218,10 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 			debugHook("  decision: async inner-tool resolved")
 			return nil
 		}
+		if tryBatchAsyncInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
+			debugHook("  decision: batch async inner-list resolved")
+			return nil
+		}
 		if tryBuiltinAutoAllow(hi.ToolName, prefix, w) {
 			debugHook("  decision: builtin auto-allowed")
 			return nil
@@ -241,8 +245,11 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 // session's own job handles. `async` is NOT here (FDR 0011): it routes through
 // tryAsyncInnerDecision, which resolves the backgrounded inner tool and forces
 // a consent prompt for ask/Unknown inner tools rather than widening silently.
-// `restart` and `batch` stay prompting — restart churns children, and batch's
-// single prompt is its design contract.
+// `restart` stays prompting — restart churns children. `batch` stays
+// prompting for a SYNCHRONOUS call (its single prompt is its design
+// contract); `batch {async:true}` instead routes through
+// tryBatchAsyncInnerDecision (#404), which applies the same inner-tool
+// treatment to the whole `calls` list.
 var builtinAutoAllow = map[string]bool{
 	"status":       true,
 	"async-result": true,
@@ -331,6 +338,102 @@ func tryAsyncInnerDecision(toolName, prefix string, toolInput map[string]any, cw
 		// attached — the backgrounded job cannot prompt later.
 		decStr = "ask"
 		decReason = fmt.Sprintf("async will background %s — approve to run it detached", inner)
+	}
+
+	out := hookOutput{
+		HookSpecificOutput: hookDecision{
+			HookEventName:            "PreToolUse",
+			PermissionDecision:       decStr,
+			PermissionDecisionReason: decReason,
+		},
+	}
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		log.Printf("hook: ignoring encode error (fail-open): %v", err)
+		return false
+	}
+	return true
+}
+
+// tryBatchAsyncInnerDecision handles `batch {async:true}` (#404, FDR 0011
+// parity). A synchronous batch is untouched (it stays on the client's own
+// single-prompt decision, its existing design contract); this only
+// intercepts when tool_input.async is true. It peeks at the WHOLE `calls`
+// array, resolves every inner tool, and forces ONE consent covering all of
+// them:
+//
+//   - any inner tool resolves to deny → deny the whole batch.
+//   - every inner tool resolves to allow → allow (unchanged fast path).
+//   - otherwise (a mix including ask and/or Unknown, no deny) → ask, naming
+//     every sub-call so the user consents to the actual work.
+//
+// If any call entry can't be parsed to a canonical inner tool name, this
+// emits no decision at all (returns false) rather than a decision covering
+// only part of the list — the fall-through leaves the client's own default
+// in charge, same conservative posture as tryAsyncInnerDecision's single-call
+// case. Returns true if it wrote a decision, false to let normal handling
+// proceed.
+func tryBatchAsyncInnerDecision(toolName, prefix string, toolInput map[string]any, cwd string, w io.Writer) bool {
+	suffix := strings.TrimPrefix(toolName, prefix)
+	if suffix == toolName || suffix != "batch" {
+		return false
+	}
+	async, _ := toolInput["async"].(bool)
+	if !async {
+		return false
+	}
+
+	rawCalls, _ := toolInput["calls"].([]any)
+	if len(rawCalls) == 0 {
+		return false
+	}
+
+	resolver, err := getResolver()
+	if err != nil {
+		debugHook("  batch async getResolver error: %v", err)
+		return false
+	}
+
+	names := make([]string, 0, len(rawCalls))
+	allAllow := true
+	var denyNames []string
+	for _, rc := range rawCalls {
+		m, ok := rc.(map[string]any)
+		if !ok {
+			return false
+		}
+		innerWire, _ := m["tool"].(string)
+		inner := underscoreToCanonical(innerWire)
+		if inner == "" {
+			return false
+		}
+		var innerArgs json.RawMessage
+		if raw, ok := m["args"]; ok {
+			innerArgs, _ = json.Marshal(raw)
+		}
+		dec, _ := resolver.Resolve(context.Background(), inner, innerArgs, cwd)
+		names = append(names, inner)
+		if dec != permcheck.Allow {
+			allAllow = false
+		}
+		if dec == permcheck.Deny {
+			denyNames = append(denyNames, inner)
+		}
+	}
+
+	var decStr, decReason string
+	switch {
+	case len(denyNames) > 0:
+		decStr = "deny"
+		decReason = fmt.Sprintf("batch async: inner tool(s) denied: %s", strings.Join(denyNames, ", "))
+	case allAllow:
+		decStr = "allow"
+		decReason = "batch async: every sub-call is always-allow"
+	default:
+		decStr = "ask"
+		decReason = fmt.Sprintf(
+			"batch async will background %d sub-call(s): %s — approve to run them detached",
+			len(names), strings.Join(names, ", "),
+		)
 	}
 
 	out := hookOutput{

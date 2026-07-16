@@ -202,14 +202,66 @@ func TestHandleBatchAsyncRunsAsOneJob(t *testing.T) {
 	}
 }
 
-// Async batches are allow-only: Ask-tier sub-calls are admitted by the
-// synchronous batch (the client's single prompt covers them) but MUST be
-// rejected when backgrounding — there is no client to prompt once detached.
-func TestHandleBatchAsyncRejectsAskTier(t *testing.T) {
+// #404 (FDR 0011 batch parity): Ask-tier and Unknown (no perms-request)
+// sub-calls are ADMITTED by the async batch preflight, mirroring bare
+// async's relaxation — the PreToolUse hook forces one consent covering the
+// whole `calls` list before the batch reaches moxy (tryBatchAsyncInnerDecision
+// in internal/hook), so the preflight trusts the hook and backgrounds them.
+// Only Deny remains a hard synchronous reject (see
+// TestHandleBatchAsyncRejectsDenyTier).
+func TestHandleBatchAsyncAdmitsAskAndUnknownTiers(t *testing.T) {
+	okResult := &protocol.ToolCallResultV1{
+		Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}},
+	}
 	p := newProxyWithResolverAndDispatch(
 		t,
 		map[string]permcheck.ToolPermInfo{
-			"fake.tool": {Perm: native.PermsEachUse},
+			"ask.tool": {Perm: native.PermsEachUse},
+			// unknown.tool is deliberately absent → Resolve returns Unknown.
+		},
+		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			return okResult, nil
+		},
+	)
+	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
+		RingmasterBin: "/nonexistent/ringmaster",
+		WriteResult: func(_ context.Context, _ []byte) (string, error) {
+			return "fake-digest", nil
+		},
+		MaxRuntime: time.Minute,
+	}))
+
+	result, err := p.HandleBatch(context.Background(), json.RawMessage(
+		`{"async":true,"calls":[{"tool":"ask.tool","args":{}},{"tool":"unknown.tool","args":{}}]}`,
+	))
+	if err != nil {
+		t.Fatalf("HandleBatch async: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected admitted (backgrounded), got bailout: %+v", result)
+	}
+	var ref struct {
+		JobID  string `json:"job_id"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(result.Content[0].Text), &ref); err != nil {
+		t.Fatalf("parsing handle: %v", err)
+	}
+	if ref.Status != "running" || ref.JobID == "" {
+		t.Fatalf("handle = %+v, want running with job id", ref)
+	}
+}
+
+// Deny remains an absolute synchronous reject for async batches, unlike
+// Ask/Unknown — once granted, a deny cannot be overridden by any consent.
+func TestHandleBatchAsyncRejectsDenyTier(t *testing.T) {
+	p := newProxyWithResolverAndDispatch(
+		t,
+		map[string]permcheck.ToolPermInfo{
+			"deny.tool": {Perm: native.PermsDynamic, DynamicPerms: &native.DynamicPermsSpec{
+				Command: "sh",
+				Args:    []string{"-c", "exit 2"},
+			}},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			t.Fatal("dispatch must not run for a rejected async batch")
@@ -225,16 +277,13 @@ func TestHandleBatchAsyncRejectsAskTier(t *testing.T) {
 	}))
 
 	result, err := p.HandleBatch(context.Background(), json.RawMessage(
-		`{"async":true,"calls":[{"tool":"fake.tool","args":{}}]}`,
+		`{"async":true,"calls":[{"tool":"deny.tool","args":{}}]}`,
 	))
 	if err != nil {
 		t.Fatalf("HandleBatch async: %v", err)
 	}
 	if !result.IsError {
-		t.Fatalf("expected bailout, got %+v", result)
-	}
-	if !strings.Contains(result.Content[0].Text, "allow-only") {
-		t.Errorf("bailout text = %q, want allow-only mention", result.Content[0].Text)
+		t.Fatalf("expected bailout for denied sub-call, got %+v", result)
 	}
 }
 
