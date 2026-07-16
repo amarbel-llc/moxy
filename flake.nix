@@ -1,6 +1,6 @@
 {
   inputs = {
-    igloo.url = "git+https://github.com/amarbel-llc/igloo.git";
+    igloo.url = "git+https://code.linenisgreat.com/igloo.git";
     nixpkgs-master.url = "github:NixOS/nixpkgs/567a49d1913ce81ac6e9582e3553dd90a955875f";
     # Pinned to the last upstream nixpkgs commit where pkgs.gomarkdoc still
     # builds. A regression after 2026-03-23 (still present on master as of
@@ -11,14 +11,14 @@
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     purse-first = {
-      url = "git+https://github.com/amarbel-llc/purse-first.git";
+      url = "git+https://code.linenisgreat.com/purse-first.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
     };
 
     tommy = {
-      url = "git+https://github.com/amarbel-llc/tommy.git";
+      url = "git+https://code.linenisgreat.com/tommy.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -42,7 +42,7 @@
     # auditable revision; users can override with
     # `nix build .#moxy --override-input madder github:amarbel-llc/madder/<rev>`.
     madder = {
-      url = "git+https://github.com/amarbel-llc/madder.git";
+      url = "git+https://code.linenisgreat.com/madder.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -55,7 +55,7 @@
     # `conformist check` gate, and the store-pinned conformist-pre-commit /
     # conformist-repair git hooks — replacing the former treefmt-nix config.
     conformist = {
-      url = "git+https://github.com/amarbel-llc/conformist.git";
+      url = "git+https://code.linenisgreat.com/conformist.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
@@ -73,7 +73,7 @@
     # only the shared inputs below dedup. When the lightweight job-platform
     # flake lands this becomes a one-line input swap to that repo.
     clown = {
-      url = "git+https://github.com/amarbel-llc/clown.git";
+      url = "git+https://code.linenisgreat.com/clown.git";
       inputs.igloo.follows = "igloo";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
