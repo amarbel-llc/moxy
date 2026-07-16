@@ -256,6 +256,27 @@ var builtinAutoAllow = map[string]bool{
 	"async-cancel": true,
 }
 
+// writeHookDecision encodes a PreToolUse hook decision to w. It is the
+// single JSON-encode point every decision-writing function in this file
+// funnels through, so the wire format changes in one place. Always returns
+// true, except on an encode error, where it fails open (returns false so the
+// caller falls through instead of claiming to have written a decision it
+// didn't).
+func writeHookDecision(w io.Writer, decision, reason string) bool {
+	out := hookOutput{
+		HookSpecificOutput: hookDecision{
+			HookEventName:            "PreToolUse",
+			PermissionDecision:       decision,
+			PermissionDecisionReason: reason,
+		},
+	}
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		log.Printf("hook: ignoring encode error (fail-open): %v", err)
+		return false
+	}
+	return true
+}
+
 // tryBuiltinAutoAllow checks whether the tool is a builtin that should be
 // auto-allowed. Returns true if it wrote a decision, false to fall through.
 func tryBuiltinAutoAllow(toolName, prefix string, w io.Writer) bool {
@@ -264,18 +285,7 @@ func tryBuiltinAutoAllow(toolName, prefix string, w io.Writer) bool {
 		return false
 	}
 
-	out := hookOutput{
-		HookSpecificOutput: hookDecision{
-			HookEventName:            "PreToolUse",
-			PermissionDecision:       "allow",
-			PermissionDecisionReason: "auto-allowed builtin tool",
-		},
-	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
-		log.Printf("hook: ignoring encode error (fail-open): %v", err)
-		return false
-	}
-	return true
+	return writeHookDecision(w, "allow", "auto-allowed builtin tool")
 }
 
 // asyncBuiltinSuffixes maps the moxy-prefixed tool names that dispatch work
@@ -340,18 +350,7 @@ func tryAsyncInnerDecision(toolName, prefix string, toolInput map[string]any, cw
 		decReason = fmt.Sprintf("async will background %s — approve to run it detached", inner)
 	}
 
-	out := hookOutput{
-		HookSpecificOutput: hookDecision{
-			HookEventName:            "PreToolUse",
-			PermissionDecision:       decStr,
-			PermissionDecisionReason: decReason,
-		},
-	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
-		log.Printf("hook: ignoring encode error (fail-open): %v", err)
-		return false
-	}
-	return true
+	return writeHookDecision(w, decStr, decReason)
 }
 
 // tryBatchAsyncInnerDecision handles `batch {async:true}` (#404, FDR 0011
@@ -436,18 +435,7 @@ func tryBatchAsyncInnerDecision(toolName, prefix string, toolInput map[string]an
 		)
 	}
 
-	out := hookOutput{
-		HookSpecificOutput: hookDecision{
-			HookEventName:            "PreToolUse",
-			PermissionDecision:       decStr,
-			PermissionDecisionReason: decReason,
-		},
-	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
-		log.Printf("hook: ignoring encode error (fail-open): %v", err)
-		return false
-	}
-	return true
+	return writeHookDecision(w, decStr, decReason)
 }
 
 // underscoreToCanonical converts an inner-tool name as it arrives in async's
@@ -499,18 +487,7 @@ func tryPermsDecision(toolName, prefix string, toolInput map[string]any, cwd str
 		return false // Unknown → fall through to client
 	}
 
-	out := hookOutput{
-		HookSpecificOutput: hookDecision{
-			HookEventName:            "PreToolUse",
-			PermissionDecision:       decStr,
-			PermissionDecisionReason: reason,
-		},
-	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
-		log.Printf("hook: ignoring encode error (fail-open): %v", err)
-		return false
-	}
-	return true
+	return writeHookDecision(w, decStr, reason)
 }
 
 // parseNativeToolName strips the given prefix and converts the remainder
