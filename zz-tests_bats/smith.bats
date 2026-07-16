@@ -198,6 +198,61 @@ function no_redirect_when_repo_omitted { # @test
   assert_output "$orig_pwd"
 }
 
+# issue-edit-labels threads add/rm into fj's -a/-r flags (#418).
+function issue_edit_labels_threads_add_and_rm { # @test
+  run "$BIN/issue-edit-labels" 7 "bug,ux" "wontfix" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'issue\nedit\nowner/repo#7\nlabels\n-a\nbug,ux\n-r\nwontfix\n---'
+}
+
+# Without add or rm there is nothing to do — rejected before fj runs.
+function issue_edit_labels_requires_add_or_rm { # @test
+  run "$BIN/issue-edit-labels" 7 "" "" "owner/repo" ""
+  assert_failure 2
+  assert_output --partial "add and/or rm"
+
+  [ ! -e "$HOME/fj-args" ] || fail "fj was invoked despite no add/rm"
+}
+
+# repo-label-list threads the repo positional before `view`, and -a for archived.
+function repo_label_list_threads_repo_and_archived { # @test
+  run "$BIN/repo-label-list" "owner/repo" "" "true"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'repo\nlabels\nowner/repo\nview\n-a\n---'
+}
+
+# Without a repo arg, fj resolves from cwd — no positional repo is passed.
+function repo_label_list_without_repo_omits_positional { # @test
+  run "$BIN/repo-label-list" "" "" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'repo\nlabels\nview\n---'
+}
+
+# repo-label-create threads name/color plus the optional flags, using the =
+# form for --description so the value can't swallow a later positional.
+function repo_label_create_threads_flags { # @test
+  run "$BIN/repo-label-create" "area/ux" "00aabb" "owner/repo" "" "a ux label" "true" "true"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'repo\nlabels\nowner/repo\ncreate\narea/ux\n00aabb\n--description=a ux label\n-e\n-a\n---'
+}
+
+# repo-label-delete threads the repo positional and the label id/name.
+function repo_label_delete_threads_repo_and_id { # @test
+  run "$BIN/repo-label-delete" "wontfix" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'repo\nlabels\nowner/repo\ndelete\nwontfix\n---'
+}
+
 # End-to-end through moxy: the smith.issue-list tool dispatches to the
 # wrapped script, which invokes the (stubbed) fj off the inherited PATH.
 function smith_issue_list_via_moxy { # @test

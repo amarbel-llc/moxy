@@ -1,0 +1,39 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Add and/or remove labels on a Forgejo issue. Provide add and/or rm as comma-separated label names."
+command = "@BIN@/issue-edit-labels"
+arg-order = ["number", "add", "rm", "repo", "host"]
+perms-request = "dynamic"
+
+[input]
+type = "object"
+required = ["number"]
+
+[input.properties.number]
+type = "integer"
+description = "Issue number"
+
+[input.properties.add]
+type = "string"
+description = "Comma-separated label names to add"
+
+[input.properties.rm]
+type = "string"
+description = "Comma-separated label names to remove"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

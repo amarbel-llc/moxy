@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name="$1"
+color="$2"
+repo="${3:-}"
+host="${4:-}"
+description="${5:-}"
+exclusive="${6:-}"
+archived="${7:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+fj_base "$host"
+fj_cmd+=(repo labels)
+if [ -n "$repo" ]; then
+  validate_repo "$repo"
+  fj_cmd+=("$repo")
+fi
+fj_cmd+=(create "$name" "$color")
+if [ -n "$description" ]; then
+  fj_cmd+=(--description="$description")
+fi
+if [ "$exclusive" = "true" ]; then
+  fj_cmd+=(-e)
+fi
+if [ "$archived" = "true" ]; then
+  fj_cmd+=(-a)
+fi
+fj_run "$repo" "$host"

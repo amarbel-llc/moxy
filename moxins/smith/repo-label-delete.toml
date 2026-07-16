@@ -1,0 +1,32 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Delete a label from a Forgejo repository"
+command = "@BIN@/repo-label-delete"
+arg-order = ["id", "repo", "host"]
+perms-request = "dynamic"
+
+[input]
+type = "object"
+required = ["id"]
+
+[input.properties.id]
+type = "string"
+description = "The ID or name of the label to delete"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true
+destructive-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

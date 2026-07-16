@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+add="${2:-}"
+rm_labels="${3:-}"
+repo="${4:-}"
+host="${5:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+if [ -z "$add" ] && [ -z "$rm_labels" ]; then
+  echo "ERROR: provide add and/or rm labels to edit" >&2
+  exit 2
+fi
+
+ref=$(qualify_ref "$number" "$repo")
+fj_base "$host"
+fj_cmd+=(issue edit "$ref" labels)
+if [ -n "$add" ]; then
+  fj_cmd+=(-a "$add")
+fi
+if [ -n "$rm_labels" ]; then
+  fj_cmd+=(-r "$rm_labels")
+fi
+fj_run "$repo" "$host"

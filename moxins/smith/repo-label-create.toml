@@ -1,0 +1,47 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Create a new label on a Forgejo repository"
+command = "@BIN@/repo-label-create"
+arg-order = ["name", "color", "repo", "host", "description", "exclusive", "archived"]
+perms-request = "dynamic"
+
+[input]
+type = "object"
+required = ["name", "color"]
+
+[input.properties.name]
+type = "string"
+description = "Label name. May include '/' to namespace the label."
+
+[input.properties.color]
+type = "string"
+description = "Label color in hexadecimal format (e.g. '00aabb')"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[input.properties.description]
+type = "string"
+description = "Label description"
+
+[input.properties.exclusive]
+type = "boolean"
+description = "Make this label exclusive with other labels in the same namespace"
+
+[input.properties.archived]
+type = "boolean"
+description = "Create the label already archived"
+
+[annotations]
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

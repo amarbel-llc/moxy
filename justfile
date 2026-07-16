@@ -895,6 +895,19 @@ debug-sisyphus-239-probe: build-moxins
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
 
+# Run the pinned forgejo-cli (fj) binary directly with arbitrary args, using
+# the exact PATH smith's wrapped bin scripts run under (extracted from the
+# nix-built wrapper so it tracks whichever fj is currently pinned). Agent
+# dev-loop for probing fj's CLI surface (e.g. `just explore-fj-help -- repo --help`)
+# before wiring a new smith tool (#414/#418/#419).
+[group("explore")]
+explore-fj-help *args: build-moxins
+  #!/usr/bin/env bash
+  set -euo pipefail
+  wrapped="{{justfile_directory()}}/result-moxins/share/moxy/moxins/smith/bin/issue-list"
+  eval "$(grep -m1 '^export PATH=' "$wrapped")"
+  fj {{args}}
+
 # Build the dynamic-perms POC driver. POC scope only — not wired into main test.
 [group("explore")]
 explore-poc-build-dynamic-perms:
