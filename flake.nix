@@ -93,7 +93,6 @@
 
     madder.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
-    igloo.inputs.treefmt-nix.follows = "bats/treefmt-nix";
     clown.inputs.conformist.follows = "conformist";
     madder.inputs.conformist.follows = "conformist";
     purse-first.inputs.conformist.follows = "conformist";
