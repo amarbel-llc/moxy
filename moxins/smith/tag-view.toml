@@ -1,0 +1,27 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "View a Forgejo tag's info"
+command = "@BIN@/tag-view"
+arg-order = ["name", "repo", "host"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Tag name"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

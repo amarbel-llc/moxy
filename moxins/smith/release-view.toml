@@ -1,0 +1,31 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "View a Forgejo release's info"
+command = "@BIN@/release-view"
+arg-order = ["name", "by_tag", "repo", "host"]
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Release name (or tag name, if by_tag is true)"
+
+[input.properties.by_tag]
+type = "boolean"
+description = "Look up the release by its tag name instead of its release name"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

@@ -1,0 +1,32 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Delete a tag from a Forgejo repository"
+command = "@BIN@/tag-delete"
+arg-order = ["name", "repo", "host"]
+perms-request = "dynamic"
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Tag name"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true
+destructive-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

@@ -1,0 +1,55 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Create a new release on a Forgejo repository. Provide either tag (uses a pre-existing tag) or create_tag (creates a new tag with the given name) — not both."
+command = "@BIN@/release-create"
+arg-order = ["name", "tag", "create_tag", "body", "branch", "draft", "prerelease", "repo", "host"]
+perms-request = "dynamic"
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Release name"
+
+[input.properties.tag]
+type = "string"
+description = "Pre-existing tag to use for this release"
+
+[input.properties.create_tag]
+type = "string"
+description = "Name of a new tag to create for this release (mutually exclusive with tag)"
+
+[input.properties.body]
+type = "string"
+description = "Release notes body. Omit for an empty body."
+
+[input.properties.branch]
+type = "string"
+description = "Branch to create the tag from (only relevant with create_tag)"
+
+[input.properties.draft]
+type = "boolean"
+description = "Create as a draft release"
+
+[input.properties.prerelease]
+type = "boolean"
+description = "Mark as a pre-release"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

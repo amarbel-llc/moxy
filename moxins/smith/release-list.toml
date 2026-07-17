@@ -1,0 +1,30 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "List a Forgejo repository's releases"
+command = "@BIN@/release-list"
+arg-order = ["repo", "host", "include_prerelease", "include_draft"]
+
+[input]
+type = "object"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[input.properties.include_prerelease]
+type = "boolean"
+description = "Include pre-releases"
+
+[input.properties.include_draft]
+type = "boolean"
+description = "Include draft releases"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = true

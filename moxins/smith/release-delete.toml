@@ -1,0 +1,36 @@
+schema = 3
+result-type = "text"
+substitute-result-uris = false
+description = "Delete a release from a Forgejo repository"
+command = "@BIN@/release-delete"
+arg-order = ["name", "by_tag", "repo", "host"]
+perms-request = "dynamic"
+
+[input]
+type = "object"
+required = ["name"]
+
+[input.properties.name]
+type = "string"
+description = "Release name (or tag name, if by_tag is true)"
+
+[input.properties.by_tag]
+type = "boolean"
+description = "Look up the release by its tag name instead of its release name"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's git remotes."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true
+destructive-hint = true
+
+[dynamic-perms]
+command = "@BIN@/repo-owner-perms"
+arg-order = ["repo", "host"]
+timeout-ms = 5000

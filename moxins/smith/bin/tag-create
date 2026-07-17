@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name="$1"
+body="${2:-}"
+branch="${3:-}"
+repo="${4:-}"
+host="${5:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+fj_base "$host"
+# --body= (even empty) keeps fj from opening an editor — moxy tools run
+# headless. -b/--body is a clap optional-value flag, so use the = form.
+fj_cmd+=(tag create "--body=$body")
+if [ -n "$branch" ]; then
+  fj_cmd+=(-B "$branch")
+fi
+if [ -n "$repo" ]; then
+  validate_repo "$repo"
+  fj_cmd+=(-r "$repo")
+fi
+fj_cmd+=("$name")
+fj_run "$repo" "$host"

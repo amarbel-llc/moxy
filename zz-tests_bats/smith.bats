@@ -253,6 +253,81 @@ function repo_label_delete_threads_repo_and_id { # @test
   assert_output $'repo\nlabels\nowner/repo\ndelete\nwontfix\n---'
 }
 
+# release-list threads -p/-d/-r (#419).
+function release_list_threads_flags { # @test
+  run "$BIN/release-list" "owner/repo" "" "true" "true"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'release\nlist\n-p\n-d\n-r\nowner/repo\n---'
+}
+
+# release-view threads -t/-r before the trailing name positional.
+function release_view_threads_by_tag_and_repo { # @test
+  run "$BIN/release-view" "v1.0.0" "true" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'release\nview\n-t\n-r\nowner/repo\nv1.0.0\n---'
+}
+
+# release-create always passes --body= (even empty) so fj never opens an
+# editor, mirroring issue-create's headless-safety convention; --create-tag=
+# uses the = form since it's a clap optional-value flag.
+function release_create_threads_flags { # @test
+  run "$BIN/release-create" "v1.0.0" "" "v1.0.0" "release notes" "main" "true" "true" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'release\ncreate\n--body=release notes\n--create-tag=v1.0.0\n-B\nmain\n-d\n-p\n-r\nowner/repo\nv1.0.0\n---'
+}
+
+# release-delete threads -t/-r before the trailing name positional.
+function release_delete_threads_by_tag_and_repo { # @test
+  run "$BIN/release-delete" "v1.0.0" "true" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'release\ndelete\n-t\n-r\nowner/repo\nv1.0.0\n---'
+}
+
+# tag-list threads -p (page) and -r.
+function tag_list_threads_flags { # @test
+  run "$BIN/tag-list" "owner/repo" "" "2"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'tag\nlist\n-p\n2\n-r\nowner/repo\n---'
+}
+
+# tag-view threads -r before the trailing name positional.
+function tag_view_threads_repo { # @test
+  run "$BIN/tag-view" "v1.0.0" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'tag\nview\n-r\nowner/repo\nv1.0.0\n---'
+}
+
+# tag-create always passes --body= (even empty), same headless-safety
+# convention as release-create.
+function tag_create_threads_flags { # @test
+  run "$BIN/tag-create" "v1.0.0" "tag message" "main" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'tag\ncreate\n--body=tag message\n-B\nmain\n-r\nowner/repo\nv1.0.0\n---'
+}
+
+# tag-delete threads -r before the trailing name positional.
+function tag_delete_threads_repo { # @test
+  run "$BIN/tag-delete" "v1.0.0" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'tag\ndelete\n-r\nowner/repo\nv1.0.0\n---'
+}
+
 # End-to-end through moxy: the smith.issue-list tool dispatches to the
 # wrapped script, which invokes the (stubbed) fj off the inherited PATH.
 function smith_issue_list_via_moxy { # @test

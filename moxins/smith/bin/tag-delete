@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name="$1"
+repo="${2:-}"
+host="${3:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+fj_base "$host"
+fj_cmd+=(tag delete)
+if [ -n "$repo" ]; then
+  validate_repo "$repo"
+  fj_cmd+=(-r "$repo")
+fi
+fj_cmd+=("$name")
+fj_run "$repo" "$host"

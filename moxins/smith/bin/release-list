@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="${1:-}"
+host="${2:-}"
+include_prerelease="${3:-}"
+include_draft="${4:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+fj_base "$host"
+fj_cmd+=(release list)
+if [ "$include_prerelease" = "true" ]; then
+  fj_cmd+=(-p)
+fi
+if [ "$include_draft" = "true" ]; then
+  fj_cmd+=(-d)
+fi
+if [ -n "$repo" ]; then
+  validate_repo "$repo"
+  fj_cmd+=(-r "$repo")
+fi
+fj_run "$repo" "$host"

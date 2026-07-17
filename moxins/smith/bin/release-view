@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name="$1"
+by_tag="${2:-}"
+repo="${3:-}"
+host="${4:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+fj_base "$host"
+fj_cmd+=(release view)
+if [ "$by_tag" = "true" ]; then
+  fj_cmd+=(-t)
+fi
+if [ -n "$repo" ]; then
+  validate_repo "$repo"
+  fj_cmd+=(-r "$repo")
+fi
+fj_cmd+=("$name")
+fj_run "$repo" "$host"
