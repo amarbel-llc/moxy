@@ -240,11 +240,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783990689,
-        "narHash": "sha256-499SPd4ks/IBgxLEx2pyo6R3nGhPPuyLF8z5k8NGMpM=",
+        "lastModified": 1784251590,
+        "narHash": "sha256-yAhlwqaYtzbWRlgrSFUw/R2vLzac1YLsVgmYcz3mTmQ=",
         "ref": "refs/heads/master",
-        "rev": "26e80e71c3196b0ce289c39843eaddc9097ce42b",
-        "revCount": 767,
+        "rev": "0e4b28148919544cae5e8b77c20c542b75a7d1c6",
+        "revCount": 768,
         "type": "git",
         "url": "https://code.linenisgreat.com/forgejo-cli.git"
       },

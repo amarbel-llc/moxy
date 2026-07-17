@@ -328,6 +328,123 @@ function tag_delete_threads_repo { # @test
   assert_output $'tag\ndelete\n-r\nowner/repo\nv1.0.0\n---'
 }
 
+# content-get shells out to fj api's raw REST passthrough, then decodes the
+# GitHub-Contents-API-shaped response fj api returns for Forgejo (#414). A
+# file is a JSON object with base64 content; a directory is a JSON array.
+# These tests need a stub returning realistic JSON, not just "fj-stub-ok",
+# so each overrides $HOME/bin/fj locally.
+function content_get_decodes_file_content { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+printf '{"type":"file","content":"aGVsbG8=","encoding":"base64"}\n'
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/content-get" "owner/repo" "README.md" "" ""
+  assert_success
+  assert_output "hello"
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/contents/README.md\n---'
+}
+
+# A directory response (JSON array) is rendered as a name/type/size/path
+# listing, dropping any extra fields the API response carries.
+function content_get_lists_directory { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+printf '[{"name":"a.txt","type":"file","size":3,"path":"a.txt","extra":"ignored"}]\n'
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/content-get" "owner/repo" "" "" ""
+  assert_success
+  local dir_output="$output"
+
+  run jq -e '.[0].name == "a.txt"' <<<"$dir_output"
+  assert_success
+  run jq -e '.[0] | has("extra") | not' <<<"$dir_output"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/contents/.\n---'
+}
+
+# ref becomes a -f ref= query field (fj api's GET query-param form).
+function content_get_threads_ref { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+printf '{"type":"file","content":"","encoding":"base64"}\n'
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/content-get" "owner/repo" "README.md" "main" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/contents/README.md\n-f\nref=main\n---'
+}
+
+# repo is required — fj api has no cwd auto-resolution, unlike every other
+# smith tool.
+function content_get_requires_repo { # @test
+  run "$BIN/content-get" "" "README.md" "" ""
+  assert_failure 2
+  assert_output --partial "repo is required"
+
+  [ ! -e "$HOME/fj-args" ] || fail "fj was invoked despite missing repo"
+}
+
+# A non-zero fj exit (e.g. 404) must fail the tool, not silently succeed
+# with empty output — `raw=$(fj_run ...)` is a plain (non-local) assignment,
+# so `set -e` correctly propagates fj_run's exit status here.
+function content_get_fails_when_fj_errors { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+echo "404 Not Found" >&2
+exit 1
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/content-get" "owner/repo" "missing.txt" "" ""
+  assert_failure
+}
+
+# A 200 response with no usable content (e.g. an oversized file, where
+# Forgejo's API omits inline content) must error clearly rather than
+# silently emit empty output indistinguishable from a real zero-byte file.
+function content_get_errors_on_missing_content_field { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+printf '{"type":"file","size":123456789}\n'
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/content-get" "owner/repo" "huge.bin" "" ""
+  assert_failure
+  assert_output --partial "no content"
+}
+
+# A present-but-empty .content ("") is a legitimate zero-byte file, distinct
+# from a missing/null .content — must succeed with empty output, not error.
+function content_get_succeeds_on_empty_but_present_content { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+printf '{"type":"file","content":"","encoding":"base64"}\n'
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/content-get" "owner/repo" "empty.txt" "" ""
+  assert_success
+  assert_output ""
+}
+
 # End-to-end through moxy: the smith.issue-list tool dispatches to the
 # wrapped script, which invokes the (stubbed) fj off the inherited PATH.
 function smith_issue_list_via_moxy { # @test

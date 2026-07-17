@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="${1:-}"
+path="${2:-.}"
+ref="${3:-}"
+host="${4:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+if [ -z "$repo" ]; then
+  echo "ERROR: repo is required (fj api has no cwd auto-resolution)" >&2
+  exit 2
+fi
+validate_repo "$repo"
+
+fj_base "$host"
+fj_cmd+=(api "repos/$repo/contents/$path")
+if [ -n "$ref" ]; then
+  fj_cmd+=(-f "ref=$ref")
+fi
+
+raw=$(fj_run "$repo" "$host")
+
+# Forgejo's contents API mirrors GitHub's: an object (with base64 content)
+# for a file, an array for a directory listing.
+kind=$(printf '%s' "$raw" | jq -r 'if type == "array" then "dir" else .type // "file" end')
+
+if [ "$kind" = "dir" ]; then
+  printf '%s' "$raw" | jq '[.[] | {name, type, size, path}]'
+else
+  # Check for null/missing .content specifically (not just an empty string,
+  # which is a legitimate zero-byte file) — a large file omits inline
+  # content and only sets download_url instead.
+  if printf '%s' "$raw" | jq -e '.content == null' >/dev/null; then
+    echo "ERROR: no content in response — the file may be too large for inline content, or the path/ref may not exist" >&2
+    exit 1
+  fi
+  printf '%s' "$raw" | jq -r '.content' | tr -d '\n' | base64 -d
+fi

@@ -957,6 +957,7 @@
           pkgs.bash
           pkgs.coreutils
           pkgs.gawk
+          pkgs.jq
           forgejo-cli.packages.${system}.default
         ] { };
 
