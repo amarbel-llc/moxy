@@ -568,7 +568,7 @@ tag message="":
 # Generate auto-changelog (last tag → HEAD, before bumping so the
 # release commit doesn't appear in its own notes), bump MOXY_VERSION
 # on master, commit, push master, create signed tag with the
-# changelog as the tag message, and publish the GitHub release with
+# changelog as the tag message, and publish the Forgejo release with
 # the same changelog as the release body. Pass notes_file to
 # override the auto-changelog with hand-written notes. Must be run
 # from the master branch.
@@ -603,7 +603,7 @@ release new_version notes_file="":
   fi
   git push origin master
   just tag "$notes"
-  gh release create "v${new_version}" --title "v${new_version}" --notes "$notes"
+  fj release create "v${new_version}" --tag "v${new_version}" --body "$notes"
 
 [group("maintenance")]
 clean: clean-build
