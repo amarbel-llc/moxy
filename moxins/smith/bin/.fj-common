@@ -70,6 +70,40 @@ fj_run() {
   fi
 }
 
+# run_subscribe <number> <unsubscribe> <repo> <host>
+# Subscribes (or, if unsubscribe="true", unsubscribes) the fj-authenticated
+# user to/from an issue or PR's notifications, via fj api's raw REST
+# passthrough (#414) against Forgejo's GitHub-compatible subscriptions
+# endpoint — fj has no native subscribe subcommand. Issues and PRs share the
+# same underlying repos/OWNER/NAME/issues/N/subscriptions endpoint in
+# Forgejo's API (PRs are issues internally, verified live), so issue-watch
+# and pr-watch both call this. repo is REQUIRED: fj api has no cwd-remote
+# auto-resolution (same constraint as content-get, #414).
+run_subscribe() {
+  local number="$1" unsubscribe="${2:-}" repo="${3:-}" host="${4:-}"
+
+  if [ -z "$repo" ]; then
+    echo "ERROR: repo is required (fj api has no cwd auto-resolution)" >&2
+    exit 2
+  fi
+  validate_repo "$repo"
+
+  fj_base "$host"
+  _fj_scratch_dir
+  local self
+  self=$(cd "$_fj_scratch" && "${fj_cmd[@]}" whoami 2>/dev/null | awk 'END{print $NF}') || true
+  if [ -z "$self" ]; then
+    echo "ERROR: could not determine authenticated user" >&2
+    exit 1
+  fi
+
+  local method="PUT"
+  [ "$unsubscribe" = "true" ] && method="DELETE"
+
+  fj_cmd+=(api "repos/$repo/issues/$number/subscriptions/$self" -X "$method")
+  fj_run "$repo" "$host"
+}
+
 # run_fj_search <issue|pr> <query> <state> <labels> <creator> <assignee> <repo> <host>
 # `fj issue search` and `fj pr search` share their whole flag surface; this
 # threads the common filter args for both issue-list and pr-list.

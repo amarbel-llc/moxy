@@ -111,7 +111,7 @@ The following moxins ship with moxy. Each can be served individually via
 | prison | 1 | Google Sheets: read spreadsheet data | bun, gws |
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
 | sisyphus | 10 | Jira Cloud tools | python3, atlassian-python-api |
-| smith | 27 | Forgejo tools via the `fj` CLI (pass `repo` + `host` to target any repo on any instance) | forgejo-cli |
+| smith | 29 | Forgejo tools via the `fj` CLI (pass `repo` + `host` to target any repo on any instance) | forgejo-cli |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
 
 ## Usage

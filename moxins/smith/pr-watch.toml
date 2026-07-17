@@ -1,0 +1,29 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+description = "Subscribe (or unsubscribe) the fj-authenticated user to a Forgejo pull request's notifications, mirroring the web UI's per-PR Subscribe button. repo is REQUIRED — fj api has no cwd auto-resolution."
+command = "@BIN@/pr-watch"
+arg-order = ["number", "unsubscribe", "repo", "host"]
+
+[input]
+type = "object"
+required = ["number", "repo"]
+
+[input.properties.number]
+type = "integer"
+description = "Pull request number"
+
+[input.properties.unsubscribe]
+type = "boolean"
+description = "Unsubscribe instead of subscribing"
+
+[input.properties.repo]
+type = "string"
+description = "Target repo in OWNER/NAME format. Required — fj api has no cwd auto-resolution."
+
+[input.properties.host]
+type = "string"
+description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[annotations]
+open-world-hint = true

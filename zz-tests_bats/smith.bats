@@ -510,6 +510,80 @@ EOF
   assert_output --partial "could not determine authenticated user"
 }
 
+# issue-watch/pr-watch (#413): subscribe/unsubscribe via fj api's raw REST
+# passthrough against Forgejo's GitHub-compatible subscriptions endpoint —
+# fj has no native subscribe subcommand. Both tools share run_subscribe in
+# .fj-common since PRs are issues internally in Forgejo's API (verified
+# live). These tests use a subcommand-branching fj stub (whoami vs. api).
+function issue_watch_subscribes_self { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+if [ "$1" = "whoami" ]; then
+  echo "Logged in as alice"
+else
+  printf '%s\n' "$@" >> "$HOME/fj-args"
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/issue-watch" 42 "" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/issues/42/subscriptions/alice\n-X\nPUT'
+}
+
+function issue_watch_unsubscribes_with_flag { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+if [ "$1" = "whoami" ]; then
+  echo "Logged in as alice"
+else
+  printf '%s\n' "$@" >> "$HOME/fj-args"
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/issue-watch" 42 "true" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/issues/42/subscriptions/alice\n-X\nDELETE'
+}
+
+# PRs use the same issues/ subscriptions endpoint as issues in Forgejo's API.
+function pr_watch_uses_same_issues_endpoint { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+if [ "$1" = "whoami" ]; then
+  echo "Logged in as alice"
+else
+  printf '%s\n' "$@" >> "$HOME/fj-args"
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/pr-watch" 367 "" "owner/repo" ""
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/issues/367/subscriptions/alice\n-X\nPUT'
+}
+
+function issue_watch_requires_repo { # @test
+  run "$BIN/issue-watch" 42 "" "" ""
+  assert_failure 2
+  assert_output --partial "repo is required"
+}
+
+function issue_watch_fails_when_whoami_fails { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+exit 1
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/issue-watch" 42 "" "owner/repo" ""
+  assert_failure 1
+  assert_output --partial "could not determine authenticated user"
+}
+
 # End-to-end through moxy: the smith.issue-list tool dispatches to the
 # wrapped script, which invokes the (stubbed) fj off the inherited PATH.
 function smith_issue_list_via_moxy { # @test

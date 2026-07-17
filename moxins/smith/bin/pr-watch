@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+number="$1"
+unsubscribe="${2:-}"
+repo="${3:-}"
+host="${4:-}"
+
+# shellcheck source=bin/.fj-common
+. "$(dirname "$0")/.fj-common"
+
+run_subscribe "$number" "$unsubscribe" "$repo" "$host"
