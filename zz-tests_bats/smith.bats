@@ -445,6 +445,71 @@ EOF
   assert_output ""
 }
 
+# repo-owner-perms (#417): the dynamic-perms gate for smith write tools.
+# Allows when the target repo's owner matches the fj-authenticated user or
+# one of their orgs; asks otherwise. These tests use a dedicated fj stub
+# that branches on subcommand (whoami vs. api user/orgs), since the shared
+# setup() stub always answers "fj-stub-ok" regardless of subcommand.
+function repo_owner_perms_no_repo_auto_allows { # @test
+  run "$BIN/repo-owner-perms" "" ""
+  assert_success
+  assert_output --partial "auto-allowed"
+}
+
+function repo_owner_perms_matches_self { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+if [ "$1" = "whoami" ]; then
+  echo "Logged in as alice"
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/repo-owner-perms" "alice/repo" ""
+  assert_success
+  assert_output --partial "matches authenticated user"
+}
+
+function repo_owner_perms_matches_member_org { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+if [ "$1" = "whoami" ]; then
+  echo "Logged in as alice"
+elif [ "$1" = "api" ] && [ "$2" = "user/orgs" ]; then
+  printf '[{"username":"acme-corp"},{"username":"other-org"}]\n'
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/repo-owner-perms" "acme-corp/repo" ""
+  assert_success
+  assert_output --partial "member org"
+}
+
+function repo_owner_perms_asks_when_neither_self_nor_org { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+if [ "$1" = "whoami" ]; then
+  echo "Logged in as alice"
+elif [ "$1" = "api" ] && [ "$2" = "user/orgs" ]; then
+  printf '[{"username":"acme-corp"}]\n'
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/repo-owner-perms" "someone-else/repo" ""
+  assert_failure 1
+  assert_output --partial "confirmation required"
+}
+
+function repo_owner_perms_asks_when_whoami_fails { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+exit 1
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/repo-owner-perms" "someone/repo" ""
+  assert_failure 1
+  assert_output --partial "could not determine authenticated user"
+}
+
 # End-to-end through moxy: the smith.issue-list tool dispatches to the
 # wrapped script, which invokes the (stubbed) fj off the inherited PATH.
 function smith_issue_list_via_moxy { # @test

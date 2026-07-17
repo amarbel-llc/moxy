@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Dynamic-perms gate for smith write tools. Allows when the resolved repo
-# owner matches the fj-authenticated user; asks otherwise.
+# owner matches the fj-authenticated user or one of their orgs (#417,
+# mirroring get-hubbed's repo-owner-perms); asks otherwise.
 #
 # Receives: $1 = repo (OWNER/NAME, may be empty), $2 = host (may be empty)
 #
@@ -41,5 +42,14 @@ if [ "$self" = "$owner" ]; then
   exit 0
 fi
 
-echo "owner ($owner) is not the authenticated user ($self) — confirmation required"
+# fj has no native "list my orgs" subcommand; use the raw REST passthrough
+# (fj api, #414) against Forgejo's GitHub-compatible /user/orgs endpoint.
+# Org objects use "username" (not "login") in Forgejo's API shape.
+orgs_json=$(cd "$_fj_scratch" && "${fj_cmd[@]}" api user/orgs 2>/dev/null) || true
+if printf '%s' "$orgs_json" | jq -e --arg owner "$owner" 'any(.[]?; .username == $owner)' >/dev/null 2>&1; then
+  echo "owner ($owner) is a member org — auto-allowed"
+  exit 0
+fi
+
+echo "owner ($owner) is not the authenticated user ($self) or a member org — confirmation required"
 exit 1
