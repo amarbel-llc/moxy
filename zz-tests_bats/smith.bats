@@ -584,6 +584,110 @@ EOF
   assert_output --partial "could not determine authenticated user"
 }
 
+# issue-get/repo-get output_format=json (#420 proof of concept): shells out
+# to fj api instead of fj's native text view, since fj has no structured
+# output yet (upstream fj#213). These tests need a stub returning realistic
+# JSON per subcommand, like content-get's tests.
+function issue_get_json_fetches_via_api { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+printf '{"number":5,"title":"a bug"}\n'
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/issue-get" 5 "false" "owner/repo" "" "json"
+  assert_success
+  run jq -e '.number == 5' <<<"$output"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/issues/5\n---'
+}
+
+# comments=true merges two api calls into one {issue, comments} JSON object,
+# rather than concatenating two independent JSON values (which wouldn't
+# parse as a single document).
+function issue_get_json_with_comments_merges_both { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+if [ "$2" = "repos/owner/repo/issues/5" ]; then
+  printf '{"number":5,"title":"a bug"}\n'
+else
+  printf '[{"id":1,"body":"first comment"}]\n'
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/issue-get" 5 "true" "owner/repo" "" "json"
+  assert_success
+  run jq -e '.issue.number == 5 and (.comments | length) == 1' <<<"$output"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo/issues/5\n---\napi\nrepos/owner/repo/issues/5/comments\n---'
+}
+
+function issue_get_json_requires_repo { # @test
+  run "$BIN/issue-get" 5 "false" "" "" "json"
+  assert_failure 2
+  assert_output --partial "repo is required"
+}
+
+# A non-zero fj exit must fail the tool, not reach jq with empty/partial
+# input — `issue_json=$(fj_run ...)` is a plain (non-local) assignment, so
+# set -e propagates fj_run's exit status here, same as content-get (#414).
+function issue_get_json_fails_when_fj_errors { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+echo "404 Not Found" >&2
+exit 1
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/issue-get" 5 "false" "owner/repo" "" "json"
+  assert_failure
+}
+
+function repo_get_json_fetches_via_api { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+printf '{"name":"repo","full_name":"owner/repo"}\n'
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/repo-get" "owner/repo" "" "json"
+  assert_success
+  run jq -e '.full_name == "owner/repo"' <<<"$output"
+  assert_success
+
+  run cat "$HOME/fj-args"
+  assert_output $'api\nrepos/owner/repo\n---'
+}
+
+function repo_get_json_requires_name { # @test
+  run "$BIN/repo-get" "" "" "json"
+  assert_failure 2
+  assert_output --partial "name is required"
+}
+
+# Same set -e propagation guarantee as issue-get's json path.
+function repo_get_json_fails_when_fj_errors { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/fj-args"
+printf -- '---\n' >> "$HOME/fj-args"
+echo "404 Not Found" >&2
+exit 1
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/repo-get" "owner/repo" "" "json"
+  assert_failure
+}
+
 # End-to-end through moxy: the smith.issue-list tool dispatches to the
 # wrapped script, which invokes the (stubbed) fj off the inherited PATH.
 function smith_issue_list_via_moxy { # @test

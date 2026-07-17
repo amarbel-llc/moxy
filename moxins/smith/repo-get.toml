@@ -3,7 +3,7 @@ result-type = "text"
 perms-request = "always-allow"
 description = "View a Forgejo repository's info"
 command = "@BIN@/repo-get"
-arg-order = ["name", "host"]
+arg-order = ["name", "host", "output_format"]
 
 [input]
 type = "object"
@@ -15,6 +15,11 @@ description = "Repo in OWNER/NAME format. Omit to resolve from the cwd's git rem
 [input.properties.host]
 type = "string"
 description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[input.properties.output_format]
+type = "string"
+enum = ["text", "json"]
+description = "Output format: omit for text (default, fj's native minimal-style output), or 'json' for fj api's raw REST response (requires name)."
 
 [annotations]
 read-only-hint = true

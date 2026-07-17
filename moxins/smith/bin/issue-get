@@ -4,9 +4,33 @@ number="$1"
 comments="${2:-false}"
 repo="${3:-}"
 host="${4:-}"
+output_format="${5:-text}"
 
 # shellcheck source=bin/.fj-common
 . "$(dirname "$0")/.fj-common"
+
+if [ "$output_format" = "json" ]; then
+  if [ -z "$repo" ]; then
+    echo "ERROR: repo is required when output_format=json (fj api has no cwd auto-resolution)" >&2
+    exit 2
+  fi
+  validate_repo "$repo"
+
+  fj_base "$host"
+  fj_cmd+=(api "repos/$repo/issues/$number")
+  issue_json=$(fj_run "$repo" "$host")
+
+  if [ "$comments" = "true" ]; then
+    fj_base "$host"
+    fj_cmd+=(api "repos/$repo/issues/$number/comments")
+    comments_json=$(fj_run "$repo" "$host")
+    jq -n --argjson issue "$issue_json" --argjson comments "$comments_json" \
+      '{issue: $issue, comments: $comments}'
+  else
+    printf '%s\n' "$issue_json"
+  fi
+  exit 0
+fi
 
 ref=$(qualify_ref "$number" "$repo")
 fj_base "$host"

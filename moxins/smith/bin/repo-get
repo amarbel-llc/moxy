@@ -2,9 +2,22 @@
 set -euo pipefail
 name="${1:-}"
 host="${2:-}"
+output_format="${3:-text}"
 
 # shellcheck source=bin/.fj-common
 . "$(dirname "$0")/.fj-common"
+
+if [ "$output_format" = "json" ]; then
+  if [ -z "$name" ]; then
+    echo "ERROR: name is required when output_format=json (fj api has no cwd auto-resolution)" >&2
+    exit 2
+  fi
+  validate_repo "$name"
+  fj_base "$host"
+  fj_cmd+=(api "repos/$name")
+  fj_run "$name" "$host"
+  exit 0
+fi
 
 fj_base "$host"
 fj_cmd+=(repo view)

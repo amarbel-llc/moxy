@@ -3,7 +3,7 @@ result-type = "text"
 perms-request = "always-allow"
 description = "View a Forgejo issue's title and body, optionally with its comments"
 command = "@BIN@/issue-get"
-arg-order = ["number", "comments", "repo", "host"]
+arg-order = ["number", "comments", "repo", "host", "output_format"]
 
 [input]
 type = "object"
@@ -24,6 +24,11 @@ description = "Target repo in OWNER/NAME format. Omit to resolve from the cwd's 
 [input.properties.host]
 type = "string"
 description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the instance implied by the cwd's git remotes."
+
+[input.properties.output_format]
+type = "string"
+enum = ["text", "json"]
+description = "Output format: omit for text (default, fj's native minimal-style output), or 'json' for fj api's raw REST response (requires repo)."
 
 [annotations]
 read-only-hint = true
