@@ -331,10 +331,7 @@
           "nixpkgs-master"
         ],
         "systems": "systems",
-        "treefmt-nix": [
-          "bats",
-          "treefmt-nix"
-        ]
+        "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
         "lastModified": 1783896868,
@@ -824,6 +821,27 @@
         "nixpkgs": [
           "bats",
           "igloo"
+        ]
+      },
+      "locked": {
+        "lastModified": 1780220602,
+        "narHash": "sha256-eynAfOmbmxJnkp7YewvCEbShNnnYJ9gLLqkzsYtBPeM=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "db947814a175b7ca6ded66e21383d938df01c227",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "treefmt-nix_2": {
+      "inputs": {
+        "nixpkgs": [
+          "igloo",
+          "nixpkgs-master"
         ]
       },
       "locked": {
