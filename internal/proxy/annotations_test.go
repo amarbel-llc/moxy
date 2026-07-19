@@ -8,7 +8,7 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/native"
 )
 
 // Regression coverage for #217: a native (moxin) child whose ToolSpec

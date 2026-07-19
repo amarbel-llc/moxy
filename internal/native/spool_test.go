@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/moxy/internal/spoolctx"
+	"code.linenisgreat.com/moxy/internal/spoolctx"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
 

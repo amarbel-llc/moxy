@@ -25,8 +25,8 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/lifecyclelog"
-	"github.com/amarbel-llc/moxy/internal/spoolctx"
+	"code.linenisgreat.com/moxy/internal/lifecyclelog"
+	"code.linenisgreat.com/moxy/internal/spoolctx"
 )
 
 // Job states. Running is the only non-terminal state. Succeeded/Failed/

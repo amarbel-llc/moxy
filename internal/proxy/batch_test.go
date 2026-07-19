@@ -9,8 +9,8 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/native"
-	"github.com/amarbel-llc/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/permcheck"
 )
 
 // newProxyWithResolverAndDispatch builds a Proxy stub wired with a

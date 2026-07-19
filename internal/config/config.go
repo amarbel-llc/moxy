@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/amarbel-llc/moxy/internal/config/schema"
+	"code.linenisgreat.com/moxy/internal/config/schema"
 )
 
 // The moxyfile TOML data model and its tommy-generated codec live in the

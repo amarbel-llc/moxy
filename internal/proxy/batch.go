@@ -8,7 +8,7 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/internal/permcheck"
 )
 
 // batchCall is one entry in the batch.calls array.

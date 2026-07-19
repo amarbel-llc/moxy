@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amarbel-llc/moxy/internal/credentials"
+	"code.linenisgreat.com/moxy/internal/credentials"
 )
 
 // ProtectedResourceMetadata is from .well-known/oauth-protected-resource.

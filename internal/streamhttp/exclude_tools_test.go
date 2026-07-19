@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/moxy/internal/toolexclude"
+	"code.linenisgreat.com/moxy/internal/toolexclude"
 )
 
 // stubToolExcluderProvider embeds stubToolProvider and additionally

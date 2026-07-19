@@ -14,8 +14,8 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
 
-	"github.com/amarbel-llc/moxy/internal/native"
-	"github.com/amarbel-llc/moxy/internal/statsd"
+	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/statsd"
 )
 
 // instrumentedToolAdapter emits the same statsd dispatch metrics for

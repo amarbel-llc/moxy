@@ -10,9 +10,9 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
-	"github.com/amarbel-llc/moxy/internal/asyncjob"
-	"github.com/amarbel-llc/moxy/internal/native"
-	"github.com/amarbel-llc/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/internal/asyncjob"
+	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/permcheck"
 )
 
 // newAsyncProxy builds a Proxy with an allow-listed fake tool and an async

@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/native"
 )
 
 const (

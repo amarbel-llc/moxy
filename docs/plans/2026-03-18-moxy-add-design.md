@@ -119,7 +119,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/config"
 )
 
 func TestFormatServerBlock(t *testing.T) {
@@ -232,7 +232,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/amarbel-llc/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/config"
 )
 
 // FormatServerBlock produces a [[servers]] TOML block for appending to a
@@ -445,7 +445,7 @@ if flag.NArg() >= 1 && flag.Arg(0) == "add" {
 }
 ```
 
-Add `"github.com/amarbel-llc/moxy/internal/add"` to imports.
+Add `"code.linenisgreat.com/moxy/internal/add"` to imports.
 
 **Step 2: Verify compile**
 

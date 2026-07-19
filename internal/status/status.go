@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/amarbel-llc/moxy/internal/config"
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/native"
 )
 
 // Run prints a unified status view of the moxyfile hierarchy, moxin

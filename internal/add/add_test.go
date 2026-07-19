@@ -3,7 +3,7 @@ package add
 import (
 	"testing"
 
-	"github.com/amarbel-llc/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/config"
 )
 
 func TestBuildServerConfigNoAnnotations(t *testing.T) {

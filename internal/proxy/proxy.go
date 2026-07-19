@@ -15,15 +15,15 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
-	"github.com/amarbel-llc/moxy/internal/asyncjob"
-	"github.com/amarbel-llc/moxy/internal/config"
-	"github.com/amarbel-llc/moxy/internal/naming"
-	"github.com/amarbel-llc/moxy/internal/native"
-	"github.com/amarbel-llc/moxy/internal/paginate"
-	"github.com/amarbel-llc/moxy/internal/permcheck"
-	"github.com/amarbel-llc/moxy/internal/statsd"
-	"github.com/amarbel-llc/moxy/internal/toolexclude"
-	"github.com/amarbel-llc/moxy/internal/toolfilter"
+	"code.linenisgreat.com/moxy/internal/asyncjob"
+	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/naming"
+	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/paginate"
+	"code.linenisgreat.com/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/internal/statsd"
+	"code.linenisgreat.com/moxy/internal/toolexclude"
+	"code.linenisgreat.com/moxy/internal/toolfilter"
 )
 
 // MoxinReloader re-discovers a single moxin's config by name from the

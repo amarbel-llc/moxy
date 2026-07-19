@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/amarbel-llc/moxy/internal/credentials"
+	"code.linenisgreat.com/moxy/internal/credentials"
 )
 
 //go:generate tommy generate

@@ -15,8 +15,8 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
 
-	"github.com/amarbel-llc/moxy/internal/permcheck"
-	"github.com/amarbel-llc/moxy/internal/stderrlog"
+	"code.linenisgreat.com/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/internal/stderrlog"
 )
 
 var (

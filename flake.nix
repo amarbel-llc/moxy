@@ -1068,14 +1068,14 @@
           # project-specific ldflags need to live here.
           ldflags = [
             "-X"
-            "github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
+            "code.linenisgreat.com/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
             "-X"
-            "github.com/amarbel-llc/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"
+            "code.linenisgreat.com/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"
             # Pin the ringmaster job-control CLI (clown RFC-0015) as the async
             # producer's default, so wakeups don't depend on ambient PATH. The
             # RINGMASTER_BIN env var still overrides this (tests/pinning).
             "-X"
-            "github.com/amarbel-llc/moxy/internal/asyncjob.defaultRingmasterBin=${clown-ringmaster}/bin/ringmaster"
+            "code.linenisgreat.com/moxy/internal/asyncjob.defaultRingmasterBin=${clown-ringmaster}/bin/ringmaster"
           ];
           postInstall = ''
             MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out

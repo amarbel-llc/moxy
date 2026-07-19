@@ -10,7 +10,7 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/config"
 )
 
 // probeBackend is a non-native ServerBackend whose Call fails, simulating a

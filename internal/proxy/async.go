@@ -10,8 +10,8 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/asyncjob"
-	"github.com/amarbel-llc/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/internal/asyncjob"
+	"code.linenisgreat.com/moxy/internal/permcheck"
 )
 
 // SetAsyncManager wires the async job manager. Built in cmd/moxy with the

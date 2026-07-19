@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/amarbel-llc/moxy/internal/config"
-	"github.com/amarbel-llc/moxy/internal/native"
-	"github.com/amarbel-llc/moxy/internal/proxy"
+	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/proxy"
 )
 
 // bootstrapInputs are the static inputs threaded through bootstrap. Closures

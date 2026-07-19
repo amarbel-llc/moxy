@@ -10,9 +10,9 @@ import (
 
 	"github.com/charmbracelet/huh"
 
-	"github.com/amarbel-llc/moxy/internal/config"
-	"github.com/amarbel-llc/moxy/internal/credentials"
-	"github.com/amarbel-llc/moxy/internal/oauth"
+	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/credentials"
+	"code.linenisgreat.com/moxy/internal/oauth"
 )
 
 func Run(path string, credStore credentials.Store) error {

@@ -11,7 +11,7 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/statsd"
+	"code.linenisgreat.com/moxy/internal/statsd"
 )
 
 // CallToolV1 is the single instrumentation point for dispatch metrics; this

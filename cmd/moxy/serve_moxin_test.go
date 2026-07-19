@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amarbel-llc/moxy/internal/native"
-	"github.com/amarbel-llc/moxy/internal/statsd"
+	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/statsd"
 )
 
 // Regression for #311: standalone-moxin serving (serve_moxin) dispatches

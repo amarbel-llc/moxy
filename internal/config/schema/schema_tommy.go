@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/amarbel-llc/moxy/internal/credentials"
+	"code.linenisgreat.com/moxy/internal/credentials"
 	"github.com/amarbel-llc/tommy/pkg/cst"
 	"github.com/amarbel-llc/tommy/pkg/document"
 )

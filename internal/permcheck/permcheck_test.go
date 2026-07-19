@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/native"
 )
 
 func TestNewResolver_NoMoxins(t *testing.T) {

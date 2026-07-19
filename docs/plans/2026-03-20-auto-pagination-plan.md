@@ -439,7 +439,7 @@ func paginateResourceResult(result protocol.ResourceReadResult, params paginate.
 }
 ```
 
-Add `"github.com/amarbel-llc/moxy/internal/paginate"` to the imports.
+Add `"code.linenisgreat.com/moxy/internal/paginate"` to the imports.
 
 **Step 3: Run tests to verify nothing is broken**
 

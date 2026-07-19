@@ -1,4 +1,4 @@
-module github.com/amarbel-llc/moxy
+module code.linenisgreat.com/moxy
 
 go 1.26
 

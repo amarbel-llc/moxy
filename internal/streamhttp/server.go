@@ -10,7 +10,7 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
 
-	"github.com/amarbel-llc/moxy/internal/toolexclude"
+	"code.linenisgreat.com/moxy/internal/toolexclude"
 
 	"github.com/google/uuid"
 )

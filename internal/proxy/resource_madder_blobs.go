@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/native"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
 

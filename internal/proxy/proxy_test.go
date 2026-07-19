@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/moxy/internal/config"
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/native"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 )
 

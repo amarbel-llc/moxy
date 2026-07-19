@@ -60,8 +60,8 @@ Run: `just cover-go ./internal/hook/...`
 
 Expected output includes:
 ```
-github.com/amarbel-llc/moxy/internal/hook/hook.go:241: tryPermsDecision     0.0%
-github.com/amarbel-llc/moxy/internal/hook/hook.go:366: discoverPermissions  0.0%
+code.linenisgreat.com/moxy/internal/hook/hook.go:241: tryPermsDecision     0.0%
+code.linenisgreat.com/moxy/internal/hook/hook.go:366: discoverPermissions  0.0%
 total: ... 43.4% of statements
 ```
 
@@ -367,7 +367,7 @@ import (
     "encoding/json"
     "os"
 
-    "github.com/amarbel-llc/moxy/internal/native"
+    "code.linenisgreat.com/moxy/internal/native"
 )
 
 // Decision is the resolved permission outcome for one tool call.
@@ -578,7 +578,7 @@ import (
     "encoding/json"
     "testing"
 
-    "github.com/amarbel-llc/moxy/internal/native"
+    "code.linenisgreat.com/moxy/internal/native"
 )
 
 func TestNewResolver_EmptyMoxinPath(t *testing.T) {
@@ -696,7 +696,7 @@ git commit -m "test(permcheck): port resolver tests + fixtures"
 In `internal/hook/hook.go`, add a new import:
 
 ```go
-"github.com/amarbel-llc/moxy/internal/permcheck"
+"code.linenisgreat.com/moxy/internal/permcheck"
 ```
 
 Add a package-level resolver var with lazy init (resolvers walk the filesystem, so we don't want to do it on import):
@@ -967,7 +967,7 @@ git commit -m "feat(proxy): add NDJSON mirror types for batch output"
 
 In `internal/proxy/proxy.go`, add import:
 ```go
-"github.com/amarbel-llc/moxy/internal/permcheck"
+"code.linenisgreat.com/moxy/internal/permcheck"
 ```
 
 In the `Proxy` struct (line 110-129), add a field:
@@ -995,7 +995,7 @@ if err != nil {
 }
 ```
 
-Add the import `"github.com/amarbel-llc/moxy/internal/permcheck"`.
+Add the import `"code.linenisgreat.com/moxy/internal/permcheck"`.
 
 **Step 3: Compile**
 
@@ -1031,7 +1031,7 @@ import (
     "strings"
     "testing"
 
-    "github.com/amarbel-llc/moxy/internal/permcheck"
+    "code.linenisgreat.com/moxy/internal/permcheck"
 
     "github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
@@ -1116,7 +1116,7 @@ import (
     "encoding/json"
     "fmt"
 
-    "github.com/amarbel-llc/moxy/internal/permcheck"
+    "code.linenisgreat.com/moxy/internal/permcheck"
     "github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
 
@@ -1518,7 +1518,7 @@ func TestBatch_MalformedJSON(t *testing.T) {
 }
 ```
 
-Add `"github.com/amarbel-llc/moxy/internal/native"` to test imports.
+Add `"code.linenisgreat.com/moxy/internal/native"` to test imports.
 
 **Step 2: Extend `HandleBatch` to emit skip directives**
 

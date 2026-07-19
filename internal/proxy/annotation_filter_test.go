@@ -3,7 +3,7 @@ package proxy
 import (
 	"testing"
 
-	"github.com/amarbel-llc/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/config"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 )
 

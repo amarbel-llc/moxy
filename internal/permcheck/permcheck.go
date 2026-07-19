@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/native"
 )
 
 // Decision is the resolved permission outcome for one tool call.

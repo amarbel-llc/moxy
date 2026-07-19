@@ -14,8 +14,8 @@ import (
 
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/asyncjob"
-	"github.com/amarbel-llc/moxy/internal/native"
+	"code.linenisgreat.com/moxy/internal/asyncjob"
+	"code.linenisgreat.com/moxy/internal/native"
 )
 
 // proxyFakeMadder is a minimal MadderBackend backed by an in-memory map. Only

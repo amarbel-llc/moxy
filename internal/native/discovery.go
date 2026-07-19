@@ -37,7 +37,7 @@ func debugMoxin(format string, args ...any) {
 
 // defaultSystemMoxinDir is set at build time via -ldflags:
 //
-//	-X github.com/amarbel-llc/moxy/internal/native.defaultSystemMoxinDir=/nix/store/.../share/moxy/moxins
+//	-X code.linenisgreat.com/moxy/internal/native.defaultSystemMoxinDir=/nix/store/.../share/moxy/moxins
 //
 // This allows nix builds (where the binary and moxins live in separate store
 // paths) to locate builtin moxins without relying on executable path resolution.

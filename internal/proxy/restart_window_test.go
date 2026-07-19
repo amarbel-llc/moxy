@@ -9,7 +9,7 @@ import (
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
 	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
 
-	"github.com/amarbel-llc/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/config"
 )
 
 // fakeBackend is a minimal NON-native ServerBackend, so a restart routes
