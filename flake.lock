@@ -219,7 +219,10 @@
     },
     "forgejo-cli": {
       "inputs": {
-        "nixpkgs": [
+        "conformist": [
+          "conformist"
+        ],
+        "nixpkgs-master": [
           "nixpkgs-master"
         ],
         "utils": [
@@ -227,10 +230,10 @@
         ]
       },
       "locked": {
-        "lastModified": 1784259888,
-        "narHash": "sha256-IK9dwyoQ9clqOMPysd6XaLO/iLSc4+x7pfjPBTYWLcg=",
+        "lastModified": 1784471003,
+        "narHash": "sha256-qMOZ6Q8mq/lVxkSJF1/CTS/+dzRsPmK83W71WHMMrt0=",
         "type": "tarball",
-        "url": "https://code.linenisgreat.com/forgejo-cli/archive/086e1e513ff3e9961761bafdf30c06b8da2ec46c.tar.gz"
+        "url": "https://code.linenisgreat.com/forgejo-cli/archive/33adbdd5b764923f0268e212464cb176899512b0.tar.gz"
       },
       "original": {
         "type": "tarball",

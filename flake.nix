@@ -83,12 +83,15 @@
     # linenisgreat fork of forgejo-cli (fj), carrying the FDR-0016
     # vanity-discovery patches for owner-less vanity remotes
     # (code.linenisgreat.com). Its outputs function uses a closed parameter set
-    # ({ self, nixpkgs, utils }, no ...) — do not add follows for inputs it
-    # doesn't declare.
+    # ({ self, nixpkgs-master, utils, conformist }, no ...) — do not add
+    # follows for inputs it doesn't declare. (Its former `nixpkgs` input was
+    # renamed nixpkgs-master in forgejo-cli ebdedb8; conformist added in
+    # 56c6de7.)
     forgejo-cli = {
       url = "https://code.linenisgreat.com/forgejo-cli/archive/master.tar.gz";
-      inputs.nixpkgs.follows = "nixpkgs-master";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
+      inputs.conformist.follows = "conformist";
     };
 
     madder.inputs.bats.follows = "bats";
