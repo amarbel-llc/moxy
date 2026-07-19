@@ -1427,10 +1427,12 @@
 
         # `nix fmt` runs the conformist wrapper in repair mode (every formatter
         # from ./conformist.nix + presets.eng, plus any linter repair actions).
-        # `checks.conformist` is the sandboxed read-only gate (built by `just
+        # `checks.formatting` is the sandboxed read-only gate (built by `just
         # lint-fmt`, and evaluated by `nix flake check`): it runs `conformist
         # check`, covering the formatters, the dead-jq + mypy linters, and the
-        # eng-preset conventions (eng-versioning, flake-*, justfile-*).
+        # eng-preset conventions (eng-versioning, flake-*, justfile-*). Named
+        # `formatting` (not `conformist`) to match the fleet convention every
+        # other conformist adopter uses for this check.
         formatter = conformistEval.config.build.wrapper;
         # `nix flake check` is the single hermetic gate: conformist (fmt +
         # dead-jq + mypy), the Go test (-race) / vet / golangci-lint checks, and the
@@ -1441,7 +1443,7 @@
         # bats-default already covers them in aggregate, so re-listing each as
         # a check would only double-build.
         checks = {
-          conformist = conformistEval.config.build.check self;
+          formatting = conformistEval.config.build.check self;
           go-test-race = goTestRace;
           go-vet = goVet;
           go-lint = goLint;

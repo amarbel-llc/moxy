@@ -6,7 +6,7 @@
 # below mirrors it. See conformist(7), conformist-nix(7).
 #
 # This module is the single config source: flake.nix's `nix fmt` (build.wrapper),
-# the read-only checks.conformist gate (build.check), and the store-pinned
+# the read-only checks.formatting gate (build.check), and the store-pinned
 # conformist-pre-commit / conformist-repair git hooks all eval it (each hook bakes
 # its own /nix/store config), so there is no committed conformist.toml to keep in
 # sync. tommy (the TOML formatter) and the dead-jq / mypy check scripts are

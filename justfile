@@ -94,7 +94,7 @@ lint-fmt:
   #!/usr/bin/env bash
   set -euo pipefail
   system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
-  nix build --print-build-logs --no-link ".#checks.${system}.conformist"
+  nix build --print-build-logs --no-link ".#checks.${system}.formatting"
 
 # Go static analysis via golangci-lint. Config: ./.golangci.yml. Hard gate via
 # the `lint` aggregate. MOXIN_PATH is cleared so package loading matches the
