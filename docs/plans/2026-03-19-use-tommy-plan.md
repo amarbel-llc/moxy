@@ -6,7 +6,7 @@
 
 **Architecture:** Add tommy-compatible adapter structs (`moxyfileConfig`/`moxyfileServer`) in `internal/config` that use plain `string` for command and value-type for annotations (tommy's marshal doesn't support custom unmarshal interfaces or pointer-to-struct fields). The `add` package switches from `FormatServerBlock` + `AppendServerToFile` to a single `WriteServer` function that does parse→modify→write via tommy. Config reading (`Parse`/`Load`/`LoadHierarchy`) and validation stay on BurntSushi/toml for now — swapping those is a separate task.
 
-**Tech Stack:** `github.com/amarbel-llc/tommy/pkg/marshal`
+**Tech Stack:** `code.linenisgreat.com/tommy/pkg/marshal`
 
 **Rollback:** Revert the add package changes; the old `FormatServerBlock`/`AppendServerToFile` functions remain until task 2 removes them.
 
@@ -31,7 +31,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/tommy/pkg/marshal"
+	"code.linenisgreat.com/tommy/pkg/marshal"
 )
 
 func TestTommyNoOpRoundTrip(t *testing.T) {
@@ -317,7 +317,7 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/amarbel-llc/tommy/pkg/marshal"
+	"code.linenisgreat.com/tommy/pkg/marshal"
 )
 
 func WriteServer(path string, srv ServerConfig) error {

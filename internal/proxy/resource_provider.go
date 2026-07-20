@@ -3,7 +3,7 @@ package proxy
 import (
 	"context"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // ResourceProvider handles resource reads for a URI scheme prefix.

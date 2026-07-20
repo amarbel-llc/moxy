@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"code.linenisgreat.com/moxy/internal/lifecyclelog"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/transport"
 )
 
 // logLifecycle forwards to the shared lifecyclelog package. Kept as a local

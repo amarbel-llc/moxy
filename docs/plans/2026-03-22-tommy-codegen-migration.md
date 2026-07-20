@@ -29,7 +29,7 @@ returns `*ConfigDocument`.
 
 **Step 1: Update dependency**
 
-Run: `go get github.com/amarbel-llc/tommy@latest`
+Run: `go get code.linenisgreat.com/tommy@latest`
 
 **Step 2: Tidy**
 

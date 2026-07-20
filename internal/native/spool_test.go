@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"code.linenisgreat.com/moxy/internal/spoolctx"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // A native dispatch whose context carries a spool path tees the child's

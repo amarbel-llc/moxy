@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
 	"code.linenisgreat.com/moxy/internal/lifecyclelog"
 	"code.linenisgreat.com/moxy/internal/spoolctx"

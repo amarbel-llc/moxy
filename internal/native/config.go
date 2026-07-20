@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
+	"code.linenisgreat.com/tommy/pkg/cst"
+	"code.linenisgreat.com/tommy/pkg/document"
 	"github.com/BurntSushi/toml"
-	"github.com/amarbel-llc/tommy/pkg/cst"
-	"github.com/amarbel-llc/tommy/pkg/document"
 )
 
 // PermsRequest controls how the hook system handles permission for a tool.

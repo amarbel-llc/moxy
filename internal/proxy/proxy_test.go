@@ -8,7 +8,7 @@ import (
 
 	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/native"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 )
 
 type fakeMoxinReloader struct {

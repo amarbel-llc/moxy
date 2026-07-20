@@ -107,6 +107,20 @@
     madder.inputs.purse-first.follows = "purse-first";
     madder.inputs.tommy.follows = "tommy";
     bats.inputs.conformist.follows = "conformist";
+    # madder's own B2 leg (piggy#183's markl-id framework) pulled hyphence's
+    # langlang subtree into madder's graph, which carries its own
+    # github:amarbel-llc/tap fetch — a duplicate of madder's own
+    # code.linenisgreat.com/tap (aliased "madder/tap" below). Collapse onto
+    # madder/tap's crane/rust-overlay rather than the whole tap node (their
+    # revs differ; only the generic overlay flakes need dedup). Mirrors
+    # madder's own flake.nix fix verbatim.
+    madder.inputs.hyphence.inputs.langlang.inputs.tap.inputs.crane.follows = "madder/tap/crane";
+    madder.inputs.hyphence.inputs.langlang.inputs.tap.inputs.rust-overlay.follows =
+      "madder/tap/rust-overlay";
+    # piggy's own langlang pin is bit-identical to hyphence's (piggy#183 pulls
+    # the same markl-id framework) — collapse onto hyphence's copy rather than
+    # deep-following piggy's separately. Mirrors madder's own flake.nix fix.
+    madder.inputs.piggy.inputs.langlang.follows = "madder/hyphence/langlang";
   };
 
   outputs =
@@ -249,8 +263,8 @@
         # `go build`). madder is NOT bridged: it's a binary input, not imported
         # Go code. Consumed by both buildGoApplication and the devshell mkGoEnv.
         goFlakeInputs = {
-          "github.com/amarbel-llc/tommy" = tommy.packages.${system}.go-pkgs;
-          "github.com/amarbel-llc/purse-first/libs/go-mcp" = {
+          "code.linenisgreat.com/tommy" = tommy.packages.${system}.go-pkgs;
+          "code.linenisgreat.com/purse-first/libs/go-mcp" = {
             src = purse-first.packages.${system}.go-pkgs;
             subPath = "libs/go-mcp";
           };

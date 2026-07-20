@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/command"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 
 	"code.linenisgreat.com/moxy/internal/permcheck"
 	"code.linenisgreat.com/moxy/internal/stderrlog"

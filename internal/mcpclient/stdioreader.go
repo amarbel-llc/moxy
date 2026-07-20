@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/transport"
 )
 
 // The MCP stdio transport frames each JSON-RPC message as one newline-delimited

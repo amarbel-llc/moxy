@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 type stubToolProvider struct{}

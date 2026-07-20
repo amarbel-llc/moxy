@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"code.linenisgreat.com/moxy/internal/native"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // madderBlobProvider serves madder://blobs/{digest} resource reads by

@@ -1,8 +1,8 @@
 package credentials
 
 import (
-	"github.com/amarbel-llc/tommy/pkg/cst"
-	"github.com/amarbel-llc/tommy/pkg/document"
+	"code.linenisgreat.com/tommy/pkg/cst"
+	"code.linenisgreat.com/tommy/pkg/document"
 )
 
 // DecodeCommandConfigInto populates a CommandConfig from the [credentials]

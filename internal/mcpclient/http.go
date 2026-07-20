@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/transport"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/transport"
 )
 
 // headerMCPSessionID is the MCP session header name (inlined since

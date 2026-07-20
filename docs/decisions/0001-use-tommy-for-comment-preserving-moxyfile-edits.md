@@ -85,6 +85,6 @@ Verified with an evaluation test against tommy@ff251e0cfdc0:
 ## More Information
 
 * Upstream issue (resolved): [amarbel-llc/tommy#5 — Support \[\[array-of-tables\]\] in
-  document and marshal APIs](https://github.com/amarbel-llc/tommy/issues/5)
+  document and marshal APIs](https://code.linenisgreat.com/tommy/issues/5)
 * Moxy moxyfile hierarchy design:
   `docs/plans/2026-03-18-moxyfile-hierarchy-design.md`

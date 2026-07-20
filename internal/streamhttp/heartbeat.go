@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 )
 
 // heartbeatEnvVar selects the cadence at which handlePost emits keep-alive

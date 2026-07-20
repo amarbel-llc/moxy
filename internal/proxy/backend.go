@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 )
 
 // ServerBackend abstracts the proxy's interaction with child servers.

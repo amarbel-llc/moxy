@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
 	"code.linenisgreat.com/moxy/internal/native"
 )

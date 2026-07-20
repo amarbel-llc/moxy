@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"code.linenisgreat.com/moxy/internal/config"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // Issue #29: annotation filters should use OR semantics, not AND.

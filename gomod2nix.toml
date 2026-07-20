@@ -1,20 +1,20 @@
 schema = 3
 
 [mod]
+  [mod.'code.linenisgreat.com/purse-first/libs/go-mcp']
+    version = 'v0.5.0'
+    hash = 'sha256-dX5SW7t2TrvJjQvzsZB+Yue9mD2yJosBN8fPWWC819c='
+    goVersion = '1.26'
+
+  [mod.'code.linenisgreat.com/tommy']
+    version = 'v0.5.0'
+    hash = 'sha256-Stc6rRy+e/nVDkH7Ykww3NxBR/KeAy+UXDt13peknDg='
+    goVersion = '1.26'
+
   [mod.'github.com/BurntSushi/toml']
     version = 'v1.6.0'
     hash = 'sha256-ptdUJvuc21ixeLt+M5way/na3aCnCO4MYHWulWp8NEY='
     goVersion = '1.18'
-
-  [mod.'github.com/amarbel-llc/purse-first/libs/go-mcp']
-    version = 'v0.0.14-0.20260527094812-f9b9b60436fb'
-    hash = 'sha256-1Dde0f3A5ZF12vTOxK8qSPhzaaujEKfhlSMd82uTHnY='
-    goVersion = '1.26'
-
-  [mod.'github.com/amarbel-llc/tommy']
-    version = 'v0.4.2'
-    hash = 'sha256-mHNivk5E0bySKdh2sXcYopzC/Nhyb4AKU+4rDN+BOJ4='
-    goVersion = '1.26'
 
   [mod.'github.com/atotto/clipboard']
     version = 'v0.1.4'

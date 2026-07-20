@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 )
 
 // stubTransport drives readLoop straight to its termination path: Read returns

@@ -1033,7 +1033,7 @@ import (
 
     "code.linenisgreat.com/moxy/internal/permcheck"
 
-    "github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+    "code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // newProxyWithResolverAndDispatch builds a Proxy stub wired with a
@@ -1117,7 +1117,7 @@ import (
     "fmt"
 
     "code.linenisgreat.com/moxy/internal/permcheck"
-    "github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+    "code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // batchCall is one entry in the batch.calls array.

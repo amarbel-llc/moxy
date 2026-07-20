@@ -17,8 +17,8 @@ import (
 
 	"code.linenisgreat.com/moxy/internal/lifecyclelog"
 	"code.linenisgreat.com/moxy/internal/spoolctx"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // syncWriter serializes concurrent writes to an underlying writer. os/exec

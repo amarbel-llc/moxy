@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
 	"code.linenisgreat.com/moxy/internal/asyncjob"
 	"code.linenisgreat.com/moxy/internal/native"

@@ -112,7 +112,7 @@ await test("external module sub-package resolves via GOMODCACHE", async () => {
   // should resolve via resolveMod() and hand gomarkdoc an absolute path
   // inside GOMODCACHE. Targets a sub-package because go-mcp's module root
   // has no top-level Go files (same limitation gomarkdoc has elsewhere).
-  const PKG = "github.com/amarbel-llc/purse-first/libs/go-mcp/server";
+  const PKG = "code.linenisgreat.com/purse-first/libs/go-mcp/server";
   const out = (await $({ cwd: REPO_ROOT })`${bin("doc")} ${PKG}`).stdout;
   assertContains(
     out,
@@ -247,7 +247,7 @@ await test("doc-outline hides Type.unexportedMethod by default", async () => {
   // Regression for the isExported logic on dotted anchors: a method with a
   // lowercase name on an exported type is not callable from outside the
   // package and should be hidden in the default exported-only view.
-  const PKG = "github.com/amarbel-llc/purse-first/libs/go-mcp/server";
+  const PKG = "code.linenisgreat.com/purse-first/libs/go-mcp/server";
   const exported = (await $({ cwd: REPO_ROOT })`${bin("doc-outline")} ${PKG}`)
     .stdout;
   assertContains(exported, "Handler.Handle", "exported method should appear");
@@ -323,11 +323,11 @@ await test("purse-first go.mod", async () => {
   const out = (
     await $({
       cwd: REPO_ROOT,
-    })`${bin("mod-read")} github.com/amarbel-llc/purse-first go.mod`
+    })`${bin("mod-read")} code.linenisgreat.com/purse-first go.mod`
   ).stdout;
   assertContains(
     out,
-    "module github.com/amarbel-llc/purse-first",
+    "module code.linenisgreat.com/purse-first",
     "mod-read should fetch go.mod from cached module",
   );
 });
@@ -346,13 +346,13 @@ await test("verify (read-only)", async () => {
 
 await test("why (with args)", async () => {
   const argsJson = JSON.stringify([
-    "github.com/amarbel-llc/purse-first/libs/go-mcp",
+    "code.linenisgreat.com/purse-first/libs/go-mcp",
   ]);
   const out = (await $({ cwd: REPO_ROOT })`${bin("go-mod")} why ${argsJson}`)
     .stdout;
   assertContains(
     out,
-    "github.com/amarbel-llc/purse-first/libs/go-mcp",
+    "code.linenisgreat.com/purse-first/libs/go-mcp",
     "why should mention the queried module",
   );
 });

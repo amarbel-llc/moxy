@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/server"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/server"
 
 	"code.linenisgreat.com/moxy/internal/toolexclude"
 

@@ -44,7 +44,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 )
 
 // ServerBackend abstracts the proxy's interaction with child servers.
@@ -529,7 +529,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 func TestServerToolsList(t *testing.T) {
@@ -626,8 +626,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/jsonrpc"
-	"github.com/amarbel-llc/purse-first/libs/go-mcp/protocol"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
 // Server implements proxy.ServerBackend for config-declared virtual servers.
