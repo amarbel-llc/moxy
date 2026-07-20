@@ -24,7 +24,7 @@ that per-server boilerplate with a shared runtime that provides several features
 out of the box:
 
 **Result caching and progressive disclosure.** Tool outputs exceeding the
-inline-token threshold are streamed into [madder](https://github.com/amarbel-llc/madder)
+inline-token threshold are streamed into [madder](https://code.linenisgreat.com/madder)
 (a content-addressable blob store) and replaced with a `madder://blobs/<digest>`
 URI plus a head/tail summary. Agents see enough to decide whether the full output
 matters, and can read the full blob with `madder cat <digest>` (or via the
