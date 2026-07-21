@@ -6,7 +6,9 @@ flake_dir="${3:-.}"
 
 cd "$flake_dir"
 
-run_output=""
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
+
 count=$(printf '%s' "$commands_json" | jq 'length')
 for ((i=0; i<count; i++)); do
   cmd=$(printf '%s' "$commands_json" | jq -r ".[$i].command")
@@ -17,15 +19,8 @@ for ((i=0; i<count; i++)); do
     nix_args+=("${cmd_args[@]}")
   fi
 
-  stderr_file=$(mktemp)
-  step_output=$(nix "${nix_args[@]}" 2>"$stderr_file") || {
-    run_output+="$(cat "$stderr_file")"$'\n'"$step_output"
-    rm -f "$stderr_file"
-    printf '%s' "$run_output"
+  if ! nix "${nix_args[@]}" 2>"$stderr_file"; then
+    cat "$stderr_file"
     exit 1
-  }
-  rm -f "$stderr_file"
-  run_output+="$step_output"$'\n'
+  fi
 done
-
-printf '%s' "$run_output"

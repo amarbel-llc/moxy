@@ -259,6 +259,26 @@ tools.
 keeps the full text inline (prefixed with the blob URI) instead of the
 head/tail summary when an oversized output is cached.
 It does not affect whether caching happens.
+.Pp
+Long-running moxin scripts should stream their output as it is
+produced, not hoard it via command substitution
+.Pq Li "out=$(cmd)"
+and print it once at exit.
+The
+.Sy async
+meta tool tees a moxin child's live stdout into a per-job output spool
+for mid-flight observability
+.Pq Li spool_bytes , Li last_activity , Li tail ;
+a script that only writes at exit makes every long-running gate look
+wedged \(em the spool is honestly reporting zero bytes for a process
+that has produced none yet.
+Prefer letting each step's stdout flow straight through to the moxin's
+own stdout (moxy still accumulates the same bytes into the final
+.Sy mcp-result
+or
+.Sy text
+result), and keep any diagnostic capture (e.g. stderr) separate from
+the streamed data if it must be reordered relative to it.
 .Sh PERMISSIONS
 Each tool may declare a
 .Sy perms-request
