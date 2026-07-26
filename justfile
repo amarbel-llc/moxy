@@ -368,6 +368,26 @@ debug-sleep seconds="300":
 debug-go-test pattern pkg="./internal/native/...":
   MOXIN_PATH="" go test {{pkg}} -run '{{pattern}}' -v
 
+# Verify the raw shape of `fj whoami` and `fj api user/orgs` against the
+# real forge instance, to confirm/deny suspected parsing bugs in
+# moxins/smith/bin/repo-owner-perms's owner/org auto-allow gate.
+[group("debug")]
+debug-smith-fj-identity:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  echo "--- fj whoami (raw) ---"
+  fj whoami
+  echo "--- fj whoami | awk 'END{print \$NF}' (what repo-owner-perms extracts) ---"
+  fj whoami | awk 'END{print $NF}'
+  echo "--- fj api user (raw) ---"
+  fj api user
+  echo "exit=$?"
+  echo "--- fj api user/orgs (raw) ---"
+  fj api user/orgs
+  echo "exit=$?"
+  echo "--- fj --version ---"
+  fj --version || true
+
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
 # Idempotent (skips files that already declare permit-async). Keep for

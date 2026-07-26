@@ -49,6 +49,18 @@ _fj_scratch_dir() {
   fi
 }
 
+# fj_self_username: resolves the fj-authenticated user's bare username via
+# the structured `api user` endpoint. Must be called after fj_base (uses
+# the global fj_cmd array). Deliberately NOT `fj whoami` --- that prints a
+# free-text "currently signed in to <login>@<host>" line with no reliable
+# delimiter between the login and the host, so scraping it (e.g. an awk
+# last-field grab) can yield the whole login@host token instead of a bare
+# login. Echoes empty string on any failure (missing auth, network, etc.).
+fj_self_username() {
+  _fj_scratch_dir
+  (cd "$_fj_scratch" && "${fj_cmd[@]}" api user 2>/dev/null | jq -r '.username // empty') || true
+}
+
 # fj_run <repo> <host> [extra fj_cmd args...]
 # Execs fj_cmd (plus any trailing args), redirecting fj's cwd to a scratch
 # dir when repo AND host are both already resolved explicitly --- fj's
@@ -89,9 +101,8 @@ run_subscribe() {
   validate_repo "$repo"
 
   fj_base "$host"
-  _fj_scratch_dir
   local self
-  self=$(cd "$_fj_scratch" && "${fj_cmd[@]}" whoami 2>/dev/null | awk 'END{print $NF}') || true
+  self=$(fj_self_username)
   if [ -z "$self" ]; then
     echo "ERROR: could not determine authenticated user" >&2
     exit 1

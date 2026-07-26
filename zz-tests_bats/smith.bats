@@ -458,8 +458,26 @@ function repo_owner_perms_no_repo_auto_allows { # @test
 
 function repo_owner_perms_matches_self { # @test
   cat >"$HOME/bin/fj" <<'EOF'
-if [ "$1" = "whoami" ]; then
-  echo "Logged in as alice"
+if [ "$1" = "api" ] && [ "$2" = "user" ]; then
+  printf '{"username":"alice"}\n'
+fi
+EOF
+  chmod +x "$HOME/bin/fj"
+
+  run "$BIN/repo-owner-perms" "alice/repo" ""
+  assert_success
+  assert_output --partial "matches authenticated user"
+}
+
+# Regression for the real `fj api user` response shape, which nests the
+# login under a "username" field alongside a bunch of other profile data —
+# unlike `fj whoami`'s free-text "currently signed in to <login>@<host>"
+# line (whose last whitespace-delimited token is the whole login@host, not
+# a bare login, so awk-scraping it never matched a plain OWNER/NAME owner).
+function repo_owner_perms_matches_self_with_full_user_payload { # @test
+  cat >"$HOME/bin/fj" <<'EOF'
+if [ "$1" = "api" ] && [ "$2" = "user" ]; then
+  printf '{"id":1,"login":"alice","email":"alice@example.com","username":"alice"}\n'
 fi
 EOF
   chmod +x "$HOME/bin/fj"
@@ -471,8 +489,8 @@ EOF
 
 function repo_owner_perms_matches_member_org { # @test
   cat >"$HOME/bin/fj" <<'EOF'
-if [ "$1" = "whoami" ]; then
-  echo "Logged in as alice"
+if [ "$1" = "api" ] && [ "$2" = "user" ]; then
+  printf '{"username":"alice"}\n'
 elif [ "$1" = "api" ] && [ "$2" = "user/orgs" ]; then
   printf '[{"username":"acme-corp"},{"username":"other-org"}]\n'
 fi
@@ -486,8 +504,8 @@ EOF
 
 function repo_owner_perms_asks_when_neither_self_nor_org { # @test
   cat >"$HOME/bin/fj" <<'EOF'
-if [ "$1" = "whoami" ]; then
-  echo "Logged in as alice"
+if [ "$1" = "api" ] && [ "$2" = "user" ]; then
+  printf '{"username":"alice"}\n'
 elif [ "$1" = "api" ] && [ "$2" = "user/orgs" ]; then
   printf '[{"username":"acme-corp"}]\n'
 fi
@@ -499,7 +517,7 @@ EOF
   assert_output --partial "confirmation required"
 }
 
-function repo_owner_perms_asks_when_whoami_fails { # @test
+function repo_owner_perms_asks_when_self_lookup_fails { # @test
   cat >"$HOME/bin/fj" <<'EOF'
 exit 1
 EOF
@@ -514,16 +532,21 @@ EOF
 # passthrough against Forgejo's GitHub-compatible subscriptions endpoint —
 # fj has no native subscribe subcommand. Both tools share run_subscribe in
 # .fj-common since PRs are issues internally in Forgejo's API (verified
-# live). These tests use a subcommand-branching fj stub (whoami vs. api).
-function issue_watch_subscribes_self { # @test
+# live). These tests use a subcommand-branching fj stub (self-lookup vs.
+# the actual subscribe call, recorded to $HOME/fj-args for assertion).
+stub_fj_self_alice_and_record() {
   cat >"$HOME/bin/fj" <<'EOF'
-if [ "$1" = "whoami" ]; then
-  echo "Logged in as alice"
+if [ "$1" = "api" ] && [ "$2" = "user" ]; then
+  printf '{"username":"alice"}\n'
 else
   printf '%s\n' "$@" >> "$HOME/fj-args"
 fi
 EOF
   chmod +x "$HOME/bin/fj"
+}
+
+function issue_watch_subscribes_self { # @test
+  stub_fj_self_alice_and_record
 
   run "$BIN/issue-watch" 42 "" "owner/repo" ""
   assert_success
@@ -533,14 +556,7 @@ EOF
 }
 
 function issue_watch_unsubscribes_with_flag { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-if [ "$1" = "whoami" ]; then
-  echo "Logged in as alice"
-else
-  printf '%s\n' "$@" >> "$HOME/fj-args"
-fi
-EOF
-  chmod +x "$HOME/bin/fj"
+  stub_fj_self_alice_and_record
 
   run "$BIN/issue-watch" 42 "true" "owner/repo" ""
   assert_success
@@ -551,14 +567,7 @@ EOF
 
 # PRs use the same issues/ subscriptions endpoint as issues in Forgejo's API.
 function pr_watch_uses_same_issues_endpoint { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-if [ "$1" = "whoami" ]; then
-  echo "Logged in as alice"
-else
-  printf '%s\n' "$@" >> "$HOME/fj-args"
-fi
-EOF
-  chmod +x "$HOME/bin/fj"
+  stub_fj_self_alice_and_record
 
   run "$BIN/pr-watch" 367 "" "owner/repo" ""
   assert_success
@@ -573,7 +582,7 @@ function issue_watch_requires_repo { # @test
   assert_output --partial "repo is required"
 }
 
-function issue_watch_fails_when_whoami_fails { # @test
+function issue_watch_fails_when_self_lookup_fails { # @test
   cat >"$HOME/bin/fj" <<'EOF'
 exit 1
 EOF

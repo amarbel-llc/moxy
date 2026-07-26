@@ -27,10 +27,14 @@ owner="${repo%%/*}"
 
 fj_base "$host"
 
-# fj unconditionally inspects the cwd's git remote (#398); run whoami from
-# a scratch dir so owner-less remotes don't crash and produce a false ask.
+# fj unconditionally inspects the cwd's git remote (#398); fj_self_username
+# runs from a scratch dir so owner-less remotes don't crash and produce a
+# false ask. Create the scratch dir here (not just inside fj_self_username)
+# since that call runs through a `$(...)` subshell --- any `_fj_scratch`
+# assignment made only inside the subshell wouldn't survive for the org
+# check below, which also needs `$_fj_scratch`.
 _fj_scratch_dir
-self=$(cd "$_fj_scratch" && "${fj_cmd[@]}" whoami 2>/dev/null | awk 'END{print $NF}') || true
+self=$(fj_self_username)
 
 if [ -z "$self" ]; then
   echo "could not determine authenticated user — confirmation required"
