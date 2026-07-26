@@ -38,7 +38,7 @@ type batchRejection struct {
 	reason string
 }
 
-// subCallDispatcher is the seam HandleBatch uses to invoke each
+// subCallDispatcher is the seam runBatchCalls uses to invoke each
 // sub-call. The default points at p.CallToolV1; tests override it.
 type subCallDispatcher func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error)
 
@@ -90,7 +90,7 @@ func (p *Proxy) HandleBatch(
 	}
 
 	if params.Async {
-		return p.handleBatchAsync(ctx, params)
+		return p.handleBatchAsync(ctx, params, onError)
 	}
 
 	// Pre-flight: resolve every sub-call.
@@ -112,17 +112,35 @@ func (p *Proxy) HandleBatch(
 		return emitPreflightBailout(params.Calls, rejected), nil
 	}
 
-	// Execute sub-calls sequentially.
+	return p.runBatchCalls(ctx, params.Calls, onError), nil
+}
+
+// runBatchCalls executes a batch's sub-calls sequentially and builds the
+// NDJSON result. It does NOT resolve permissions itself — callers must have
+// already pre-flighted every call. This lets HandleBatch's sync path (after
+// its own preflight) and handleBatchAsync's backgrounded job (after ITS own,
+// FDR-0011-relaxed preflight already admitted the calls before dispatch)
+// share one execution path without a second, stricter preflight rejecting
+// what the async path already accepted (a batch{async:true} sub-call with
+// no perms-request declared used to pass handleBatchAsync's admit-Unknown
+// preflight, then bail out the instant the job re-entered HandleBatch and
+// hit its own allow/ask-only preflight — the job reported "running" but
+// never actually ran).
+func (p *Proxy) runBatchCalls(
+	ctx context.Context,
+	calls []batchCall,
+	onError string,
+) *protocol.ToolCallResultV1 {
 	dispatch := p.dispatchSubCall
 	if dispatch == nil {
 		dispatch = p.CallToolV1
 	}
-	records := make([]ndjsonTestRecord, 0, len(params.Calls))
+	records := make([]ndjsonTestRecord, 0, len(calls))
 	passed, failed, skipped := 0, 0, 0
 	stopped := false
 	stoppedAtN := 0 // 1-indexed position of the failing call; only meaningful when stopped=true
 
-	for i, c := range params.Calls {
+	for i, c := range calls {
 		if stopped {
 			skipReason := fmt.Sprintf("batch aborted: stopped at #%d", stoppedAtN)
 			records = append(records, ndjsonTestRecord{
@@ -158,12 +176,12 @@ func (p *Proxy) HandleBatch(
 		Failed:      failed,
 		Skipped:     skipped,
 		Total:       len(records),
-		PlanCount:   len(params.Calls),
+		PlanCount:   len(calls),
 		Bailed:      stopped,
 		Valid:       true,
 		Diagnostics: []ndjsonSummaryDiagnostic{},
 	}
-	return formatNDJSON(records, nil, summary, failed > 0 || stopped), nil
+	return formatNDJSON(records, nil, summary, failed > 0 || stopped)
 }
 
 func buildTestRecord(n int, c batchCall, result *protocol.ToolCallResultV1, err error) ndjsonTestRecord {

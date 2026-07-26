@@ -69,6 +69,19 @@ args = ["-c", "true"]
 [input]
 type = "object"
 EOF
+  # No perms-request field at all — genuinely Unknown tier (distinct from
+  # asky's declared each-use/ask tier above).
+  cat >"$moxin/noperm.toml" <<'EOF'
+schema = 3
+result-type = "text"
+content-type = "text/plain"
+description = "tool with no perms-request declared at all"
+command = "bash"
+args = ["-c", "printf 'hello noperm'"]
+
+[input]
+type = "object"
+EOF
   export MOXIN_PATH="$HOME/moxins"
 
   # ringmaster stub: records argv; `start` prints a fixed id.
@@ -193,4 +206,60 @@ EOF
   assert_output --partial '\"status\":\"running\"'
   # Minted shape: <label>-<8hex> with dots preserved.
   echo "$output" | grep -qE '\\\"job_id\\\":\\\"testmoxin\.echo-[0-9a-f]{8}\\\"'
+}
+
+# FDR 0011 covers Unknown (no perms-request at all) the same as ask-tier —
+# distinct from async_admits_ask_tier_tool above, which uses a declared
+# each-use tool. This exercises the genuinely-undeclared case end to end.
+function async_admits_unknown_perms_tool { # @test
+  run_moxy_mcp "tools/call" \
+    '{"name":"async","arguments":{"tool":"testmoxin.noperm","args":{}}}'
+  assert_success
+  assert_output --partial '\"status\":\"running\"'
+
+  run wait_for_record "start --source moxy --label testmoxin.noperm" 10
+  assert_success
+  run wait_for_record "done testmoxin.echo-e2e00001 --state succeeded" 10
+  assert_success
+}
+
+# Suspected bug: handleBatchAsync's preflight (async.go) admits Unknown
+# sub-calls (only builtin/deny/permit-async=false are rejected there), but
+# the backgrounded job re-enters HandleBatch synchronously with async
+# stripped out of the args — and THAT preflight (batch.go) rejects Unknown.
+# If real, an Unknown sub-call passes the outer preflight (job reports
+# "running") but the job's own result is a permission bailout, not the
+# actual work — the tool call silently never runs.
+function batch_async_unknown_subcall_reaches_job_result { # @test
+  local params
+  params=$(jq -cn '{
+    name: "batch",
+    arguments: {
+      async: true,
+      calls: [
+        {tool: "testmoxin.echo", args: {}},
+        {tool: "testmoxin.noperm", args: {}}
+      ]
+    }
+  }')
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+  assert_output --partial '\"status\":\"running\"'
+
+  run wait_for_record "start --source moxy --label batch" 10
+  assert_success
+  run wait_for_record "done testmoxin.echo-e2e00001 --state succeeded" 10
+  assert_success
+
+  local digest
+  digest=$(grep -oE 'madder [^)]+' "$RINGMASTER_RECORD" | head -1 | cut -d' ' -f2)
+  [ -n "$digest" ]
+
+  run "${MADDER_BIN:-madder}" cat "$digest"
+  assert_success
+  # Expected (correct) behavior: both sub-calls actually ran — a "test"
+  # record per call, no bailout.
+  refute_output --partial '\"type\":\"bailout\"'
+  assert_output --partial 'hello async'
+  assert_output --partial 'hello noperm'
 }

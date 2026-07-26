@@ -346,6 +346,7 @@ func (p *Proxy) HandleAsyncCancel(
 func (p *Proxy) handleBatchAsync(
 	ctx context.Context,
 	params batchParams,
+	onError string,
 ) (*protocol.ToolCallResultV1, error) {
 	if p.asyncManager == nil {
 		return protocol.ErrorResultV1(
@@ -387,24 +388,15 @@ func (p *Proxy) handleBatchAsync(
 		return emitPreflightBailout(params.Calls, rejected), nil
 	}
 
-	// Re-enter HandleBatch without the async flag for the actual run, so
-	// sequential execution, on_error semantics, and the TAP-NDJSON result
-	// stay byte-identical to a synchronous batch.
-	syncArgs, err := json.Marshal(batchParams{
-		Calls:   params.Calls,
-		OnError: params.OnError,
-	})
-	if err != nil {
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("marshaling batch args: %v", err),
-		), nil
-	}
-
-	// Batch async keeps the manager default runtime; per-batch timeout is not
-	// exposed in v1.
-	id, err := p.asyncManager.Dispatch(ctx, "batch", syncArgs, 0,
-		func(jobCtx context.Context, _ string, callArgs json.RawMessage) (*protocol.ToolCallResultV1, error) {
-			return p.HandleBatch(jobCtx, callArgs)
+	// Execute sub-calls directly (runBatchCalls) rather than re-entering
+	// HandleBatch: HandleBatch's own preflight only admits Allow/Ask, which
+	// would reject the Unknown/Ask-tier sub-calls this preflight (correctly,
+	// per FDR 0011) just admitted — the job would report "running" but bail
+	// out instantly instead of doing the work.
+	calls := params.Calls
+	id, err := p.asyncManager.Dispatch(ctx, "batch", nil, 0,
+		func(jobCtx context.Context, _ string, _ json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			return p.runBatchCalls(jobCtx, calls, onError), nil
 		})
 	if err != nil {
 		return protocol.ErrorResultV1(

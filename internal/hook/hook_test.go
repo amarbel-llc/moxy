@@ -292,26 +292,41 @@ func TestTryPermsDecision_NonMoxyPrefix(t *testing.T) {
 // peeks at async's inner `tool`, resolves it, and forces a consent prompt for
 // ask / Unknown inner tools (naming the inner tool so the user consents to the
 // real work) while allowing always-allow inner tools straight through.
+// Covers both wire forms async's inner tool arrives in. The dot-form case
+// is a regression test: real async dispatch requires the canonical
+// dot-separated wire form ("server.tool") — confirmed live in a moxy
+// session, where async{tool:"just-us-agents_run-recipe"} (underscore)
+// failed dispatch with "invalid tool name ... missing server prefix" and
+// only the dot form worked. underscoreToCanonical used to assume the
+// OPPOSITE: it looked for an underscore to split on and returned "" (no
+// decision) when the wire value was already valid dot form, so the hook
+// could never force an allow/ask decision for async's inner tool and every
+// async call silently fell through to the client's own default handling —
+// the opposite of FDR 0011's intent.
 func TestTryAsyncInnerDecision_AllowInnerTool(t *testing.T) {
-	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
-	resetResolverForTest()
-	var buf bytes.Buffer
-	wrote := tryAsyncInnerDecision(
-		"mcp__moxy__async",
-		"mcp__moxy__",
-		map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
-		".",
-		&buf,
-	)
-	if !wrote {
-		t.Fatal("expected tryAsyncInnerDecision to write a decision for async")
-	}
-	var out hookOutput
-	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
-		t.Fatalf("decode: %v; raw: %s", err, buf.String())
-	}
-	if got := out.HookSpecificOutput.PermissionDecision; got != "allow" {
-		t.Fatalf("decision = %q, want allow (inner tool is always-allow)", got)
+	for _, wireTool := range []string{"allow-srv_echo", "allow-srv.echo"} {
+		t.Run(wireTool, func(t *testing.T) {
+			t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+			resetResolverForTest()
+			var buf bytes.Buffer
+			wrote := tryAsyncInnerDecision(
+				"mcp__moxy__async",
+				"mcp__moxy__",
+				map[string]any{"tool": wireTool, "args": map[string]any{}},
+				".",
+				&buf,
+			)
+			if !wrote {
+				t.Fatal("expected tryAsyncInnerDecision to write a decision for async")
+			}
+			var out hookOutput
+			if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+				t.Fatalf("decode: %v; raw: %s", err, buf.String())
+			}
+			if got := out.HookSpecificOutput.PermissionDecision; got != "allow" {
+				t.Fatalf("decision = %q, want allow (inner tool is always-allow)", got)
+			}
+		})
 	}
 }
 

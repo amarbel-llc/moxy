@@ -35,10 +35,14 @@ var (
 // instead of package init means tests that need a different MOXIN_PATH
 // can set it via t.Setenv before the first call.
 //
-// NOTE: the cached resolver is NOT invalidated when moxins are reloaded
-// via the `restart` builtin / Proxy.Reload. Tasks 8+ should wire a reset
-// hook so the production binary sees fresh perms after restart. The
-// resetResolverForTest helper in export_test.go is the test-only path.
+// The package-level cache never goes stale in production: `moxy hook` is a
+// fresh, short-lived OS process per Claude Code PreToolUse event (spawned
+// via `hooks/pre-tool-use`, no daemon/persistent-server mode), so every
+// invocation starts with an untouched sync.Once and reads current on-disk
+// moxin config. The resetResolverForTest helper in export_test.go exists
+// purely so `go test`'s long-lived process doesn't leak a resolver between
+// test cases — it has no production counterpart because production never
+// needs one.
 func getResolver() (*permcheck.Resolver, error) {
 	permResolverOnce.Do(func() {
 		permResolver, permResolverErr = permcheck.NewResolver()
@@ -438,12 +442,21 @@ func tryBatchAsyncInnerDecision(toolName, prefix string, toolInput map[string]an
 	return writeHookDecision(w, decStr, decReason)
 }
 
-// underscoreToCanonical converts an inner-tool name as it arrives in async's
-// arguments (wire form, e.g. "just-us-agents_run-recipe") to canonical
-// "server.tool" form ("just-us-agents.run-recipe"). Server names may contain
-// hyphens but not underscores or dots, so the first underscore separates
-// server from tool. Returns "" if there is no tool part.
+// underscoreToCanonical resolves an inner-tool name as it arrives in
+// async's arguments to canonical "server.tool" form. Callers normally pass
+// the canonical dot form directly ("just-us-agents.run-recipe") — that's
+// what real dispatch requires (confirmed live: an underscore-joined value
+// there fails with "invalid tool name ... missing server prefix") — so a
+// wire value already containing a dot is returned as-is. Only a dot-free
+// underscore-joined value (e.g. "just-us-agents_run-recipe", produced
+// under a custom underscore name template, FDR 0007) is split: server
+// names may contain hyphens but not underscores or dots, so the first
+// underscore separates server from tool. Returns "" if there is no tool
+// part.
 func underscoreToCanonical(wire string) string {
+	if strings.Contains(wire, ".") {
+		return wire
+	}
 	idx := strings.IndexByte(wire, '_')
 	if idx <= 0 || idx == len(wire)-1 {
 		return ""

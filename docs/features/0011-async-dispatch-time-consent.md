@@ -14,8 +14,9 @@ promotion-criteria: proposed → experimental — DONE: the bare-`async` hook-pe
   `async{<no-perms-request tool>}` fires exactly one consent prompt naming the
   inner tool, and on approval the job backgrounds — confirming the hook and the
   preflight (two processes) agree, including after `restart` / `Proxy.Reload`
-  (the cross-process consistency risk this design carries; the hook's cached
-  resolver is not currently invalidated on reload). Batch parity (#404) and the
+  (the cross-process consistency risk this design carries; the server's
+  long-lived resolver only refreshes on an explicit restart, while the hook's
+  is always fresh per-invocation). Batch parity (#404) and the
   elicitation alternative (#403) are out of scope for promotion of THIS record.
 ---
 
@@ -85,13 +86,18 @@ consistent choice, not an oversight.
 
 The hook process (`moxy hook`) and the MCP server process both run a
 `permcheck.Resolver` and must agree on the inner tool's classification: the
-hook decides whether to prompt; the server decides whether to background. If
-they disagree (e.g. one has a stale resolver after `restart`/`Proxy.Reload` —
-see the known non-invalidation noted in `hook.go`), a consent could be granted
-that the server then rejects, or vice versa. This two-process split is the
-central fragility of this design and the motivation for the elicitation
-alternative (#403), which would let the single server process own the whole
-decision.
+hook decides whether to prompt; the server decides whether to background. The
+hook's resolver never goes stale on its own — `moxy hook` is a fresh,
+short-lived process per PreToolUse event, so it always reads current on-disk
+moxin config. The server's resolver is the one that can lag: it's long-lived
+for the whole `moxy serve` process and only re-walks MOXIN_PATH on an explicit
+`restart`/`Proxy.Reload`. So the two can transiently disagree if a moxin's
+perms-request changes on disk without an intervening `restart` — the
+hook picks it up on its very next invocation, the server doesn't until
+reloaded. A consent could be granted that the server then rejects, or vice
+versa. This two-process split is the central fragility of this design and the
+motivation for the elicitation alternative (#403), which would let the single
+server process own the whole decision.
 
 ## Examples
 
@@ -132,11 +138,12 @@ still wins regardless of permission.
   the inner tool + args in `permissionDecisionReason`, but how prominently the
   client shows that reason is client-dependent; on a client that hides it, the
   user sees a less-informed "allow async?".
-- **Two-process consistency is assumed, not enforced.** The hook and server
-  resolvers can drift (notably across `restart`/`Proxy.Reload`, which does not
-  currently invalidate the hook's cached resolver). A drift can waste a consent
-  or reject an allowed call. #403 (mid-dispatch elicitation) exists to remove
-  this split entirely.
+- **Two-process consistency is assumed, not enforced.** The hook's resolver is
+  always fresh (a new `moxy hook` process per PreToolUse event); the server's
+  long-lived resolver only refreshes on an explicit `restart`/`Proxy.Reload`,
+  so the two can drift if moxin perms-request config changes on disk without
+  an intervening restart. A drift can waste a consent or reject an allowed
+  call. #403 (mid-dispatch elicitation) exists to remove this split entirely.
 - **This is a genuine revision of FDR 0004's stated posture.** FDR 0004 lists
   "Ask-gated tools cannot run async … a safety posture, not a gap to fill." This
   record narrows that: Unknown (and, via forced consent, `ask`) become
