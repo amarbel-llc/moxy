@@ -15,6 +15,20 @@ import (
 	"code.linenisgreat.com/moxy/internal/permcheck"
 )
 
+// newTestAsyncManager builds an asyncjob.Manager suitable for these
+// preflight tests: clown bin absent (ids are minted locally), fake result
+// writer, generous runtime. Shared so every test wiring an async manager
+// doesn't hand-repeat the same options struct.
+func newTestAsyncManager() *asyncjob.Manager {
+	return asyncjob.New(asyncjob.Options{
+		RingmasterBin: "/nonexistent/ringmaster",
+		WriteResult: func(_ context.Context, _ []byte) (string, error) {
+			return "fake-digest", nil
+		},
+		MaxRuntime: time.Minute,
+	})
+}
+
 // newAsyncProxy builds a Proxy with an allow-listed fake tool and an async
 // manager whose clown bin is absent (ids are minted locally) and whose
 // result writer is a fake — the handler contract under test is identical.
@@ -24,13 +38,7 @@ func newAsyncProxy(t *testing.T) *Proxy {
 	p.SetResolver(permcheck.NewResolverWithPerms(map[string]permcheck.ToolPermInfo{
 		"fake.tool": {Perm: native.PermsAlwaysAllow},
 	}))
-	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		RingmasterBin: "/nonexistent/ringmaster",
-		WriteResult: func(_ context.Context, _ []byte) (string, error) {
-			return "fake-digest", nil
-		},
-		MaxRuntime: time.Minute,
-	}))
+	p.SetAsyncManager(newTestAsyncManager())
 	return p
 }
 
@@ -105,13 +113,7 @@ func TestHandleAsyncAdmitsUnknownAndAskTools(t *testing.T) {
 		"ask.tool": {Perm: native.PermsEachUse},
 		// unknown.tool is deliberately absent → Resolve returns Unknown.
 	}))
-	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		RingmasterBin: "/nonexistent/ringmaster",
-		WriteResult: func(_ context.Context, _ []byte) (string, error) {
-			return "fake-digest", nil
-		},
-		MaxRuntime: time.Minute,
-	}))
+	p.SetAsyncManager(newTestAsyncManager())
 
 	for _, tool := range []string{"unknown.tool", "ask.tool"} {
 		result, err := p.HandleAsync(context.Background(),
@@ -148,13 +150,7 @@ func TestHandleBatchAsyncRunsAsOneJob(t *testing.T) {
 			return okResult, nil
 		},
 	)
-	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		RingmasterBin: "/nonexistent/ringmaster",
-		WriteResult: func(_ context.Context, _ []byte) (string, error) {
-			return "fake-digest", nil
-		},
-		MaxRuntime: time.Minute,
-	}))
+	p.SetAsyncManager(newTestAsyncManager())
 
 	result, err := p.HandleBatch(context.Background(), json.RawMessage(
 		`{"async":true,"calls":[{"tool":"fake.tool","args":{}},{"tool":"fake.tool","args":{}}]}`,
@@ -223,13 +219,7 @@ func TestHandleBatchAsyncAdmitsAskAndUnknownTiers(t *testing.T) {
 			return okResult, nil
 		},
 	)
-	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		RingmasterBin: "/nonexistent/ringmaster",
-		WriteResult: func(_ context.Context, _ []byte) (string, error) {
-			return "fake-digest", nil
-		},
-		MaxRuntime: time.Minute,
-	}))
+	p.SetAsyncManager(newTestAsyncManager())
 
 	result, err := p.HandleBatch(context.Background(), json.RawMessage(
 		`{"async":true,"calls":[{"tool":"ask.tool","args":{}},{"tool":"unknown.tool","args":{}}]}`,
@@ -268,13 +258,7 @@ func TestHandleBatchAsyncRejectsDenyTier(t *testing.T) {
 			return nil, nil
 		},
 	)
-	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		RingmasterBin: "/nonexistent/ringmaster",
-		WriteResult: func(_ context.Context, _ []byte) (string, error) {
-			return "fake-digest", nil
-		},
-		MaxRuntime: time.Minute,
-	}))
+	p.SetAsyncManager(newTestAsyncManager())
 
 	result, err := p.HandleBatch(context.Background(), json.RawMessage(
 		`{"async":true,"calls":[{"tool":"deny.tool","args":{}}]}`,
@@ -295,13 +279,7 @@ func TestHandleAsyncRejectsPermitAsyncFalse(t *testing.T) {
 	p.SetResolver(permcheck.NewResolverWithPerms(map[string]permcheck.ToolPermInfo{
 		"fake.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
 	}))
-	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		RingmasterBin: "/nonexistent/ringmaster",
-		WriteResult: func(_ context.Context, _ []byte) (string, error) {
-			return "fake-digest", nil
-		},
-		MaxRuntime: time.Minute,
-	}))
+	p.SetAsyncManager(newTestAsyncManager())
 
 	result, err := p.HandleAsync(context.Background(),
 		json.RawMessage(`{"tool":"fake.tool","args":{}}`))
@@ -383,13 +361,7 @@ func TestHandleBatchAsyncRejectsBuiltinSubCall(t *testing.T) {
 		},
 	)
 	registerBuiltins(t, p, "restart", "batch", "async")
-	p.SetAsyncManager(asyncjob.New(asyncjob.Options{
-		RingmasterBin: "/nonexistent/ringmaster",
-		WriteResult: func(_ context.Context, _ []byte) (string, error) {
-			return "fake-digest", nil
-		},
-		MaxRuntime: time.Minute,
-	}))
+	p.SetAsyncManager(newTestAsyncManager())
 
 	result, err := p.HandleBatch(context.Background(), json.RawMessage(
 		`{"async":true,"calls":[{"tool":"fake.tool","args":{}},{"tool":"batch","args":{}}]}`,
@@ -402,6 +374,119 @@ func TestHandleBatchAsyncRejectsBuiltinSubCall(t *testing.T) {
 	}
 	if !strings.Contains(result.Content[0].Text, "builtin meta tool") {
 		t.Errorf("bailout text = %q, want builtin refusal", result.Content[0].Text)
+	}
+}
+
+// Pins asyncEligible's exact contract directly, independent of HandleAsync/
+// HandleBatch's own wiring — the cheapest place to catch a future edit that
+// changes what "async-eligible" means for one classification but not
+// another.
+func TestAsyncEligible(t *testing.T) {
+	noAsync := false
+	p := newProxyWithResolverAndDispatch(t, map[string]permcheck.ToolPermInfo{
+		"allow.tool":   {Perm: native.PermsAlwaysAllow},
+		"ask.tool":     {Perm: native.PermsEachUse},
+		"noasync.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
+		"deny.tool": {Perm: native.PermsDynamic, DynamicPerms: &native.DynamicPermsSpec{
+			Command: "sh", Args: []string{"-c", "exit 2"},
+		}},
+		// unknown.tool is deliberately absent → Resolve returns Unknown.
+	}, nil)
+	registerBuiltins(t, p, "restart", "batch", "async")
+
+	for _, tc := range []struct {
+		tool     string
+		wantKind asyncRejectKind
+	}{
+		{"allow.tool", asyncRejectNone},
+		{"ask.tool", asyncRejectNone},
+		{"unknown.tool", asyncRejectNone},
+		{"deny.tool", asyncRejectDeny},
+		{"noasync.tool", asyncRejectPermitAsyncFalse},
+		{"restart", asyncRejectBuiltin},
+	} {
+		t.Run(tc.tool, func(t *testing.T) {
+			kind, _, _ := p.asyncEligible(context.Background(), tc.tool, json.RawMessage(`{}`))
+			if kind != tc.wantKind {
+				t.Fatalf("asyncEligible(%s) kind = %v, want %v", tc.tool, kind, tc.wantKind)
+			}
+		})
+	}
+}
+
+// Resilience guard for the asyncEligible consolidation: HandleAsync (single
+// tool) and handleBatchAsync (one-item batch) must NEVER disagree on
+// whether a tool is eligible for backgrounding. Before the consolidation
+// this held only because the same 3-check policy (builtin / deny /
+// permit-async=false) happened to be hand-duplicated identically in both
+// places — exactly the kind of duplication that drifted apart once already
+// (a DIFFERENT pair of independently-coded preflights, HandleBatch's sync
+// gate vs handleBatchAsync's, disagreed and caused a real bug). This test
+// pins the invariant so a future edit to either HandleAsync or
+// handleBatchAsync alone, without updating the shared asyncEligible, is
+// caught immediately instead of silently reintroducing that class of bug.
+func TestAsyncEligible_HandleAsyncAndHandleBatchAsyncAgree(t *testing.T) {
+	noAsync := false
+	perms := map[string]permcheck.ToolPermInfo{
+		"allow.tool":   {Perm: native.PermsAlwaysAllow},
+		"ask.tool":     {Perm: native.PermsEachUse},
+		"noasync.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
+		"deny.tool": {Perm: native.PermsDynamic, DynamicPerms: &native.DynamicPermsSpec{
+			Command: "sh", Args: []string{"-c", "exit 2"},
+		}},
+		// unknown.tool is deliberately absent from perms → Resolve is Unknown.
+	}
+	okResult := &protocol.ToolCallResultV1{
+		Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}},
+	}
+
+	for _, tc := range []struct {
+		name        string
+		tool        string
+		wantBuiltin bool
+	}{
+		{"allow", "allow.tool", false},
+		{"ask", "ask.tool", false},
+		{"unknown", "unknown.tool", false},
+		{"deny", "deny.tool", false},
+		{"permit-async-false", "noasync.tool", false},
+		{"builtin", "restart", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pSingle := newProxyWithResolverAndDispatch(t, perms,
+				func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+					return okResult, nil
+				})
+			pBatch := newProxyWithResolverAndDispatch(t, perms,
+				func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+					return okResult, nil
+				})
+			if tc.wantBuiltin {
+				registerBuiltins(t, pSingle, "restart", "batch", "async")
+				registerBuiltins(t, pBatch, "restart", "batch", "async")
+			}
+			for _, p := range []*Proxy{pSingle, pBatch} {
+				p.SetAsyncManager(newTestAsyncManager())
+			}
+
+			singleResult, err := pSingle.HandleAsync(context.Background(),
+				json.RawMessage(`{"tool":"`+tc.tool+`","args":{}}`))
+			if err != nil {
+				t.Fatalf("HandleAsync(%s): %v", tc.tool, err)
+			}
+			batchResult, err := pBatch.HandleBatch(context.Background(), json.RawMessage(
+				`{"async":true,"calls":[{"tool":"`+tc.tool+`","args":{}}]}`,
+			))
+			if err != nil {
+				t.Fatalf("HandleBatch async(%s): %v", tc.tool, err)
+			}
+
+			if singleResult.IsError != batchResult.IsError {
+				t.Fatalf("%s: HandleAsync admitted=%v but handleBatchAsync admitted=%v (single=%q, batch=%q)",
+					tc.tool, !singleResult.IsError, !batchResult.IsError,
+					singleResult.Content[0].Text, batchResult.Content[0].Text)
+			}
+		})
 	}
 }
 

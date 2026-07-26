@@ -54,6 +54,47 @@ func builtinAsyncRefusal(tool string) string {
 	)
 }
 
+// asyncRejectKind classifies why a tool is ineligible for async dispatch,
+// so each caller can format its own message from a single shared decision.
+type asyncRejectKind int
+
+const (
+	asyncRejectNone asyncRejectKind = iota
+	asyncRejectBuiltin
+	asyncRejectDeny
+	asyncRejectPermitAsyncFalse
+)
+
+// asyncEligible decides whether tool may be dispatched asynchronously, per
+// FDR 0011's relaxed posture: a builtin meta tool, an explicit deny, or
+// permit-async=false block backgrounding; ask and Unknown (no perms-request)
+// are admitted, trusting the PreToolUse hook's forced at-dispatch consent
+// (moxy's core model presumes the hook is the permission gate; #403
+// mid-dispatch elicitation would let moxy own the consent itself and drop
+// the reliance on the separate hook process). Shared by HandleAsync (single
+// tool) and handleBatchAsync (each sub-call) so the two entry points can't
+// independently drift on what "async-eligible" means — that exact class of
+// drift, between two SEPARATELY hand-coded preflights, was the root cause
+// of a real bug (a batch{async:true} sub-call admitted by one preflight and
+// rejected by another once the job actually ran).
+func (p *Proxy) asyncEligible(
+	ctx context.Context,
+	tool string,
+	args json.RawMessage,
+) (kind asyncRejectKind, dec permcheck.Decision, reason string) {
+	if p.hasBuiltinTool(tool) {
+		return asyncRejectBuiltin, permcheck.Unknown, builtinAsyncRefusal(tool)
+	}
+	dec, reason = p.resolver.Resolve(ctx, tool, args, ".")
+	if dec == permcheck.Deny {
+		return asyncRejectDeny, dec, reason
+	}
+	if !p.resolver.PermitsAsync(tool) {
+		return asyncRejectPermitAsyncFalse, dec, "tool declares permit-async = false"
+	}
+	return asyncRejectNone, dec, reason
+}
+
 // HandleAsync dispatches one tool call in the background and returns a job
 // handle immediately. Per FDR 0004 only calls whose permission resolves to
 // ALLOW may background — once detached there is no client to prompt, so
@@ -71,6 +112,11 @@ func (p *Proxy) HandleAsync(
 	if params.Tool == "" {
 		return protocol.ErrorResultV1("async.tool is required"), nil
 	}
+	// Checked ahead of the nil guards below (matching the precedence a
+	// caller would see even mid-startup, before asyncEligible's own
+	// internal builtin check ever runs): a builtin meta tool is always
+	// refused for a builtin-specific reason, never a generic
+	// "unavailable" message.
 	if p.hasBuiltinTool(params.Tool) {
 		return protocol.ErrorResultV1(builtinAsyncRefusal(params.Tool)), nil
 	}
@@ -85,21 +131,15 @@ func (p *Proxy) HandleAsync(
 		), nil
 	}
 
-	// FDR 0011: only an explicit deny is an absolute synchronous reject here.
-	// Allow backgrounds directly; ask and Unknown (no perms-request) are
-	// admitted because the PreToolUse hook forces an at-dispatch consent before
-	// the async call reaches moxy (moxy's core model presumes the hook is the
-	// permission gate). This revises FDR 0004's allow-only posture for ask /
-	// Unknown; #403 (mid-dispatch elicitation) would let moxy own the consent
-	// itself and drop the reliance on the separate hook process.
-	dec, reason := p.resolver.Resolve(ctx, params.Tool, params.Args, ".")
-	if dec == permcheck.Deny {
+	switch kind, _, reason := p.asyncEligible(ctx, params.Tool, params.Args); kind {
+	case asyncRejectBuiltin:
+		return protocol.ErrorResultV1(reason), nil
+	case asyncRejectDeny:
 		return protocol.ErrorResultV1(fmt.Sprintf(
 			"async refuses a denied call; %s resolved to deny (%s)",
 			params.Tool, reason,
 		)), nil
-	}
-	if !p.resolver.PermitsAsync(params.Tool) {
+	case asyncRejectPermitAsyncFalse:
 		return protocol.ErrorResultV1(fmt.Sprintf(
 			"%s declares permit-async = false; it cannot be dispatched asynchronously",
 			params.Tool,
@@ -356,31 +396,12 @@ func (p *Proxy) handleBatchAsync(
 
 	var rejected []batchRejection
 	for i, c := range params.Calls {
-		if p.hasBuiltinTool(c.Tool) {
-			rejected = append(rejected, batchRejection{
-				index:  i,
-				call:   c,
-				dec:    permcheck.Unknown,
-				reason: builtinAsyncRefusal(c.Tool),
-			})
-			continue
-		}
-		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, ".")
-		if dec == permcheck.Deny {
+		if kind, dec, reason := p.asyncEligible(ctx, c.Tool, c.Args); kind != asyncRejectNone {
 			rejected = append(rejected, batchRejection{
 				index:  i,
 				call:   c,
 				dec:    dec,
 				reason: reason,
-			})
-			continue
-		}
-		if !p.resolver.PermitsAsync(c.Tool) {
-			rejected = append(rejected, batchRejection{
-				index:  i,
-				call:   c,
-				dec:    dec,
-				reason: "tool declares permit-async = false",
 			})
 		}
 	}
