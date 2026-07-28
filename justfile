@@ -14,6 +14,8 @@ run-dev: build-go
 # clown-plugin-protocol handshake (man clown-plugin-protocol(7)), generate
 # `.tmp/.mcp.json` pointing at it, and drop into $SHELL. Moxy is killed
 # when the shell exits.
+#
+# serve moxy over streamable-HTTP and drop into a shell wired to it
 [group("operational")]
 run-http: build-go
   zx bin/serve-http.mjs
@@ -23,6 +25,8 @@ run-http: build-go
 # `.tmp/.mcp.json` pointing at it, and drop into $SHELL. Use to validate
 # whether Claude Code refreshes its tool registry on
 # `notifications/tools/list_changed`. POC is killed on shell exit.
+#
+# launch the list-changed POC MCP server and drop into a shell wired to it
 [group("operational")]
 run-poc-list-changed:
   zx bin/serve-poc-list-changed.mjs
@@ -55,6 +59,8 @@ build-moxins:
 #
 # `nix fmt` last applies the flake treefmt (gofumpt): tommy emits plain gofmt
 # with no blank lines between top-level funcs, which lint-fmt would reject.
+#
+# regenerate the tommy codec against the flake input closure
 [group("build")]
 codemod-generate:
   #!/usr/bin/env bash
@@ -80,6 +86,8 @@ codemod: codemod-fmt codemod-generate
 # shfmt for shell/bats, prettier for ts/mjs/cjs, ruff for python, tommy for
 # toml) plus the eng-preset linters' repair actions. Config: ./conformist.nix +
 # conformist.lib.presets.eng. Read-only counterpart: lint-fmt.
+#
+# format and repair the whole tree via conformist
 [group("codemod")]
 codemod-fmt *args:
   nix fmt {{args}}
@@ -89,6 +97,8 @@ codemod-fmt *args:
 # the eng-preset conventions (eng-versioning, flake-*, justfile-*), exiting
 # non-zero on any finding with no working-tree side effects. Write-mode
 # counterpart: codemod-fmt (`nix fmt`, conformist repair mode).
+#
+# check formatting and the repo's linters via the sandboxed conformist gate
 [group("pre-build")]
 lint-fmt:
   #!/usr/bin/env bash
@@ -108,6 +118,8 @@ lint-fmt:
 # lint replays the dangling entry and its generated_file_filter aborts trying
 # to re-read the vanished file (moxy#294). A per-checkout cache keeps
 # each worktree's entries with it — and removed with it.
+#
+# run golangci-lint with a checkout-local cache
 [group("pre-build")]
 lint-go:
   GOLANGCI_LINT_CACHE='{{ justfile_directory() }}/.tmp/golangci-lint' MOXIN_PATH="" golangci-lint run
@@ -118,6 +130,8 @@ lint-go:
 # .git plus host tools and so cannot run in the sandboxed lint-fmt gate. Builds
 # the impure config in /nix/store, then runs `conformist check` rooted at the
 # worktree.
+#
+# run the impure eng-convention checks against the working tree
 [group("pre-build")]
 lint-worktree:
   #!/usr/bin/env bash
@@ -139,6 +153,8 @@ test: test-flake-check test-bats-net_cap test-validate-mcp test-status test-stat
 # tests that need host paths and runs only via `run-bats-tag
 # host_only`. See #249 for why we don't run bats through
 # batman/sandcastle anymore.
+#
+# run the bats integration suite inside the nix build sandbox
 [group("post-build")]
 run-bats:
   nix build --keep-going .#bats-default --no-link --print-build-logs
@@ -146,6 +162,8 @@ run-bats:
 # Run the loopback-binding lane (streamable_http.bats). Verifies that
 # moxy serve-http binding to 127.0.0.1 still works inside the nix build
 # sandbox.
+#
+# run the loopback-binding bats lane
 [group("post-build")]
 test-bats-net_cap:
   nix build --keep-going .#bats-net_cap --no-link --print-build-logs
@@ -153,6 +171,8 @@ test-bats-net_cap:
 # Validates the flake's structural outputs (packages.* are derivations,
 # devShells eval, etc). Runs last so the nix store cache is already warm
 # from prior build steps.
+#
+# validate the flake's structural outputs
 [group("post-build")]
 test-flake-check:
   nix flake check
@@ -161,12 +181,16 @@ test-flake-check:
 # folio, run-bats-tag net_cap). See `nix flake show` for the full list
 # — auto-discovered from `# bats file_tags=` directives in
 # zz-tests_bats/*.bats.
+#
+# run a single tag's bats lane
 [group("post-build")]
 run-bats-tag tag:
   nix build --keep-going .#bats-{{tag}} --no-link --print-build-logs
 
 # End-to-end: verify claude -p can see and call moxy MCP tools.
 # Requires: claude CLI on PATH and authenticated.
+#
+# verify `claude -p` can see and call moxy MCP tools
 [group("post-build")]
 run-smoke-claude-p: build-nix
   #!/usr/bin/env bash
@@ -227,6 +251,8 @@ run-go-test:
 # Per-function coverage report for a Go package.
 # Used during refactors to identify untested branches before moving code.
 # Example: just run-go-cover ./internal/hook/...
+#
+# print a per-function coverage report for a Go package
 [group("post-build")]
 run-go-cover pkg=".":
   #!/usr/bin/env bash
@@ -245,6 +271,8 @@ run-go-cover pkg=".":
 # recipe launches a fresh `claude -p` process configured to use the
 # worktree's just-built moxy via --mcp-config, so the new builtin is
 # visible. Mirrors run-smoke-claude-p's shape.
+#
+# drive a freshly-built moxy from `claude -p` to exercise the batch builtin
 [group("post-build")]
 run-batch-via-claude-p: build-nix
   #!/usr/bin/env bash
@@ -304,6 +332,8 @@ test-status-clean-env: build-nix
 
 # Runtime smoke: run purse-first validate-mcp against the devshell-built moxy
 # serve mcp under a throwaway HOME + moxyfile + .default madder store.
+#
+# run validate-mcp against the devshell-built moxy serve
 [group("post-build")]
 test-validate-mcp: build-go
   #!/usr/bin/env bash
@@ -326,6 +356,8 @@ test-validate-mcp: build-go
 # One-shot codemod for #315: append [annotations] to the tool TOMLs that
 # validate-mcp flags as unannotated. Idempotent (skips files that already
 # have an [annotations] block). Per-tool semantics encoded inline.
+#
+# append [annotations] to the tool TOMLs validate-mcp flags as unannotated
 [group("debug")]
 debug-codemod-annotations:
   #!/usr/bin/env bash
@@ -357,6 +389,8 @@ debug-codemod-annotations:
 # the async-cancel live smoke (FDR 0004) — every cached/test job finishes
 # faster than an agent's inter-turn latency, making cancellation unprovable
 # against real workloads.
+#
+# sleep for N seconds as a long-running async-cancel target
 [group("debug")]
 debug-sleep seconds="300":
   sleep {{seconds}}
@@ -364,6 +398,8 @@ debug-sleep seconds="300":
 # Run a focused Go test by name pattern in one package (default ./internal/...).
 # Fast inner loop for TDD on a single test without the full `test-go` suite.
 # MOXIN_PATH is cleared to match test-go's package-loading environment.
+#
+# run a focused Go test by name pattern in one package
 [group("debug")]
 debug-go-test pattern pkg="./internal/native/...":
   MOXIN_PATH="" go test {{pkg}} -run '{{pattern}}' -v
@@ -371,6 +407,8 @@ debug-go-test pattern pkg="./internal/native/...":
 # Verify the raw shape of `fj whoami` and `fj api user/orgs` against the
 # real forge instance, to confirm/deny suspected parsing bugs in
 # moxins/smith/bin/repo-owner-perms's owner/org auto-allow gate.
+#
+# verify the raw shape of `fj whoami` and `fj api user/orgs`
 [group("debug")]
 debug-smith-fj-identity:
   #!/usr/bin/env bash
@@ -392,6 +430,8 @@ debug-smith-fj-identity:
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
 # Idempotent (skips files that already declare permit-async). Keep for
 # reference; safe to re-run.
+#
+# insert `permit-async = false` into ordering-sensitive moxin tools
 [group("debug")]
 debug-codemod-permit-async:
   #!/usr/bin/env bash
@@ -422,6 +462,8 @@ debug-codemod-permit-async:
 # Probe whether `madder init <unprefixed-id>` creates an XDG user-level store
 # under a fresh XDG_DATA_HOME. Agent dev-loop for FDR 0004's async result
 # store (moxy-async).
+#
+# probe whether `madder init <id>` creates an XDG user-level store
 [group("debug")]
 debug-madder-init-xdg:
   #!/usr/bin/env bash
@@ -440,6 +482,8 @@ debug-madder-init-xdg:
 
 # Dump one tool's tools/list entry from the locally-built moxy under a given
 # MCP protocolVersion. Agent dev-loop for #217 (annotations reported missing).
+#
+# dump one tool's tools/list entry under a given MCP protocolVersion
 [group("debug")]
 debug-dump-tool-entry tool="folio.read" protocol="2025-11-25": build-go
   #!/usr/bin/env bash
@@ -462,6 +506,8 @@ debug-dump-tool-entry tool="folio.read" protocol="2025-11-25": build-go
 
 # Bisect helper: build and validate MCP loading at current commit
 # Usage: git bisect start HEAD <known-good> -- && git bisect run just debug-bisect
+#
+# build and validate MCP loading at the current commit (git bisect helper)
 [group("debug")]
 debug-bisect: build-go
   #!/usr/bin/env bash
@@ -564,6 +610,8 @@ bump-version new_version:
 # textually interpolating {{message}} into the bash body — a changelog whose
 # commit subjects contain shell metacharacters (e.g. a literal `$output`) would
 # otherwise be expanded by bash and, under `set -u`, abort with "unbound variable".
+#
+# create, verify, and push a signed git tag for the current MOXY_VERSION
 [group("maintenance")]
 [positional-arguments]
 tag message="":
@@ -594,6 +642,8 @@ tag message="":
 # from the master branch.
 # [positional-arguments] exposes new_version as $1 and notes_file as $2 as real
 # argv elements rather than {{...}} text-substituting them into the bash body.
+#
+# cut a release: changelog, version bump, signed tag, and Forgejo release
 [group("maintenance")]
 [positional-arguments]
 release new_version notes_file="":
@@ -659,6 +709,8 @@ debug-arboretum-smoke:
 # (/nix/store/...) from unpatched (/lib64/...). On macOS clang is Mach-O with no
 # interpreter, which is why the from-source path only broke once ea54cee enabled
 # it on Linux.
+#
+# print the ELF interpreter of a wasi-sdk's clang
 [group("debug")]
 debug-arboretum-wasi-clang-interp sdk:
   #!/usr/bin/env bash
@@ -677,6 +729,8 @@ debug-arboretum-wasi-clang-interp sdk:
 # Fast local dead-jq check (the conformist [linter.dead-jq] command, run
 # directly without the nix build wrapper). The gating path is `just lint-fmt`
 # (conformist check); this recipe is a quicker loop while editing bats files.
+#
+# run the dead-jq linter directly, without the nix build wrapper
 [group("debug")]
 debug-lint-dead-jq *files:
   bash {{justfile_directory()}}/scripts/lint-dead-jq {{files}}
@@ -773,6 +827,8 @@ verify: verify-arboretum-grammars
 #      https://github.com/tree-sitter/tree-sitter-<lang>/archive/<rev>.tar.gz`).
 #   3. wasi-sdk (build toolchain): edit wasiSdkVersion + wasiSdkBySystem.
 # After any bump, run this recipe; abi-check is the shared compatibility gate.
+#
+# rebuild the arboretum grammar wasm and verify every grammar's ABI
 [group("post-build")]
 verify-arboretum-grammars: build-moxins
   #!/usr/bin/env bash
@@ -792,6 +848,8 @@ run-stderrlog:
 
 # Debug: look for OOM kills in kernel ring buffer (needs pkexec; user sasha not in adm/systemd-journal groups)
 # SHELL is sanitized to /bin/bash since pkexec rejects SHELL values not in /etc/shells.
+#
+# look for OOM kills in the kernel ring buffer
 [group("debug")]
 debug-pkexec-oom days='8':
   #!/usr/bin/env bash
@@ -811,6 +869,8 @@ debug-pkexec-oom days='8':
 
 # Build the nix moxy, hand it an MCP initialize+tools/list handshake, and report
 # the tool count and stderr — for inspecting the nix-built tool surface.
+#
+# report the nix-built moxy's MCP tool count via a tools/list handshake
 [group("explore")]
 explore-nix-tools-list: build-nix
   #!/usr/bin/env bash
@@ -842,6 +902,8 @@ explore-nix-tools-list: build-nix
 
 # Test validate-mcp against serve-moxin with devshell-built binary.
 # Usage: just debug-validate-serve-moxin piers
+#
+# run validate-mcp against serve-moxin with the devshell-built binary
 [group("debug")]
 debug-validate-serve-moxin name: build-go
   #!/usr/bin/env bash
@@ -869,6 +931,8 @@ debug-validate-serve-moxin name: build-go
 # Run sisyphus Python unit tests (lib/test_*.py) using the nix-wrapped
 # python3 from the sisyphus moxin (which has marklas + mistune available).
 # Agent dev-loop: run after editing _validate.py / _issuetype.py or their tests.
+#
+# run the sisyphus Python unit tests
 [group("debug")]
 debug-sisyphus-py-tests: build-moxins
   #!/usr/bin/env bash
@@ -887,6 +951,8 @@ debug-sisyphus-py-tests: build-moxins
 # wrapped checker the gate's [linter.mypy] runs (mypy + types-requests, reading
 # ./mypy.ini). The checker skips the one bash script (api-perms) by shebang.
 # Agent dev-loop: run after editing moxin Python or mypy.ini.
+#
+# type-check the first-party moxin Python with mypy
 [group("debug")]
 debug-py-typecheck:
   #!/usr/bin/env bash
@@ -900,6 +966,8 @@ debug-py-typecheck:
 
 # Probe what marklas produces for the #239 pipe-prose and diff-codeblock cases.
 # Agent dev-loop: run to inspect ADF output before writing validator/tests.
+#
+# probe what marklas produces for the #239 ADF cases
 [group("debug")]
 debug-sisyphus-239-probe: build-moxins
   #!/usr/bin/env bash
@@ -920,6 +988,8 @@ explore-claude-p: build-nix
 # nix-built wrapper so it tracks whichever fj is currently pinned). Agent
 # dev-loop for probing fj's CLI surface (e.g. `just explore-fj-help -- repo --help`)
 # before wiring a new smith tool (#414/#418/#419).
+#
+# run the pinned forgejo-cli binary directly with arbitrary args
 [group("explore")]
 explore-fj-help *args: build-moxins
   #!/usr/bin/env bash
@@ -941,6 +1011,8 @@ explore-poc-test-dynamic-perms: explore-poc-build-dynamic-perms
 # Enable impure-derivations + ca-derivations on the nix-daemon and restart it.
 # Idempotent: re-running is a no-op if both features are already in nix.custom.conf.
 # Mirrors amarbel-llc/eng#41's resolution but for Determinate Nix on Linux instead of darwin.
+#
+# enable impure-derivations and ca-derivations on the nix-daemon
 [group("debug")]
 debug-pkexec-enable-impure-derivations:
   #!/usr/bin/env bash
@@ -1037,6 +1109,8 @@ debug-nix-features:
 # Probe: does --option extra-sandbox-paths take effect from a non-trusted user?
 # Tries to bind-mount /home/sasha/eng/repos/moxy/.worktrees/snug-sumac into the sandbox
 # and `ls` inside. If the bind silently fails, the worktree path won't exist in the sandbox.
+#
+# probe whether --option extra-sandbox-paths takes effect for a non-trusted user
 [group("debug")]
 debug-extra-sandbox-paths:
   #!/usr/bin/env bash
@@ -1071,6 +1145,8 @@ debug-extra-sandbox-paths:
 # Builds a main repo + commit + linked worktree under a temp dir, then runs
 # the SOURCE folio-perms (with the devshell's git on PATH) under `bash -x`
 # so the git resolution, siblings_root, and main_worktree values are visible.
+#
+# reproduce the folio-perms sibling-repo read decision for a linked worktree
 [group("debug")]
 debug-folio-perms-linked-worktree:
   #!/usr/bin/env bash
@@ -1100,6 +1176,8 @@ debug-folio-perms-linked-worktree:
 # Prototype: build the moxy Linux OCI image and run it via Apple `container`.
 # Requires `container` installed + `container system start`. The image is the
 # moxy binary alone (no moxins/maneater); `version` is the smoke test.
+#
+# build the moxy Linux OCI image and run it via Apple `container`
 [group("explore")]
 explore-container-prototype:
   #!/usr/bin/env bash
@@ -1121,6 +1199,8 @@ explore-container-prototype:
 # --force-if-includes. If --force-if-includes were enforced it would reject the
 # push (new tip's reflog does not include the remote tip); if it's a no-op the
 # push succeeds on the lease alone. Reports the observed outcome.
+#
+# probe whether --force-if-includes still enforces its check under an explicit lease
 [group("debug")]
 debug-force-if-includes-with-explicit-lease:
   #!/usr/bin/env bash
