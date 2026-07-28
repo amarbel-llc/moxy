@@ -5,7 +5,7 @@ default: build test
 [group("pre-build")]
 lint: lint-fmt lint-go lint-worktree
 
-# Build moxy then run the dev driver (bin/dev.mjs).
+# build moxy then run the dev driver (bin/dev.mjs)
 [group("operational")]
 run-dev: build-go
   zx bin/dev.mjs
@@ -34,12 +34,12 @@ run-poc-list-changed:
 [group("build")]
 build: build-gomod2nix build-moxins build-go build-nix
 
-# Compile the moxy binary to build/moxy (after codemod-generate + build-moxins).
+# compile the moxy binary to build/moxy (after codemod-generate + build-moxins)
 [group("build")]
 build-go: codemod-generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
-# Build the moxins nix output and link it at result-moxins.
+# build the moxins nix output and link it at result-moxins
 [group("build")]
 build-moxins:
   nix build --keep-going --out-link result-moxins .#moxy-moxins
@@ -69,12 +69,12 @@ codemod-generate:
   nix develop -c go generate ./internal/config/...
   nix fmt internal/config
 
-# Regenerate gomod2nix.toml from go.mod/go.sum.
+# regenerate gomod2nix.toml from go.mod/go.sum
 [group("build")]
 build-gomod2nix:
   gomod2nix
 
-# Build the moxy nix package (regenerates gomod2nix.toml first).
+# build the moxy nix package (regenerates gomod2nix.toml first)
 [group("build")]
 build-nix: build-gomod2nix
   nix build --keep-going --show-trace
@@ -232,17 +232,17 @@ run-smoke-claude-p: build-nix
     exit 1
   fi
 
-# Smoke-test migrated bun+zx tool scripts against real APIs
+# smoke-test migrated bun+zx tool scripts against real APIs
 [group("post-build")]
 run-migrated-tools: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
 
-# Smoke-test the locally-built hamster moxin (doc, src, mod-read, go-mod)
+# smoke-test the locally-built hamster moxin (doc, src, mod-read, go-mod)
 [group("post-build")]
 run-hamster-smoke: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-hamster.mjs
 
-# Fast devshell loop: go vet then go test over all packages (MOXIN_PATH cleared).
+# fast devshell loop: go vet then go test over all packages (MOXIN_PATH cleared)
 [group("post-build")]
 run-go-test:
   MOXIN_PATH="" go vet ./...
@@ -307,12 +307,12 @@ run-batch-via-claude-p: build-nix
     --allowedTools "mcp__moxy__batch,mcp__moxy__folio.glob" \
     --disallowedTools "$disallowed"
 
-# Run `moxy status` against the devshell-built binary as a runtime smoke check.
+# run `moxy status` against the devshell-built binary as a runtime smoke check
 [group("post-build")]
 test-status: build-go
   {{justfile_directory()}}/{{dir_build}}/moxy status
 
-# Verify the nix-built binary discovers system moxins without ambient env
+# verify the nix-built binary discovers system moxins without ambient env
 [group("post-build")]
 test-status-clean-env: build-nix
   #!/usr/bin/env bash
@@ -545,7 +545,7 @@ debug-bisect: build-go
 
 mcp-inspect := "npx @modelcontextprotocol/inspector --cli"
 
-# List moxy's tools via the MCP inspector CLI against the devshell-built binary.
+# list moxy's tools via the MCP inspector CLI against the devshell-built binary
 [group("post-build")]
 run-mcp: build-go
   #!/usr/bin/env nix
@@ -554,7 +554,7 @@ run-mcp: build-go
   tools=$({{mcp-inspect}} --method tools/list {{justfile_directory()}}/{{dir_build}}/moxy serve mcp)
   echo "$tools" | jq .
 
-# Run the flake's default app (`nix run .`) with the given arguments.
+# run the flake's default app (`nix run .`) with the given arguments
 [group("operational")]
 run-nix *ARGS:
   nix run . -- {{ARGS}}
@@ -562,23 +562,23 @@ run-nix *ARGS:
 [group("maintenance")]
 update: update-go
 
-# Update all Go module dependencies to latest and tidy go.mod/go.sum.
+# update all Go module dependencies to latest and tidy go.mod/go.sum
 [group("maintenance")]
 update-go:
   env GOPROXY=direct go get -u -t ./...
   go mod tidy
 
-# List all unique man-page names in the given section (default 1).
+# list all unique man-page names in the given section (default 1)
 [group("inspection")]
 list-man section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u
 
-# Count the unique man pages in the given section (default 1).
+# count the unique man pages in the given section (default 1)
 [group("inspection")]
 list-man-count section="1":
   apropos -s {{section}} . 2>/dev/null | sort -u | wc -l
 
-# Print the unique man-page count for every section 1 through 8.
+# print the unique man-page count for every section 1 through 8
 [group("inspection")]
 list-man-count-all:
   @for s in 1 2 3 4 5 6 7 8; do \
@@ -586,12 +586,12 @@ list-man-count-all:
     printf "section %s: %s pages\n" "$s" "$count"; \
   done
 
-# Search man pages matching a query in the given section (default 1).
+# search man pages matching a query in the given section (default 1)
 [group("inspection")]
 list-man-search query section="1":
   apropos -s {{section}} {{query}} 2>/dev/null | sort -u
 
-# Bump MOXY_VERSION in version.env to the given semver
+# bump MOXY_VERSION in version.env to the given semver
 [group("maintenance")]
 bump-version new_version:
   #!/usr/bin/env bash
@@ -678,22 +678,22 @@ release new_version notes_file="":
 [group("maintenance")]
 clean: clean-build
 
-# Remove the build/ directory and the result symlink.
+# remove the build/ directory and the result symlink
 [group("maintenance")]
 clean-build:
   rm -rf result build/
 
-# Run `bun install` at the repo root (refresh bun.lock for mkBunMoxin bundling)
+# run `bun install` at the repo root (refresh bun.lock for mkBunMoxin bundling)
 [group("debug")]
 debug-bun-install:
   cd {{justfile_directory()}} && bun install
 
-# Regenerate bun.nix from bun.lock via nix-community/bun2nix
+# regenerate bun.nix from bun.lock via nix-community/bun2nix
 [group("debug")]
 debug-bun2nix:
   cd {{justfile_directory()}} && nix run github:nix-community/bun2nix -- -o bun.nix
 
-# Smoke-test arboretum-moxin outline against POC sample
+# smoke-test arboretum-moxin outline against POC sample
 [group("debug")]
 debug-arboretum-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/outline {{justfile_directory()}}/zz-pocs/outline-poc/samples/sample.go
@@ -735,47 +735,47 @@ debug-arboretum-wasi-clang-interp sdk:
 debug-lint-dead-jq *files:
   bash {{justfile_directory()}}/scripts/lint-dead-jq {{files}}
 
-# Smoke-test arboretum-moxin search against a small fixture
+# smoke-test arboretum-moxin search against a small fixture
 [group("debug")]
 debug-arboretum-search-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/search 'console.log($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke
 
-# Smoke-test arboretum-moxin search against a small Go fixture (lang=go)
+# smoke-test arboretum-moxin search against a small Go fixture (lang=go)
 [group("debug")]
 debug-arboretum-search-go-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/search 'fmt.Println($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go
 
-# Smoke-test arboretum-moxin rewrite (apply) against a small Go fixture
+# smoke-test arboretum-moxin rewrite (apply) against a small Go fixture
 [group("debug")]
 debug-arboretum-rewrite-go-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'fmt.Println($X)' 'log.Info($X)' {{justfile_directory()}}/.tmp/astgrep-smoke go '' false
 
-# Smoke-test arboretum md-toc against a tiny markdown blob on stdin
+# smoke-test arboretum md-toc against a tiny markdown blob on stdin
 [group("debug")]
 debug-arboretum-md-toc-smoke:
   printf '# Hello\n\n## World\n\nbody\n\n## Again\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-toc
 
-# Smoke-test arboretum md-section against a tiny markdown blob on stdin
+# smoke-test arboretum md-section against a tiny markdown blob on stdin
 [group("debug")]
 debug-arboretum-md-section-smoke:
   printf '# Hello\n\n## World\n\nbody\n\n## Again\nmore\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-section World
 
-# Smoke-test arboretum md-anchor against a tiny markdown blob on stdin
+# smoke-test arboretum md-anchor against a tiny markdown blob on stdin
 [group("debug")]
 debug-arboretum-md-anchor-smoke:
   printf '<a name="x"></a>\n# X\nbody\n\n<a name="y"></a>\n# Y\nmore\n' | {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/md-anchor x
 
-# Smoke-test arboretum-moxin rewrite (dry-run) against a small fixture
+# smoke-test arboretum-moxin rewrite (dry-run) against a small fixture
 [group("debug")]
 debug-arboretum-rewrite-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' true
 
-# Smoke-test arboretum-moxin rewrite (apply) against a small fixture
+# smoke-test arboretum-moxin rewrite (apply) against a small fixture
 [group("debug")]
 debug-arboretum-rewrite-apply-smoke:
   {{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/rewrite 'console.log($MSG)' 'logger.info($MSG)' {{justfile_directory()}}/.tmp/astgrep-smoke '' '' false
 
-# Probe ast-grep's --update-all output streams independently
+# probe ast-grep's --update-all output streams independently
 [group("debug")]
 debug-astgrep-streams:
   #!/usr/bin/env bash
@@ -795,7 +795,7 @@ debug-astgrep-streams:
   echo "=== STDERR ONLY ==="
   "$ag" run -p 'console.log($MSG)' -r 'logger.info($MSG)' --update-all .tmp/astgrep-smoke 1>/dev/null
 
-# Re-capture arboretum golden-output fixtures from the nix-built binary
+# re-capture arboretum golden-output fixtures from the nix-built binary
 [group("debug")]
 debug-arboretum-regen-goldens:
   #!/usr/bin/env bash
@@ -836,12 +836,12 @@ verify-arboretum-grammars: build-moxins
   bin={{justfile_directory()}}/result-moxins/share/moxy/moxins/arboretum/bin/abi-check
   "$bin"
 
-# Integration test for moxin discovery via a fresh temp workspace
+# integration test for moxin discovery via a fresh temp workspace
 [group("post-build")]
 run-moxin-loading:
   zx bin/test-moxin-loading.mjs
 
-# Integration test for internal/stderrlog per-session logging + rotation flow.
+# integration test for internal/stderrlog per-session logging + rotation flow
 [group("post-build")]
 run-stderrlog:
   zx bin/test-stderrlog.mjs
@@ -978,7 +978,7 @@ debug-sisyphus-239-probe: build-moxins
   VENDOR="$root/moxins/sisyphus/lib/_vendor" \
     "$py_bin" "$root/moxins/sisyphus/lib/probe_239.py"
 
-# Reproduce tools-not-appearing via claude -p with the nix-built moxy.
+# reproduce tools-not-appearing via claude -p with the nix-built moxy
 [group("explore")]
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
@@ -998,12 +998,16 @@ explore-fj-help *args: build-moxins
   eval "$(grep -m1 '^export PATH=' "$wrapped")"
   fj {{args}}
 
-# Build the dynamic-perms POC driver. POC scope only — not wired into main test.
+# POC scope only — not wired into main test.
+#
+# build the dynamic-perms POC driver
 [group("explore")]
 explore-poc-build-dynamic-perms:
   go build -o build/moxy-exporel-dynamic-perms ./cmd/moxy-exporel-dynamic-perms
 
-# Run the dynamic-perms POC bats wrapper. Driver self-asserts.
+# Driver self-asserts.
+#
+# run the dynamic-perms POC bats wrapper
 [group("explore")]
 explore-poc-test-dynamic-perms: explore-poc-build-dynamic-perms
   bats {{justfile_directory()}}/zz-bats_explore/dynamic_perms_poc.bats
@@ -1042,14 +1046,14 @@ debug-pkexec-enable-impure-derivations:
   echo "=== nix config show (post-restart) ==="
   nix config show 2>/dev/null | grep -i experimental || nix-instantiate --eval --expr 'builtins.currentSystem' 2>&1 | tail -3
 
-# Look up nix.conf docs for a setting via `nix config show --json` to get its description.
+# look up nix.conf docs for a setting via `nix config show --json` to get its description
 [group("debug")]
 debug-nix-setting key:
   #!/usr/bin/env bash
   set -euo pipefail
   nix config show --json 2>/dev/null | jq --arg k '{{key}}' '.[$k] // .[($k | sub("^extra-"; ""))]'
 
-# Smallest possible __impure derivation, exercise every flag override path.
+# build the smallest possible __impure derivation, exercising every flag override path
 [group("debug")]
 debug-nix-impure-min:
   #!/usr/bin/env bash
@@ -1086,7 +1090,7 @@ debug-nix-impure-min:
       --extra-experimental-features ca-derivations \
       build --impure --no-link --print-out-paths --file "$drv" 2>&1 | tail -5
 
-# Probe nix capabilities (version, experimental features) for chix.bash work.
+# probe nix capabilities (version, experimental features) for chix.bash work
 [group("debug")]
 debug-nix-features:
   #!/usr/bin/env bash
