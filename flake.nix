@@ -82,13 +82,14 @@
 
     # linenisgreat fork of forgejo-cli (fj), carrying the FDR-0016
     # vanity-discovery patches for owner-less vanity remotes
-    # (code.linenisgreat.com). Its outputs function uses a closed parameter set
+    # (code.linenisgreat.com). Renamed smith (code.linenisgreat.com/smith).
+    # Its outputs function uses a closed parameter set
     # ({ self, nixpkgs-master, utils, conformist }, no ...) — do not add
     # follows for inputs it doesn't declare. (Its former `nixpkgs` input was
     # renamed nixpkgs-master in forgejo-cli ebdedb8; conformist added in
     # 56c6de7.)
-    forgejo-cli = {
-      url = "https://code.linenisgreat.com/forgejo-cli/archive/master.tar.gz";
+    smith = {
+      url = "https://code.linenisgreat.com/smith/archive/master.tar.gz";
       inputs.nixpkgs-master.follows = "nixpkgs-master";
       inputs.utils.follows = "utils";
       inputs.conformist.follows = "conformist";
@@ -136,7 +137,7 @@
       madder,
       conformist,
       clown,
-      forgejo-cli,
+      smith,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -975,7 +976,7 @@
           pkgs.coreutils
           pkgs.gawk
           pkgs.jq
-          forgejo-cli.packages.${system}.default
+          smith.packages.${system}.default
         ] { };
 
         # gws moxins excluded from the build closure for now (#391) — see the
