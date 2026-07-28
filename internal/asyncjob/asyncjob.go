@@ -302,14 +302,18 @@ func (m *Manager) finish(id string, jobCtx context.Context, result *protocol.Too
 
 // classify maps a dispatch outcome onto a terminal state. Order matters: an
 // explicit user cancel wins over the generic ctx error; a graceful-shutdown
-// sweep cancels via CancelFunc (context.Canceled, caught by the swept branch)
-// and reads as interrupted; a deadline that fired on its own reads as timeout
-// (#345 — covers both the default max-runtime and a per-call timeout).
+// sweep (caught by the swept branch) reads as interrupted ONLY when the job
+// produced no result or an error result — a job that returned a valid success
+// result before finish() read j.swept is classified by that result, not by
+// the shutdown (the narrow race: dispatch() completed, Sweep() set swept=true
+// before finish()'s first lock, so the job is done but j.State is still
+// StateRunning when Sweep runs); a deadline that fired on its own reads as
+// timeout (#345 — covers both the default max-runtime and a per-call timeout).
 func classify(jobCtx context.Context, result *protocol.ToolCallResultV1, err error, userCancelled, swept bool) string {
 	switch {
 	case userCancelled:
 		return StateCancelled
-	case swept:
+	case swept && (result == nil || result.IsError):
 		return StateInterrupted
 	case errors.Is(jobCtx.Err(), context.DeadlineExceeded):
 		return StateTimeout

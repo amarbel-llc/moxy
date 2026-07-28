@@ -470,6 +470,28 @@ func TestPerCallTimeoutOverridesDefault(t *testing.T) {
 	}
 }
 
+// A swept job that completed with a valid success result must NOT be classified
+// as interrupted. The narrow race: dispatch() returned a valid result, then
+// Sweep() set swept=true before finish() acquired its first lock — the job is
+// done but j.State is still StateRunning when Sweep runs, so swept becomes
+// true despite the job having succeeded. classify() must honour the result.
+func TestClassifySweptPreservesValidResult(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name   string
+		result *protocol.ToolCallResultV1
+		want   string
+	}{
+		{"valid result", okResult("hi"), StateSucceeded},
+		{"nil result", nil, StateInterrupted},
+		{"error result", &protocol.ToolCallResultV1{IsError: true}, StateInterrupted},
+	} {
+		if got := classify(ctx, tc.result, nil, false, true); got != tc.want {
+			t.Errorf("classify(swept=true, %s) = %q, want %s", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestSweepInterruptsInFlight(t *testing.T) {
 	bin, record := writeRingmasterStub(t, "slow-9999aaaa")
 	m := newTestManager(bin)

@@ -55,6 +55,11 @@ run_moxy_mcp() {
   local method="$1"
   shift
   local params="${1:-}"
+  # keepalive: seconds to keep moxy's stdin pipe open after the response
+  # arrives. Default 2s is fine for synchronous calls; async dispatch tests
+  # that background a goroutine-based job (batch async) should pass a longer
+  # value so moxy outlives the job and Sweep() doesn't race with it.
+  local keepalive="${2:-2}"
 
   _ensure_madder_default_store
   local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
@@ -69,8 +74,8 @@ run_moxy_mcp() {
   local moxy_cwd
   moxy_cwd=$(_moxy_spawn_dir)
   run timeout --preserve-status "10s" bash -c \
-    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep 2) | "${MOXY_BIN:-moxy}" serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
-    -- "$moxy_cwd" "$init" "$initialized" "$method_req"
+    'cd "$1"; (echo "$2"; echo "$3"; echo "$4"; sleep "$5") | "${MOXY_BIN:-moxy}" serve mcp 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
+    -- "$moxy_cwd" "$init" "$initialized" "$method_req" "$keepalive"
 }
 
 # Send two method calls in one session, capture the second result in $output.

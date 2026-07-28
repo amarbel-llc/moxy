@@ -242,7 +242,11 @@ function batch_async_unknown_subcall_reaches_job_result { # @test
       ]
     }
   }')
-  run_moxy_mcp "tools/call" "$params"
+  # keepalive=8: batch async runs as a goroutine inside moxy; under the heavy
+  # concurrent load of nix flake check (race tests + lint in parallel), two
+  # bash subprocess invocations can approach 2s each. 8s gives enough margin
+  # for both to complete before Sweep() is called at stdin EOF.
+  run_moxy_mcp "tools/call" "$params" 8
   assert_success
   assert_output --partial '\"status\":\"running\"'
 
