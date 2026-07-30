@@ -32,7 +32,7 @@ function grit_stash_save_stashes_all { # @test
   printf 'a-modified\n' >a.txt
   printf 'b-modified\n' >b.txt
 
-  local params='{"name":"grit.stash-save","arguments":{"message":"wip"}}'
+  local params='{"name":"grit.stash","arguments":{"subcommand":"save","message":"wip"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
@@ -45,7 +45,7 @@ function grit_stash_save_paths_subset { # @test
   printf 'a-modified\n' >a.txt
   printf 'b-modified\n' >b.txt
 
-  local params='{"name":"grit.stash-save","arguments":{"paths":["a.txt"]}}'
+  local params='{"name":"grit.stash","arguments":{"subcommand":"save","paths":["a.txt"]}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 
@@ -55,4 +55,42 @@ function grit_stash_save_paths_subset { # @test
 
   run git diff --name-only
   assert_output "b.txt"
+}
+
+# apply restores a stashed change without removing it from the stash list.
+function grit_stash_apply_restores_without_dropping { # @test
+  printf 'a-modified\n' >a.txt
+  git stash push -m wip
+
+  local params='{"name":"grit.stash","arguments":{"subcommand":"apply"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+
+  # Change is back in the working tree...
+  run cat a.txt
+  assert_output "a-modified"
+
+  # ...and the stash entry still exists (apply, not pop).
+  run git stash list
+  refute_output ""
+}
+
+# drop removes a stash entry from the list.
+function grit_stash_drop_removes_entry { # @test
+  printf 'a-modified\n' >a.txt
+  git stash push -m wip
+
+  local params='{"name":"grit.stash","arguments":{"subcommand":"drop","stash_ref":"stash@{0}"}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_success
+
+  run git stash list
+  assert_output ""
+}
+
+# subcommand is required; omitting it is an error, not a silent no-op.
+function grit_stash_requires_subcommand { # @test
+  local params='{"name":"grit.stash","arguments":{}}'
+  run_moxy_mcp "tools/call" "$params"
+  assert_output --partial "subcommand"
 }

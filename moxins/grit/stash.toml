@@ -1,0 +1,54 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+permit-async = false
+# The stash message is verbatim data, never a blob to stream; opt out of the
+# read-side madder://blobs -> /dev/fd/N argv rewrite (#366-class; see #371).
+substitute-result-uris = false
+description = """Manage git stashes. Subcommands: save, apply, drop. \
+The arg shape for each subcommand mirrors the corresponding `git stash` invocation. \
+save and apply auto-allow; drop is destructive and prompts for confirmation."""
+command = "@BIN@/stash"
+arg-order = ["subcommand", "message", "include_untracked", "stash_ref", "paths", "repo_path"]
+
+[input]
+type = "object"
+required = ["subcommand"]
+
+[input.properties.subcommand]
+type = "string"
+enum = ["save", "apply", "drop"]
+description = "Stash operation: save (push working-tree changes), apply (restore a stash without removing it), drop (delete a stash entry)."
+
+[input.properties.message]
+type = "string"
+description = "Stash message (save only)."
+
+[input.properties.include_untracked]
+type = "boolean"
+description = "Include untracked files (git stash push -u; save only)."
+
+[input.properties.stash_ref]
+type = "string"
+description = "Stash reference (e.g. stash@{0}). Used by apply and drop; apply defaults to stash@{0}, drop requires it."
+
+[input.properties.paths]
+type = "array"
+description = "Limit the stash to these pathspecs (git stash push -- <paths>; save only), e.g. [\"flake.lock\"]. Omit to stash the whole working tree."
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)."
+
+[annotations]
+destructive-hint = true
+idempotent-hint = false
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/stash-perms"
+arg-order = ["subcommand"]
+timeout-ms = 1000

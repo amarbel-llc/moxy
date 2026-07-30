@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-stash_ref="$1"
-repo="${2:-.}"
-cd "$repo"
-git stash drop "$stash_ref"
