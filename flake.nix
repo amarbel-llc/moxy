@@ -94,6 +94,18 @@
       inputs.utils.follows = "utils";
       inputs.conformist.follows = "conformist";
     };
+    smith.inputs.bats.inputs.igloo.inputs.flake-parts.follows = "igloo/flake-parts";
+    smith.inputs.cutting-garden.inputs.igloo.inputs.flake-parts.follows = "igloo/flake-parts";
+    smith.inputs.bats.inputs.igloo.inputs.systems.follows = "igloo/systems";
+    smith.inputs.cutting-garden.inputs.piggy.inputs.jcardsim.follows = "madder/piggy/jcardsim";
+    smith.inputs.cutting-garden.inputs.piggy.inputs.oracle-javacard-sdks.follows =
+      "madder/piggy/oracle-javacard-sdks";
+    smith.inputs.cutting-garden.inputs.piggy.inputs.pivapplet.follows = "madder/piggy/pivapplet";
+    smith.inputs.cutting-garden.inputs.tap.inputs.crane.follows = "madder/tap/crane";
+    smith.inputs.cutting-garden.inputs.tap.inputs.rust-overlay.follows = "madder/tap/rust-overlay";
+    smith.inputs.cutting-garden.inputs.purse-first.inputs.gomod2nix.follows = "purse-first/gomod2nix";
+    smith.inputs.cutting-garden.inputs.igloo.inputs.bun2nix.follows = "smith/bats/igloo/bun2nix";
+    smith.inputs.bats.inputs.utils.follows = "utils";
 
     madder.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
@@ -115,9 +127,6 @@
     # madder/tap's crane/rust-overlay rather than the whole tap node (their
     # revs differ; only the generic overlay flakes need dedup). Mirrors
     # madder's own flake.nix fix verbatim.
-    madder.inputs.hyphence.inputs.langlang.inputs.tap.inputs.crane.follows = "madder/tap/crane";
-    madder.inputs.hyphence.inputs.langlang.inputs.tap.inputs.rust-overlay.follows =
-      "madder/tap/rust-overlay";
     # piggy's own langlang pin is bit-identical to hyphence's (piggy#183 pulls
     # the same markl-id framework) — collapse onto hyphence's copy rather than
     # deep-following piggy's separately. Mirrors madder's own flake.nix fix.
