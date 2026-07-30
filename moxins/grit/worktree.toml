@@ -1,0 +1,39 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+permit-async = false
+description = """Manage git worktrees. Subcommands: list, remove. \
+list is read-only and auto-allows; remove prompts for confirmation."""
+command = "@BIN@/worktree"
+arg-order = ["subcommand", "path", "force", "repo_path"]
+
+[input]
+type = "object"
+required = ["subcommand"]
+
+[input.properties.subcommand]
+type = "string"
+enum = ["list", "remove"]
+description = "Worktree operation: list (all worktrees with path/HEAD/branch/lock state), remove (delete a worktree by path)."
+
+[input.properties.path]
+type = "string"
+description = "Path of the worktree to remove (remove only)."
+
+[input.properties.force]
+type = "boolean"
+description = "Force removal even if the worktree has uncommitted changes (--force; remove only)."
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)."
+
+[annotations]
+destructive-hint = true
+idempotent-hint = false
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/worktree-perms"
+arg-order = ["subcommand"]
+timeout-ms = 1000

@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+subcommand="${1:-}"
+name="${2:-}"
+start="${3:-}"
+force="${4:-}"
+ref="${5:-}"
+new_branch="${6:-}"
+paths_json="${7:-}"
+ours="${8:-}"
+theirs="${9:-}"
+repo="${10:-.}"
+
+cd "$repo"
+
+case "$subcommand" in
+  create)
+    if [ -z "$name" ]; then
+      echo "branch create: name is required" >&2
+      exit 2
+    fi
+    if [ -n "$start" ]; then
+      git branch "$name" "$start"
+    else
+      git branch "$name"
+    fi
+    echo "Created branch $name"
+    ;;
+  delete)
+    if [ -z "$name" ]; then
+      echo "branch delete: name is required" >&2
+      exit 2
+    fi
+    if [ "$name" = "main" ] || [ "$name" = "master" ]; then
+      echo "ERROR: deleting main/master is blocked for safety" >&2
+      exit 1
+    fi
+    if [ "$force" = "true" ]; then
+      git branch -D "$name"
+    else
+      git branch -d "$name"
+    fi
+    ;;
+  soft)
+    git reset --soft "${ref:-HEAD~1}"
+    ;;
+  hard)
+    if [ -z "$ref" ]; then
+      echo "branch hard: ref is required" >&2
+      exit 2
+    fi
+    current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    if [ "$current" = "main" ] || [ "$current" = "master" ]; then
+      echo "ERROR: hard reset on main/master is blocked for safety" >&2
+      exit 1
+    fi
+    git reset --hard "$ref"
+    ;;
+  checkout)
+    git_args=(checkout)
+    if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+      # File restore mode
+      [ "$ours" = "true" ] && git_args+=(--ours)
+      [ "$theirs" = "true" ] && git_args+=(--theirs)
+      [ -n "$ref" ] && git_args+=("$ref")
+      git_args+=(--)
+      # moxy's arg layer guarantees array-declared inputs arrive as JSON arrays
+      # (scalars are coerced to single-element arrays — #309), so a plain split
+      # is safe here.
+      while IFS= read -r p; do
+        git_args+=("$p")
+      done < <(printf '%s' "$paths_json" | jq -r '.[]')
+    else
+      # Branch switch mode
+      [ "$new_branch" = "true" ] && git_args+=(-b)
+      [ -n "$ref" ] && git_args+=("$ref")
+    fi
+    git "${git_args[@]}"
+    ;;
+  "")
+    echo "branch: subcommand is required (create|delete|soft|hard|checkout)" >&2
+    exit 2
+    ;;
+  *)
+    echo "branch: unknown subcommand '$subcommand' (want create|delete|soft|hard|checkout)" >&2
+    exit 2
+    ;;
+esac

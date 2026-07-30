@@ -1,0 +1,70 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+permit-async = false
+description = """Control the HEAD / branch pointer. Subcommands: create, delete, soft, hard, checkout. \
+create makes a new branch; delete removes a local branch; soft moves the current branch's HEAD to a ref \
+(git reset --soft, keeping index and working tree); hard moves HEAD and discards the index and working tree \
+(git reset --hard); checkout switches which branch HEAD tracks (or restores files from a ref). \
+create and checkout auto-allow; delete, soft, and hard prompt for confirmation. \
+delete and hard are blocked on main/master for safety."""
+command = "@BIN@/branch"
+arg-order = ["subcommand", "name", "start_point", "force", "ref", "new_branch", "paths", "ours", "theirs", "repo_path"]
+
+[input]
+type = "object"
+required = ["subcommand"]
+
+[input.properties.subcommand]
+type = "string"
+enum = ["create", "delete", "soft", "hard", "checkout"]
+description = "Pointer operation: create (new branch), delete (remove local branch), soft (move HEAD, keep index+tree), hard (move HEAD, discard index+tree), checkout (switch branch or restore files)."
+
+[input.properties.name]
+type = "string"
+description = "Branch name. Required for create and delete."
+
+[input.properties.start_point]
+type = "string"
+description = "Starting point for the new branch — commit, branch, or tag (create only; default HEAD)."
+
+[input.properties.force]
+type = "boolean"
+description = "Force delete even if the branch is not fully merged (-D instead of -d; delete only). Triggers a confirmation prompt regardless."
+
+[input.properties.ref]
+type = "string"
+description = "Target ref. For soft: where to move HEAD (default HEAD~1). For hard: where to move HEAD (e.g. HEAD~3, origin/main, a SHA; required). For checkout: branch/ref to switch to, or the ref to restore files from (default HEAD when used with paths)."
+
+[input.properties.new_branch]
+type = "boolean"
+description = "Create the branch and check it out (git checkout -b; checkout only)."
+
+[input.properties.paths]
+type = "array"
+description = "File paths to restore from ref instead of switching branches (checkout only). When provided, checkout restores these files rather than moving HEAD."
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.ours]
+type = "boolean"
+description = "During a merge conflict, restore our version of the file(s) (checkout --ours; checkout file-restore only)."
+
+[input.properties.theirs]
+type = "boolean"
+description = "During a merge conflict, restore their version of the file(s) (checkout --theirs; checkout file-restore only)."
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)."
+
+[annotations]
+destructive-hint = true
+idempotent-hint = false
+open-world-hint = true
+
+[dynamic-perms]
+command = "@BIN@/branch-perms"
+arg-order = ["subcommand"]
+timeout-ms = 1000

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+subcommand="${1:-}"
+paths_json="${2:-}"
+intent_to_add="${3:-}"
+force="${4:-}"
+recursive="${5:-}"
+source="${6:-}"
+destination="${7:-}"
+repo="${8:-.}"
+
+cd "$repo"
+
+read_paths() {
+  # Populate the `files` array from the JSON paths arg.
+  files=()
+  if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+    while IFS= read -r p; do
+      files+=("$p")
+    done < <(printf '%s' "$paths_json" | jq -r '.[]')
+  fi
+}
+
+case "$subcommand" in
+  add)
+    read_paths
+    if [ "${#files[@]}" -eq 0 ]; then
+      echo "stage add: paths is required" >&2
+      exit 2
+    fi
+    git_args=(add)
+    [ "$intent_to_add" = "true" ] && git_args+=(-N)
+    git "${git_args[@]}" -- "${files[@]}"
+    if [ "$intent_to_add" = "true" ]; then
+      printf 'Recorded intent to add %d file(s)\n' "${#files[@]}"
+    else
+      printf 'Staged %d file(s)\n' "${#files[@]}"
+    fi
+    ;;
+  unstage)
+    read_paths
+    if [ "${#files[@]}" -gt 0 ]; then
+      git reset HEAD -- "${files[@]}"
+    else
+      git reset HEAD
+    fi
+    ;;
+  rm)
+    read_paths
+    if [ "${#files[@]}" -eq 0 ]; then
+      echo "stage rm: paths is required" >&2
+      exit 2
+    fi
+    git_args=(rm)
+    [ "$force" = "true" ] && git_args+=(-f)
+    [ "$recursive" = "true" ] && git_args+=(-r)
+    git_args+=(--)
+    git_args+=("${files[@]}")
+    git "${git_args[@]}"
+    ;;
+  mv)
+    if [ -z "$source" ] || [ -z "$destination" ]; then
+      echo "stage mv: source and destination are required" >&2
+      exit 2
+    fi
+    mkdir -p "$(dirname "$destination")"
+    git mv -- "$source" "$destination"
+    ;;
+  "")
+    echo "stage: subcommand is required (add|unstage|rm|mv)" >&2
+    exit 2
+    ;;
+  *)
+    echo "stage: unknown subcommand '$subcommand' (want add|unstage|rm|mv)" >&2
+    exit 2
+    ;;
+esac

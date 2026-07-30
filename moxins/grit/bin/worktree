@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+subcommand="${1:-}"
+wt_path="${2:-}"
+force="${3:-}"
+repo="${4:-.}"
+
+cd "$repo"
+
+case "$subcommand" in
+  list)
+    git worktree list --porcelain
+    ;;
+  remove)
+    if [ -z "$wt_path" ]; then
+      echo "worktree remove: path is required" >&2
+      exit 2
+    fi
+    git_args=(worktree remove)
+    [ "$force" = "true" ] && git_args+=(--force)
+    git_args+=("$wt_path")
+    git "${git_args[@]}"
+    ;;
+  "")
+    echo "worktree: subcommand is required (list|remove)" >&2
+    exit 2
+    ;;
+  *)
+    echo "worktree: unknown subcommand '$subcommand' (want list|remove)" >&2
+    exit 2
+    ;;
+esac

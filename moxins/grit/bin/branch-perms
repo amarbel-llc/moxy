@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for grit.branch.
+# Receives: $1 = subcommand
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+set -euo pipefail
+subcommand="${1:-}"
+
+case "$subcommand" in
+  create|checkout)
+    echo "$subcommand does not rewind history — auto-allowed"
+    exit 0
+    ;;
+  delete)
+    echo "delete removes a branch — confirmation required"
+    exit 1
+    ;;
+  soft)
+    echo "soft moves HEAD (changes preserved) — confirmation required"
+    exit 1
+    ;;
+  hard)
+    echo "hard moves HEAD and discards the working tree — confirmation required"
+    exit 1
+    ;;
+  *)
+    echo "unknown subcommand ($subcommand) — confirmation required"
+    exit 1
+    ;;
+esac
