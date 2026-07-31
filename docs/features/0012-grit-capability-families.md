@@ -62,8 +62,8 @@ History (replay / rewrite the branch's commits):
 |---|---|---|
 | `rebase` | `rebase` (incl. `--continue`/`--abort`/`--skip`) | ask |
 | `restack` | `restack` (a `rebase -i --autosquash --update-refs` preset) | ask |
-| `cherry-pick` | `cherry-pick` | ask |
-| `revert` | `revert` (creates *new* undo commits) | ask |
+| `cherry-pick` | `cherry-pick` (appends new commits, no history rewrite) | allow |
+| `revert` | `revert` (appends *new* undo commits, no history rewrite) | allow |
 
 Inspect (read the branch's / ref's state):
 

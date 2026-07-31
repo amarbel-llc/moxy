@@ -13,9 +13,9 @@ log, rev-parse, diff (inspect). Pointer: create makes a branch; delete removes o
 HEAD (soft keeps index+tree, hard discards them); checkout switches branch or restores files. History: rebase \
 replays commits (supports --continue/--abort/--skip); restack rebases a stacked chain; cherry-pick/revert apply \
 or undo commits. Inspect: log shows history; rev-parse resolves a ref to a SHA; diff shows a ref-to-ref diff. \
-Reads (log/rev-parse/diff), create, and checkout auto-allow; delete/reset-soft/reset-hard/rebase/restack/ \
-cherry-pick prompt; revert auto-allows (it appends new commits, not a rewrite). delete, reset-hard, rebase, and \
-restack are blocked on main/master for safety."""
+Reads (log/rev-parse/diff), create, and checkout auto-allow; cherry-pick and revert auto-allow too (they \
+append new commits, not rewrite history); delete/reset-soft/reset-hard/rebase/restack prompt. delete, \
+reset-hard, rebase, and restack are blocked on main/master for safety."""
 command = "@BIN@/branch"
 arg-order = ["subcommand", "name", "start_point", "force", "ref", "new_branch", "paths", "ours", "theirs", "upstream", "rebase_branch", "autostash", "continue", "abort", "skip", "onto", "autosquash", "update_refs", "root", "commits", "no_commit", "max_count", "oneline", "stat_only", "context_lines", "repo_path"]
 
