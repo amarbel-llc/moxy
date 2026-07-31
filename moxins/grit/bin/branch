@@ -2,9 +2,14 @@
 set -euo pipefail
 
 # grit.branch is result-type = "mcp-result": every success path emits a single
-# text-block MCP envelope via @BIN@/_emit. Error paths exit non-zero with a
-# stderr message (moxy surfaces that as an error result); mcp-result only shapes
-# stdout on a zero exit, so errors need no envelope.
+# text-block MCP envelope via @BIN@/_emit (the diff subcommand execs @BIN@/diff,
+# which emits its own envelope). Error paths exit non-zero with a stderr message
+# (moxy surfaces that as an error result); mcp-result only shapes stdout on a
+# zero exit, so errors need no envelope.
+#
+# grit.branch owns the branch as an object: its pointer (create/delete/
+# reset-soft/reset-hard/checkout), its history (rebase/restack/cherry-pick/
+# revert), and its inspection (log/rev-parse/diff). See FDR 0012.
 
 subcommand="${1:-}"
 name="${2:-}"
@@ -15,9 +20,38 @@ new_branch="${6:-}"
 paths_json="${7:-}"
 ours="${8:-}"
 theirs="${9:-}"
-repo="${10:-.}"
+upstream="${10:-}"
+rebase_branch="${11:-}"
+autostash="${12:-}"
+do_continue="${13:-}"
+do_abort="${14:-}"
+do_skip="${15:-}"
+onto="${16:-}"
+autosquash="${17:-}"
+update_refs="${18:-}"
+root="${19:-}"
+commits_json="${20:-}"
+no_commit="${21:-}"
+max_count="${22:-}"
+oneline="${23:-}"
+stat_only="${24:-}"
+context_lines="${25:-}"
+repo="${26:-.}"
 
 cd "$repo"
+
+# Prevent git from opening an editor (no TTY in MCP context). `true` exits 0,
+# accepting the default/auto-generated message or rebase plan verbatim.
+guard_no_main_master() {
+  # $1 = human verb for the error message.
+  local current
+  current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  local target="${rebase_branch:-$current}"
+  if [ "$target" = "main" ] || [ "$target" = "master" ]; then
+    echo "ERROR: $1 main/master is blocked for safety" >&2
+    exit 1
+  fi
+}
 
 case "$subcommand" in
   create)
@@ -83,12 +117,77 @@ case "$subcommand" in
     fi
     git "${git_args[@]}" | "@BIN@/_emit"
     ;;
+  rebase)
+    # Delegate to the standalone bin/rebase helper (kept for its own bats
+    # coverage + direct callers), mapping grit.branch's args onto its positional
+    # order: upstream branch autostash continue abort skip onto autosquash
+    # update_refs repo. It emits raw text, so pipe through _emit for the
+    # mcp-result envelope. The helper owns the main/master safety block.
+    "@BIN@/rebase" "$upstream" "$rebase_branch" "$autostash" "$do_continue" \
+      "$do_abort" "$do_skip" "$onto" "$autosquash" "$update_refs" "$repo" \
+      | "@BIN@/_emit"
+    ;;
+  restack)
+    # Delegate to the standalone bin/restack helper (positional: onto root repo).
+    # It owns the required-arg checks, the main/master block, and the root^
+    # translation; emits raw text, so pipe through _emit.
+    "@BIN@/restack" "$onto" "$root" "$repo" | "@BIN@/_emit"
+    ;;
+  cherry-pick)
+    if [ -z "$commits_json" ] || [ "$commits_json" = "null" ]; then
+      echo "branch cherry-pick: commits is required" >&2
+      exit 2
+    fi
+    mapfile -t commits < <(printf '%s' "$commits_json" | jq -r '.[]')
+    git_args=(cherry-pick)
+    [ "$no_commit" = "true" ] && git_args+=(--no-commit)
+    git_args+=("${commits[@]}")
+    git "${git_args[@]}" | "@BIN@/_emit"
+    ;;
+  revert)
+    if [ -z "$commits_json" ] || [ "$commits_json" = "null" ]; then
+      echo "branch revert: commits is required" >&2
+      exit 2
+    fi
+    export GIT_EDITOR=true
+    mapfile -t commits < <(printf '%s' "$commits_json" | jq -r '.[]')
+    git_args=(revert)
+    [ "$no_commit" = "true" ] && git_args+=(--no-commit)
+    git_args+=("${commits[@]}")
+    git "${git_args[@]}" | "@BIN@/_emit"
+    ;;
+  log)
+    git_args=(log)
+    [ -n "$max_count" ] && git_args+=(-n "$max_count")
+    [ "$oneline" = "true" ] && git_args+=(--oneline)
+    [ -n "$ref" ] && git_args+=("$ref")
+    if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+      git_args+=(--)
+      while IFS= read -r p; do
+        git_args+=("$p")
+      done < <(printf '%s' "$paths_json" | jq -r '.[]')
+    fi
+    git "${git_args[@]}" | "@BIN@/_emit"
+    ;;
+  rev-parse)
+    if [ -z "$ref" ]; then
+      echo "branch rev-parse: ref is required" >&2
+      exit 2
+    fi
+    git rev-parse --verify "$ref" | "@BIN@/_emit"
+    ;;
+  diff)
+    # Ref-to-ref diff: exec the shared bin/diff with the ref-form flags. No
+    # `staged` — the staged/unstaged distinction is a grit.stage diff.
+    # bin/diff arg-order: ref paths staged stat_only context_lines repo_path.
+    exec "@BIN@/diff" "$ref" "$paths_json" "" "$stat_only" "$context_lines" "$repo"
+    ;;
   "")
-    echo "branch: subcommand is required (create|delete|reset-soft|reset-hard|checkout)" >&2
+    echo "branch: subcommand is required (create|delete|reset-soft|reset-hard|checkout|rebase|restack|cherry-pick|revert|log|rev-parse|diff)" >&2
     exit 2
     ;;
   *)
-    echo "branch: unknown subcommand '$subcommand' (want create|delete|reset-soft|reset-hard|checkout)" >&2
+    echo "branch: unknown subcommand '$subcommand'" >&2
     exit 2
     ;;
 esac

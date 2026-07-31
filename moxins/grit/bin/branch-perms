@@ -10,8 +10,14 @@ set -euo pipefail
 subcommand="${1:-}"
 
 case "$subcommand" in
-  create|checkout)
-    echo "$subcommand does not rewind history — auto-allowed"
+  create|checkout|log|rev-parse|diff)
+    # Pointer-creation, branch switch, and the read-only inspect verbs.
+    echo "$subcommand does not rewrite history — auto-allowed"
+    exit 0
+    ;;
+  revert)
+    # Appends new undo commits rather than rewriting history — auto-allowed.
+    echo "revert appends new commits (no history rewrite) — auto-allowed"
     exit 0
     ;;
   delete)
@@ -24,6 +30,10 @@ case "$subcommand" in
     ;;
   reset-hard)
     echo "reset-hard moves HEAD and discards the working tree — confirmation required"
+    exit 1
+    ;;
+  rebase|restack|cherry-pick)
+    echo "$subcommand rewrites/replays commits — confirmation required"
     exit 1
     ;;
   *)

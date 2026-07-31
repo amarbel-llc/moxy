@@ -1,16 +1,23 @@
 schema = 3
 # result-type omitted → mcp-result (schema-3 default): every subcommand emits an
 # MCP envelope via bin/_emit, which the folded diff subcommand requires.
+# cache-results = "dynamic" (RFC 0001): the diff subcommand's bin/diff stamps
+# _meta."moxy/cache":"always" to preserve diff's always-cache; every other
+# subcommand emits no intent and falls back to threshold.
+cache-results = "dynamic"
 perms-request = "dynamic"
 permit-async = false
-description = """Control the HEAD / branch pointer. Subcommands: create, delete, reset-soft, reset-hard, checkout. \
-create makes a new branch; delete removes a local branch; reset-soft moves the current branch's HEAD to a ref \
-(git reset --soft, keeping index and working tree); reset-hard moves HEAD and discards the index and working tree \
-(git reset --hard); checkout switches which branch HEAD tracks (or restores files from a ref). \
-create and checkout auto-allow; delete, reset-soft, and reset-hard prompt for confirmation. \
-delete and reset-hard are blocked on main/master for safety."""
+description = """The branch as an object: pointer, history, and inspection. Subcommands: \
+create, delete, reset-soft, reset-hard, checkout (pointer); rebase, restack, cherry-pick, revert (history); \
+log, rev-parse, diff (inspect). Pointer: create makes a branch; delete removes one; reset-soft/reset-hard move \
+HEAD (soft keeps index+tree, hard discards them); checkout switches branch or restores files. History: rebase \
+replays commits (supports --continue/--abort/--skip); restack rebases a stacked chain; cherry-pick/revert apply \
+or undo commits. Inspect: log shows history; rev-parse resolves a ref to a SHA; diff shows a ref-to-ref diff. \
+Reads (log/rev-parse/diff), create, and checkout auto-allow; delete/reset-soft/reset-hard/rebase/restack/ \
+cherry-pick prompt; revert auto-allows (it appends new commits, not a rewrite). delete, reset-hard, rebase, and \
+restack are blocked on main/master for safety."""
 command = "@BIN@/branch"
-arg-order = ["subcommand", "name", "start_point", "force", "ref", "new_branch", "paths", "ours", "theirs", "repo_path"]
+arg-order = ["subcommand", "name", "start_point", "force", "ref", "new_branch", "paths", "ours", "theirs", "upstream", "rebase_branch", "autostash", "continue", "abort", "skip", "onto", "autosquash", "update_refs", "root", "commits", "no_commit", "max_count", "oneline", "stat_only", "context_lines", "repo_path"]
 
 [input]
 type = "object"
@@ -18,8 +25,8 @@ required = ["subcommand"]
 
 [input.properties.subcommand]
 type = "string"
-enum = ["create", "delete", "reset-soft", "reset-hard", "checkout"]
-description = "Pointer operation: create (new branch), delete (remove local branch), reset-soft (move HEAD, keep index+tree), reset-hard (move HEAD, discard index+tree), checkout (switch branch or restore files)."
+enum = ["create", "delete", "reset-soft", "reset-hard", "checkout", "rebase", "restack", "cherry-pick", "revert", "log", "rev-parse", "diff"]
+description = "Branch operation. Pointer: create, delete, reset-soft, reset-hard, checkout. History: rebase, restack, cherry-pick, revert. Inspect: log, rev-parse, diff."
 
 [input.properties.name]
 type = "string"
@@ -35,7 +42,7 @@ description = "Force delete even if the branch is not fully merged (-D instead o
 
 [input.properties.ref]
 type = "string"
-description = "Target ref. For reset-soft: where to move HEAD (default HEAD~1). For reset-hard: where to move HEAD (e.g. HEAD~3, origin/main, a SHA; required). For checkout: branch/ref to switch to, or the ref to restore files from (default HEAD when used with paths)."
+description = "Target ref. reset-soft: where to move HEAD (default HEAD~1). reset-hard: where to move HEAD (required). checkout: branch/ref to switch to, or ref to restore files from. log: start ref (default HEAD). rev-parse: the ref to resolve (required). diff: the ref to diff against."
 
 [input.properties.new_branch]
 type = "boolean"
@@ -43,7 +50,7 @@ description = "Create the branch and check it out (git checkout -b; checkout onl
 
 [input.properties.paths]
 type = "array"
-description = "File paths to restore from ref instead of switching branches (checkout only). When provided, checkout restores these files rather than moving HEAD."
+description = "File paths. checkout: restore these files instead of switching branches. log: limit history to commits touching them. diff: limit the diff to them."
 
 [input.properties.paths.items]
 type = "string"
@@ -55,6 +62,73 @@ description = "During a merge conflict, restore our version of the file(s) (chec
 [input.properties.theirs]
 type = "boolean"
 description = "During a merge conflict, restore their version of the file(s) (checkout --theirs; checkout file-restore only)."
+
+[input.properties.upstream]
+type = "string"
+description = "Ref to rebase onto — branch, tag, or commit (rebase only)."
+
+[input.properties.rebase_branch]
+type = "string"
+description = "Branch to rebase (rebase only; defaults to the current branch). The main/master safety block keys off this."
+
+[input.properties.autostash]
+type = "boolean"
+description = "Automatically stash/unstash uncommitted changes around the rebase (rebase only)."
+
+[input.properties.continue]
+type = "boolean"
+description = "Continue an in-progress rebase after resolving conflicts (rebase only)."
+
+[input.properties.abort]
+type = "boolean"
+description = "Abort an in-progress rebase (rebase only)."
+
+[input.properties.skip]
+type = "boolean"
+description = "Skip the current commit and continue the rebase (rebase only)."
+
+[input.properties.onto]
+type = "string"
+description = "New base to graft onto (git rebase --onto). Used by rebase (optional) and restack (required)."
+
+[input.properties.autosquash]
+type = "boolean"
+description = "Squash fixup!/squash! commits into their targets, run non-interactively (rebase only)."
+
+[input.properties.update_refs]
+type = "boolean"
+description = "Reposition intermediate branch refs touched by the rebase, --update-refs (rebase only; needed for stacked-PR workflows)."
+
+[input.properties.root]
+type = "string"
+description = "Inclusive lower bound of the stack to restack — typically the bottom branch (restack only, required). Its tip is replayed and its ref repositioned."
+
+[input.properties.commits]
+type = "array"
+description = "Commit hashes to apply, in order (cherry-pick and revert only, required)."
+
+[input.properties.commits.items]
+type = "string"
+
+[input.properties.no_commit]
+type = "boolean"
+description = "Apply changes without creating commits, --no-commit (cherry-pick and revert only)."
+
+[input.properties.max_count]
+type = "integer"
+description = "Maximum number of commits to show, git -n (log only)."
+
+[input.properties.oneline]
+type = "boolean"
+description = "Compact one-line log format (log only)."
+
+[input.properties.stat_only]
+type = "boolean"
+description = "Show only a diffstat summary (diff only)."
+
+[input.properties.context_lines]
+type = "integer"
+description = "Context lines around each change, git --unified=N (diff only; default 3)."
 
 [input.properties.repo_path]
 type = "string"

@@ -2,9 +2,12 @@
 
 # bats file_tags=grit
 
-# grit.branch controls the HEAD / branch pointer: create, delete, soft, hard,
-# checkout. The checkout cases here were migrated from the former grit.checkout
-# tool (regression #307 for paths-as-string is preserved).
+# grit.branch owns the branch as an object: pointer (create/delete/reset-soft/
+# reset-hard/checkout), history (rebase/restack/cherry-pick/revert), and inspect
+# (log/rev-parse/diff). The checkout cases were migrated from the former
+# grit.checkout tool (regression #307 for paths-as-string is preserved). The
+# intricate rebase/restack scenarios live in grit_rebase.bats / grit_restack.bats
+# (direct bin/ callers); here we cover the grit.branch subcommand surface.
 
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
@@ -166,4 +169,107 @@ function grit_branch_checkout_create_branch { # @test
 function grit_branch_requires_subcommand { # @test
   run_moxy_mcp "tools/call" '{"name":"grit.branch","arguments":{}}'
   assert_output --partial "subcommand"
+}
+
+# --- inspect: log / rev-parse / diff ---------------------------------------
+
+branch_text() {
+  echo "$output" | jq -r '.content[0].text // .content[0].resource.text // empty'
+}
+
+function grit_branch_log_shows_history { # @test
+  run_moxy_mcp_v1 "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"log","oneline":true}}'
+  assert_success
+  branch_text | grep -q "initial"
+}
+
+function grit_branch_rev_parse_resolves_head { # @test
+  run_moxy_mcp_v1 "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"rev-parse","ref":"HEAD"}}'
+  assert_success
+  # A full 40-char SHA.
+  branch_text | grep -Eq '^[0-9a-f]{40}$'
+}
+
+function grit_branch_rev_parse_requires_ref { # @test
+  run_moxy_mcp "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"rev-parse"}}'
+  assert_output --partial "ref is required"
+}
+
+# The ref-form diff (grit.branch) diffs against a ref; it has no `staged` flag.
+function grit_branch_diff_against_ref { # @test
+  echo "b" >>file.txt
+  git commit -aqm "second"
+
+  run_moxy_mcp_v1 "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"diff","ref":"HEAD~1"}}'
+  assert_success
+  # Non-empty diff → cached resource via bin/diff's always-cache _meta intent.
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail "want cached resource: $output"
+  refute_output --partial "moxy/cache"
+}
+
+# --- history: cherry-pick / revert / rebase --------------------------------
+
+function grit_branch_cherry_pick { # @test
+  # A commit on another branch, cherry-picked onto a fresh branch.
+  git checkout -q -b feature
+  echo "picked" >picked.txt
+  git add picked.txt
+  git commit -q -m "add picked"
+  local sha
+  sha=$(git rev-parse HEAD)
+  git checkout -q -
+  git checkout -q -b target
+
+  run_moxy_mcp "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"cherry-pick","commits":["'"$sha"'"]}}'
+  assert_success
+  [ -f picked.txt ]
+}
+
+function grit_branch_cherry_pick_requires_commits { # @test
+  run_moxy_mcp "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"cherry-pick"}}'
+  assert_output --partial "commits is required"
+}
+
+function grit_branch_revert_appends_undo_commit { # @test
+  echo "b" >>file.txt
+  git commit -aqm "second"
+  local sha
+  sha=$(git rev-parse HEAD)
+
+  run_moxy_mcp "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"revert","commits":["'"$sha"'"]}}'
+  assert_success
+  # revert appends a new commit (history grows, not rewinds).
+  run git log --oneline
+  assert_output --partial "Revert"
+}
+
+# rebase smoke through grit.branch (deep scenarios are in grit_rebase.bats).
+function grit_branch_rebase_onto { # @test
+  git checkout -q -b topic
+  echo "t" >t.txt
+  git add t.txt
+  git commit -q -m "topic commit"
+
+  run_moxy_mcp "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"rebase","upstream":"master"}}' ||
+    run_moxy_mcp "tools/call" \
+      '{"name":"grit.branch","arguments":{"subcommand":"rebase","upstream":"main"}}'
+  assert_success
+}
+
+# rebase on main/master is blocked (via the bin/rebase helper's guard).
+function grit_branch_rebase_main_blocked { # @test
+  git branch -m master
+
+  run_moxy_mcp "tools/call" \
+    '{"name":"grit.branch","arguments":{"subcommand":"rebase","upstream":"HEAD","rebase_branch":"master"}}'
+  echo "$output" | jq -e '.isError == true' || fail 'expected isError: '"$output"
+  echo "$output" | jq -e '.content[0].text | test("blocked for safety")' || fail 'expected safety block: '"$output"
 }
