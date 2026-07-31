@@ -39,5 +39,11 @@ fi
 
 # Feed the diff body via stdin: passing it as an argv argument breaks on
 # diffs larger than Linux's per-arg exec limit (MAX_ARG_STRLEN, #337).
+#
+# The _meta."moxy/cache":"always" intent (RFC 0001) preserves diff's historic
+# always-cache behavior now that it is a subcommand of the dynamic-cache
+# grit.branch / grit.stage families: without it the families' dynamic policy
+# would fall back to threshold for diff output. bin/diff is only ever reached
+# as those families' diff subcommand, so stamping the intent here is correct.
 printf '%s' "$output" | jq -Rsc --arg mime "$mime" \
-  '{content:[{type:"text",text:.,mimeType:$mime}]}'
+  '{content:[{type:"text",text:.,mimeType:$mime}],_meta:{"moxy/cache":"always"}}'

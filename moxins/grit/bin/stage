@@ -12,7 +12,12 @@ force="${4:-}"
 recursive="${5:-}"
 source="${6:-}"
 destination="${7:-}"
-repo="${8:-.}"
+untracked="${8:-}"
+ignored="${9:-}"
+staged="${10:-}"
+stat_only="${11:-}"
+context_lines="${12:-}"
+repo="${13:-.}"
 
 cd "$repo"
 
@@ -71,12 +76,34 @@ case "$subcommand" in
     mkdir -p "$(dirname "$destination")"
     git mv -- "$source" "$destination" | "@BIN@/_emit"
     ;;
+  status)
+    git_args=(status --short --branch)
+    case "$untracked" in
+      no|normal|all) git_args+=(--untracked-files="$untracked") ;;
+      "") : ;;
+      *) echo "untracked must be no|normal|all" >&2; exit 2 ;;
+    esac
+    [ "$ignored" = "true" ] && git_args+=(--ignored)
+    if [ -n "$paths_json" ] && [ "$paths_json" != "null" ]; then
+      git_args+=(--)
+      while IFS= read -r p; do
+        git_args+=("$p")
+      done < <(printf '%s' "$paths_json" | jq -r '.[]')
+    fi
+    git "${git_args[@]}" | "@BIN@/_emit"
+    ;;
+  diff)
+    # Index/working-tree diff: exec the shared bin/diff with the index-form
+    # flags. No `ref` — comparing against another commit is a grit.branch diff.
+    # bin/diff arg-order: ref paths staged stat_only context_lines repo_path.
+    exec "@BIN@/diff" "" "$paths_json" "$staged" "$stat_only" "$context_lines" "$repo"
+    ;;
   "")
-    echo "stage: subcommand is required (add|unstage|rm|mv)" >&2
+    echo "stage: subcommand is required (add|unstage|rm|mv|status|diff)" >&2
     exit 2
     ;;
   *)
-    echo "stage: unknown subcommand '$subcommand' (want add|unstage|rm|mv)" >&2
+    echo "stage: unknown subcommand '$subcommand' (want add|unstage|rm|mv|status|diff)" >&2
     exit 2
     ;;
 esac

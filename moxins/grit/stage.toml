@@ -1,14 +1,19 @@
 schema = 3
 # result-type omitted → mcp-result (schema-3 default): every subcommand emits an
 # MCP envelope via bin/_emit, which the folded diff subcommand requires.
+# cache-results = "dynamic" (RFC 0001): the diff subcommand's bin/diff stamps
+# _meta."moxy/cache":"always" to preserve diff's always-cache; every other
+# subcommand emits no intent and falls back to threshold.
+cache-results = "dynamic"
 perms-request = "dynamic"
 permit-async = false
-description = """Manage the git index/stage. Subcommands: add, unstage, rm, mv. \
+description = """Inspect and mutate the git index / working tree. Subcommands: add, unstage, rm, mv, status, diff. \
 add stages files; unstage removes files from the index (git reset HEAD) without touching the working tree; \
-rm deletes tracked files and stages the deletion; mv moves/renames a tracked file and stages it. \
-add, unstage, and mv auto-allow; rm deletes files and prompts for confirmation."""
+rm deletes tracked files and stages the deletion; mv moves/renames a tracked file and stages it; \
+status shows working-tree + index state; diff shows the index/working-tree diff (staged or unstaged). \
+All subcommands auto-allow except rm, which deletes files and prompts for confirmation."""
 command = "@BIN@/stage"
-arg-order = ["subcommand", "paths", "intent_to_add", "force", "recursive", "source", "destination", "repo_path"]
+arg-order = ["subcommand", "paths", "intent_to_add", "force", "recursive", "source", "destination", "untracked", "ignored", "staged", "stat_only", "context_lines", "repo_path"]
 
 [input]
 type = "object"
@@ -16,12 +21,12 @@ required = ["subcommand"]
 
 [input.properties.subcommand]
 type = "string"
-enum = ["add", "unstage", "rm", "mv"]
-description = "Stage operation: add (stage files), unstage (remove from index, keep working tree), rm (delete tracked files + stage deletion), mv (move/rename a tracked file + stage)."
+enum = ["add", "unstage", "rm", "mv", "status", "diff"]
+description = "Index/working-tree operation: add (stage files), unstage (remove from index, keep working tree), rm (delete tracked files + stage deletion), mv (move/rename + stage), status (working-tree + index state), diff (index/working-tree diff)."
 
 [input.properties.paths]
 type = "array"
-description = "File paths (relative to repo root). Required for add and rm; optional for unstage (omit to unstage everything, i.e. git reset HEAD). Ignored by mv."
+description = "File paths (relative to repo root). Required for add and rm; optional for unstage (omit to unstage everything), status, and diff (limit to these paths). Ignored by mv."
 
 [input.properties.paths.items]
 type = "string"
@@ -45,6 +50,27 @@ description = "Source path (mv only; relative to repo root)."
 [input.properties.destination]
 type = "string"
 description = "Destination path (mv only; relative to repo root)."
+
+[input.properties.untracked]
+type = "string"
+enum = ["no", "normal", "all"]
+description = "Untracked file mode (status only): 'no', 'normal' (default), or 'all' (recurse into untracked dirs)."
+
+[input.properties.ignored]
+type = "boolean"
+description = "Also show ignored files (status only)."
+
+[input.properties.staged]
+type = "boolean"
+description = "Diff only staged changes, i.e. git diff --cached (diff only). Omit for unstaged; set false for unstaged only. Note: no ref — comparing against another commit is a grit.branch diff."
+
+[input.properties.stat_only]
+type = "boolean"
+description = "Show only a diffstat summary (diff only)."
+
+[input.properties.context_lines]
+type = "integer"
+description = "Context lines around each change, git --unified=N (diff only; default 3)."
 
 [input.properties.repo_path]
 type = "string"

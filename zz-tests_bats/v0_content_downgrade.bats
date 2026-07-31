@@ -455,7 +455,7 @@ function v0_grit_diff_content_blocks_claude_compatible { # @test
   git commit -m "initial"
   echo "modified" >file.txt
 
-  local params='{"name":"grit.diff"}'
+  local params='{"name":"grit.stage","arguments":{"subcommand":"diff"}}'
   run_moxy_mcp "tools/call" "$params"
   assert_success
 

@@ -30,7 +30,7 @@ status_text() {
 function grit_status_plain_no_jq_parse_error { # @test
   echo "b" >untracked.txt
 
-  run_moxy_mcp "tools/call" '{"name":"grit.status","arguments":{}}'
+  run_moxy_mcp "tools/call" '{"name":"grit.stage","arguments":{"subcommand":"status"}}'
   assert_success
 
   local t
@@ -45,7 +45,7 @@ function grit_status_with_paths_filter { # @test
   echo "c" >other.txt
 
   run_moxy_mcp "tools/call" \
-    '{"name":"grit.status","arguments":{"paths":["untracked.txt"]}}'
+    '{"name":"grit.stage","arguments":{"subcommand":"status","paths":["untracked.txt"]}}'
   assert_success
 
   local t
@@ -63,7 +63,7 @@ function grit_status_paths_as_string_no_jq_error { # @test
   echo "c" >other.txt
 
   run_moxy_mcp "tools/call" \
-    '{"name":"grit.status","arguments":{"paths":"2024-report.md"}}'
+    '{"name":"grit.stage","arguments":{"subcommand":"status","paths":"2024-report.md"}}'
   assert_success
 
   local t
@@ -78,7 +78,7 @@ function grit_status_untracked_no_hides_untracked { # @test
   echo "b" >untracked.txt
 
   run_moxy_mcp "tools/call" \
-    '{"name":"grit.status","arguments":{"untracked":"no"}}'
+    '{"name":"grit.stage","arguments":{"subcommand":"status","untracked":"no"}}'
   assert_success
 
   local t
@@ -94,7 +94,7 @@ function grit_status_in_linked_worktree { # @test
   cd "$HOME/wt"
   echo "d" >wt-file.txt
 
-  run_moxy_mcp "tools/call" '{"name":"grit.status","arguments":{}}'
+  run_moxy_mcp "tools/call" '{"name":"grit.stage","arguments":{"subcommand":"status"}}'
   assert_success
 
   local t

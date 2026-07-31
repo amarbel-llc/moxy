@@ -10,7 +10,7 @@ set -euo pipefail
 subcommand="${1:-}"
 
 case "$subcommand" in
-  add|unstage|mv)
+  add|unstage|mv|status|diff)
     echo "$subcommand does not delete working-tree files — auto-allowed"
     exit 0
     ;;
