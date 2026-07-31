@@ -508,15 +508,20 @@ func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output stri
 		))
 	}
 
+	// Resolve the effective cache mode for this call. For a static policy this
+	// is spec.CacheResults; for the dynamic policy (RFC 0001) it reads and
+	// strips the tool's `_meta."moxy/cache"` intent from the result.
+	cacheMode := resolveDynamicCache(spec, &result)
+
 	// Rewrite text blocks that carry mimeType into resource blocks with
 	// cache URIs — the MCP spec only allows mimeType on resource blocks.
-	// Whether a block is cached is the tool's cache-results policy (#319):
+	// Whether a block is cached is the resolved cache-results mode (#319):
 	// the mime is just the label stamped onto whatever caching produces.
 	// Skip empty text — EmbeddedResourceContents requires non-empty text or blob.
 	cleaned := result.Content[:0]
 	for _, block := range result.Content {
 		if block.Type == "text" && block.MimeType != "" {
-			if block.Text != "" && s.madder != nil && s.shouldCache(spec, block.Text) {
+			if block.Text != "" && s.madder != nil && shouldCache(cacheMode, block.Text) {
 				uri, cacheErr := s.cacheAndGetURI(ctx, block.Text)
 				if cacheErr == nil {
 					text := block.Text
@@ -547,11 +552,13 @@ func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output stri
 	return marshalResult(&result)
 }
 
-// shouldCache applies the tool's cache-results policy to one output (#319):
+// shouldCache applies a resolved cache-results mode to one output (#319):
 // always caches everything, threshold (the default) only above the token
-// threshold, never caches nothing.
-func (s *Server) shouldCache(spec *ToolSpec, text string) bool {
-	switch spec.CacheResults {
+// threshold, never caches nothing. The mode is passed in (already resolved)
+// rather than read from spec, so the dynamic policy (RFC 0001) can substitute
+// a per-result mode derived from the tool's `_meta."moxy/cache"` intent.
+func shouldCache(mode CacheResults, text string) bool {
+	switch mode {
 	case CacheAlways:
 		return true
 	case CacheNever:
@@ -559,6 +566,35 @@ func (s *Server) shouldCache(spec *ToolSpec, text string) bool {
 	default: // CacheThreshold (and zero value for hand-built specs)
 		return estimateTokens(text) > tokenThreshold
 	}
+}
+
+// metaCacheKey is the reserved `_meta` key a dynamic-cache tool sets to signal
+// its per-result cache intent (RFC 0001 §2).
+const metaCacheKey = "moxy/cache"
+
+// resolveDynamicCache returns the effective cache mode for one mcp-result call.
+// For any static policy it returns spec.CacheResults unchanged. For the dynamic
+// policy it reads the tool's `_meta."moxy/cache"` intent, STRIPS it from the
+// result so it never leaks to the client, and maps it to a mode; an absent,
+// non-string, or unrecognized intent falls back to CacheThreshold (RFC 0001 §3).
+func resolveDynamicCache(spec *ToolSpec, result *protocol.ToolCallResultV1) CacheResults {
+	if spec.CacheResults != CacheDynamic {
+		return spec.CacheResults
+	}
+	mode := CacheThreshold
+	if raw, ok := result.Meta[metaCacheKey]; ok {
+		if s, isStr := raw.(string); isStr {
+			switch CacheResults(s) {
+			case CacheAlways, CacheThreshold, CacheNever:
+				mode = CacheResults(s)
+			}
+		}
+		delete(result.Meta, metaCacheKey)
+		if len(result.Meta) == 0 {
+			result.Meta = nil // omitempty drops the emptied object
+		}
+	}
+	return mode
 }
 
 func (s *Server) buildTextResult(ctx context.Context, spec *ToolSpec, output string) (json.RawMessage, error) {

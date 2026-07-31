@@ -290,6 +290,9 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
+		if err := validateDynamicCache(cacheResults, resultType); err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
+		}
 
 		ts := ToolSpec{
 			Name:                 toolName,
@@ -370,6 +373,11 @@ const (
 	// CacheNever never writes the blob store — even oversized outputs are
 	// returned as plain full text. The tool author owns the context cost.
 	CacheNever CacheResults = "never"
+	// CacheDynamic defers the decision to a per-result `_meta."moxy/cache"`
+	// intent the tool emits (RFC 0001). Only valid with result-type =
+	// "mcp-result" (the tool must own its envelope to carry _meta); a result
+	// with no valid intent falls back to CacheThreshold.
+	CacheDynamic CacheResults = "dynamic"
 )
 
 func resolveCacheResults(raw string) (CacheResults, error) {
@@ -378,11 +386,21 @@ func resolveCacheResults(raw string) (CacheResults, error) {
 	}
 	cr := CacheResults(raw)
 	switch cr {
-	case CacheAlways, CacheThreshold, CacheNever:
+	case CacheAlways, CacheThreshold, CacheNever, CacheDynamic:
 		return cr, nil
 	default:
-		return "", fmt.Errorf("invalid cache-results %q (want always, threshold, or never)", raw)
+		return "", fmt.Errorf("invalid cache-results %q (want always, threshold, never, or dynamic)", raw)
 	}
+}
+
+// validateDynamicCache enforces RFC 0001 §1: cache-results = "dynamic" requires
+// result-type = "mcp-result", because a text-mode tool's stdout IS the cached
+// payload and has no envelope to carry the `_meta."moxy/cache"` intent.
+func validateDynamicCache(cache CacheResults, resultType ResultType) error {
+	if cache == CacheDynamic && resultType != ResultTypeMCPResult {
+		return fmt.Errorf(`cache-results = "dynamic" requires result-type = "mcp-result"`)
+	}
+	return nil
 }
 
 func validatePermsRequest(pr PermsRequest) error {

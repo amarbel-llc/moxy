@@ -12,6 +12,98 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
+// RFC 0001 §2–§3: resolveDynamicCache reads and strips the tool's
+// `_meta."moxy/cache"` intent under the dynamic policy, falling back to
+// threshold on absent/malformed intent, and passes static policies through
+// untouched.
+func TestResolveDynamicCache(t *testing.T) {
+	cases := []struct {
+		name     string
+		policy   CacheResults
+		meta     map[string]any
+		want     CacheResults
+		wantMeta map[string]any // expected result.Meta AFTER resolution
+	}{
+		{"static always passes through", CacheAlways, nil, CacheAlways, nil},
+		{"static never passes through", CacheNever, nil, CacheNever, nil},
+		{
+			"static threshold passes through, meta untouched",
+			CacheThreshold,
+			map[string]any{"moxy/cache": "always"},
+			CacheThreshold,
+			map[string]any{"moxy/cache": "always"}, // not stripped under static policy
+		},
+		{
+			"dynamic + always intent → always, stripped",
+			CacheDynamic,
+			map[string]any{"moxy/cache": "always"},
+			CacheAlways,
+			nil, // sole key removed → emptied _meta becomes nil
+		},
+		{
+			"dynamic + never intent → never, stripped",
+			CacheDynamic,
+			map[string]any{"moxy/cache": "never"},
+			CacheNever,
+			nil,
+		},
+		{
+			"dynamic + threshold intent → threshold, stripped",
+			CacheDynamic,
+			map[string]any{"moxy/cache": "threshold"},
+			CacheThreshold,
+			nil,
+		},
+		{
+			"dynamic, no intent → threshold fallback",
+			CacheDynamic,
+			nil,
+			CacheThreshold,
+			nil,
+		},
+		{
+			"dynamic, unrecognized value → threshold fallback, stripped",
+			CacheDynamic,
+			map[string]any{"moxy/cache": "aggressive"},
+			CacheThreshold,
+			nil,
+		},
+		{
+			"dynamic, non-string value → threshold fallback, stripped",
+			CacheDynamic,
+			map[string]any{"moxy/cache": 42},
+			CacheThreshold,
+			nil,
+		},
+		{
+			"dynamic strips only the cache key, preserves other _meta",
+			CacheDynamic,
+			map[string]any{"moxy/cache": "always", "other": "keep"},
+			CacheAlways,
+			map[string]any{"other": "keep"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			spec := &ToolSpec{CacheResults: c.policy}
+			result := &protocol.ToolCallResultV1{Meta: c.meta}
+			got := resolveDynamicCache(spec, result)
+			if got != c.want {
+				t.Errorf("mode = %q, want %q", got, c.want)
+			}
+			if len(result.Meta) != len(c.wantMeta) {
+				t.Fatalf("meta = %v, want %v", result.Meta, c.wantMeta)
+			}
+			for k, v := range c.wantMeta {
+				if fmt.Sprint(result.Meta[k]) != fmt.Sprint(v) {
+					t.Errorf("meta[%q] = %v, want %v", k, result.Meta[k], v)
+				}
+			}
+		})
+	}
+}
+
 func TestServerName(t *testing.T) {
 	cfg := &NativeConfig{Name: "test-server"}
 	srv := NewServer(cfg)

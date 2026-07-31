@@ -559,6 +559,51 @@ cache-results = "sometimes"
 	}
 }
 
+// RFC 0001 §1: cache-results = "dynamic" parses when paired with
+// result-type = "mcp-result".
+func TestParseMoxinDirCacheResultsDynamic(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"dyn": `
+schema = 3
+command = "echo"
+result-type = "mcp-result"
+cache-results = "dynamic"
+`,
+	})
+
+	cfg, err := ParseMoxinDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := cfg.Tools[0].CacheResults; got != CacheDynamic {
+		t.Errorf("CacheResults = %q, want dynamic", got)
+	}
+}
+
+// RFC 0001 §1: cache-results = "dynamic" MUST be rejected under a non-mcp-result
+// result-type (text mode has no envelope to carry the _meta intent).
+func TestParseMoxinDirCacheResultsDynamicRequiresMCPResult(t *testing.T) {
+	dir := writeMoxinDir(t, t.TempDir(), "test", `
+schema = 1
+name = "test"
+`, map[string]string{
+		"dyn": `
+schema = 3
+command = "echo"
+result-type = "text"
+cache-results = "dynamic"
+`,
+	})
+
+	_, err := ParseMoxinDir(dir)
+	if err == nil || !strings.Contains(err.Error(), `requires result-type = "mcp-result"`) {
+		t.Fatalf("err = %v, want dynamic-requires-mcp-result", err)
+	}
+}
+
 // permit-async (#317): omitted = eligible, explicit false forbids, explicit
 // true is recorded distinctly from omitted (*bool) for future tools/list
 // execution.taskSupport surfacing.
