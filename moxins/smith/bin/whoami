@@ -2,8 +2,8 @@
 set -euo pipefail
 host="${1:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
-fj_base "$host"
-"${fj_cmd[@]}" whoami
+smith_base "$host"
+"${smith_cmd[@]}" whoami

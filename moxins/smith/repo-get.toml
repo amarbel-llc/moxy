@@ -19,7 +19,7 @@ description = "Forgejo instance hostname (e.g. 'codeberg.org'). Omit to use the 
 [input.properties.output_format]
 type = "string"
 enum = ["text", "json"]
-description = "Output format: omit for text (default, fj's native minimal-style output), or 'json' for fj api's raw REST response (requires name)."
+description = "Output format: omit for text (default, smith's native minimal-style output), or 'json' for smith api's raw REST response (requires name)."
 
 [annotations]
 read-only-hint = true

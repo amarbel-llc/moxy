@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Shared helpers for smith bin scripts. Source this file.
 #
-# fj addresses issues and PRs with a qualified reference (OWNER/NAME#N) that
-# works from any cwd; a bare number relies on fj resolving the repo from the
+# smith addresses issues and PRs with a qualified reference (OWNER/NAME#N) that
+# works from any cwd; a bare number relies on smith resolving the repo from the
 # cwd's git remotes. qualify_ref builds whichever form the repo arg implies.
-# fj_base seeds the global `fj_cmd` array with `fj` plus the instance host
-# flag when set; callers append subcommand words and exec "${fj_cmd[@]}".
+# smith_base seeds the global `smith_cmd` array with `smith` plus the instance
+# host flag when set; callers append subcommand words and exec "${smith_cmd[@]}".
 #
 # This is intentionally NOT set -e so callers control error handling.
 # Named with a leading dot so wrapProgram's `bin/*` glob skips it —
@@ -28,42 +28,42 @@ qualify_ref() {
   fi
 }
 
-fj_base() {
+smith_base() {
   local host="${1:-}"
-  fj_cmd=("${FJ_BIN:-fj}")
+  smith_cmd=("${SMITH_BIN:-smith}")
   if [ -n "$host" ]; then
-    fj_cmd+=(-H "$host")
+    smith_cmd+=(-H "$host")
   fi
 }
 
 # Lazily create (once per script run) a scratch directory outside any git
-# repo, and clean it up on exit. Sets the global $_fj_scratch rather than
+# repo, and clean it up on exit. Sets the global $_smith_scratch rather than
 # printing the path via command substitution --- a `$(...)` subshell would
 # run the `trap ... EXIT` below on its OWN exit (i.e. immediately after
 # printing), deleting the directory before the caller ever cds into it.
-_fj_scratch=""
-_fj_scratch_dir() {
-  if [ -z "$_fj_scratch" ]; then
-    _fj_scratch=$(mktemp -d)
-    trap 'rm -rf "$_fj_scratch"' EXIT
+_smith_scratch=""
+_smith_scratch_dir() {
+  if [ -z "$_smith_scratch" ]; then
+    _smith_scratch=$(mktemp -d)
+    trap 'rm -rf "$_smith_scratch"' EXIT
   fi
 }
 
-# fj_self_username: resolves the fj-authenticated user's bare username via
-# the structured `api user` endpoint. Must be called after fj_base (uses
-# the global fj_cmd array). Deliberately NOT `fj whoami` --- that prints a
+# smith_self_username: resolves the smith-authenticated user's bare username via
+# the structured `api user` endpoint. Must be called after smith_base (uses
+# the global smith_cmd array). Deliberately NOT `smith whoami` --- that prints a
 # free-text "currently signed in to <login>@<host>" line with no reliable
 # delimiter between the login and the host, so scraping it (e.g. an awk
 # last-field grab) can yield the whole login@host token instead of a bare
 # login. Echoes empty string on any failure (missing auth, network, etc.).
-fj_self_username() {
-  _fj_scratch_dir
-  (cd "$_fj_scratch" && "${fj_cmd[@]}" api user 2>/dev/null | jq -r '.username // empty') || true
+smith_self_username() {
+  _smith_scratch_dir
+  (cd "$_smith_scratch" && "${smith_cmd[@]}" api user 2>/dev/null | jq -r '.username // empty') || true
 }
 
-# fj_run <repo> <host> [extra fj_cmd args...]
-# Execs fj_cmd (plus any trailing args), redirecting fj's cwd to a scratch
-# dir when repo AND host are both already resolved explicitly --- fj's
+# smith_run <repo> <host> [extra smith_cmd args...]
+# Execs smith_cmd (plus any trailing args), redirecting smith's cwd to a scratch
+# dir when repo AND host are both already resolved explicitly --- smith's
 # RepoInfo::get_current (repo.rs) unconditionally inspects the cwd's git
 # remote via git2::Repository::discover(".") and crashes ("repo url too
 # short") on remotes with a single path segment (e.g. this forge's
@@ -71,38 +71,38 @@ fj_self_username() {
 # actually needed because repo+host were given explicitly
 # (amarbel-llc/moxy#398). When either is omitted, the caller is relying on
 # cwd auto-resolution, so run from the real cwd unchanged.
-fj_run() {
+smith_run() {
   local repo="$1" host="$2"
   shift 2
   if [ -n "$repo" ] && [ -n "$host" ]; then
-    _fj_scratch_dir
-    (cd "$_fj_scratch" && "${fj_cmd[@]}" "$@")
+    _smith_scratch_dir
+    (cd "$_smith_scratch" && "${smith_cmd[@]}" "$@")
   else
-    "${fj_cmd[@]}" "$@"
+    "${smith_cmd[@]}" "$@"
   fi
 }
 
 # run_subscribe <number> <unsubscribe> <repo> <host>
-# Subscribes (or, if unsubscribe="true", unsubscribes) the fj-authenticated
-# user to/from an issue or PR's notifications, via fj api's raw REST
+# Subscribes (or, if unsubscribe="true", unsubscribes) the smith-authenticated
+# user to/from an issue or PR's notifications, via smith api's raw REST
 # passthrough (#414) against Forgejo's GitHub-compatible subscriptions
-# endpoint — fj has no native subscribe subcommand. Issues and PRs share the
+# endpoint — smith has no native subscribe subcommand. Issues and PRs share the
 # same underlying repos/OWNER/NAME/issues/N/subscriptions endpoint in
 # Forgejo's API (PRs are issues internally, verified live), so issue-watch
-# and pr-watch both call this. repo is REQUIRED: fj api has no cwd-remote
+# and pr-watch both call this. repo is REQUIRED: smith api has no cwd-remote
 # auto-resolution (same constraint as content-get, #414).
 run_subscribe() {
   local number="$1" unsubscribe="${2:-}" repo="${3:-}" host="${4:-}"
 
   if [ -z "$repo" ]; then
-    echo "ERROR: repo is required (fj api has no cwd auto-resolution)" >&2
+    echo "ERROR: repo is required (smith api has no cwd auto-resolution)" >&2
     exit 2
   fi
   validate_repo "$repo"
 
-  fj_base "$host"
+  smith_base "$host"
   local self
-  self=$(fj_self_username)
+  self=$(smith_self_username)
   if [ -z "$self" ]; then
     echo "ERROR: could not determine authenticated user" >&2
     exit 1
@@ -111,37 +111,37 @@ run_subscribe() {
   local method="PUT"
   [ "$unsubscribe" = "true" ] && method="DELETE"
 
-  fj_cmd+=(api "repos/$repo/issues/$number/subscriptions/$self" -X "$method")
-  fj_run "$repo" "$host"
+  smith_cmd+=(api "repos/$repo/issues/$number/subscriptions/$self" -X "$method")
+  smith_run "$repo" "$host"
 }
 
-# run_fj_search <issue|pr> <query> <state> <labels> <creator> <assignee> <repo> <host>
-# `fj issue search` and `fj pr search` share their whole flag surface; this
+# run_smith_search <issue|pr> <query> <state> <labels> <creator> <assignee> <repo> <host>
+# `smith issue search` and `smith pr search` share their whole flag surface; this
 # threads the common filter args for both issue-list and pr-list.
-run_fj_search() {
+run_smith_search() {
   local kind="$1" query="${2:-}" state="${3:-}" labels="${4:-}"
   local creator="${5:-}" assignee="${6:-}" repo="${7:-}" host="${8:-}"
 
-  fj_base "$host"
-  fj_cmd+=("$kind" search)
+  smith_base "$host"
+  smith_cmd+=("$kind" search)
   if [ -n "$state" ]; then
-    fj_cmd+=(-s "$state")
+    smith_cmd+=(-s "$state")
   fi
   if [ -n "$labels" ]; then
-    fj_cmd+=(-l "$labels")
+    smith_cmd+=(-l "$labels")
   fi
   if [ -n "$creator" ]; then
-    fj_cmd+=(-c "$creator")
+    smith_cmd+=(-c "$creator")
   fi
   if [ -n "$assignee" ]; then
-    fj_cmd+=(-a "$assignee")
+    smith_cmd+=(-a "$assignee")
   fi
   if [ -n "$repo" ]; then
     validate_repo "$repo"
-    fj_cmd+=(-r "$repo")
+    smith_cmd+=(-r "$repo")
   fi
   if [ -n "$query" ]; then
-    fj_cmd+=("$query")
+    smith_cmd+=("$query")
   fi
-  fj_run "$repo" "$host"
+  smith_run "$repo" "$host"
 }

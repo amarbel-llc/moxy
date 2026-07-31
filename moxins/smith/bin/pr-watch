@@ -5,7 +5,7 @@ unsubscribe="${2:-}"
 repo="${3:-}"
 host="${4:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
 run_subscribe "$number" "$unsubscribe" "$repo" "$host"

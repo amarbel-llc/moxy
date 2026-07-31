@@ -8,25 +8,25 @@ message="${5:-}"
 repo="${6:-}"
 host="${7:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
 ref=$(qualify_ref "$number" "$repo")
-fj_base "$host"
-fj_cmd+=(pr merge)
+smith_base "$host"
+smith_cmd+=(pr merge)
 if [ -n "$method" ]; then
-  fj_cmd+=(-M "$method")
+  smith_cmd+=(-M "$method")
 fi
 if [ "$delete_branch" = "true" ]; then
-  fj_cmd+=(-d)
+  smith_cmd+=(-d)
 fi
 if [ -n "$title" ]; then
-  fj_cmd+=(-t "$title")
+  smith_cmd+=(-t "$title")
 fi
 if [ -n "$message" ]; then
   # --message takes an optional value; the = form keeps clap from
   # swallowing the PR ref as the message.
-  fj_cmd+=("--message=$message")
+  smith_cmd+=("--message=$message")
 fi
-fj_cmd+=("$ref")
-fj_run "$repo" "$host"
+smith_cmd+=("$ref")
+smith_run "$repo" "$host"

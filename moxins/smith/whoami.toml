@@ -1,7 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
-description = "Show the Forgejo user you are authenticated as. Use to verify fj auth is set up for an instance."
+description = "Show the Forgejo user you are authenticated as. Use to verify smith auth is set up for an instance."
 command = "@BIN@/whoami"
 arg-order = ["host"]
 

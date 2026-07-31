@@ -1,7 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
-description = "Subscribe (or unsubscribe) the fj-authenticated user to a Forgejo pull request's notifications, mirroring the web UI's per-PR Subscribe button. repo is REQUIRED — fj api has no cwd auto-resolution."
+description = "Subscribe (or unsubscribe) the smith-authenticated user to a Forgejo pull request's notifications, mirroring the web UI's per-PR Subscribe button. repo is REQUIRED — smith api has no cwd auto-resolution."
 command = "@BIN@/pr-watch"
 arg-order = ["number", "unsubscribe", "repo", "host"]
 
@@ -19,7 +19,7 @@ description = "Unsubscribe instead of subscribing"
 
 [input.properties.repo]
 type = "string"
-description = "Target repo in OWNER/NAME format. Required — fj api has no cwd auto-resolution."
+description = "Target repo in OWNER/NAME format. Required — smith api has no cwd auto-resolution."
 
 [input.properties.host]
 type = "string"

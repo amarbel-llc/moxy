@@ -5,22 +5,22 @@ path="${2:-.}"
 ref="${3:-}"
 host="${4:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
 if [ -z "$repo" ]; then
-  echo "ERROR: repo is required (fj api has no cwd auto-resolution)" >&2
+  echo "ERROR: repo is required (smith api has no cwd auto-resolution)" >&2
   exit 2
 fi
 validate_repo "$repo"
 
-fj_base "$host"
-fj_cmd+=(api "repos/$repo/contents/$path")
+smith_base "$host"
+smith_cmd+=(api "repos/$repo/contents/$path")
 if [ -n "$ref" ]; then
-  fj_cmd+=(-f "ref=$ref")
+  smith_cmd+=(-f "ref=$ref")
 fi
 
-raw=$(fj_run "$repo" "$host")
+raw=$(smith_run "$repo" "$host")
 
 # Forgejo's contents API mirrors GitHub's: an object (with base64 content)
 # for a file, an array for a directory listing.

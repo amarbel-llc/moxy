@@ -6,8 +6,8 @@ rm_labels="${3:-}"
 repo="${4:-}"
 host="${5:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
 if [ -z "$add" ] && [ -z "$rm_labels" ]; then
   echo "ERROR: provide add and/or rm labels to edit" >&2
@@ -15,12 +15,12 @@ if [ -z "$add" ] && [ -z "$rm_labels" ]; then
 fi
 
 ref=$(qualify_ref "$number" "$repo")
-fj_base "$host"
-fj_cmd+=(issue edit "$ref" labels)
+smith_base "$host"
+smith_cmd+=(issue edit "$ref" labels)
 if [ -n "$add" ]; then
-  fj_cmd+=(-a "$add")
+  smith_cmd+=(-a "$add")
 fi
 if [ -n "$rm_labels" ]; then
-  fj_cmd+=(-r "$rm_labels")
+  smith_cmd+=(-r "$rm_labels")
 fi
-fj_run "$repo" "$host"
+smith_run "$repo" "$host"

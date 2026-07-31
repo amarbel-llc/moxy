@@ -5,19 +5,19 @@ host="${2:-}"
 include_prerelease="${3:-}"
 include_draft="${4:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
-fj_base "$host"
-fj_cmd+=(release list)
+smith_base "$host"
+smith_cmd+=(release list)
 if [ "$include_prerelease" = "true" ]; then
-  fj_cmd+=(-p)
+  smith_cmd+=(-p)
 fi
 if [ "$include_draft" = "true" ]; then
-  fj_cmd+=(-d)
+  smith_cmd+=(-d)
 fi
 if [ -n "$repo" ]; then
   validate_repo "$repo"
-  fj_cmd+=(-r "$repo")
+  smith_cmd+=(-r "$repo")
 fi
-fj_run "$repo" "$host"
+smith_run "$repo" "$host"

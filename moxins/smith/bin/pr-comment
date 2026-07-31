@@ -5,9 +5,9 @@ body="$2"
 repo="${3:-}"
 host="${4:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
 ref=$(qualify_ref "$number" "$repo")
-fj_base "$host"
-fj_run "$repo" "$host" pr comment "$ref" "$body"
+smith_base "$host"
+smith_run "$repo" "$host" pr comment "$ref" "$body"

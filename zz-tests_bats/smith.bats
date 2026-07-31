@@ -2,16 +2,16 @@
 
 # bats file_tags=smith
 
-# Tests for the smith moxin's fj invocation shapes (#392). smith wraps the
-# Forgejo CLI (fj); these tests shadow fj with a stub that records argv, and
+# Tests for the smith moxin's smith invocation shapes (#392). smith wraps the
+# Forgejo CLI (smith); these tests shadow smith with a stub that records argv, and
 # assert the wrapper scripts build the right command lines:
 #   - qualified OWNER/NAME#N refs when a repo arg is given, bare N otherwise
 #   - the -H host flag threaded before the subcommand
-#   - issue-create always passing --no-template and --body so fj never opens
+#   - issue-create always passing --no-template and --body so smith never opens
 #     an editor or an interactive template picker (moxy tools run headless)
 #   - clap optional-value flags passed in = form (--with-msg=, --message=)
 #     so the ref positional isn't swallowed as the flag's value
-#   - fj is invoked from a scratch cwd (outside any git repo) when repo AND
+#   - smith is invoked from a scratch cwd (outside any git repo) when repo AND
 #     host are both given explicitly, working around a forgejo-cli crash on
 #     owner-less git remotes (#398); the real cwd is preserved when either
 #     is omitted, since that means the caller relies on cwd auto-resolution
@@ -24,20 +24,20 @@ setup() {
   setup_test_home
 
   mkdir -p "$HOME/bin"
-  # fj stub: append each invocation's argv (one arg per line) plus a `---`
-  # separator to $HOME/fj-args, and its cwd to $HOME/fj-pwd (one line per
+  # smith stub: append each invocation's argv (one arg per line) plus a `---`
+  # separator to $HOME/smith-args, and its cwd to $HOME/smith-pwd (one line per
   # invocation), so tests can assert #398's cwd-redirect fix without a real
-  # fj binary. Note: no shebang — the nix sandbox lacks /usr/bin/env.
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
-printf '%s\n' "$PWD" >> "$HOME/fj-pwd"
-echo "fj-stub-ok"
+  # smith binary. Note: no shebang — the nix sandbox lacks /usr/bin/env.
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
+printf '%s\n' "$PWD" >> "$HOME/smith-pwd"
+echo "smith-stub-ok"
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
-  # FJ_BIN lets the stub win regardless of wrapProgram's PATH mode.
-  export FJ_BIN="$HOME/bin/fj"
+  # SMITH_BIN lets the stub win regardless of wrapProgram's PATH mode.
+  export SMITH_BIN="$HOME/bin/smith"
 }
 
 teardown() {
@@ -45,78 +45,78 @@ teardown() {
 }
 
 # A repo arg turns the issue number into a qualified OWNER/NAME#N ref, which
-# fj resolves from any cwd (no local git remote needed).
+# smith resolves from any cwd (no local git remote needed).
 function issue_comment_with_repo_uses_qualified_ref { # @test
   run "$BIN/issue-comment" 7 "hello there" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'issue\ncomment\nowner/repo#7\nhello there\n---'
 }
 
-# Without a repo arg the bare number is passed through — fj resolves the
+# Without a repo arg the bare number is passed through — smith resolves the
 # repo from the cwd's git remotes.
 function issue_comment_without_repo_uses_bare_ref { # @test
   run "$BIN/issue-comment" 7 "hello"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'issue\ncomment\n7\nhello\n---'
 }
 
-# The host arg becomes fj's global -H flag, before the subcommand.
+# The host arg becomes smith's global -H flag, before the subcommand.
 function host_arg_threads_as_global_flag { # @test
   run "$BIN/issue-list" "" "" "" "" "" "" "codeberg.org"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'-H\ncodeberg.org\nissue\nsearch\n---'
 }
 
-# issue-list threads every filter into the matching fj flag.
+# issue-list threads every filter into the matching smith flag.
 function issue_list_threads_filters { # @test
   run "$BIN/issue-list" "crash" "all" "bug,ux" "alice" "bob" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'issue\nsearch\n-s\nall\n-l\nbug,ux\n-c\nalice\n-a\nbob\n-r\nowner/repo\ncrash\n---'
 }
 
-# pr-list shares issue-list's filter threading (run_fj_search in .fj-common).
+# pr-list shares issue-list's filter threading (run_smith_search in .smith-common).
 function pr_list_threads_filters { # @test
   run "$BIN/pr-list" "fix" "closed" "" "" "" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'pr\nsearch\n-s\nclosed\n-r\nowner/repo\nfix\n---'
 }
 
 # issue-create must always pass --no-template and --body (even empty):
-# without them fj opens an interactive template picker or editor, which
+# without them smith opens an interactive template picker or editor, which
 # hangs a headless MCP tool call.
 function issue_create_never_opens_editor { # @test
   run "$BIN/issue-create" "test title" "" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'issue\ncreate\n--no-template\n--body\n\n-r\nowner/repo\ntest title\n---'
 }
 
-# A repo arg that isn't OWNER/NAME is rejected before fj runs.
+# A repo arg that isn't OWNER/NAME is rejected before smith runs.
 function malformed_repo_is_rejected { # @test
   run "$BIN/issue-comment" 7 "hi" "badrepo" ""
   assert_failure 2
   assert_output --partial "OWNER/NAME"
 
-  [ ! -e "$HOME/fj-args" ] || fail "fj was invoked despite invalid repo"
+  [ ! -e "$HOME/smith-args" ] || fail "smith was invoked despite invalid repo"
 }
 
-# comments=true appends a second fj call for the comment thread.
+# comments=true appends a second smith call for the comment thread.
 function issue_get_with_comments_runs_two_views { # @test
   run "$BIN/issue-get" 5 "true" "" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'issue\nview\n5\nbody\n---\nissue\nview\n5\ncomments\n---'
 }
 
@@ -126,7 +126,7 @@ function issue_close_with_msg_uses_equals_form { # @test
   run "$BIN/issue-close" 3 "done in abc123" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'issue\nclose\n--with-msg=done in abc123\nowner/repo#3\n---'
 }
 
@@ -136,7 +136,7 @@ function pr_merge_threads_flags { # @test
   run "$BIN/pr-merge" 9 "squash" "true" "merge title" "merge body" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'pr\nmerge\n-M\nsquash\n-d\n-t\nmerge title\n--message=merge body\nowner/repo#9\n---'
 }
 
@@ -145,75 +145,75 @@ function pr_create_autofill_passes_A { # @test
   run "$BIN/pr-create" "" "" "" "" "true" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'pr\ncreate\n-r\nowner/repo\n-A\n---'
 }
 
-# Without autofill, a missing title is rejected before fj runs.
+# Without autofill, a missing title is rejected before smith runs.
 function pr_create_requires_title_without_autofill { # @test
   run "$BIN/pr-create" "" "" "" "" "false" "owner/repo" ""
   assert_failure 2
   assert_output --partial "title is required"
 }
 
-# An unknown pr-get view is rejected before fj runs.
+# An unknown pr-get view is rejected before smith runs.
 function pr_get_rejects_unknown_view { # @test
   run "$BIN/pr-get" 4 "bogus" "" ""
   assert_failure 2
   assert_output --partial "view must be one of"
 }
 
-# When both repo and host are given, fj_run redirects fj's cwd to a scratch
+# When both repo and host are given, smith_run redirects smith's cwd to a scratch
 # dir outside any git repo (#398) since cwd-based resolution is unneeded.
 function redirects_cwd_when_repo_and_host_given { # @test
   local orig_pwd="$PWD"
   run "$BIN/issue-comment" 7 "hello" "owner/repo" "codeberg.org"
   assert_success
 
-  run cat "$HOME/fj-pwd"
+  run cat "$HOME/smith-pwd"
   assert_success
-  [ "$output" != "$orig_pwd" ] || fail "expected fj to run outside the test cwd, got: $output"
+  [ "$output" != "$orig_pwd" ] || fail "expected smith to run outside the test cwd, got: $output"
 }
 
-# When host is omitted, the caller relies on cwd auto-resolution, so fj_run
+# When host is omitted, the caller relies on cwd auto-resolution, so smith_run
 # must leave the real cwd alone.
 function no_redirect_when_host_omitted { # @test
   local orig_pwd="$PWD"
   run "$BIN/issue-comment" 7 "hello" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-pwd"
+  run cat "$HOME/smith-pwd"
   assert_success
   assert_output "$orig_pwd"
 }
 
-# When repo is omitted, same as above: fj_run leaves the real cwd alone.
+# When repo is omitted, same as above: smith_run leaves the real cwd alone.
 function no_redirect_when_repo_omitted { # @test
   local orig_pwd="$PWD"
   run "$BIN/issue-comment" 7 "hello" "" "codeberg.org"
   assert_success
 
-  run cat "$HOME/fj-pwd"
+  run cat "$HOME/smith-pwd"
   assert_success
   assert_output "$orig_pwd"
 }
 
-# issue-edit-labels threads add/rm into fj's -a/-r flags (#418).
+# issue-edit-labels threads add/rm into smith's -a/-r flags (#418).
 function issue_edit_labels_threads_add_and_rm { # @test
   run "$BIN/issue-edit-labels" 7 "bug,ux" "wontfix" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'issue\nedit\nowner/repo#7\nlabels\n-a\nbug,ux\n-r\nwontfix\n---'
 }
 
-# Without add or rm there is nothing to do — rejected before fj runs.
+# Without add or rm there is nothing to do — rejected before smith runs.
 function issue_edit_labels_requires_add_or_rm { # @test
   run "$BIN/issue-edit-labels" 7 "" "" "owner/repo" ""
   assert_failure 2
   assert_output --partial "add and/or rm"
 
-  [ ! -e "$HOME/fj-args" ] || fail "fj was invoked despite no add/rm"
+  [ ! -e "$HOME/smith-args" ] || fail "smith was invoked despite no add/rm"
 }
 
 # repo-label-list threads the repo positional before `view`, and -a for archived.
@@ -221,16 +221,16 @@ function repo_label_list_threads_repo_and_archived { # @test
   run "$BIN/repo-label-list" "owner/repo" "" "true"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'repo\nlabels\nowner/repo\nview\n-a\n---'
 }
 
-# Without a repo arg, fj resolves from cwd — no positional repo is passed.
+# Without a repo arg, smith resolves from cwd — no positional repo is passed.
 function repo_label_list_without_repo_omits_positional { # @test
   run "$BIN/repo-label-list" "" "" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'repo\nlabels\nview\n---'
 }
 
@@ -240,7 +240,7 @@ function repo_label_create_threads_flags { # @test
   run "$BIN/repo-label-create" "area/ux" "00aabb" "owner/repo" "" "a ux label" "true" "true"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'repo\nlabels\nowner/repo\ncreate\narea/ux\n00aabb\n--description=a ux label\n-e\n-a\n---'
 }
 
@@ -249,7 +249,7 @@ function repo_label_delete_threads_repo_and_id { # @test
   run "$BIN/repo-label-delete" "wontfix" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'repo\nlabels\nowner/repo\ndelete\nwontfix\n---'
 }
 
@@ -258,7 +258,7 @@ function release_list_threads_flags { # @test
   run "$BIN/release-list" "owner/repo" "" "true" "true"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'release\nlist\n-p\n-d\n-r\nowner/repo\n---'
 }
 
@@ -267,18 +267,18 @@ function release_view_threads_by_tag_and_repo { # @test
   run "$BIN/release-view" "v1.0.0" "true" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'release\nview\n-t\n-r\nowner/repo\nv1.0.0\n---'
 }
 
-# release-create always passes --body= (even empty) so fj never opens an
+# release-create always passes --body= (even empty) so smith never opens an
 # editor, mirroring issue-create's headless-safety convention; --create-tag=
 # uses the = form since it's a clap optional-value flag.
 function release_create_threads_flags { # @test
   run "$BIN/release-create" "v1.0.0" "" "v1.0.0" "release notes" "main" "true" "true" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'release\ncreate\n--body=release notes\n--create-tag=v1.0.0\n-B\nmain\n-d\n-p\n-r\nowner/repo\nv1.0.0\n---'
 }
 
@@ -287,7 +287,7 @@ function release_delete_threads_by_tag_and_repo { # @test
   run "$BIN/release-delete" "v1.0.0" "true" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'release\ndelete\n-t\n-r\nowner/repo\nv1.0.0\n---'
 }
 
@@ -296,7 +296,7 @@ function tag_list_threads_flags { # @test
   run "$BIN/tag-list" "owner/repo" "" "2"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'tag\nlist\n-p\n2\n-r\nowner/repo\n---'
 }
 
@@ -305,7 +305,7 @@ function tag_view_threads_repo { # @test
   run "$BIN/tag-view" "v1.0.0" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'tag\nview\n-r\nowner/repo\nv1.0.0\n---'
 }
 
@@ -315,7 +315,7 @@ function tag_create_threads_flags { # @test
   run "$BIN/tag-create" "v1.0.0" "tag message" "main" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'tag\ncreate\n--body=tag message\n-B\nmain\n-r\nowner/repo\nv1.0.0\n---'
 }
 
@@ -324,40 +324,40 @@ function tag_delete_threads_repo { # @test
   run "$BIN/tag-delete" "v1.0.0" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'tag\ndelete\n-r\nowner/repo\nv1.0.0\n---'
 }
 
-# content-get shells out to fj api's raw REST passthrough, then decodes the
-# GitHub-Contents-API-shaped response fj api returns for Forgejo (#414). A
+# content-get shells out to smith api's raw REST passthrough, then decodes the
+# GitHub-Contents-API-shaped response smith api returns for Forgejo (#414). A
 # file is a JSON object with base64 content; a directory is a JSON array.
-# These tests need a stub returning realistic JSON, not just "fj-stub-ok",
-# so each overrides $HOME/bin/fj locally.
+# These tests need a stub returning realistic JSON, not just "smith-stub-ok",
+# so each overrides $HOME/bin/smith locally.
 function content_get_decodes_file_content { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 printf '{"type":"file","content":"aGVsbG8=","encoding":"base64"}\n'
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/content-get" "owner/repo" "README.md" "" ""
   assert_success
   assert_output "hello"
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/contents/README.md\n---'
 }
 
 # A directory response (JSON array) is rendered as a name/type/size/path
 # listing, dropping any extra fields the API response carries.
 function content_get_lists_directory { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 printf '[{"name":"a.txt","type":"file","size":3,"path":"a.txt","extra":"ignored"}]\n'
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/content-get" "owner/repo" "" "" ""
   assert_success
@@ -368,47 +368,47 @@ EOF
   run jq -e '.[0] | has("extra") | not' <<<"$dir_output"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/contents/.\n---'
 }
 
-# ref becomes a -f ref= query field (fj api's GET query-param form).
+# ref becomes a -f ref= query field (smith api's GET query-param form).
 function content_get_threads_ref { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 printf '{"type":"file","content":"","encoding":"base64"}\n'
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/content-get" "owner/repo" "README.md" "main" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/contents/README.md\n-f\nref=main\n---'
 }
 
-# repo is required — fj api has no cwd auto-resolution, unlike every other
+# repo is required — smith api has no cwd auto-resolution, unlike every other
 # smith tool.
 function content_get_requires_repo { # @test
   run "$BIN/content-get" "" "README.md" "" ""
   assert_failure 2
   assert_output --partial "repo is required"
 
-  [ ! -e "$HOME/fj-args" ] || fail "fj was invoked despite missing repo"
+  [ ! -e "$HOME/smith-args" ] || fail "smith was invoked despite missing repo"
 }
 
-# A non-zero fj exit (e.g. 404) must fail the tool, not silently succeed
-# with empty output — `raw=$(fj_run ...)` is a plain (non-local) assignment,
-# so `set -e` correctly propagates fj_run's exit status here.
-function content_get_fails_when_fj_errors { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+# A non-zero smith exit (e.g. 404) must fail the tool, not silently succeed
+# with empty output — `raw=$(smith_run ...)` is a plain (non-local) assignment,
+# so `set -e` correctly propagates smith_run's exit status here.
+function content_get_fails_when_smith_errors { # @test
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 echo "404 Not Found" >&2
 exit 1
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/content-get" "owner/repo" "missing.txt" "" ""
   assert_failure
@@ -418,12 +418,12 @@ EOF
 # Forgejo's API omits inline content) must error clearly rather than
 # silently emit empty output indistinguishable from a real zero-byte file.
 function content_get_errors_on_missing_content_field { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 printf '{"type":"file","size":123456789}\n'
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/content-get" "owner/repo" "huge.bin" "" ""
   assert_failure
@@ -433,12 +433,12 @@ EOF
 # A present-but-empty .content ("") is a legitimate zero-byte file, distinct
 # from a missing/null .content — must succeed with empty output, not error.
 function content_get_succeeds_on_empty_but_present_content { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 printf '{"type":"file","content":"","encoding":"base64"}\n'
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/content-get" "owner/repo" "empty.txt" "" ""
   assert_success
@@ -446,10 +446,10 @@ EOF
 }
 
 # repo-owner-perms (#417): the dynamic-perms gate for smith write tools.
-# Allows when the target repo's owner matches the fj-authenticated user or
-# one of their orgs; asks otherwise. These tests use a dedicated fj stub
+# Allows when the target repo's owner matches the smith-authenticated user or
+# one of their orgs; asks otherwise. These tests use a dedicated smith stub
 # that branches on subcommand (whoami vs. api user/orgs), since the shared
-# setup() stub always answers "fj-stub-ok" regardless of subcommand.
+# setup() stub always answers "smith-stub-ok" regardless of subcommand.
 function repo_owner_perms_no_repo_auto_allows { # @test
   run "$BIN/repo-owner-perms" "" ""
   assert_success
@@ -457,30 +457,30 @@ function repo_owner_perms_no_repo_auto_allows { # @test
 }
 
 function repo_owner_perms_matches_self { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
+  cat >"$HOME/bin/smith" <<'EOF'
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
   printf '{"username":"alice"}\n'
 fi
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/repo-owner-perms" "alice/repo" ""
   assert_success
   assert_output --partial "matches authenticated user"
 }
 
-# Regression for the real `fj api user` response shape, which nests the
+# Regression for the real `smith api user` response shape, which nests the
 # login under a "username" field alongside a bunch of other profile data —
-# unlike `fj whoami`'s free-text "currently signed in to <login>@<host>"
+# unlike `smith whoami`'s free-text "currently signed in to <login>@<host>"
 # line (whose last whitespace-delimited token is the whole login@host, not
 # a bare login, so awk-scraping it never matched a plain OWNER/NAME owner).
 function repo_owner_perms_matches_self_with_full_user_payload { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
+  cat >"$HOME/bin/smith" <<'EOF'
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
   printf '{"id":1,"login":"alice","email":"alice@example.com","username":"alice"}\n'
 fi
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/repo-owner-perms" "alice/repo" ""
   assert_success
@@ -488,14 +488,14 @@ EOF
 }
 
 function repo_owner_perms_matches_member_org { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
+  cat >"$HOME/bin/smith" <<'EOF'
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
   printf '{"username":"alice"}\n'
 elif [ "$1" = "api" ] && [ "$2" = "user/orgs" ]; then
   printf '[{"username":"acme-corp"},{"username":"other-org"}]\n'
 fi
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/repo-owner-perms" "acme-corp/repo" ""
   assert_success
@@ -503,14 +503,14 @@ EOF
 }
 
 function repo_owner_perms_asks_when_neither_self_nor_org { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
+  cat >"$HOME/bin/smith" <<'EOF'
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
   printf '{"username":"alice"}\n'
 elif [ "$1" = "api" ] && [ "$2" = "user/orgs" ]; then
   printf '[{"username":"acme-corp"}]\n'
 fi
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/repo-owner-perms" "someone-else/repo" ""
   assert_failure 1
@@ -518,61 +518,61 @@ EOF
 }
 
 function repo_owner_perms_asks_when_self_lookup_fails { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
+  cat >"$HOME/bin/smith" <<'EOF'
 exit 1
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/repo-owner-perms" "someone/repo" ""
   assert_failure 1
   assert_output --partial "could not determine authenticated user"
 }
 
-# issue-watch/pr-watch (#413): subscribe/unsubscribe via fj api's raw REST
+# issue-watch/pr-watch (#413): subscribe/unsubscribe via smith api's raw REST
 # passthrough against Forgejo's GitHub-compatible subscriptions endpoint —
-# fj has no native subscribe subcommand. Both tools share run_subscribe in
-# .fj-common since PRs are issues internally in Forgejo's API (verified
-# live). These tests use a subcommand-branching fj stub (self-lookup vs.
-# the actual subscribe call, recorded to $HOME/fj-args for assertion).
-stub_fj_self_alice_and_record() {
-  cat >"$HOME/bin/fj" <<'EOF'
+# smith has no native subscribe subcommand. Both tools share run_subscribe in
+# .smith-common since PRs are issues internally in Forgejo's API (verified
+# live). These tests use a subcommand-branching smith stub (self-lookup vs.
+# the actual subscribe call, recorded to $HOME/smith-args for assertion).
+stub_smith_self_alice_and_record() {
+  cat >"$HOME/bin/smith" <<'EOF'
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
   printf '{"username":"alice"}\n'
 else
-  printf '%s\n' "$@" >> "$HOME/fj-args"
+  printf '%s\n' "$@" >> "$HOME/smith-args"
 fi
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 }
 
 function issue_watch_subscribes_self { # @test
-  stub_fj_self_alice_and_record
+  stub_smith_self_alice_and_record
 
   run "$BIN/issue-watch" 42 "" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/issues/42/subscriptions/alice\n-X\nPUT'
 }
 
 function issue_watch_unsubscribes_with_flag { # @test
-  stub_fj_self_alice_and_record
+  stub_smith_self_alice_and_record
 
   run "$BIN/issue-watch" 42 "true" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/issues/42/subscriptions/alice\n-X\nDELETE'
 }
 
 # PRs use the same issues/ subscriptions endpoint as issues in Forgejo's API.
 function pr_watch_uses_same_issues_endpoint { # @test
-  stub_fj_self_alice_and_record
+  stub_smith_self_alice_and_record
 
   run "$BIN/pr-watch" 367 "" "owner/repo" ""
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/issues/367/subscriptions/alice\n-X\nPUT'
 }
 
@@ -583,10 +583,10 @@ function issue_watch_requires_repo { # @test
 }
 
 function issue_watch_fails_when_self_lookup_fails { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
+  cat >"$HOME/bin/smith" <<'EOF'
 exit 1
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/issue-watch" 42 "" "owner/repo" ""
   assert_failure 1
@@ -594,23 +594,23 @@ EOF
 }
 
 # issue-get/repo-get output_format=json (#420 proof of concept): shells out
-# to fj api instead of fj's native text view, since fj has no structured
-# output yet (upstream fj#213). These tests need a stub returning realistic
+# to smith api instead of smith's native text view, since smith has no structured
+# output yet (upstream smith#213). These tests need a stub returning realistic
 # JSON per subcommand, like content-get's tests.
 function issue_get_json_fetches_via_api { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 printf '{"number":5,"title":"a bug"}\n'
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/issue-get" 5 "false" "owner/repo" "" "json"
   assert_success
   run jq -e '.number == 5' <<<"$output"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/issues/5\n---'
 }
 
@@ -618,23 +618,23 @@ EOF
 # rather than concatenating two independent JSON values (which wouldn't
 # parse as a single document).
 function issue_get_json_with_comments_merges_both { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 if [ "$2" = "repos/owner/repo/issues/5" ]; then
   printf '{"number":5,"title":"a bug"}\n'
 else
   printf '[{"id":1,"body":"first comment"}]\n'
 fi
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/issue-get" 5 "true" "owner/repo" "" "json"
   assert_success
   run jq -e '.issue.number == 5 and (.comments | length) == 1' <<<"$output"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo/issues/5\n---\napi\nrepos/owner/repo/issues/5/comments\n---'
 }
 
@@ -644,36 +644,36 @@ function issue_get_json_requires_repo { # @test
   assert_output --partial "repo is required"
 }
 
-# A non-zero fj exit must fail the tool, not reach jq with empty/partial
-# input — `issue_json=$(fj_run ...)` is a plain (non-local) assignment, so
-# set -e propagates fj_run's exit status here, same as content-get (#414).
-function issue_get_json_fails_when_fj_errors { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+# A non-zero smith exit must fail the tool, not reach jq with empty/partial
+# input — `issue_json=$(smith_run ...)` is a plain (non-local) assignment, so
+# set -e propagates smith_run's exit status here, same as content-get (#414).
+function issue_get_json_fails_when_smith_errors { # @test
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 echo "404 Not Found" >&2
 exit 1
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/issue-get" 5 "false" "owner/repo" "" "json"
   assert_failure
 }
 
 function repo_get_json_fetches_via_api { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 printf '{"name":"repo","full_name":"owner/repo"}\n'
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/repo-get" "owner/repo" "" "json"
   assert_success
   run jq -e '.full_name == "owner/repo"' <<<"$output"
   assert_success
 
-  run cat "$HOME/fj-args"
+  run cat "$HOME/smith-args"
   assert_output $'api\nrepos/owner/repo\n---'
 }
 
@@ -684,26 +684,26 @@ function repo_get_json_requires_name { # @test
 }
 
 # Same set -e propagation guarantee as issue-get's json path.
-function repo_get_json_fails_when_fj_errors { # @test
-  cat >"$HOME/bin/fj" <<'EOF'
-printf '%s\n' "$@" >> "$HOME/fj-args"
-printf -- '---\n' >> "$HOME/fj-args"
+function repo_get_json_fails_when_smith_errors { # @test
+  cat >"$HOME/bin/smith" <<'EOF'
+printf '%s\n' "$@" >> "$HOME/smith-args"
+printf -- '---\n' >> "$HOME/smith-args"
 echo "404 Not Found" >&2
 exit 1
 EOF
-  chmod +x "$HOME/bin/fj"
+  chmod +x "$HOME/bin/smith"
 
   run "$BIN/repo-get" "owner/repo" "" "json"
   assert_failure
 }
 
 # End-to-end through moxy: the smith.issue-list tool dispatches to the
-# wrapped script, which invokes the (stubbed) fj off the inherited PATH.
+# wrapped script, which invokes the (stubbed) smith off the inherited PATH.
 function smith_issue_list_via_moxy { # @test
   local params='{"name":"smith.issue-list","arguments":{"repo":"owner/repo"}}'
   run_moxy_mcp_v1 "tools/call" "$params"
   assert_success
   echo "$output" | jq -e '.isError != true' || fail "issue-list returned isError: $output"
-  echo "$output" | jq -e '.content[0].text | contains("fj-stub-ok")' ||
-    fail "expected fj stub output in result: $output"
+  echo "$output" | jq -e '.content[0].text | contains("smith-stub-ok")' ||
+    fail "expected smith stub output in result: $output"
 }

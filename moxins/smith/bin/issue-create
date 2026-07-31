@@ -5,16 +5,16 @@ body="${2:-}"
 repo="${3:-}"
 host="${4:-}"
 
-# shellcheck source=bin/.fj-common
-. "$(dirname "$0")/.fj-common"
+# shellcheck source=bin/.smith-common
+. "$(dirname "$0")/.smith-common"
 
-fj_base "$host"
-# --no-template and an explicit --body (even empty) keep fj from opening an
+smith_base "$host"
+# --no-template and an explicit --body (even empty) keep smith from opening an
 # editor or an interactive template picker — moxy tools run headless.
-fj_cmd+=(issue create --no-template --body "$body")
+smith_cmd+=(issue create --no-template --body "$body")
 if [ -n "$repo" ]; then
   validate_repo "$repo"
-  fj_cmd+=(-r "$repo")
+  smith_cmd+=(-r "$repo")
 fi
-fj_cmd+=("$title")
-fj_run "$repo" "$host"
+smith_cmd+=("$title")
+smith_run "$repo" "$host"
