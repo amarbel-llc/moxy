@@ -74,7 +74,7 @@ function grit_branch_soft_keeps_tree { # @test
   git commit -aqm "second"
 
   run_moxy_mcp "tools/call" \
-    '{"name":"grit.branch","arguments":{"subcommand":"soft","ref":"HEAD~1"}}'
+    '{"name":"grit.branch","arguments":{"subcommand":"reset-soft","ref":"HEAD~1"}}'
   assert_success
 
   # HEAD moved back one commit...
@@ -93,7 +93,7 @@ function grit_branch_hard_discards_tree { # @test
   git commit -aqm "second"
 
   run_moxy_mcp "tools/call" \
-    '{"name":"grit.branch","arguments":{"subcommand":"hard","ref":"HEAD~1"}}'
+    '{"name":"grit.branch","arguments":{"subcommand":"reset-hard","ref":"HEAD~1"}}'
   assert_success
 
   run cat file.txt
@@ -104,7 +104,7 @@ function grit_branch_hard_requires_ref { # @test
   git checkout -q -b work
 
   run_moxy_mcp "tools/call" \
-    '{"name":"grit.branch","arguments":{"subcommand":"hard"}}'
+    '{"name":"grit.branch","arguments":{"subcommand":"reset-hard"}}'
   assert_output --partial "ref is required"
 }
 
@@ -114,7 +114,7 @@ function grit_branch_hard_main_blocked { # @test
   git branch -m master
 
   run_moxy_mcp "tools/call" \
-    '{"name":"grit.branch","arguments":{"subcommand":"hard","ref":"HEAD~1"}}'
+    '{"name":"grit.branch","arguments":{"subcommand":"reset-hard","ref":"HEAD~1"}}'
   echo "$output" | jq -e '.isError == true' || fail 'expected isError: '"$output"
   echo "$output" | jq -e '.content[0].text | test("blocked for safety")' || fail 'expected safety block: '"$output"
 }

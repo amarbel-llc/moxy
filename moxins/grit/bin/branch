@@ -42,12 +42,12 @@ case "$subcommand" in
       git branch -d "$name"
     fi
     ;;
-  soft)
+  reset-soft)
     git reset --soft "${ref:-HEAD~1}"
     ;;
-  hard)
+  reset-hard)
     if [ -z "$ref" ]; then
-      echo "branch hard: ref is required" >&2
+      echo "branch reset-hard: ref is required" >&2
       exit 2
     fi
     current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
@@ -79,11 +79,11 @@ case "$subcommand" in
     git "${git_args[@]}"
     ;;
   "")
-    echo "branch: subcommand is required (create|delete|soft|hard|checkout)" >&2
+    echo "branch: subcommand is required (create|delete|reset-soft|reset-hard|checkout)" >&2
     exit 2
     ;;
   *)
-    echo "branch: unknown subcommand '$subcommand' (want create|delete|soft|hard|checkout)" >&2
+    echo "branch: unknown subcommand '$subcommand' (want create|delete|reset-soft|reset-hard|checkout)" >&2
     exit 2
     ;;
 esac

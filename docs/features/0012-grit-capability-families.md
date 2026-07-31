@@ -42,8 +42,8 @@ points at*.
 |---|---|---|
 | `create` | `branch-create` | allow |
 | `delete` | `branch-delete` (keeps main/master block) | ask |
-| `soft` | `reset --soft <ref>` (move HEAD, keep index + tree) | ask |
-| `hard` | `hard-reset <ref>` (move HEAD, discard tree; main/master block) | ask |
+| `reset-soft` | `reset --soft <ref>` (move HEAD, keep index + tree) | ask |
+| `reset-hard` | `hard-reset <ref>` (move HEAD, discard tree; main/master block) | ask |
 | `checkout` | `checkout` (switch which branch HEAD tracks) | allow |
 
 ### `grit.stage` — controls the index / stage
@@ -100,12 +100,12 @@ is out of scope here.
 
 Move the current branch's HEAD back one commit, keeping the changes staged:
 
-    grit.branch { "subcommand": "soft", "ref": "HEAD~1" }
+    grit.branch { "subcommand": "reset-soft", "ref": "HEAD~1" }
 
 Discard all working-tree changes back to origin/main (prompts; blocked on
 main/master):
 
-    grit.branch { "subcommand": "hard", "ref": "origin/main" }
+    grit.branch { "subcommand": "reset-hard", "ref": "origin/main" }
 
 Unstage one file (index only — working tree untouched):
 
@@ -119,8 +119,8 @@ Stage everything, then remove a tracked file:
 ## Limitations
 
 - **Per-subcommand required args are enforced in the dispatcher, not the
-  schema.** A union schema cannot say "`ref` is required for `hard` but not for
-  `checkout`" — `required` can only name args needed by *every* subcommand. Verbs
+  schema.** A union schema cannot say "`ref` is required for `reset-hard` but not
+  for `checkout`" — `required` can only name args needed by *every* subcommand. Verbs
   that need an arg validate it in the bash `case` branch and exit non-zero with a
   message, exactly as `grit.tag`'s `require_name` does. This is inherent to the
   flatten-into-one-schema pattern.

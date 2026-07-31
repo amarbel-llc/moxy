@@ -18,12 +18,12 @@ case "$subcommand" in
     echo "delete removes a branch — confirmation required"
     exit 1
     ;;
-  soft)
-    echo "soft moves HEAD (changes preserved) — confirmation required"
+  reset-soft)
+    echo "reset-soft moves HEAD (changes preserved) — confirmation required"
     exit 1
     ;;
-  hard)
-    echo "hard moves HEAD and discards the working tree — confirmation required"
+  reset-hard)
+    echo "reset-hard moves HEAD and discards the working tree — confirmation required"
     exit 1
     ;;
   *)
