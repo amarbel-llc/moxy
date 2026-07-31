@@ -41,8 +41,9 @@ async function main(): Promise<object> {
 
   if (repo) process.chdir(repo);
 
-  // Reject any main/master in the chain — same guard as grit.push, applied
-  // up front so we never start pushing a stack that contains a forbidden ref.
+  // Reject any main/master in the chain — same guard as grit.remote's push
+  // subcommand, applied up front so we never start pushing a stack that
+  // contains a forbidden ref.
   for (const b of branches) {
     if (b === "main" || b === "master") {
       throw new Error("force push to main/master is blocked for safety");

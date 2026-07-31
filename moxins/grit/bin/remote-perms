@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Dynamic-perms gate for grit.remote.
+# Receives: $1 = subcommand, $2 = force_with_lease (optional)
+#
+# Exit codes (per moxy native dynamic-perms contract):
+#   0 = allow
+#   1 = ask
+#   2 = deny
+set -euo pipefail
+subcommand="${1:-}"
+force_with_lease="${2:-}"
+
+case "$subcommand" in
+  fetch|pull)
+    echo "$subcommand is non-destructive — auto-allowed"
+    exit 0
+    ;;
+  push)
+    if [ "$force_with_lease" = "true" ]; then
+      echo "push --force-with-lease can overwrite remote history — confirmation required"
+      exit 1
+    fi
+    echo "regular push — auto-allowed"
+    exit 0
+    ;;
+  push-stack)
+    echo "push-stack force-pushes a branch chain — confirmation required"
+    exit 1
+    ;;
+  *)
+    echo "unknown subcommand ($subcommand) — confirmation required"
+    exit 1
+    ;;
+esac

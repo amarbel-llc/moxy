@@ -51,7 +51,7 @@ code.
 `always-allow` (skip confirmation), `each-use` (always prompt), or
 `delegate-to-client` (let the client decide). This lets read-only tools like
 `folio.read` run without interrupting the agent, while destructive tools like
-`grit.push` require explicit approval.
+`grit.stage` (with `subcommand: "rm"`) require explicit approval.
 
 **Unified discovery.** Agents see all tools from all servers through a single MCP
 connection. Built-in `moxy://` resources let agents introspect available servers,

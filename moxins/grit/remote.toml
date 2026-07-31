@@ -1,0 +1,83 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+description = """Interact with remotes. Subcommands: fetch, pull, push, push-stack. \
+fetch and pull auto-allow. push without force auto-allows; push with force_with_lease, \
+and push-stack (which always force-pushes with lease), prompt for confirmation. \
+Force-pushing main/master is blocked for safety. push-stack pushes a stacked branch chain \
+bottom→top with a dry-run pre-flight and returns a JSON {phase, results} report."""
+command = "@BIN@/remote"
+arg-order = ["subcommand", "remote", "branch", "prune", "all", "tags", "rebase", "set_upstream", "force_with_lease", "force_if_includes", "remote_branch", "lease_ref_sha", "branches", "repo_path"]
+
+[input]
+type = "object"
+required = ["subcommand"]
+
+[input.properties.subcommand]
+type = "string"
+enum = ["fetch", "pull", "push", "push-stack"]
+description = "Remote operation: fetch (download refs/objects), pull (fetch + integrate), push (upload commits), push-stack (force-push a stacked branch chain with per-branch dry-run gate)."
+
+[input.properties.remote]
+type = "string"
+description = "Remote name (default origin). Applies to all subcommands."
+
+[input.properties.branch]
+type = "string"
+description = "Branch to pull (pull) or push (push). Ignored by fetch and push-stack."
+
+[input.properties.prune]
+type = "boolean"
+description = "Prune remote-tracking branches no longer on the remote (--prune; fetch only)."
+
+[input.properties.all]
+type = "boolean"
+description = "Fetch from all remotes (--all; fetch only)."
+
+[input.properties.tags]
+type = "boolean"
+description = "Fetch all tags into local refs/tags/ (--tags; fetch only). Does not imply --prune-tags."
+
+[input.properties.rebase]
+type = "boolean"
+description = "Rebase instead of merge (--rebase; pull only)."
+
+[input.properties.set_upstream]
+type = "boolean"
+description = "Set upstream tracking reference (-u; push only)."
+
+[input.properties.force_with_lease]
+type = "boolean"
+description = "Force-push with lease (--force-with-lease; push only). Refuses if the remote moved beyond the local ref's last-known position. Safer than --force; use for stacked-PR workflows. Triggers a confirmation prompt."
+
+[input.properties.force_if_includes]
+type = "boolean"
+description = "Require the pushed commit include whatever is at the remote tip (--force-if-includes; push only). Must be used with force_with_lease. NOTE: no-op when lease_ref_sha is also set (git only runs the includes check for the implicit lease, not the explicit <ref>:<sha> form)."
+
+[input.properties.remote_branch]
+type = "string"
+description = "Destination branch on the remote (push only). When set, pushes a refspec <branch>:<remote_branch> (source defaults to HEAD if branch is empty)."
+
+[input.properties.lease_ref_sha]
+type = "string"
+description = "Expected current remote SHA for the branch being force-pushed (push only). With force_with_lease, uses the explicit-value form (--force-with-lease=<branch>:<sha>). Required when the local repo has no remote-tracking ref for the branch (narrow fetch refspec, DWIM checkout) — the boolean form fails with 'stale info' then. Fetch the true SHA out-of-band first."
+
+[input.properties.branches]
+type = "array"
+description = "Branches to push, ordered bottom→top (push-stack only). Each is pushed independently with --force-with-lease after an all-branch dry-run pre-flight."
+
+[input.properties.branches.items]
+type = "string"
+
+[input.properties.repo_path]
+type = "string"
+description = "Path to the git repository (defaults to current working directory — almost never needed)."
+
+[annotations]
+open-world-hint = true
+idempotent-hint = false
+
+[dynamic-perms]
+command = "@BIN@/remote-perms"
+arg-order = ["subcommand", "force_with_lease"]
+timeout-ms = 1000
