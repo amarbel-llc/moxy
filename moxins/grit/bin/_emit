@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Shared MCP-result envelope emitter for the grit family dispatchers.
+#
+# Reads the payload text on STDIN (never argv — a large diff/log would blow past
+# Linux's per-arg exec limit, MAX_ARG_STRLEN; see #337) and prints a single
+# text-block MCP result on stdout:
+#
+#   {"content":[{"type":"text","text":<payload>[,"mimeType":<mime>]}]}
+#
+# Usage: some_git_command | @BIN@/_emit [mime]
+#
+# The optional first argument stamps a mimeType onto the block; omit it for a
+# plain text block. jq -Rsc slurps stdin as one raw string, so arbitrary bytes
+# (quotes, newlines, backslashes) are JSON-encoded safely.
+set -euo pipefail
+mime="${1:-}"
+
+# Empty payload → an empty content array. A `{type:"text",text:""}` block with
+# no mime survives moxy's mcp-result shaping (the empty-text drop only fires for
+# mime-bearing blocks) and then trips Claude Code's Zod validator, so a silent
+# git success (e.g. `git branch`) must not produce one.
+if [ -n "$mime" ]; then
+  jq -Rsc --arg mime "$mime" '
+    if . == "" then {content:[]}
+    else {content:[{type:"text",text:.,mimeType:$mime}]} end'
+else
+  jq -Rsc 'if . == "" then {content:[]} else {content:[{type:"text",text:.}]} end'
+fi

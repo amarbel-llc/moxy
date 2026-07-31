@@ -1,5 +1,6 @@
 schema = 3
-result-type = "text"
+# result-type omitted → mcp-result (schema-3 default): every subcommand emits an
+# MCP envelope via bin/_emit, which the folded diff subcommand requires.
 perms-request = "dynamic"
 permit-async = false
 description = """Manage the git index/stage. Subcommands: add, unstage, rm, mv. \

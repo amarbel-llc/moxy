@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# grit.branch is result-type = "mcp-result": every success path emits a single
+# text-block MCP envelope via @BIN@/_emit. Error paths exit non-zero with a
+# stderr message (moxy surfaces that as an error result); mcp-result only shapes
+# stdout on a zero exit, so errors need no envelope.
+
 subcommand="${1:-}"
 name="${2:-}"
 start="${3:-}"
@@ -25,7 +30,7 @@ case "$subcommand" in
     else
       git branch "$name"
     fi
-    echo "Created branch $name"
+    printf 'Created branch %s\n' "$name" | "@BIN@/_emit"
     ;;
   delete)
     if [ -z "$name" ]; then
@@ -40,10 +45,10 @@ case "$subcommand" in
       git branch -D "$name"
     else
       git branch -d "$name"
-    fi
+    fi | "@BIN@/_emit"
     ;;
   reset-soft)
-    git reset --soft "${ref:-HEAD~1}"
+    git reset --soft "${ref:-HEAD~1}" | "@BIN@/_emit"
     ;;
   reset-hard)
     if [ -z "$ref" ]; then
@@ -55,7 +60,7 @@ case "$subcommand" in
       echo "ERROR: hard reset on main/master is blocked for safety" >&2
       exit 1
     fi
-    git reset --hard "$ref"
+    git reset --hard "$ref" | "@BIN@/_emit"
     ;;
   checkout)
     git_args=(checkout)
@@ -76,7 +81,7 @@ case "$subcommand" in
       [ "$new_branch" = "true" ] && git_args+=(-b)
       [ -n "$ref" ] && git_args+=("$ref")
     fi
-    git "${git_args[@]}"
+    git "${git_args[@]}" | "@BIN@/_emit"
     ;;
   "")
     echo "branch: subcommand is required (create|delete|reset-soft|reset-hard|checkout)" >&2

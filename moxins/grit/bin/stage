@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# grit.stage is result-type = "mcp-result": every success path emits a single
+# text-block MCP envelope via @BIN@/_emit. Error paths exit non-zero with a
+# stderr message; mcp-result only shapes stdout on a zero exit.
+
 subcommand="${1:-}"
 paths_json="${2:-}"
 intent_to_add="${3:-}"
@@ -36,7 +40,7 @@ case "$subcommand" in
       printf 'Recorded intent to add %d file(s)\n' "${#files[@]}"
     else
       printf 'Staged %d file(s)\n' "${#files[@]}"
-    fi
+    fi | "@BIN@/_emit"
     ;;
   unstage)
     read_paths
@@ -44,7 +48,7 @@ case "$subcommand" in
       git reset HEAD -- "${files[@]}"
     else
       git reset HEAD
-    fi
+    fi | "@BIN@/_emit"
     ;;
   rm)
     read_paths
@@ -57,7 +61,7 @@ case "$subcommand" in
     [ "$recursive" = "true" ] && git_args+=(-r)
     git_args+=(--)
     git_args+=("${files[@]}")
-    git "${git_args[@]}"
+    git "${git_args[@]}" | "@BIN@/_emit"
     ;;
   mv)
     if [ -z "$source" ] || [ -z "$destination" ]; then
@@ -65,7 +69,7 @@ case "$subcommand" in
       exit 2
     fi
     mkdir -p "$(dirname "$destination")"
-    git mv -- "$source" "$destination"
+    git mv -- "$source" "$destination" | "@BIN@/_emit"
     ;;
   "")
     echo "stage: subcommand is required (add|unstage|rm|mv)" >&2
