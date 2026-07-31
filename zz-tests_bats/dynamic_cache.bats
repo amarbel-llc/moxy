@@ -5,10 +5,11 @@
 # Conformance tests for RFC 0001 (dynamic cache-results via result _meta).
 # A cache-results = "dynamic" mcp-result tool signals its per-call cache mode
 # in _meta."moxy/cache"; moxy resolves it, applies it to result shaping, and
-# strips the key. The fixture blocks carry a mimeType because the mcp-result
-# caching path is mime-gated (#319): "always" elevates a mime-bearing block to
-# a cached resource with a madder:// URI; "threshold"/"never" leave it inline
-# and drop the mime. (Honoring "always" for mime-LESS blocks is a follow-up.)
+# strips the key. "always" elevates a block to a cached resource (madder:// URI);
+# "threshold" caches only oversized output; "never" always stays inline. Caching
+# applies whether or not the block carries a mimeType (#8): a mime-bearing block
+# keeps its mime on the cached resource, a mime-less one yields a resource with
+# no mime. The mime-bearing and mime-LESS fixtures below both exercise this.
 #
 # Each fixture tool hardcodes a fixed MCP result (no argument threading) so the
 # tests exercise the caching feature, not moxin arg wiring.
@@ -56,6 +57,21 @@ EOF
   emit_tool "$moxin_dir/dyn" none "$payload}"
   emit_tool "$moxin_dir/dyn" bogus "$payload,\"_meta\":{\"moxy/cache\":\"aggressive\"}}"
   emit_tool "$moxin_dir/dyn" keepmeta "$payload,\"_meta\":{\"moxy/cache\":\"always\",\"other\":\"keep\"}}"
+
+  # Mime-LESS blocks (#8): the block has no mimeType. These exercise the
+  # widened caching path that no longer gates on mimeType.
+  local nomime_small='{"content":[{"type":"text","text":"small payload"}]'
+  emit_tool "$moxin_dir/dyn" nomime_always "$nomime_small,\"_meta\":{\"moxy/cache\":\"always\"}}"
+  emit_tool "$moxin_dir/dyn" nomime_thresh "$nomime_small,\"_meta\":{\"moxy/cache\":\"threshold\"}}"
+
+  # A mime-less block whose text is large enough to exceed the token threshold,
+  # under threshold policy — proves oversized mime-less output now caches (it
+  # used to skip caching entirely because it had no mimeType). ~40k 'x' chars
+  # is well over the threshold and well under MAX_ARG_STRLEN for the echo arg.
+  local big
+  big=$(head -c 40000 </dev/zero | tr '\0' 'x')
+  emit_tool "$moxin_dir/dyn" nomime_big \
+    "{\"content\":[{\"type\":\"text\",\"text\":\"$big\"}],\"_meta\":{\"moxy/cache\":\"threshold\"}}"
 
   export MOXIN_PATH="$moxin_dir"
 }
@@ -147,4 +163,38 @@ EOF
   assert_success
   run jq -e '.tools[] | select(.name == "badcfg.t")' <<<"$output"
   assert_failure
+}
+
+# --- #8: caching a MIME-LESS text block ------------------------------------
+
+# always intent on a mime-less block now caches it (previously a no-op because
+# the caching path gated on mimeType). Result is a resource block whose
+# mimeType is absent (omitempty), not a plain text block.
+function dynamic_cache_always_caches_mimeless_block { # @test
+  run_moxy_mcp_v1 "tools/call" '{"name":"dyn.nomime_always"}'
+  assert_success
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail "want cached resource: $output"
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")' || fail "want madder URI: $output"
+  echo "$output" | jq -e '.content[0].resource.text == "small payload"' || fail "want payload text: $output"
+  # No mimeType on the cached resource (the source block had none).
+  echo "$output" | jq -e '.content[0].resource | has("mimeType") | not' || fail "mimeType must be absent: $output"
+}
+
+# A SMALL mime-less block under threshold stays inline (unchanged behavior).
+function dynamic_cache_threshold_small_mimeless_stays_inline { # @test
+  run_moxy_mcp_v1 "tools/call" '{"name":"dyn.nomime_thresh"}'
+  assert_success
+  echo "$output" | jq -e '.content[0].type == "text"' || fail "want text block: $output"
+  echo "$output" | jq -e '.content[0].text == "small payload"' || fail "want payload text: $output"
+  refute_output --partial "madder://blobs/"
+}
+
+# A LARGE mime-less block under threshold now caches (the #8 fix: previously it
+# skipped caching entirely because it had no mimeType, diverging from text mode).
+function dynamic_cache_threshold_large_mimeless_caches { # @test
+  run_moxy_mcp_v1 "tools/call" '{"name":"dyn.nomime_big"}'
+  assert_success
+  # Oversized → blob-cached as a resource (or summarized), not returned inline.
+  echo "$output" | jq -e '.content[0].type == "resource"' || fail "want cached resource for oversized output: $output"
+  echo "$output" | jq -e '.content[0].resource.uri | startswith("madder://blobs/")' || fail "want madder URI: $output"
 }

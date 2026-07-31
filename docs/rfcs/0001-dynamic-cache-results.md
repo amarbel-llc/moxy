@@ -85,12 +85,12 @@ of each MCP result the tool emits for the key `moxy/cache`:
   mode for the entire result — every cacheable content block is treated as if
   the tool had declared that static `cache-results` value for this call.
 - The resolved mode governs caching exactly as the equivalent static
-  `cache-results` value would in `mcp-result` mode, which today is **mime-gated**:
-  a text block carrying a `mimeType` is elevated to a cached resource block under
-  `always`, while `threshold`/`never` leave it inline and drop the mime (#319). A
-  text block with no `mimeType` is not cached in `mcp-result` mode regardless of
-  mode; extending `always` to cache mime-less blocks is deferred (see
-  Compatibility).
+  `cache-results` value would in `mcp-result` mode: any text block is elevated to
+  a cached resource block when the mode says to cache it (`always`, or
+  `threshold` when oversized), independent of whether it carries a `mimeType`
+  (#8). A cached block preserves its `mimeType` on the resulting resource when it
+  had one, or omits it when it did not; an uncached text block drops any
+  `mimeType` (the MCP spec disallows it on text blocks) and stays inline (#319).
 - `_meta` follows the MCP reserved-key convention (keys beginning with `_`).
   moxy MUST remove the `moxy/cache` entry (and an emptied `_meta` object) from
   the result before returning it to the client, so the private signal never
@@ -207,12 +207,14 @@ and rejects the config at load, so a downgrade fails loudly rather than silently
 mis-caching. The `moxy/cache` key is namespaced to avoid collision with other
 `_meta` conventions.
 
-A known limitation, inherited from the `mcp-result` caching path (#319): a
-resolved `always` does not cache a text block that carries no `mimeType`, because
-that path only elevates mime-bearing blocks to cached resources. Honoring
-`always` for mime-less blocks (for both the static and dynamic policies) is a
-forward-compatible follow-up that would broaden, never narrow, what is cached; no
-config written against this version would break under it.
+The `mcp-result` caching path originally elevated only mime-bearing text blocks
+to cached resources, so a resolved `always` (or an oversized `threshold`) was a
+no-op on a mime-less block. That gate was removed (#8): caching now applies to
+any text block per the resolved mode, aligning `mcp-result` with the text-mode
+path (which already cached mime-less output). The change only broadened what is
+cached — no config written against this spec breaks under it — and a cached
+mime-less block becomes a resource with no `mimeType` (valid; the field is
+omitempty).
 
 ## References
 

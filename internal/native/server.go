@@ -513,14 +513,17 @@ func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output stri
 	// strips the tool's `_meta."moxy/cache"` intent from the result.
 	cacheMode := resolveDynamicCache(spec, &result)
 
-	// Rewrite text blocks that carry mimeType into resource blocks with
-	// cache URIs — the MCP spec only allows mimeType on resource blocks.
-	// Whether a block is cached is the resolved cache-results mode (#319):
-	// the mime is just the label stamped onto whatever caching produces.
-	// Skip empty text — EmbeddedResourceContents requires non-empty text or blob.
+	// Apply the resolved cache-results mode to every text block, regardless of
+	// mimeType (#319, #8). A block that caches becomes a resource block with a
+	// blob URI (the MCP spec only allows mimeType on resource blocks, so a mime
+	// carried on the text block is preserved there; a mime-less block yields a
+	// resource with no mimeType, which is valid — EmbeddedResourceContents.MimeType
+	// is omitempty). This aligns mcp-result with the text-mode path, which
+	// already caches mime-less output; previously a mime-less text block skipped
+	// caching entirely even when oversized or under `always`.
 	cleaned := result.Content[:0]
 	for _, block := range result.Content {
-		if block.Type == "text" && block.MimeType != "" {
+		if block.Type == "text" {
 			if block.Text != "" && s.madder != nil && shouldCache(cacheMode, block.Text) {
 				uri, cacheErr := s.cacheAndGetURI(ctx, block.Text)
 				if cacheErr == nil {
@@ -530,19 +533,19 @@ func (s *Server) buildMCPResult(ctx context.Context, spec *ToolSpec, output stri
 						Resource: &protocol.EmbeddedResourceContents{
 							URI:      uri,
 							Text:     &text,
-							MimeType: block.MimeType,
+							MimeType: block.MimeType, // omitempty drops it when absent
 						},
 					})
 					continue
 				}
 			}
-			// Strip mimeType — the MCP spec doesn't allow it on text blocks.
-			// Drop empty text blocks entirely: V1's omitempty on the Text
-			// field would produce {"type":"text"} with no text property,
+			// Not cached. Drop empty text blocks entirely: V1's omitempty on the
+			// Text field would produce {"type":"text"} with no text property,
 			// which fails Claude Code's Zod validator (invalid_union).
 			if block.Text == "" {
 				continue
 			}
+			// Strip any mimeType — the MCP spec doesn't allow it on text blocks.
 			block.MimeType = ""
 		}
 		cleaned = append(cleaned, block)
