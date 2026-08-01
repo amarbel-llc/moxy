@@ -270,14 +270,20 @@
         # The bridge synthesizes `replace` directives at eval time and strips
         # these keys from the merged gomod2nix.toml, so go.mod/gomod2nix.toml are
         # left untouched (their real require versions still drive out-of-nix
-        # `go build`). madder is NOT bridged: it's a binary input, not imported
-        # Go code. Consumed by both buildGoApplication and the devshell mkGoEnv.
+        # `go build`). Consumed by both buildGoApplication and the devshell
+        # mkGoEnv.
+        #
+        # madder is bridged for its Go library: internal/native calls the
+        # blob_store_env in-process instead of shelling out to the `madder`
+        # binary. Module path is code.linenisgreat.com/madder/go; its go-pkgs
+        # derivation is rooted at the repo's /go subdir, so no subPath.
         goFlakeInputs = {
           "code.linenisgreat.com/tommy" = tommy.packages.${system}.go-pkgs;
           "code.linenisgreat.com/purse-first/libs/go-mcp" = {
             src = purse-first.packages.${system}.go-pkgs;
             subPath = "libs/go-mcp";
           };
+          "code.linenisgreat.com/madder/go" = madder.packages.${system}.go-pkgs;
         };
 
         # The google-workspace (gws) moxins — gmail, calendar, car, gws, piers,
