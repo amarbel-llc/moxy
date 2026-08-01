@@ -540,6 +540,194 @@
               done
             '';
 
+        # ==================================================================
+        # PROTOTYPE (moxy#TBD / Task 12 handoff): decoupled, src-parameterized
+        # forks of mkMoxin / mkBunMoxin, exposed under lib.${system} so an
+        # EXTERNAL repo (smith) can build ITS OWN moxin dir with moxy's builder
+        # logic. The originals above stay untouched — moxy's own builtins keep
+        # using them. These forks differ ONLY in that the moxin `src` (and, for
+        # bun, `packageJson` / `bunLock`) are ARGUMENTS instead of hardcoded
+        # ./moxins/${name} paths.
+        #
+        # moxy-internal coupling deliberately carried into the fork for the
+        # prototype (informs the real refactor): buildBunMoxin' still calls
+        # pkgs.buildBunBinaries and closes over moxyVersion + the clone's
+        # ./bun.nix. A real extraction would parameterize the bun.nix / version
+        # too; here they are fine because the prototype builds from THIS flake.
+        mkMoxin' =
+          {
+            name,
+            src,
+            deps,
+            pathMode ? "set",
+            extraSubstitutions ? { },
+          }:
+          pkgs.runCommand "${name}-moxin"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
+            }
+            (
+              ''
+                cp -r ${src} $out
+                chmod -R u+w $out
+                chmod +x $out/bin/*
+                patchShebangs $out/bin
+                for f in $out/bin/*; do
+                  wrapProgram "$f" \
+                    ${
+                      if pathMode != "inherit" then
+                        "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                      else
+                        ""
+                    } \
+                    --unset LD_LIBRARY_PATH
+                done
+                for f in $(grep -rl '@BIN@' $out); do
+                  substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+                done
+              ''
+              + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                  substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+                done
+              '') (builtins.attrNames extraSubstitutions)
+            );
+
+        mkBunMoxin' =
+          {
+            name,
+            src,
+            deps,
+            entrypoints,
+            packageJson,
+            bunLock,
+            pathMode ? "set",
+            extraWrapArgs ? [ ],
+            extraSubstitutions ? { },
+          }:
+          let
+            rawSrc = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset =
+                with pkgs.lib.fileset;
+                unions [
+                  "${src}/src"
+                  packageJson
+                  bunLock
+                ];
+            };
+            substitutedSrc =
+              if extraSubstitutions == { } then
+                rawSrc
+              else
+                pkgs.runCommand "${name}-moxin-src" { } (
+                  ''
+                    cp -rL ${rawSrc} $out
+                    chmod -R u+w $out
+                  ''
+                  + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                    for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                      substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+                    done
+                  '') (builtins.attrNames extraSubstitutions)
+                );
+            bunBinaries = pkgs.buildBunBinaries {
+              pname = "${name}-moxin-scripts";
+              version = moxyVersion;
+              src = substitutedSrc;
+              bunNix = ./bun.nix;
+              entrypoints = entrypoints;
+              runtimeInputs = deps;
+              bunBuildFlags = [ "--sourcemap=inline" ];
+            };
+          in
+          pkgs.runCommand "${name}-moxin"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
+            }
+            ''
+              cp -r ${src} $out
+              chmod -R u+w $out
+              rm -rf $out/src
+              mkdir -p $out/bin
+              for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
+              if [ -n "$(ls -A $out/bin 2>/dev/null)" ]; then
+                patchShebangs $out/bin
+              fi
+              # KEY PROTOTYPE FIX: capture the bash bin/ scripts that arrived via
+              # `cp -r ${src}` BEFORE the bun wrappers are written below, so we
+              # can wrap exactly those (and not the bun-generated binaries, which
+              # buildBunBinaries + the wrapper step already wrap). Leading-dot
+              # files (e.g. .smith-common) are sourced, not exec'd — wrapProgram
+              # would exec-replace them and break the source, so skip them.
+              cpd_bash_bins=()
+              for f in $out/bin/*; do
+                [ -e "$f" ] || continue
+                base=$(basename "$f")
+                case "$base" in
+                  .*) continue ;;
+                esac
+                cpd_bash_bins+=("$f")
+              done
+              # Create wrapper scripts that locate the bundled JS files.
+              bundle_dir=""
+              for f in ${bunBinaries}/bin/*; do
+                bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
+                [ -n "$bundle_dir" ] && break
+              done
+              for f in ${bunBinaries}/bin/*; do
+                binname=$(basename "$f")
+                jsfile="$binname.js"
+                if [ -f "$bundle_dir/$jsfile" ]; then
+                  js_path="$bundle_dir/$jsfile"
+                else
+                  js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
+                fi
+                if [ -z "$js_path" ]; then
+                  echo "ERROR: could not find $jsfile in $bundle_dir" >&2
+                  exit 1
+                fi
+                bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
+                cat > "$out/bin/$binname" <<WRAPPER
+              #!${pkgs.bash}/bin/bash
+              exec $bun_bin $js_path "\$@"
+              WRAPPER
+                chmod +x "$out/bin/$binname"
+              done
+              # Wrap the bun entrypoint binaries (just written above).
+              for f in ${pkgs.lib.concatMapStringsSep " " (e: "\"$out/bin/${e}\"") (builtins.attrNames entrypoints)}; do
+                [ -e "$f" ] || continue
+                wrapProgram "$f" \
+                  ${
+                    if pathMode != "inherit" then
+                      "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                    else
+                      ""
+                  } \
+                  --unset LD_LIBRARY_PATH \
+                  ${pkgs.lib.concatStringsSep " " extraWrapArgs}
+              done
+              # KEY PROTOTYPE FIX (cont.): also wrap the cp'd bash bin/ scripts
+              # with the same dep PATH mkMoxin applies, so a MIXED moxin's bash
+              # tools get bash/jq/etc. on PATH. Without this they would run with
+              # a bare PATH (only the bun binaries were wrapped upstream).
+              for f in "''${cpd_bash_bins[@]}"; do
+                [ -e "$f" ] || continue
+                wrapProgram "$f" \
+                  ${
+                    if pathMode != "inherit" then
+                      "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                    else
+                      ""
+                  } \
+                  --unset LD_LIBRARY_PATH \
+                  ${pkgs.lib.concatStringsSep " " extraWrapArgs}
+              done
+              for f in $(grep -rl '@BIN@' $out); do
+                substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+              done
+            '';
+
         # --- arboretum tree-sitter grammar wasm, built from source ----------
         #
         # The grammars used to be hand-copied binaries from tree-sitter-wasms
@@ -1424,6 +1612,18 @@
 
       in
       {
+        # PROTOTYPE: decoupled, src-parameterized moxin builders for external
+        # consumers (smith). Forks of mkMoxin / mkBunMoxin — see mkMoxin' /
+        # mkBunMoxin' above. moxy's own builtins keep using the originals.
+        # NB: eachDefaultSystem already nests every per-system output under
+        # `.${system}`, so this `lib` becomes `lib.${system}` in the flake —
+        # do NOT add a `${system}` key here (that double-nests to
+        # lib.${system}.${system}).
+        lib = {
+          mkMoxin = mkMoxin';
+          mkBunMoxin = mkBunMoxin';
+        };
+
         packages = batsLaneOutputs // {
           inherit
             moxy
