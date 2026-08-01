@@ -549,11 +549,22 @@
         # bun, `packageJson` / `bunLock`) are ARGUMENTS instead of hardcoded
         # ./moxins/${name} paths.
         #
-        # moxy-internal coupling deliberately carried into the fork for the
-        # prototype (informs the real refactor): buildBunMoxin' still calls
-        # pkgs.buildBunBinaries and closes over moxyVersion + the clone's
-        # ./bun.nix. A real extraction would parameterize the bun.nix / version
-        # too; here they are fine because the prototype builds from THIS flake.
+        # HANDOFF NOTES for the eventual moxy refactor (Task 12) — recorded, not
+        # acted on here (these describe current fork behavior, not bugs):
+        #   (a) extraWrapArgs currently apply to BOTH the bash bin/ scripts and
+        #       the bun entrypoints. A real refactor may want to scope them (e.g.
+        #       bun-only) rather than blanket-apply to every wrapped binary.
+        #   (b) moxy-internal coupling deliberately carried into the fork:
+        #       mkBunMoxin' still calls pkgs.buildBunBinaries and closes over
+        #       moxyVersion + the clone's ./bun.nix. A real extraction must
+        #       parameterize bunNix / version (and expose buildBunBinaries) so an
+        #       external caller doesn't inherit moxy's bun lockfile+version; here
+        #       they're fine only because the prototype builds from THIS flake.
+        #   (c) flake-utils double-nest gotcha: eachDefaultSystem already nests
+        #       every per-system output under `.${system}`, so the `lib` output
+        #       below is written as a bare `lib = { ... }` (NOT `lib.${system}`),
+        #       which the framework turns into `lib.${system}` — writing the key
+        #       ourselves double-nests to `lib.${system}.${system}`.
         mkMoxin' =
           {
             name,
@@ -606,15 +617,25 @@
             extraSubstitutions ? { },
           }:
           let
+            # CRITICAL (Task 1 unblock): a pure-bash moxin passes entrypoints={}
+            # and has NO src/ dir. The whole bun pipeline (fileset union of
+            # "${src}/src", buildBunBinaries, the bundle-wrapper loop) must be
+            # skipped in that case: fileset.toSource errors at eval if "${src}/src"
+            # doesn't exist, and buildBunBinaries has nothing to bundle. Gate
+            # every bun-specific binding on `hasBun`; the bash-wrap path in the
+            # builder below runs unconditionally.
+            hasBun = entrypoints != { };
             rawSrc = pkgs.lib.fileset.toSource {
               root = ./.;
               fileset =
                 with pkgs.lib.fileset;
-                unions [
-                  "${src}/src"
-                  packageJson
-                  bunLock
-                ];
+                unions (
+                  [
+                    packageJson
+                    bunLock
+                  ]
+                  ++ (if hasBun then [ "${src}/src" ] else [ ])
+                );
             };
             substitutedSrc =
               if extraSubstitutions == { } then
@@ -631,15 +652,19 @@
                     done
                   '') (builtins.attrNames extraSubstitutions)
                 );
-            bunBinaries = pkgs.buildBunBinaries {
-              pname = "${name}-moxin-scripts";
-              version = moxyVersion;
-              src = substitutedSrc;
-              bunNix = ./bun.nix;
-              entrypoints = entrypoints;
-              runtimeInputs = deps;
-              bunBuildFlags = [ "--sourcemap=inline" ];
-            };
+            bunBinaries =
+              if hasBun then
+                pkgs.buildBunBinaries {
+                  pname = "${name}-moxin-scripts";
+                  version = moxyVersion;
+                  src = substitutedSrc;
+                  bunNix = ./bun.nix;
+                  entrypoints = entrypoints;
+                  runtimeInputs = deps;
+                  bunBuildFlags = [ "--sourcemap=inline" ];
+                }
+              else
+                null;
           in
           pkgs.runCommand "${name}-moxin"
             {
@@ -669,44 +694,48 @@
                 esac
                 cpd_bash_bins+=("$f")
               done
-              # Create wrapper scripts that locate the bundled JS files.
-              bundle_dir=""
-              for f in ${bunBinaries}/bin/*; do
-                bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
-                [ -n "$bundle_dir" ] && break
-              done
-              for f in ${bunBinaries}/bin/*; do
-                binname=$(basename "$f")
-                jsfile="$binname.js"
-                if [ -f "$bundle_dir/$jsfile" ]; then
-                  js_path="$bundle_dir/$jsfile"
-                else
-                  js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
-                fi
-                if [ -z "$js_path" ]; then
-                  echo "ERROR: could not find $jsfile in $bundle_dir" >&2
-                  exit 1
-                fi
-                bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
-                cat > "$out/bin/$binname" <<WRAPPER
-              #!${pkgs.bash}/bin/bash
-              exec $bun_bin $js_path "\$@"
-              WRAPPER
-                chmod +x "$out/bin/$binname"
-              done
-              # Wrap the bun entrypoint binaries (just written above).
-              for f in ${pkgs.lib.concatMapStringsSep " " (e: "\"$out/bin/${e}\"") (builtins.attrNames entrypoints)}; do
-                [ -e "$f" ] || continue
-                wrapProgram "$f" \
-                  ${
-                    if pathMode != "inherit" then
-                      "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
-                    else
-                      ""
-                  } \
-                  --unset LD_LIBRARY_PATH \
-                  ${pkgs.lib.concatStringsSep " " extraWrapArgs}
-              done
+              ${pkgs.lib.optionalString hasBun ''
+                # Create wrapper scripts that locate the bundled JS files.
+                # Only reached for a moxin with bun entrypoints (hasBun); a
+                # pure-bash moxin skips this whole block — bunBinaries is null.
+                bundle_dir=""
+                for f in ${bunBinaries}/bin/*; do
+                  bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
+                  [ -n "$bundle_dir" ] && break
+                done
+                for f in ${bunBinaries}/bin/*; do
+                  binname=$(basename "$f")
+                  jsfile="$binname.js"
+                  if [ -f "$bundle_dir/$jsfile" ]; then
+                    js_path="$bundle_dir/$jsfile"
+                  else
+                    js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
+                  fi
+                  if [ -z "$js_path" ]; then
+                    echo "ERROR: could not find $jsfile in $bundle_dir" >&2
+                    exit 1
+                  fi
+                  bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
+                  cat > "$out/bin/$binname" <<WRAPPER
+                #!${pkgs.bash}/bin/bash
+                exec $bun_bin $js_path "\$@"
+                WRAPPER
+                  chmod +x "$out/bin/$binname"
+                done
+                # Wrap the bun entrypoint binaries (just written above).
+                for f in ${pkgs.lib.concatMapStringsSep " " (e: "\"$out/bin/${e}\"") (builtins.attrNames entrypoints)}; do
+                  [ -e "$f" ] || continue
+                  wrapProgram "$f" \
+                    ${
+                      if pathMode != "inherit" then
+                        "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                      else
+                        ""
+                    } \
+                    --unset LD_LIBRARY_PATH \
+                    ${pkgs.lib.concatStringsSep " " extraWrapArgs}
+                done
+              ''}
               # KEY PROTOTYPE FIX (cont.): also wrap the cp'd bash bin/ scripts
               # with the same dep PATH mkMoxin applies, so a MIXED moxin's bash
               # tools get bash/jq/etc. on PATH. Without this they would run with
