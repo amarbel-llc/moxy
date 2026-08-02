@@ -68,33 +68,15 @@ func printVersionTable(ctx context.Context, moxyVersion string) error {
 	madderClient, err := native.NewMadderClient()
 	if err != nil {
 		fmt.Fprintf(w, "madder\t(error: %v)\t-\n", err)
+	} else if v := madderClient.Version(); v != "" {
+		// The madder Go library is linked in-process; its version comes from
+		// build info (there is no binary path to show anymore).
+		fmt.Fprintf(w, "madder\t%s\tlibrary\n", v)
 	} else {
-		madderVer, err := madderVersion(ctx, madderClient.Bin())
-		if err != nil {
-			fmt.Fprintf(w, "madder\t(error: %v)\t%s\n", err, madderClient.Bin())
-		} else {
-			fmt.Fprintf(w, "madder\t%s\t%s\n", madderVer, madderClient.Bin())
-		}
+		fmt.Fprintf(w, "madder\t(unknown)\tlibrary\n")
 	}
 
 	return w.Flush()
-}
-
-// madderVersion runs `<bin> version` and returns the trimmed first
-// non-empty line of stdout.
-func madderVersion(ctx context.Context, bin string) (string, error) {
-	cmd := exec.CommandContext(ctx, bin, "version")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			return line, nil
-		}
-	}
-	return "", fmt.Errorf("empty version output")
 }
 
 func newApp() *command.App {

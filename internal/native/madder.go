@@ -1,218 +1,272 @@
 package native
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
+	"runtime/debug"
 	"syscall"
+
+	"code.linenisgreat.com/madder/go/pkgs/blob_store_env"
+	"code.linenisgreat.com/madder/go/pkgs/env_dir"
+	"code.linenisgreat.com/madder/go/pkgs/env_local"
+	"code.linenisgreat.com/madder/go/pkgs/env_ui"
+	"code.linenisgreat.com/madder/go/pkgs/madder_env"
+	"code.linenisgreat.com/madder/go/pkgs/scoped_id"
+	"code.linenisgreat.com/piggy/go/pkgs/markl"
+	deweyerrors "code.linenisgreat.com/purse-first/libs/dewey/pkgs/errors"
 )
 
-// defaultMadderBin is set at build time via -ldflags -X. Empty in
-// dev/static builds; we fall back to PATH lookup so `go run` and
-// tests still work.
-var defaultMadderBin = ""
+// madderModulePath is the Go module whose build-info version `moxy version`
+// reports for madder now that moxy calls the library in-process (there is no
+// `madder` binary to point at anymore).
+const madderModulePath = "code.linenisgreat.com/madder/go"
 
-// defaultStoreID is the blob-store-id passed to `madder write` /
-// `madder info-repo`. The leading "." selects the CWD-relative store
-// (under <repo>/.madder/local/share/blob_stores/default/), matching
-// the store spinclass auto-initializes per worktree.
+// defaultStoreID is the blob-store-id used for the primary cache. The leading
+// "." selects the CWD-relative store (under <repo>/.madder/…), matching the
+// store spinclass auto-initializes per worktree.
 const defaultStoreID = ".default"
 
-// MadderClient is a process-level handle to a madder binary. It is
-// stateless and safe to share across goroutines and Server instances.
+// MadderClient is a process-level handle to the madder blob-store library.
+// It holds a long-lived parent context; each operation builds a fresh
+// per-call errors.Context + BlobStoreEnv and runs the work inside
+// errors.Context.Run, which recovers madder's panic/cancel error model into a
+// returned Go error. The env is NOT shared across calls: BlobStoreEnv is
+// itself an errors.Context and its stores capture that context at discovery,
+// so a cancel on one call's error path would poison a shared env (madder#277
+// tracks a composable-context API that would let us cache discovery safely).
 type MadderClient struct {
-	bin string
+	// parent is the base context every per-call errors.Context derives from.
+	parent context.Context
 }
 
-// NewMadderClient resolves the madder binary path (build-time pin
-// first, else PATH) and returns a client.
+// NewMadderClient returns a library-backed client. No binary resolution — the
+// madder Go library is linked in-process.
 func NewMadderClient() (*MadderClient, error) {
-	bin := defaultMadderBin
-	if bin == "" {
-		resolved, err := exec.LookPath("madder")
-		if err != nil {
-			return nil, fmt.Errorf(
-				"madder binary not found (checked build-time pin and $PATH): %w",
-				err,
-			)
+	return &MadderClient{parent: context.Background()}, nil
+}
+
+// Version reports the madder Go module's version from the binary's build info
+// (replaces the old binary-path reporting). Returns "" if unavailable (e.g. a
+// `go run` build with no module info).
+func (c *MadderClient) Version() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	for _, dep := range info.Deps {
+		if dep.Path == madderModulePath {
+			return dep.Version
 		}
-		bin = resolved
 	}
-	return &MadderClient{bin: bin}, nil
+	return ""
 }
 
-// Bin returns the resolved madder binary path. Useful for diagnostics
-// and version reporting.
-func (c *MadderClient) Bin() string { return c.bin }
+// withStoreEnv builds a fresh per-call errors.Context + BlobStoreEnv (running
+// store discovery) and invokes fn inside errors.Context.Run, so any
+// Cancel/panic from env construction or a store operation is recovered into
+// the returned error. The env and its embedded context are discarded when
+// this returns.
+func (c *MadderClient) withStoreEnv(
+	ctx context.Context,
+	fn func(env blob_store_env.BlobStoreEnv) error,
+) error {
+	if ctx == nil {
+		ctx = c.parent
+	}
+	ec := deweyerrors.MakeContext(ctx)
+	return ec.Run(func(runCtx deweyerrors.Context) {
+		cfg := env_dir.Config{EnvVarNames: madder_env.DefaultEnvVarNames}
+		dirEnv := env_dir.MakeDefault(runCtx, cfg, "madder")
+		uiEnv := env_ui.MakeDefault(runCtx)
+		localEnv := env_local.Make(uiEnv, dirEnv)
+		env := blob_store_env.MakeBlobStoreEnv(localEnv)
+		if env.GetDefaultBlobStoreId() == "" {
+			deweyerrors.ContextCancelWithErrorf(
+				runCtx,
+				"madder: no blob stores discovered (run `madder init %s`)",
+				defaultStoreID,
+			)
+			return
+		}
+		if err := fn(env); err != nil {
+			deweyerrors.ContextCancelWithError(runCtx, err)
+		}
+	})
+}
 
-// VerifyDefaultStore checks that the .default store exists at the
-// current working directory's `.madder/` (or an ancestor). Returns
-// an actionable error naming the fix on failure.
+// parseDigest converts a moxy-held digest string (e.g. "blake2b256-…") into a
+// markl.Id for the library calls.
+func parseDigest(digest string) (markl.Id, error) {
+	var id markl.Id
+	if err := id.Set(digest); err != nil {
+		return id, fmt.Errorf("parsing blob digest %q: %w", digest, err)
+	}
+	return id, nil
+}
+
+// VerifyDefaultStore confirms the .default store is discoverable. A successful
+// env build with a non-empty default id is the verification.
 func (c *MadderClient) VerifyDefaultStore(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, c.bin, "info-repo", defaultStoreID)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf(
-			"madder default store (%s) not found: %w; run `madder init %s` from the repo root",
-			defaultStoreID, err, defaultStoreID,
-		)
-	}
-	return nil
+	return c.withStoreEnv(ctx, func(env blob_store_env.BlobStoreEnv) error {
+		return nil
+	})
 }
 
-// writeRecord is one NDJSON record from `madder write -format json`.
-type writeRecord struct {
-	ID    string `json:"id"`
-	Size  int64  `json:"size"`
-	Error string `json:"error,omitempty"`
-}
-
-// Write streams content into the .default store and returns the
-// resulting markl-id (blob digest). Equivalent to:
-//
-//	madder write -format json .default -
+// Write streams content into the .default store and returns the resulting
+// markl-id (blob digest).
 func (c *MadderClient) Write(ctx context.Context, content io.Reader) (string, error) {
 	return c.WriteToStore(ctx, defaultStoreID, content)
 }
 
-// WriteToStore streams content into the named store and returns the
-// resulting markl-id (blob digest). Deliberately no companion
-// "EnsureStore": user-level stores are provisioned out-of-band
-// (home-manager) because `madder init` with an unprefixed id from inside a
-// worktree lands in the ancestor .madder, shadowing XDG scope (madder#227).
+// WriteToStore streams content into the named store and returns the resulting
+// markl-id. storeID is a blob-store-id (e.g. ".default" or a user-scoped id).
 func (c *MadderClient) WriteToStore(ctx context.Context, storeID string, content io.Reader) (string, error) {
-	cmd := exec.CommandContext(ctx, c.bin,
-		"write", "-format", "json", storeID, "-")
-	cmd.Stdin = content
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("madder write: %w (stderr: %s)", err, stderr.String())
+	var digest string
+	err := c.withStoreEnv(ctx, func(env blob_store_env.BlobStoreEnv) error {
+		store := env.GetBlobStore(scoped_id.Make(storeID))
+		w, err := store.MakeBlobWriter(store.GetDefaultHashType())
+		if err != nil {
+			return fmt.Errorf("madder write: opening writer for %q: %w", storeID, err)
+		}
+		if _, err := io.Copy(w, content); err != nil {
+			_ = w.Close()
+			return fmt.Errorf("madder write: copying content: %w", err)
+		}
+		if err := w.Close(); err != nil {
+			return fmt.Errorf("madder write: finalizing blob: %w", err)
+		}
+		digest = w.GetMarklId().String()
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
-
-	// One blob, one NDJSON record. Decode the first record; ignore
-	// trailing whitespace.
-	dec := json.NewDecoder(&stdout)
-	var rec writeRecord
-	if err := dec.Decode(&rec); err != nil {
-		return "", fmt.Errorf("parsing madder write output: %w (stdout: %q)", err, stdout.String())
-	}
-	if rec.Error != "" {
-		return "", fmt.Errorf("madder write reported error: %s", rec.Error)
-	}
-	if rec.ID == "" {
-		return "", errors.New("madder write returned empty id")
-	}
-	return rec.ID, nil
+	return digest, nil
 }
 
-// CatCommand returns an *exec.Cmd that, when started, will stream the
-// raw bytes of `digest` to its stdout. Caller wires Stdout to a pipe
-// or buffer as needed and is responsible for Start/Wait.
-func (c *MadderClient) CatCommand(ctx context.Context, digest string) *exec.Cmd {
-	return exec.CommandContext(ctx, c.bin, "cat", digest)
-}
-
-// CatBytes runs `madder cat <digest>` synchronously and returns its
-// stdout. Buffered — not suitable for very large blobs; callers that
-// stream into a child process should use OpenBlob instead.
+// CatBytes reads a blob by digest into memory. Buffered — not for very large
+// blobs; streaming consumers use OpenBlob.
 func (c *MadderClient) CatBytes(ctx context.Context, digest string) ([]byte, error) {
-	cmd := c.CatCommand(ctx, digest)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("madder cat %s: %w (stderr: %s)", digest, err, stderr.String())
+	id, err := parseDigest(digest)
+	if err != nil {
+		return nil, err
 	}
-	return stdout.Bytes(), nil
+	var body []byte
+	err = c.withStoreEnv(ctx, func(env blob_store_env.BlobStoreEnv) error {
+		reader, err := env.OpenBlob(id)
+		if err != nil {
+			return fmt.Errorf("madder cat %s: %w", digest, err)
+		}
+		defer reader.Close()
+		b, err := io.ReadAll(reader)
+		if err != nil {
+			return fmt.Errorf("madder cat %s: reading blob: %w", digest, err)
+		}
+		body = b
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
 }
 
-// OpenBlob implements blobSource. It opens an OS pipe and prepares a
-// `madder cat <digest>` subprocess that writes to the pipe's write
-// end. The returned read end is intended for the moxin child's
-// ExtraFiles; the writer's Start spawns the subprocess and Wait/
-// Cleanup reap it.
+// OpenBlob implements blobSource. It fails fast if the blob is missing in every
+// store (moxy#11 — the old CLI path deferred this to a `madder cat` that could
+// hang), then opens a pipe and returns its read end for the moxin child's
+// ExtraFiles plus a BlobWriter that streams the blob's bytes into the pipe
+// in-process (an io.Copy goroutine, replacing the old `madder cat` subprocess).
 func (c *MadderClient) OpenBlob(ctx context.Context, digest string) (*os.File, BlobWriter, error) {
+	id, err := parseDigest(digest)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Fail fast on a missing blob: check existence (recovered via withStoreEnv)
+	// before creating a pipe/child, so a missing digest errors immediately
+	// instead of leaving a reader blocked on a pipe that never fills (moxy#11).
+	if err := c.withStoreEnv(ctx, func(env blob_store_env.BlobStoreEnv) error {
+		if !env.HasBlobInAnyStore(id) {
+			return fmt.Errorf("blob not found in any store: %s", digest)
+		}
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating pipe for %s: %w", digest, err)
 	}
-	cmd := c.CatCommand(ctx, digest)
-	cmd.Stdout = pw
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	return pr, &madderCatWriter{cmd: cmd, pw: pw, stderr: &stderr, digest: digest}, nil
+	return pr, &libBlobWriter{client: c, ctx: ctx, id: id, digest: digest, pw: pw}, nil
 }
 
-// madderCatWriter manages the lifecycle of a `madder cat <digest>`
-// subprocess that writes a blob to a pipe.
-type madderCatWriter struct {
-	cmd     *exec.Cmd
-	pw      *os.File
-	stderr  *bytes.Buffer
-	digest  string
+// libBlobWriter fills a pipe with a blob's bytes via the madder library. It
+// mirrors the BlobWriter lifecycle (Start once, Wait once, idempotent Cleanup)
+// the fd-substitution flow in substitute.go expects.
+type libBlobWriter struct {
+	client *MadderClient
+	ctx    context.Context
+	id     markl.Id
+	digest string
+	pw     *os.File
+
 	started bool
 	waited  bool
+	done    chan struct{}
+	err     error
 }
 
-func (w *madderCatWriter) Start() error {
+// Start launches a goroutine that opens the blob and copies its bytes into the
+// pipe write end, closing pw when done so the moxin child sees EOF. Any error
+// (or a copy short-circuited by the reader closing early) is captured for Wait.
+func (w *libBlobWriter) Start() error {
 	if w.started {
-		return errors.New("madderCatWriter: Start called twice")
+		return fmt.Errorf("libBlobWriter: Start called twice")
 	}
 	w.started = true
-	if err := w.cmd.Start(); err != nil {
-		_ = w.pw.Close()
-		return fmt.Errorf("starting madder cat %s: %w", w.digest, err)
-	}
-	// Parent doesn't need its copy of the write end — the subprocess
-	// has its own dup. Closing now ensures the moxin child sees EOF
-	// after `madder cat` exits.
-	if err := w.pw.Close(); err != nil {
-		return fmt.Errorf("closing parent write end for %s: %w", w.digest, err)
-	}
-	w.pw = nil
+	w.done = make(chan struct{})
+	go func() {
+		defer close(w.done)
+		defer w.pw.Close()
+		copyErr := w.client.withStoreEnv(w.ctx, func(env blob_store_env.BlobStoreEnv) error {
+			reader, err := env.OpenBlob(w.id)
+			if err != nil {
+				return fmt.Errorf("madder cat %s: %w", w.digest, err)
+			}
+			defer reader.Close()
+			if _, err := io.Copy(w.pw, reader); err != nil {
+				// A consumer closing the pipe early (e.g. `diff X X`
+				// short-circuits without reading) is legitimate, not a
+				// tool failure — surface it as broken-pipe-tolerant.
+				if isBrokenPipe(err) {
+					return nil
+				}
+				return fmt.Errorf("madder cat %s: streaming blob: %w", w.digest, err)
+			}
+			return nil
+		})
+		w.err = copyErr
+	}()
 	return nil
 }
 
-func (w *madderCatWriter) Wait() error {
+// Wait blocks until the writer goroutine finishes and returns its error.
+func (w *libBlobWriter) Wait() error {
 	if !w.started || w.waited {
 		return nil
 	}
 	w.waited = true
-	if err := w.cmd.Wait(); err != nil {
-		// Consumer closing the pipe early (e.g. `diff X X` short-circuits
-		// on same-inode without reading) is a legitimate use case for our
-		// fd-substitution flow, not a tool failure. SIGPIPE here just
-		// means the moxin child didn't need all the bytes.
-		if isBrokenPipe(err) {
-			return nil
-		}
-		return fmt.Errorf("madder cat %s: %w (stderr: %s)", w.digest, err, w.stderr.String())
-	}
-	return nil
+	<-w.done
+	return w.err
 }
 
-// isBrokenPipe reports whether err is the result of `madder cat`
-// exiting because its stdout was closed by the reader.
-func isBrokenPipe(err error) bool {
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		return false
-	}
-	if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-		return status.Signaled() && status.Signal() == syscall.SIGPIPE
-	}
-	return false
-}
-
-func (w *madderCatWriter) Cleanup() {
+// Cleanup releases the pipe write end (if Start never ran) or joins the
+// goroutine (if it did). Idempotent, best-effort.
+func (w *libBlobWriter) Cleanup() {
 	if !w.started {
 		if w.pw != nil {
 			_ = w.pw.Close()
@@ -221,10 +275,16 @@ func (w *madderCatWriter) Cleanup() {
 		return
 	}
 	if !w.waited {
-		if w.cmd.Process != nil {
-			_ = w.cmd.Process.Kill()
-		}
-		_ = w.cmd.Wait()
+		<-w.done
 		w.waited = true
 	}
+}
+
+// isBrokenPipe reports whether err is a write to a closed pipe — the moxin
+// child (reader) closed its end before consuming all the blob's bytes (e.g.
+// `diff X X` short-circuits without reading). io.Copy into the pipe surfaces
+// syscall.EPIPE (often wrapped in *os.PathError), or os.ErrClosed if the fd is
+// already closed.
+func isBrokenPipe(err error) bool {
+	return errors.Is(err, syscall.EPIPE) || errors.Is(err, os.ErrClosed)
 }

@@ -1099,8 +1099,10 @@
           ldflags = [
             "-X"
             "code.linenisgreat.com/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
-            "-X"
-            "code.linenisgreat.com/moxy/internal/native.defaultMadderBin=${madder-bin}/bin/madder"
+            # (moxy no longer pins a madder binary: internal/native links the
+            # madder Go library in-process. MADDER_BIN survives only for the
+            # bats lanes, which still shell out to `madder init`/`cat` for
+            # fixture setup + verification.)
             # Pin the ringmaster job-control CLI (clown RFC-0015) as the async
             # producer's default, so wakeups don't depend on ambient PATH. The
             # RINGMASTER_BIN env var still overrides this (tests/pinning).
