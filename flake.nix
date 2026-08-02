@@ -625,33 +625,38 @@
             # every bun-specific binding on `hasBun`; the bash-wrap path in the
             # builder below runs unconditionally.
             hasBun = entrypoints != { };
-            rawSrc = pkgs.lib.fileset.toSource {
-              root = ./.;
-              fileset =
-                with pkgs.lib.fileset;
-                unions (
-                  [
-                    packageJson
-                    bunLock
-                  ]
-                  ++ (if hasBun then [ "${src}/src" ] else [ ])
-                );
-            };
-            substitutedSrc =
-              if extraSubstitutions == { } then
-                rawSrc
-              else
-                pkgs.runCommand "${name}-moxin-src" { } (
-                  ''
-                    cp -rL ${rawSrc} $out
-                    chmod -R u+w $out
-                  ''
-                  + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
-                    for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
-                      substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
-                    done
-                  '') (builtins.attrNames extraSubstitutions)
-                );
+            # Assemble the bun build source tree (package.json + bun.lock +
+            # the moxin's src/*.ts) for buildBunBinaries. We CANNOT use
+            # lib.fileset.toSource here: `src` is a cross-flake-boundary path
+            # (this builder is a library `mkBunMoxin` consumed by a DIFFERENT
+            # flake — e.g. smith — whose `src` realizes to a `/nix/store/…`
+            # store path). fileset.toSource requires every fileset member to be
+            # a path under a single `root`, and a store path from the consumer's
+            # tree is neither a string-free path literal nor a subtree of this
+            # flake's `./.` — so `unions` rejects "${src}/src" outright
+            # (the original prototype bug, latent until the first bun entrypoint
+            # flips hasBun true). Copying the three pieces into one directory
+            # with runCommand sidesteps the root-containment constraint and
+            # works across the boundary. packageJson/bunLock may be either this
+            # flake's own paths or the consumer's; both copy fine.
+            substitutedSrc = pkgs.runCommand "${name}-moxin-src" { } (
+              ''
+                mkdir -p $out
+                cp -L ${packageJson} $out/package.json
+                cp -L ${bunLock} $out/bun.lock
+              ''
+              + pkgs.lib.optionalString hasBun ''
+                cp -rL ${src}/src $out/src
+              ''
+              + ''
+                chmod -R u+w $out
+              ''
+              + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                  substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+                done
+              '') (builtins.attrNames extraSubstitutions)
+            );
             bunBinaries =
               if hasBun then
                 pkgs.buildBunBinaries {
