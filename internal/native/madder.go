@@ -14,6 +14,17 @@ import (
 	"code.linenisgreat.com/madder/go/pkgs/env_local"
 	"code.linenisgreat.com/madder/go/pkgs/env_ui"
 	"code.linenisgreat.com/madder/go/pkgs/madder_env"
+
+	// Activates madder's markl format/purpose registrations, including the
+	// blank imports of piggy's pkgs/age + pkgs/agent that swap the real
+	// age-/pivy-backed formats over markl's erroring stubs. Every madder
+	// binary blank-imports the internal registrations package for this; since
+	// that one is off-limits cross-module, we import the public re-export,
+	// whose normal import of the internal package runs the same init side
+	// effects. Without this, calling the madder library in-process leaves
+	// age_x25519_sec an erroring stub and store discovery fails with
+	// "encryption: unknown format id: \"age_x25519_sec\"".
+	_ "code.linenisgreat.com/madder/go/pkgs/markl_registrations"
 	"code.linenisgreat.com/madder/go/pkgs/scoped_id"
 	"code.linenisgreat.com/piggy/go/pkgs/markl"
 	deweyerrors "code.linenisgreat.com/purse-first/libs/dewey/pkgs/errors"
