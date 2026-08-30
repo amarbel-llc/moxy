@@ -322,6 +322,27 @@ Built with `go-mcp` from `amarbel-llc/purse-first`. The `command.App`, `server`,
 `transport`, and `protocol` packages provide the MCP framework. Uses `gomod2nix`
 for Nix builds.
 
+**madder is linked in-process, so its version is load-bearing** (#11).
+`internal/native/madder.go` calls `blob_store_env` directly instead of shelling
+out to a `madder` binary, which means the pinned library --- not whatever
+`madder` is on PATH --- is what decodes a store's `blob_store-config`. A library
+older than the config version on disk fails closed: `serve mcp` aborts at
+startup with `no coders available for type: "!toml-blob_store_config-vN"` and
+never answers `initialize` (#9). Since `madder init` (and spinclass's
+per-worktree store) writes the *current* version, the pin must keep up.
+
+The pin lives in two places that **must move together**:
+
+- `go.mod` / `gomod2nix.toml` --- drives the devshell `go build` (`just build-go`).
+- The `madder` flake input --- `flake.nix`'s `goFlakeInputs` bridges
+  `code.linenisgreat.com/madder/go` to `madder.packages.<system>.go-pkgs`, so the
+  nix build uses the flake input's source and ignores go.mod's version.
+
+To bump: `nix flake update madder`, read the new rev out of `flake.lock`, then
+`go get code.linenisgreat.com/madder/go@<that rev>` (which also regenerates
+`gomod2nix.toml`). Bumping only one side leaves the devshell and nix binaries
+disagreeing about which store formats they can read.
+
 ## Testing Conventions
 
 - Go unit tests live alongside source files (`_test.go`)

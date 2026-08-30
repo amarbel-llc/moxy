@@ -900,6 +900,57 @@ explore-nix-tools-list: build-nix
   count=$(echo "$init_result" | tail -1 | jq '.result.tools | length' 2>/dev/null || echo "PARSE_ERROR")
   echo "Tool count: $count"
 
+# Diagnose a `test-validate-mcp` failure. That recipe only ever reports
+# purse-first's "initialize: calling initialize: context deadline exceeded",
+# which says nothing about whether moxy was slow or died on the way up. This
+# reproduces its environment, prints the madder store-config version moxy has
+# to decode (the #9 failure mode: the in-process madder library predating the
+# on-disk config version), and runs one raw initialize with the exit code and
+# elapsed time.
+#
+# The second pass forces stderrlog.Init to fail via an unusable XDG_LOG_HOME so
+# fd 2 is never teed through its pipe. Without that, a fatal startup error is
+# lost to the os.Exit(1) race and moxy dies completely silent — see #438; drop
+# the second pass once that lands.
+#
+# diagnose a test-validate-mcp failure (exit code, timing, startup error)
+[group("debug")]
+debug-validate-mcp-timing: build-go
+  #!/usr/bin/env bash
+  set -euo pipefail
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  export HOME="$tmpdir/home"
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+  [[servers]]
+  name = "test"
+  command = ["bash", "{{justfile_directory()}}/zz-tests_bats/test-fixtures/tool-server.bash"]
+  EOF
+  echo "madder on PATH: $(command -v madder)"
+  (cd "$HOME" && madder init .default >/dev/null 2>&1)
+  echo "store config type: $(sed -n 2p "$HOME/.madder/local/share/blob_stores/default/blob_store-config" || true)"
+  cd "$HOME/repo"
+  moxy="{{justfile_directory()}}/{{dir_build}}/moxy"
+  echo "MOXIN_PATH=${MOXIN_PATH:-<unset>}"
+
+  init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"timing","version":"0.1"}}}'
+  start=$(date +%s%3N)
+  rc=0
+  echo "$init" | timeout 30s "$moxy" serve mcp \
+    >"$tmpdir/out.jsonl" 2>"$tmpdir/err.log" || rc=$?
+  echo "exit=$rc  elapsed=$(( $(date +%s%3N) - start ))ms"
+  echo "--- initialize response ---"
+  head -c 300 "$tmpdir/out.jsonl" || true
+  echo ""
+  echo "--- stderr ---"
+  cat "$tmpdir/err.log" || true
+
+  echo "--- startup error (stderrlog bypassed, #438) ---"
+  echo "$init" | XDG_LOG_HOME=/dev/null/nope timeout 30s "$moxy" serve mcp \
+    >/dev/null 2>"$tmpdir/bypass.log" || true
+  cat "$tmpdir/bypass.log" || true
+
 # Test validate-mcp against serve-moxin with devshell-built binary.
 # Usage: just debug-validate-serve-moxin piers
 #
