@@ -95,7 +95,6 @@
       inputs.conformist.follows = "conformist";
     };
     smith.inputs.bats.inputs.igloo.inputs.flake-parts.follows = "igloo/flake-parts";
-    smith.inputs.cutting-garden.inputs.igloo.inputs.flake-parts.follows = "igloo/flake-parts";
     smith.inputs.bats.inputs.igloo.inputs.systems.follows = "igloo/systems";
     smith.inputs.cutting-garden.inputs.piggy.inputs.jcardsim.follows = "madder/piggy/jcardsim";
     smith.inputs.cutting-garden.inputs.piggy.inputs.oracle-javacard-sdks.follows =
@@ -104,12 +103,13 @@
     smith.inputs.cutting-garden.inputs.tap.inputs.crane.follows = "madder/tap/crane";
     smith.inputs.cutting-garden.inputs.tap.inputs.rust-overlay.follows = "madder/tap/rust-overlay";
     smith.inputs.cutting-garden.inputs.purse-first.inputs.gomod2nix.follows = "purse-first/gomod2nix";
-    smith.inputs.cutting-garden.inputs.igloo.inputs.bun2nix.follows = "smith/bats/igloo/bun2nix";
     smith.inputs.bats.inputs.utils.follows = "utils";
+    smith.inputs.bats.inputs.igloo.inputs.bun2nix.follows = "igloo/bun2nix";
 
     madder.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
     clown.inputs.conformist.follows = "conformist";
+    clown.inputs.purse-first.follows = "purse-first";
     madder.inputs.conformist.follows = "conformist";
     purse-first.inputs.conformist.follows = "conformist";
     tommy.inputs.conformist.follows = "conformist";
