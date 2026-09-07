@@ -3,7 +3,7 @@ module code.linenisgreat.com/moxy
 go 1.26.1
 
 require (
-	code.linenisgreat.com/madder/go v0.4.7-0.20260826140120-e59eeddd209c
+	code.linenisgreat.com/madder/go v0.4.7-0.20260907030945-c4fa5b487f34
 	code.linenisgreat.com/piggy/go v0.0.0-20260720155209-77cfdea0031e
 	code.linenisgreat.com/purse-first/libs/dewey v0.5.0
 	code.linenisgreat.com/purse-first/libs/go-mcp v0.5.0
