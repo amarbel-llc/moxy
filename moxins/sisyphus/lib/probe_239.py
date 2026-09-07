@@ -8,7 +8,7 @@ import os
 import sys
 
 sys.path.insert(0, os.environ["VENDOR"])
-from marklas import to_adf  # noqa: E402
+from marklas import to_adf
 
 print("=== pipe-prose (inline code with pipes) ===")
 md1 = "The matched node is `$parent instanceof Foo|Bar|Baz|Quux`, reachable.\n"

@@ -14,8 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-import _issuetype  # noqa: E402
-
+import _issuetype
 
 # ── is_issuetype_error_body ────────────────────────────────────────────────
 

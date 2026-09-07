@@ -9,12 +9,14 @@ from requests.exceptions import HTTPError
 
 # Vendored marklas — see ../_vendor/VENDOR.md for source/version.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "_vendor"))
-from marklas import to_adf as _marklas_to_adf, to_md as _marklas_to_md  # noqa: E402
 
-# Local siblings — `lib/` is on sys.path because each `bin/*` script inserts
-# it before `import _lib`.
-import _validate  # noqa: E402
-import _issuetype  # noqa: E402
+# These sort into one block: `_issuetype` and `_validate` are local siblings
+# (`lib/` is on sys.path because each `bin/*` script inserts it before
+# `import _lib`); the marklas names resolve through the `_vendor` insert above.
+import _issuetype
+import _validate
+from marklas import to_adf as _marklas_to_adf
+from marklas import to_md as _marklas_to_md
 
 ADFValidationError = _validate.ADFValidationError
 

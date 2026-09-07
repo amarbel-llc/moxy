@@ -8,7 +8,6 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 REJECTION_MARKER = "User rejected tool use"
 INTERRUPTION_PREFIX = "[Request interrupted by user"
 PROCEED_MARKER = "The user doesn't want to proceed with this tool use"

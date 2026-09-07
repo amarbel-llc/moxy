@@ -13,7 +13,6 @@ error and self-corrects on the next call.
 
 from __future__ import annotations
 
-
 # Marks that may not be combined with `code`. Per Atlassian's spec, `code` may
 # only co-occur with `link`. (See https://developer.atlassian.com/cloud/jira/platform/apis/document/marks/code/)
 _CODE_INCOMPATIBLE_MARKS = frozenset(

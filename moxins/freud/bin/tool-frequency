@@ -8,7 +8,6 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 MULTI_WORD_COMMANDS = {
     "git",
     "just",

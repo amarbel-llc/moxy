@@ -39,8 +39,9 @@
   ];
 
   # Python: first-party moxin scripts (sisyphus lib + sisyphus/freud bins).
-  # ruff-format formats; ruff-check lints (per-file E402 ignores live in
-  # ruff.toml). api-perms is a bash script (excluded by shebang) — keep it out.
+  # ruff-format formats; ruff-check lints (per-file rule ignores, and the
+  # reason for each, live in ruff.toml). api-perms is a bash script (excluded
+  # by shebang) — keep it out.
   programs.ruff-format.enable = true;
   programs.ruff-format.includes = [
     "moxins/sisyphus/lib/*.py"

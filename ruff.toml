@@ -19,8 +19,22 @@ extend-exclude = [
 ]
 
 [lint.per-file-ignores]
-# The tool scripts import after a sys.path.insert that puts lib/ on the path
-# — a deliberate module-level import that E402 (import-not-at-top) can't
-# understand. The lib/ helpers carry inline `# noqa: E402` for the same reason.
-"moxins/sisyphus/bin/*" = ["E402"]
+# E402: the tool scripts import after a sys.path.insert that puts lib/ on the
+# path — a deliberate module-level import that import-not-at-top can't see as
+# intentional.
+# EXE001: these sources are committed 100644 by design — only the nix wrapper
+# gets +x and the dep PATH (CLAUDE.md, "Moxin dependency rule"), so a shebang
+# without the executable bit is correct here, not a defect. Note this is not
+# yet uniform across moxins: moxins/freud/bin/* is committed 100755, which is
+# why EXE001 is silenced for sisyphus only.
+# BLE001: bin/status must report an auth failure as a field rather than raise,
+# so it catches broadly on purpose.
+"moxins/sisyphus/bin/*" = ["E402", "EXE001", "BLE001"]
+# BLE001 covers two different things here, both deliberate: _lib.py degrades to
+# raw text when an error body will not parse and to an empty list when
+# best-effort issue-type enrichment fails, and the test_*.py harnesses must
+# catch whatever a case throws to record it as a failure. The cost of the glob
+# is that a future careless `except Exception` under lib/ ships unflagged —
+# prefer narrowing this to the specific files if that ever bites.
+"moxins/sisyphus/lib/*.py" = ["BLE001"]
 "moxins/freud/bin/*" = ["E402"]
