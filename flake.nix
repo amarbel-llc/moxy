@@ -94,17 +94,15 @@
       inputs.utils.follows = "utils";
       inputs.conformist.follows = "conformist";
     };
-    smith.inputs.bats.inputs.igloo.inputs.flake-parts.follows = "igloo/flake-parts";
-    smith.inputs.bats.inputs.igloo.inputs.systems.follows = "igloo/systems";
-    smith.inputs.cutting-garden.inputs.piggy.inputs.jcardsim.follows = "madder/piggy/jcardsim";
-    smith.inputs.cutting-garden.inputs.piggy.inputs.oracle-javacard-sdks.follows =
-      "madder/piggy/oracle-javacard-sdks";
-    smith.inputs.cutting-garden.inputs.piggy.inputs.pivapplet.follows = "madder/piggy/pivapplet";
-    smith.inputs.cutting-garden.inputs.tap.inputs.crane.follows = "madder/tap/crane";
-    smith.inputs.cutting-garden.inputs.tap.inputs.rust-overlay.follows = "madder/tap/rust-overlay";
-    smith.inputs.cutting-garden.inputs.purse-first.inputs.gomod2nix.follows = "purse-first/gomod2nix";
-    smith.inputs.bats.inputs.utils.follows = "utils";
-    smith.inputs.bats.inputs.igloo.inputs.bun2nix.follows = "igloo/bun2nix";
+    smith.inputs.bats.follows = "bats";
+    smith.inputs.cutting-garden.inputs.madder.follows = "madder";
+    smith.inputs.cutting-garden.inputs.crap.follows = "madder/crap";
+    smith.inputs.cutting-garden.inputs.hyphence.follows = "madder/hyphence";
+    smith.inputs.cutting-garden.inputs.langlang.follows = "madder/langlang";
+    smith.inputs.cutting-garden.inputs.piggy.follows = "madder/piggy";
+    smith.inputs.cutting-garden.inputs.tap.follows = "madder/tap";
+    smith.inputs.cutting-garden.inputs.purse-first.follows = "purse-first";
+    smith.inputs.cutting-garden.inputs.tommy.follows = "tommy";
 
     madder.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
