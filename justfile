@@ -590,6 +590,36 @@ list-man-count-all:
 list-man-search query section="1":
   apropos -s {{section}} {{query}} 2>/dev/null | sort -u
 
+# Check every shipped roff page (cmd/moxy/*.1 *.5 *.7) against the fleet
+# lint-man rule: the NAME description must be one physical `.Nd` line,
+# non-empty, and lexgrog's whatis text must be <= 72 characters. spinclass's
+# system-prompt index and lexgrog both read only the first physical line of
+# the NAME entry, so a `.Nd the` / `.Li batch` / more-text split renders as
+# "the". Agent dev-loop for editing man pages.
+#
+# lint shipped man pages' NAME lines (one physical line, lexgrog <= 72 chars)
+[group("debug")]
+debug-lint-man:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  cd {{justfile_directory()}}
+  rc=0
+  for f in cmd/moxy/*.1 cmd/moxy/*.5 cmd/moxy/*.7; do
+    nd=$(grep -c '^\.Nd' "$f")
+    after=$(awk '/^\.Nd/{getline; print; exit}' "$f")
+    whatis=$(lexgrog "$f" 2>&1 | sed 's/^[^:]*: "//; s/"$//')
+    desc=${whatis#*- }
+    len=${#desc}
+    status=ok
+    [[ "$nd" == 1 ]] || status="FAIL(.Nd count=$nd)"
+    [[ "$after" =~ ^\.S[hs]\  ]] || status="FAIL(.Nd continues: $after)"
+    [[ -n "$desc" && "$desc" != "$whatis" ]] || status="FAIL(empty description)"
+    (( len <= 72 )) || status="FAIL(len=$len)"
+    printf '%-6s %-28s %3d  %s\n' "$status" "$f" "$len" "$whatis"
+    [[ "$status" == ok ]] || rc=1
+  done
+  exit "$rc"
+
 # bump MOXY_VERSION in version.env to the given semver
 [group("maintenance")]
 bump-version new_version:
