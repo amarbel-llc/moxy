@@ -1,3 +1,0 @@
-schema = 1
-name = "just-us-agents"
-description = "Justfile recipe runner. Lists, shows, and executes recipes from the project's justfile."

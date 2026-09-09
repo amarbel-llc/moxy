@@ -444,7 +444,6 @@ debug-codemod-permit-async:
     moxins/jq/jq.toml
     moxins/arboretum/{md-toc,md-section,md-anchor}.toml
     moxins/man/{list,toc,section}.toml
-    moxins/just-us-agents/{list-recipes,show-recipe,list-variables,dump-justfile}.toml
     moxins/hamster/{mod-read,src}.toml
     moxins/chix/{which,nix-hash,store-ls,store-cat,store-path-info,derivation-show,flake-init}.toml
   )

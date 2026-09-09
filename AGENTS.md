@@ -82,7 +82,7 @@ unambiguous because server names must not contain dots (validated at config
 load). `splitPrefix` on the first dot recovers the server name and original
 tool/prompt name exactly --- no encoding or decoding is needed. Resources and
 resource templates use `<server-name>/` prefix with a slash separator instead.
-Server names may contain hyphens (e.g., `just-us-agents.list-recipes`).
+Server names may contain hyphens (e.g., `get-hubbed.issue-list`).
 
 The dot join is the default of a configurable **name template**
 (`serve-http --name-template`, FDR 0007). A custom template (e.g.

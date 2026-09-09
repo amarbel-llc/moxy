@@ -899,44 +899,6 @@
           };
         };
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] { };
-        just-us-agents-moxin =
-          let
-            listRecipes = pkgs.buildZxScript {
-              pname = "just-list-recipes";
-              version = moxyVersion;
-              src = ./moxins/just-us-agents/src;
-              entrypoint = "list-recipes.ts";
-              runtimeInputs = [ ];
-            };
-          in
-          pkgs.runCommand "just-us-agents-moxin"
-            {
-              nativeBuildInputs = [
-                pkgs.makeWrapper
-                pkgs.bash
-              ];
-            }
-            ''
-              cp -r ${./moxins/just-us-agents} $out
-              chmod -R u+w $out
-              rm -rf $out/src
-              mkdir -p $out/bin
-              for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
-              # Rewrite `#!/usr/bin/env bash` shebangs to absolute /nix/store paths
-              # before wrapping. The bats sandbox lacks /usr/bin/env, so an
-              # env-resolved shebang on the .run-recipe-wrapped script fails with
-              # "bad interpreter: No such file or directory". Same step mkMoxin and
-              # mkBunMoxin perform; this hand-rolled derivation must do it too.
-              patchShebangs $out/bin
-              ln -sf ${listRecipes}/bin/just-list-recipes $out/bin/list-recipes
-              for f in $out/bin/*; do
-                [ -L "$f" ] && continue
-                wrapProgram "$f" --unset LD_LIBRARY_PATH
-              done
-              for f in $(grep -rl '@BIN@' $out); do
-                substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
-              done
-            '';
         man-moxin =
           mkMoxin "man"
             [
@@ -1059,7 +1021,6 @@
           ln -s ${sisyphus-moxin} $out/share/moxy/moxins/sisyphus
           ln -s ${smith-moxin} $out/share/moxy/moxins/smith
           ln -s ${jq-moxin} $out/share/moxy/moxins/jq
-          ln -s ${just-us-agents-moxin} $out/share/moxy/moxins/just-us-agents
           ln -s ${man-moxin} $out/share/moxy/moxins/man
           ln -s ${rg-moxin} $out/share/moxy/moxins/rg
           ln -s ${slip-moxin} $out/share/moxy/moxins/slip
@@ -1319,9 +1280,6 @@
               # smith.bats invokes wrapped scripts via ${SMITH_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               SMITH_BIN = "${smith-moxin}/bin";
-              # just_us_agents_*.bats invoke wrapped scripts via ${JUST_US_AGENTS_BIN:-$BIN},
-              # which doesn't exist inside the nix sandbox.
-              JUST_US_AGENTS_BIN = "${just-us-agents-moxin}/bin";
               # env_*.bats invoke wrapped scripts via ${ENV_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               ENV_BIN = "${env-moxin}/bin";
