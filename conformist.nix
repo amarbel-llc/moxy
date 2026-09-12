@@ -38,24 +38,17 @@
     "*.cjs"
   ];
 
-  # Python: first-party moxin scripts (sisyphus lib + sisyphus/freud bins).
-  # ruff-format formats; ruff-check lints (per-file rule ignores, and the
-  # reason for each, live in ruff.toml). api-perms is a bash script (excluded
-  # by shebang) — keep it out.
+  # Python: first-party moxin scripts (freud bins). ruff-format formats;
+  # ruff-check lints (per-file rule ignores, and the reason for each, live in
+  # ruff.toml).
   programs.ruff-format.enable = true;
   programs.ruff-format.includes = [
-    "moxins/sisyphus/lib/*.py"
-    "moxins/sisyphus/bin/*"
     "moxins/freud/bin/*"
   ];
-  programs.ruff-format.excludes = [ "moxins/sisyphus/bin/api-perms" ];
   linters.ruff-check.enable = true;
   linters.ruff-check.includes = [
-    "moxins/sisyphus/lib/*.py"
-    "moxins/sisyphus/bin/*"
     "moxins/freud/bin/*"
   ];
-  linters.ruff-check.excludes = [ "moxins/sisyphus/bin/api-perms" ];
   # ruff writes a .ruff_cache under the tree root; conformist's build.check runs
   # ruff against the read-only /nix/store source copy, so the cache write fails
   # with EACCES and aborts the lint. A one-shot check needs no cache — disable
@@ -104,8 +97,6 @@
   settings.linter.mypy = {
     command = "${pyTypesChecker}/bin/lint-py-types";
     includes = [
-      "moxins/sisyphus/lib/*.py"
-      "moxins/sisyphus/bin/*"
       "moxins/freud/bin/*"
     ];
   };
@@ -132,7 +123,6 @@
     "bun.nix"
     "internal/config/config_tommy.go"
     "zz-tests_bats/test-fixtures/**"
-    "moxins/sisyphus/lib/_vendor/**"
     "sweatfile"
     "LICENSE"
     "*.md"

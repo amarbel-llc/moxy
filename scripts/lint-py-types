@@ -5,11 +5,11 @@
 # as argv (see flake.nix and ./mypy.ini). The same wrapped script backs the
 # debug-py-typecheck dev-loop recipe.
 #
-# The matched globs (moxins/sisyphus/bin/*, moxins/freud/bin/*) include the one
-# bash script, api-perms — filter to actual Python (by .py extension or a
-# python shebang) so mypy never tries to parse shell as Python. mypy.ini at the
-# tree root supplies the lenient config; types-requests rides in via the nix
-# wrapper PATH so the `requests` stub resolves.
+# The matched globs (moxins/freud/bin/*) may include non-Python files —
+# filter to actual Python (by .py extension or a python shebang) so mypy
+# never tries to parse shell as Python. mypy.ini at the tree root supplies the
+# lenient config; types-requests rides in via the nix wrapper PATH so the
+# `requests` stub resolves.
 #
 # Usage: lint-py-types FILE [FILE ...]
 # Exits 0 when every file type-checks, non-zero on type errors (mypy's own

@@ -82,7 +82,8 @@ unambiguous because server names must not contain dots (validated at config
 load). `splitPrefix` on the first dot recovers the server name and original
 tool/prompt name exactly --- no encoding or decoding is needed. Resources and
 resource templates use `<server-name>/` prefix with a slash separator instead.
-Server names may contain hyphens (e.g., `get-hubbed.issue-list`).
+Server names may contain hyphens (e.g., a server named `get-hubbed` with a
+tool named `issue-list` renders as `get-hubbed.issue-list`).
 
 The dot join is the default of a configurable **name template**
 (`serve-http --name-template`, FDR 0007). A custom template (e.g.
@@ -137,8 +138,7 @@ and wakes the agent on the terminal state via clown's job-wakeup channel by
 shelling out to the `ringmaster` job-control CLI (clown RFC-0015 promoted the
 job verbs off `clown job <verb>` onto the standalone `ringmaster` binary). moxy
 pins `clown` as a flake input and bakes ringmaster's store path in as the
-default — an asyncjob ldflag (`defaultRingmasterBin`) for the Go binary, a
-`--set-default RINGMASTER_BIN` wrapper for the get-hubbed ci-watch moxin — so
+default — an asyncjob ldflag (`defaultRingmasterBin`) for the Go binary — so
 wakeups don't depend on ambient PATH; `$RINGMASTER_BIN` still overrides it (the
 test/pinning seam). Results
 are written to the user-level `moxy-async`

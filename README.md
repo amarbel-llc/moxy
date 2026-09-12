@@ -99,7 +99,6 @@ The following moxins ship with moxy. Each can be served individually via
 | env | 5 | Environment inspection: PATH binaries and env vars | — |
 | folio | 16 | File I/O. Auto-allows reads inside CWD, /nix/store, sibling repo checkouts, and ~/.claude tree; prompts elsewhere | jq, coreutils, git |
 | freud | 12 | Past Claude Code session transcripts | python3 |
-| get-hubbed | 31 | GitHub tools (defaults to current repo; pass `repo_owner_name` to target a different repo) | gh, jq, bun |
 | gmail | 2 | Gmail: triage and read messages | bun, gws |
 | grit | 31 | Git operations (force-push/hard-reset blocked on main/master) | git, jq |
 | gws | 1 | Google Workspace: generic API passthrough | bun, gws |
@@ -109,7 +108,6 @@ The following moxins ship with moxy. Each can be served individually via
 | piers | 13 | Google Docs: read, create, edit, and comment on documents | bun, gws |
 | prison | 1 | Google Sheets: read spreadsheet data | bun, gws |
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
-| sisyphus | 10 | Jira Cloud tools | python3, atlassian-python-api |
 | smith | 29 | Forgejo tools via the `fj` CLI (pass `repo` + `host` to target any repo on any instance) | forgejo-cli |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
 

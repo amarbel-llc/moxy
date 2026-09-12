@@ -3,38 +3,12 @@
 # this file. conformist decides WHICH files ruff sees; this decides how ruff
 # treats them.
 
-# The sisyphus/freud tool scripts have no .py extension — tell ruff to parse
-# them as Python anyway.
-extend-include = ["moxins/sisyphus/bin/*", "moxins/freud/bin/*"]
-
-# Exclusions for a direct `ruff` run that discovers files itself (vendored
-# marklas, and api-perms which is bash, not Python). The gate runs ruff via
-# conformist, which passes file paths explicitly and excludes api-perms on its
-# side (see conformist.nix's programs.ruff-format.excludes /
-# linters.ruff-check.excludes) — explicit paths bypass these, so this list is
-# the belt to conformist's suspenders.
-extend-exclude = [
-  "moxins/sisyphus/lib/_vendor",
-  "moxins/sisyphus/bin/api-perms",
-]
+# The freud tool scripts have no .py extension — tell ruff to parse them as
+# Python anyway.
+extend-include = ["moxins/freud/bin/*"]
 
 [lint.per-file-ignores]
 # E402: the tool scripts import after a sys.path.insert that puts lib/ on the
 # path — a deliberate module-level import that import-not-at-top can't see as
 # intentional.
-# EXE001: these sources are committed 100644 by design — only the nix wrapper
-# gets +x and the dep PATH (CLAUDE.md, "Moxin dependency rule"), so a shebang
-# without the executable bit is correct here, not a defect. Note this is not
-# yet uniform across moxins: moxins/freud/bin/* is committed 100755, which is
-# why EXE001 is silenced for sisyphus only.
-# BLE001: bin/status must report an auth failure as a field rather than raise,
-# so it catches broadly on purpose.
-"moxins/sisyphus/bin/*" = ["E402", "EXE001", "BLE001"]
-# BLE001 covers two different things here, both deliberate: _lib.py degrades to
-# raw text when an error body will not parse and to an empty list when
-# best-effort issue-type enrichment fails, and the test_*.py harnesses must
-# catch whatever a case throws to record it as a failure. The cost of the glob
-# is that a future careless `except Exception` under lib/ ships unflagged —
-# prefer narrowing this to the specific files if that ever bites.
-"moxins/sisyphus/lib/*.py" = ["BLE001"]
 "moxins/freud/bin/*" = ["E402"]

@@ -62,10 +62,10 @@
     };
 
     # clown ships the ringmaster job-control binary (RFC-0015). moxy pins it
-    # so the async producers (internal/asyncjob, the get-hubbed ci-watch moxin)
-    # run a hermetic, version-locked ringmaster rather than resolving it off
-    # ambient PATH. Referenced as clown.packages.${system}.ringmaster and baked
-    # in via ldflag + wrapper (see the moxy package and get-hubbed-moxin below).
+    # so async producers (internal/asyncjob) run a hermetic, version-locked
+    # ringmaster rather than resolving it off ambient PATH. Referenced as
+    # clown.packages.${system}.ringmaster and baked in via ldflag (see the
+    # moxy package below).
     #
     # Interim per the job-platform extraction plan: clown's provider inputs
     # (llm-agents, the claude-code/codex/llama nixpkgs pins, treefmt-nix) still
@@ -810,37 +810,6 @@
           pkgs.tree
         ] { };
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] { };
-        # pathMode = "suffix" so user PATH wins (and can shadow gh with a
-        # stub in tests). ci-watch resolves the ringmaster job-control CLI
-        # (clown RFC-0015) at runtime via RINGMASTER_BIN; --set-default pins the
-        # hermetic store path while still letting a test-provided RINGMASTER_BIN
-        # win (the bats ci_watch lane injects a stub through it).
-        get-hubbed-moxin =
-          mkBunMoxin "get-hubbed"
-            [
-              pkgs.bash
-              pkgs.coreutils
-              pkgs.gawk
-              pkgs.git
-              pkgs-master.gh
-              pkgs.jq
-              pkgs.util-linux
-            ]
-            {
-              "issue-get" = "moxins/get-hubbed/src/issue-get.ts";
-              "issue-list" = "moxins/get-hubbed/src/issue-list.ts";
-              "issue-transfer" = "moxins/get-hubbed/src/issue-transfer.ts";
-              "content-compare" = "moxins/get-hubbed/src/content-compare.ts";
-              "ci-watch" = "moxins/get-hubbed/src/ci-watch.ts";
-            }
-            {
-              pathMode = "suffix";
-              extraWrapArgs = [
-                "--set-default"
-                "RINGMASTER_BIN"
-                "${clown-ringmaster}/bin/ringmaster"
-              ];
-            };
         # grit deliberately uses pathMode = "inherit" with no nix-pinned deps:
         # it must run the user's own git (matching the repo they're operating
         # on, with their configured aliases/templates/credential helpers). Under
@@ -883,21 +852,6 @@
                 PANDOC = "${pkgs.pandoc}/bin/pandoc";
               };
             };
-        sisyphus-python = pkgs.python3.withPackages (ps: [
-          ps.atlassian-python-api
-          # Sole runtime dep of vendored marklas (moxins/sisyphus/lib/_vendor/marklas).
-          ps.mistune
-        ]);
-        # @PANDOC@ in moxins/sisyphus/lib/_lib.py is baked in at build time
-        # so the read-side ADF→Markdown post-process doesn't depend on the
-        # user's PATH. The Lua filter path is resolved at runtime relative
-        # to _lib.py's location (it's a sibling file), so it doesn't need
-        # a substitution.
-        sisyphus-moxin = mkMoxin "sisyphus" [ sisyphus-python pkgs.bash pkgs.jq ] {
-          extraSubstitutions = {
-            PANDOC = "${pkgs.pandoc}/bin/pandoc";
-          };
-        };
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] { };
         man-moxin =
           mkMoxin "man"
@@ -1015,10 +969,8 @@
           ln -s ${env-moxin} $out/share/moxy/moxins/env
           ln -s ${folio-moxin} $out/share/moxy/moxins/folio
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud
-          ln -s ${get-hubbed-moxin} $out/share/moxy/moxins/get-hubbed
           ln -s ${grit-moxin} $out/share/moxy/moxins/grit
           ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
-          ln -s ${sisyphus-moxin} $out/share/moxy/moxins/sisyphus
           ln -s ${smith-moxin} $out/share/moxy/moxins/smith
           ln -s ${jq-moxin} $out/share/moxy/moxins/jq
           ln -s ${man-moxin} $out/share/moxy/moxins/man
@@ -1030,9 +982,8 @@
         madder-bin = madder.packages.${system}.default;
 
         # ringmaster (clown RFC-0015 job-control CLI). Its absolute store path
-        # is baked into the moxy binary (asyncjob ldflag) and the get-hubbed
-        # ci-watch moxin (RINGMASTER_BIN wrapper) so async producers run a
-        # hermetic, pinned ringmaster instead of relying on ambient PATH.
+        # is baked into the moxy binary (asyncjob ldflag) so async producers
+        # run a hermetic, pinned ringmaster instead of relying on ambient PATH.
         clown-ringmaster = clown.packages.${system}.ringmaster;
 
         moxy = pkgs.buildGoApplication {
@@ -1264,16 +1215,10 @@
               # chix_*.bats invoke wrapped scripts via ${CHIX_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               CHIX_BIN = "${chix-moxin}/bin";
-              # get_hubbed_*.bats invoke wrapped scripts via ${GET_HUBBED_BIN:-$BIN},
-              # which doesn't exist inside the nix sandbox.
-              GET_HUBBED_BIN = "${get-hubbed-moxin}/bin";
               # freud_tool_usage.bats falls back to FREUD_BIN (wrapped
               # python script) when set; otherwise invokes python3
               # directly against the source tree (devshell path).
               FREUD_BIN = "${freud-moxin}/bin/tool-usage";
-              # sisyphus_*.bats invoke wrapped scripts via ${SISYPHUS_BIN:-$BIN},
-              # which doesn't exist inside the nix sandbox.
-              SISYPHUS_BIN = "${sisyphus-moxin}/bin";
               # man_*.bats invoke wrapped scripts via ${MAN_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               MAN_BIN = "${man-moxin}/bin";

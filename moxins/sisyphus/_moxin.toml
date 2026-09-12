@@ -1,3 +1,0 @@
-schema = 1
-name = "sisyphus"
-description = "Jira Cloud tools via atlassian-python-api. Requires JIRA_URL, JIRA_USERNAME, and JIRA_API_TOKEN environment variables."

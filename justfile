@@ -1008,28 +1008,9 @@ debug-validate-serve-moxin name: build-go
   purse-first validate-mcp "$moxy" serve-moxin --name "{{name}}" 2>&1 \
     && echo "PASS" || echo "FAIL (exit $?)"
 
-# Run sisyphus Python unit tests (lib/test_*.py) using the nix-wrapped
-# python3 from the sisyphus moxin (which has marklas + mistune available).
-# Agent dev-loop: run after editing _validate.py / _issuetype.py or their tests.
-#
-# run the sisyphus Python unit tests
-[group("debug")]
-debug-sisyphus-py-tests: build-moxins
-  #!/usr/bin/env bash
-  set -euo pipefail
-  moxin_dir="{{justfile_directory()}}/result-moxins/share/moxy/moxins/sisyphus"
-  # The nix wrapper burns in the python path; extract it from the create-issue wrapper.
-  py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
-  rc=0
-  for t in "{{justfile_directory()}}"/moxins/sisyphus/lib/test_*.py; do
-    echo "== $(basename "$t") =="
-    "$py_bin" "$t" || rc=1
-  done
-  exit "$rc"
-
 # Lenient mypy type-check (#10) of the first-party moxin Python via the same
 # wrapped checker the gate's [linter.mypy] runs (mypy + types-requests, reading
-# ./mypy.ini). The checker skips the one bash script (api-perms) by shebang.
+# ./mypy.ini).
 # Agent dev-loop: run after editing moxin Python or mypy.ini.
 #
 # type-check the first-party moxin Python with mypy
@@ -1040,23 +1021,7 @@ debug-py-typecheck:
   cd {{justfile_directory()}}
   nix build --keep-going .#lint-py-types -o result-lint-py
   ./result-lint-py/bin/lint-py-types \
-    moxins/sisyphus/lib/*.py \
-    moxins/sisyphus/bin/* \
     moxins/freud/bin/*
-
-# Probe what marklas produces for the #239 pipe-prose and diff-codeblock cases.
-# Agent dev-loop: run to inspect ADF output before writing validator/tests.
-#
-# probe what marklas produces for the #239 ADF cases
-[group("debug")]
-debug-sisyphus-239-probe: build-moxins
-  #!/usr/bin/env bash
-  set -euo pipefail
-  root="{{justfile_directory()}}"
-  moxin_dir="$root/result-moxins/share/moxy/moxins/sisyphus"
-  py_bin=$(grep -o '/nix/store/[^:]*-python3[^/]*/bin' "$moxin_dir/bin/create-issue" | head -1)/python3
-  VENDOR="$root/moxins/sisyphus/lib/_vendor" \
-    "$py_bin" "$root/moxins/sisyphus/lib/probe_239.py"
 
 # reproduce tools-not-appearing via claude -p with the nix-built moxy
 [group("explore")]
