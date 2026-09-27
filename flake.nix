@@ -1,7 +1,7 @@
 {
   inputs = {
     igloo.url = "https://code.linenisgreat.com/igloo/archive/master.tar.gz";
-    nixpkgs-master.url = "github:NixOS/nixpkgs/f13ff45afd1bb73e640eaa08a7066dbed07e3238";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/e94cb152ed51bd6e24eb4a41f1460252beb52cd2";
     # Pinned to the last upstream nixpkgs commit where pkgs.gomarkdoc still
     # builds. A regression after 2026-03-23 (still present on master as of
     # 2026-05-04) breaks gomarkdoc's checkPhase — used only as the source of
@@ -108,6 +108,7 @@
     tommy.inputs.bats.follows = "bats";
     clown.inputs.conformist.follows = "conformist";
     clown.inputs.purse-first.follows = "purse-first";
+    clown.inputs.tommy.follows = "tommy";
     madder.inputs.conformist.follows = "conformist";
     purse-first.inputs.conformist.follows = "conformist";
     tommy.inputs.conformist.follows = "conformist";

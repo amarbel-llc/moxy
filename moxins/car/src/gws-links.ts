@@ -49,8 +49,7 @@ export function extractLinksFromHtml(html: string): string[] {
 }
 
 type ClassifiedUrl =
-  | { type: "gws"; fileId: string }
-  | { type: "external"; url: string };
+  { type: "gws"; fileId: string } | { type: "external"; url: string };
 
 export function classifyUrl(url: string): ClassifiedUrl {
   for (const pattern of GWS_URL_PATTERNS) {
