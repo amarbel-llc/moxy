@@ -26,20 +26,13 @@ func Run(w io.Writer, home, dir string) int {
 	}
 
 	moxinPath := os.Getenv("MOXIN_PATH")
-	systemDir := native.SystemMoxinDir()
+	systemDir := native.SystemMoxinDirFor(hierarchy.Merged.BuiltinNative)
 
 	// Same discovery path the server runtime uses.
 	discovered, err := native.DiscoverAll(moxinPath, systemDir)
 	if err != nil {
 		fmt.Fprintf(w, "error: discovering moxins: %v\n", err)
 		return 1
-	}
-
-	effectivePath := moxinPath
-	if effectivePath == "" {
-		if home != "" && dir != "" {
-			effectivePath = native.DefaultMoxinPath(home, dir, systemDir)
-		}
 	}
 
 	failed := false
@@ -103,6 +96,11 @@ func Run(w io.Writer, home, dir string) int {
 		parentDir := filepath.Dir(me.Dir)
 		errorsByDir[parentDir] = append(errorsByDir[parentDir], me)
 	}
+	shadowedByDir := make(map[string][]native.ShadowedMoxin)
+	for _, s := range discovered.Shadowed {
+		parentDir := filepath.Dir(s.Dir)
+		shadowedByDir[parentDir] = append(shadowedByDir[parentDir], s)
+	}
 
 	disableSet := hierarchy.Merged.BuildDisableMoxinSet()
 
@@ -114,9 +112,13 @@ func Run(w io.Writer, home, dir string) int {
 
 		configs := moxinsByDir[d]
 		errors := errorsByDir[d]
+		shadowed := shadowedByDir[d]
 
-		if len(configs) == 0 && len(errors) == 0 {
+		if len(configs) == 0 && len(errors) == 0 && len(shadowed) == 0 {
 			fmt.Fprintln(w, "    (none active)")
+		}
+		for _, s := range shadowed {
+			fmt.Fprintf(w, "    %-24s [shadowed by %s]\n", s.Name, filepath.Dir(s.By))
 		}
 		for _, nc := range configs {
 			if disableSet.ServerDisabled(nc.Name) {
@@ -159,7 +161,10 @@ func Run(w io.Writer, home, dir string) int {
 
 	// --- MOXIN_PATH ---
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "MOXIN_PATH: %s\n", effectivePath)
+	fmt.Fprintf(w, "MOXIN_PATH: %s\n", strings.Join(discovered.Dirs, ":"))
+	if b := hierarchy.Merged.BuiltinNative; b != nil && !*b {
+		fmt.Fprintln(w, "  (builtin-native = false: system moxin dir omitted)")
+	}
 
 	// --- Validation ---
 	fmt.Fprintln(w)

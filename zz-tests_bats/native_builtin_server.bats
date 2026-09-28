@@ -110,3 +110,65 @@ EOF
   # (builtin-native only controls the system moxin dir appended automatically)
   echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")'
 }
+
+# write_greeter <parent-dir> <description>
+write_greeter() {
+  mkdir -p "$1/greeter"
+  cat >"$1/greeter/_moxin.toml" <<EOF
+schema = 1
+name = "greeter"
+description = "$2"
+EOF
+  cat >"$1/greeter/hello.toml" <<'EOF'
+schema = 1
+description = "Say hello"
+command = "echo"
+args = ["-n", "hello"]
+EOF
+}
+
+function status_marks_shadowed_moxin { # @test
+  local dir_a="$BATS_TEST_TMPDIR/moxins-a"
+  local dir_b="$BATS_TEST_TMPDIR/moxins-b"
+  write_greeter "$dir_a" "local greeter"
+  write_greeter "$dir_b" "shadowed greeter"
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  export MOXIN_PATH="$dir_a:$dir_b"
+  run_moxy status
+  assert_output --partial "[shadowed by $dir_a]"
+}
+
+# The nix-built moxy bakes its moxy-moxins dir (which ships grit) in via
+# ldflags, so grit appearing/disappearing in `moxy status` tracks whether
+# the system dir was appended.
+function status_appends_system_dir_after_explicit_moxin_path { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  write_greeter "$moxin_dir" "greeter"
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  export MOXIN_PATH="$moxin_dir"
+  run_moxy status
+  assert_output --regexp $'\n +grit +[0-9]+ tools'
+}
+
+function status_honours_builtin_native_false { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  write_greeter "$moxin_dir" "greeter"
+
+  mkdir -p "$HOME/project"
+  cat >"$HOME/project/moxyfile" <<'EOF'
+builtin-native = false
+EOF
+  cd "$HOME/project"
+
+  export MOXIN_PATH="$moxin_dir"
+  run_moxy status
+  assert_output --partial "builtin-native = false: system moxin dir omitted"
+  assert_output --regexp $'\n +greeter +[0-9]+ tools'
+  refute_output --regexp $'\n +grit +[0-9]+ tools'
+}

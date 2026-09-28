@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-host="${1:-}"
-
-# shellcheck source=bin/.smith-common
-. "$(dirname "$0")/.smith-common"
-
-smith_base "$host"
-"${smith_cmd[@]}" whoami

@@ -80,30 +80,6 @@
       inputs.bats.follows = "bats";
     };
 
-    # linenisgreat fork of forgejo-cli (fj), carrying the FDR-0016
-    # vanity-discovery patches for owner-less vanity remotes
-    # (code.linenisgreat.com). Renamed smith (code.linenisgreat.com/smith).
-    # Its outputs function uses a closed parameter set
-    # ({ self, nixpkgs-master, utils, conformist }, no ...) — do not add
-    # follows for inputs it doesn't declare. (Its former `nixpkgs` input was
-    # renamed nixpkgs-master in forgejo-cli ebdedb8; conformist added in
-    # 56c6de7.)
-    smith = {
-      url = "https://code.linenisgreat.com/smith/archive/master.tar.gz";
-      inputs.nixpkgs-master.follows = "nixpkgs-master";
-      inputs.utils.follows = "utils";
-      inputs.conformist.follows = "conformist";
-    };
-    smith.inputs.bats.follows = "bats";
-    smith.inputs.cutting-garden.inputs.madder.follows = "madder";
-    smith.inputs.cutting-garden.inputs.crap.follows = "madder/crap";
-    smith.inputs.cutting-garden.inputs.hyphence.follows = "madder/hyphence";
-    smith.inputs.cutting-garden.inputs.langlang.follows = "madder/langlang";
-    smith.inputs.cutting-garden.inputs.piggy.follows = "madder/piggy";
-    smith.inputs.cutting-garden.inputs.tap.follows = "madder/tap";
-    smith.inputs.cutting-garden.inputs.purse-first.follows = "purse-first";
-    smith.inputs.cutting-garden.inputs.tommy.follows = "tommy";
-
     madder.inputs.bats.follows = "bats";
     tommy.inputs.bats.follows = "bats";
     clown.inputs.conformist.follows = "conformist";
@@ -145,7 +121,6 @@
       madder,
       conformist,
       clown,
-      smith,
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -901,13 +876,8 @@
               pathMode = "suffix";
             };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] { };
-        smith-moxin = mkMoxin "smith" [
-          pkgs.bash
-          pkgs.coreutils
-          pkgs.gawk
-          pkgs.jq
-          smith.packages.${system}.default
-        ] { };
+        # The smith moxin is shipped by smith's own flake (packages.moxin,
+        # smith#62); moxy no longer bundles a copy (#442).
 
         # gws moxins excluded from the build closure for now (#391) — see the
         # commented gws-bin block above. Restore by uncommenting.
@@ -972,7 +942,6 @@
           ln -s ${freud-moxin} $out/share/moxy/moxins/freud
           ln -s ${grit-moxin} $out/share/moxy/moxins/grit
           ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
-          ln -s ${smith-moxin} $out/share/moxy/moxins/smith
           ln -s ${jq-moxin} $out/share/moxy/moxins/jq
           ln -s ${man-moxin} $out/share/moxy/moxins/man
           ln -s ${rg-moxin} $out/share/moxy/moxins/rg
@@ -1223,9 +1192,6 @@
               # man_*.bats invoke wrapped scripts via ${MAN_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               MAN_BIN = "${man-moxin}/bin";
-              # smith.bats invokes wrapped scripts via ${SMITH_BIN:-$BIN},
-              # which doesn't exist inside the nix sandbox.
-              SMITH_BIN = "${smith-moxin}/bin";
               # env_*.bats invoke wrapped scripts via ${ENV_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               ENV_BIN = "${env-moxin}/bin";

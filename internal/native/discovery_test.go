@@ -116,6 +116,57 @@ func TestSystemDirAppended(t *testing.T) {
 	}
 }
 
+func TestDiscoverAllRecordsShadowedMoxins(t *testing.T) {
+	dirA := filepath.Join(t.TempDir(), "a")
+	dirB := filepath.Join(t.TempDir(), "b")
+	systemDir := filepath.Join(t.TempDir(), "system")
+
+	writeDiscoveryMoxin(t, dirA, "tool", "from-A")
+	writeDiscoveryMoxin(t, dirB, "tool", "from-B")
+	writeDiscoveryMoxin(t, systemDir, "tool", "from-system")
+	writeDiscoveryMoxin(t, systemDir, "builtin", "system-only")
+
+	result, err := DiscoverAll(dirA+":"+dirB, systemDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	winner := filepath.Join(dirA, "tool")
+	want := map[string]string{
+		filepath.Join(dirB, "tool"):      winner,
+		filepath.Join(systemDir, "tool"): winner,
+	}
+	if len(result.Shadowed) != len(want) {
+		t.Fatalf("Shadowed = %+v, want %d entries", result.Shadowed, len(want))
+	}
+	for _, s := range result.Shadowed {
+		if s.Name != "tool" {
+			t.Errorf("shadowed name = %q, want tool", s.Name)
+		}
+		if by, ok := want[s.Dir]; !ok || s.By != by {
+			t.Errorf("shadowed %q by %q, want by %q", s.Dir, s.By, by)
+		}
+	}
+}
+
+func TestSystemMoxinDirForBuiltinNativeFalse(t *testing.T) {
+	disabled := false
+	if got := SystemMoxinDirFor(&disabled); got != "" {
+		t.Errorf("SystemMoxinDirFor(false) = %q, want \"\"", got)
+	}
+}
+
+func TestSystemMoxinDirForBuiltinNativeUnsetOrTrue(t *testing.T) {
+	enabled := true
+	want := SystemMoxinDir()
+	if got := SystemMoxinDirFor(nil); got != want {
+		t.Errorf("SystemMoxinDirFor(nil) = %q, want %q", got, want)
+	}
+	if got := SystemMoxinDirFor(&enabled); got != want {
+		t.Errorf("SystemMoxinDirFor(true) = %q, want %q", got, want)
+	}
+}
+
 func TestEmptyMoxinPath(t *testing.T) {
 	isolateMoxinEnv(t)
 	systemDir := filepath.Join(t.TempDir(), "system")

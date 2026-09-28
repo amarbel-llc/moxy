@@ -108,8 +108,11 @@ The following moxins ship with moxy. Each can be served individually via
 | piers | 13 | Google Docs: read, create, edit, and comment on documents | bun, gws |
 | prison | 1 | Google Sheets: read spreadsheet data | bun, gws |
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
-| smith | 29 | Forgejo tools via the `fj` CLI (pass `repo` + `host` to target any repo on any instance) | forgejo-cli |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
+
+The `smith` (Forgejo) moxin is no longer bundled: it ships from smith's own
+flake as `packages.<system>.moxin`. Put its `share/moxy/moxins` on
+`MOXIN_PATH` (see moxin(7) DISCOVERY).
 
 ## Usage
 

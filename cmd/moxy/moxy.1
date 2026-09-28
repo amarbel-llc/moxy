@@ -1,4 +1,4 @@
-.Dd April 10, 2026
+.Dd September 28, 2026
 .Dt MOXY 1
 .Os
 .Sh NAME
@@ -263,6 +263,15 @@ If neither is set, a UUID is generated per
 process.
 .It Ev MOXIN_PATH
 Colon-separated list of directories to search for moxin configs.
+Earlier entries win over later ones by moxin name.
+The system moxin directory baked into the build is always appended as the
+lowest-priority entry, even when
+.Ev MOXIN_PATH
+is set, unless a moxyfile sets
+.Va builtin-native
+to
+.Cm false
+.Pq see Xr moxyfile 5 .
 See
 .Xr moxin 7
 for discovery details.

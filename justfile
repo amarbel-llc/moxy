@@ -404,28 +404,6 @@ debug-sleep seconds="300":
 debug-go-test pattern pkg="./internal/native/...":
   MOXIN_PATH="" go test {{pkg}} -run '{{pattern}}' -v
 
-# Verify the raw shape of `fj whoami` and `fj api user/orgs` against the
-# real forge instance, to confirm/deny suspected parsing bugs in
-# moxins/smith/bin/repo-owner-perms's owner/org auto-allow gate.
-#
-# verify the raw shape of `fj whoami` and `fj api user/orgs`
-[group("debug")]
-debug-smith-fj-identity:
-  #!/usr/bin/env bash
-  set -uo pipefail
-  echo "--- fj whoami (raw) ---"
-  fj whoami
-  echo "--- fj whoami | awk 'END{print \$NF}' (what repo-owner-perms extracts) ---"
-  fj whoami | awk 'END{print $NF}'
-  echo "--- fj api user (raw) ---"
-  fj api user
-  echo "exit=$?"
-  echo "--- fj api user/orgs (raw) ---"
-  fj api user/orgs
-  echo "exit=$?"
-  echo "--- fj --version ---"
-  fj --version || true
-
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
 # Idempotent (skips files that already declare permit-async). Keep for
@@ -1027,21 +1005,6 @@ debug-py-typecheck:
 [group("explore")]
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
-
-# Run the pinned forgejo-cli (fj) binary directly with arbitrary args, using
-# the exact PATH smith's wrapped bin scripts run under (extracted from the
-# nix-built wrapper so it tracks whichever fj is currently pinned). Agent
-# dev-loop for probing fj's CLI surface (e.g. `just explore-fj-help -- repo --help`)
-# before wiring a new smith tool (#414/#418/#419).
-#
-# run the pinned forgejo-cli binary directly with arbitrary args
-[group("explore")]
-explore-fj-help *args: build-moxins
-  #!/usr/bin/env bash
-  set -euo pipefail
-  wrapped="{{justfile_directory()}}/result-moxins/share/moxy/moxins/smith/bin/issue-list"
-  eval "$(grep -m1 '^export PATH=' "$wrapped")"
-  fj {{args}}
 
 # POC scope only — not wired into main test.
 #

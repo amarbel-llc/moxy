@@ -1,4 +1,4 @@
-.Dd April 7, 2026
+.Dd September 28, 2026
 .Dt MOXYFILE 5
 .Os
 .Sh NAME
@@ -65,6 +65,38 @@ enables progressive disclosure for servers without an explicit setting.
 Optional.
 Default:
 .Cm false .
+.It Va builtin-native
+When set to
+.Cm false ,
+the system moxin directory (the moxins that ship with moxy, baked into the
+build) is not appended to the moxin search path.
+Moxins found via
+.Ev MOXIN_PATH
+are unaffected, including a
+.Ev MOXIN_PATH
+entry that itself points at a system moxin directory.
+Honoured by
+.Sy serve mcp ,
+.Sy serve-http ,
+.Sy restart
+and
+.Sy status .
+Unlike the additive disable lists, the closest moxyfile that sets it wins,
+so a project moxyfile with
+.Cm true
+overrides a global
+.Cm false .
+To hide one system moxin while keeping the rest, put a same-named moxin
+earlier on
+.Ev MOXIN_PATH
+(it shadows the system copy) or use
+.Va disable-moxins .
+See
+.Xr moxin 7
+DISCOVERY.
+Optional.
+Default:
+.Cm true .
 .It Va disable-moxins
 Array of moxin names or
 .Dq name.tool
@@ -75,9 +107,12 @@ hides the entire moxin server.
 A dotted pair (e.g.\&
 .Dq man.semantic-search )
 hides a single tool within a moxin while leaving the rest visible.
-Only affects moxins discovered via
-.Ev MOXIN_PATH ;
+Only affects moxins (from
+.Ev MOXIN_PATH
+or the system moxin directory);
 moxyfile-configured servers are unaffected.
+Matching is by name, so a bare name hides every copy of that moxin, whichever
+directory it came from.
 Entries are merged additively across the hierarchy.
 Optional.
 Default: empty.

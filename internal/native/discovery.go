@@ -80,6 +80,16 @@ func SystemMoxinDir() string {
 	return ""
 }
 
+// SystemMoxinDirFor applies the moxyfile's builtin-native key to
+// SystemMoxinDir: an explicit false omits the system dir ("").
+func SystemMoxinDirFor(builtinNative *bool) string {
+	if builtinNative != nil && !*builtinNative {
+		debugMoxin("SystemMoxinDirFor: builtin-native = false, omitting system dir")
+		return ""
+	}
+	return SystemMoxinDir()
+}
+
 // ParseMoxinPath splits a colon-separated MOXIN_PATH into directory entries.
 // Empty entries are skipped.
 func ParseMoxinPath(path string) []string {
@@ -160,6 +170,16 @@ type DiscoverResult struct {
 	// Dirs lists the MOXIN_PATH directories that were scanned, in priority
 	// order (highest first). Useful for status display.
 	Dirs []string
+	// Shadowed lists moxins hidden by a same-named moxin in a
+	// higher-priority dir.
+	Shadowed []ShadowedMoxin
+}
+
+// ShadowedMoxin is a moxin at Dir that lost to the same-named moxin at By.
+type ShadowedMoxin struct {
+	Name string
+	Dir  string
+	By   string
 }
 
 // DiscoverAll loads moxin configs and collects load failures instead of
@@ -171,6 +191,7 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 	byName := make(map[string]*NativeConfig)
 	var order []string
 	var loadErrors []MoxinError
+	var shadowed []ShadowedMoxin
 
 	for i := len(dirs) - 1; i >= 0; i-- {
 		moxyDir := dirs[i]
@@ -203,7 +224,9 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 				continue
 			}
 			cfg.SourceDir = dirPath
-			if _, exists := byName[cfg.Name]; !exists {
+			if prev, exists := byName[cfg.Name]; exists {
+				shadowed = append(shadowed, ShadowedMoxin{Name: cfg.Name, Dir: prev.SourceDir})
+			} else {
 				order = append(order, cfg.Name)
 			}
 			byName[cfg.Name] = cfg
@@ -215,8 +238,11 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 	for _, name := range order {
 		result = append(result, byName[name])
 	}
-	debugMoxin("DiscoverAll: result: %d configs, %d errors", len(result), len(loadErrors))
-	return DiscoverResult{Configs: result, Errors: loadErrors, Dirs: dirs}, nil
+	for i := range shadowed {
+		shadowed[i].By = byName[shadowed[i].Name].SourceDir
+	}
+	debugMoxin("DiscoverAll: result: %d configs, %d errors, %d shadowed", len(result), len(loadErrors), len(shadowed))
+	return DiscoverResult{Configs: result, Errors: loadErrors, Dirs: dirs, Shadowed: shadowed}, nil
 }
 
 func resolveMoxinDirs(moxinPath, systemDir string) []string {

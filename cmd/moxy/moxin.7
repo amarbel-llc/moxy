@@ -1,4 +1,4 @@
-.Dd June 8, 2026
+.Dd September 28, 2026
 .Dt MOXIN 7
 .Os
 .Sh NAME
@@ -314,28 +314,111 @@ Moxin configs are discovered from directories listed in the
 .Ev MOXIN_PATH
 environment variable (colon-separated, like
 .Ev MANPATH ) .
-Earlier entries override later ones by server name.
 Within each path entry, subdirectories containing a
 .Pa _moxin.toml
 file are recognized as moxins.
+When
+.Ev MOXIN_PATH
+is unset or empty, the legacy hierarchy is used instead:
+.Bd -literal -offset indent
+<cwd>/.moxy/moxins:<intermediate>/.moxy/moxins:~/.config/moxy/moxins
+.Ed
 .Pp
+Only existing directories are included.
+.Ss System moxins
+The moxins that ship with moxy (the system moxin directory) are appended
+after every
+.Ev MOXIN_PATH
+entry as the lowest-priority entry \(em also when
+.Ev MOXIN_PATH
+is set explicitly.
+The directory is resolved in order:
+.Bl -enum
+.It
+The path baked into the binary at build time.
+Nix builds point this at the separate
+.Pa moxy-moxins
+store path
+.Pq Pa /nix/store/...-moxy-moxins/share/moxy/moxins ,
+so it does not depend on where the running
+.Nm moxy
+executable lives (a wrapper such as clown's moxy plugin runs an inner
+.Pa bin/moxy
+whose own prefix has no moxins).
+.It
 The executable-relative
-.Pa <prefix>/share/moxy/moxins/
-directory (system moxins) is automatically appended as the lowest-priority
-entry, unless
-.Sy builtin-native = false
-is set in the moxyfile.
+.Pa <prefix>/share/moxy/moxins/ ,
+where
+.Pa <prefix>
+is two levels above the symlink-resolved executable (dev builds).
+.El
 .Pp
+Set
+.Sy builtin-native = false
+in a moxyfile (see
+.Xr moxyfile 5 )
+to stop appending the system directory.
+The key is honoured by
+.Sy serve mcp ,
+.Sy serve-http ,
+.Sy restart ,
+and
+.Sy status .
+It is not consulted by
+.Sy serve-moxin
+and
+.Sy list-moxins
+(which ignore the moxyfile by design), by
+.Sy moxin-path ,
+or by the permission hook.
+It only removes the appended entry: a
+.Ev MOXIN_PATH
+that itself names a system moxin directory (for example one produced by
+.Sy moxy moxin-path ,
+or a
+.Pa result/share/moxy/moxins
+from a local build) still loads those moxins.
+.Ss Name collisions
+Moxins are keyed by the
+.Sy name
+in
+.Pa _moxin.toml ,
+not by directory name.
+When two directories define the same name, the one earlier on the path
+wins and the later one is skipped entirely (its tools are not merged).
+Because the system directory is always last, any same-named moxin on
+.Ev MOXIN_PATH
+shadows the system copy.
+This is the supported way to take over a system moxin \(em for example
+when a moxin moves to the repository that owns its CLI and ships from
+there: put the new copy on
+.Ev MOXIN_PATH
+and it replaces the bundled one without any moxy change.
+.Sy moxy status
+lists each shadowed moxin under its directory as
+.Dq [shadowed by <dir>] .
+.Pp
+.Va disable-moxins
+matches by name, so it hides every copy of a moxin, not just the system
+one.
+A moxyfile
+.Sy [[servers]]
+entry with the same name as a moxin always wins over the moxin (see
+.Sx DESCRIPTION ) .
+.Ss moxin-path
 The
 .Sy moxy moxin-path
-subcommand generates a default
-.Ev MOXIN_PATH
-from the legacy hierarchy convention:
+subcommand prints the legacy hierarchy with the system directory appended:
 .Bd -literal -offset indent
 <cwd>/.moxy/moxins:<intermediate>/.moxy/moxins:~/.config/moxy/moxins:<systemDir>
 .Ed
 .Pp
 Only existing directories are included.
+Exporting its output as
+.Ev MOXIN_PATH
+makes the system directory an explicit entry, which
+.Sy builtin-native = false
+cannot remove.
 .Sh ARGUMENT PASSING
 Caller-supplied arguments are extracted from the MCP
 .Sy tools/call

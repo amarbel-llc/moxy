@@ -1,3 +1,0 @@
-schema = 1
-name = "smith"
-description = "Forgejo MCP server wrapping the smith CLI (a forgejo-cli fork). Tools default to the repo resolved from the cwd's git remotes; pass repo (OWNER/NAME) and host (instance domain, e.g. 'codeberg.org') to target any repo on any Forgejo instance. Auth: run `smith auth login` (browser flow) or `smith auth add-key <user>` (application token via stdin) once per instance. smith has no structured/JSON output yet (upstream smith#213); results are plain text."

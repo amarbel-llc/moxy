@@ -176,71 +176,6 @@
         "url": "https://code.linenisgreat.com/crap/archive/master.tar.gz"
       }
     },
-    "cutting-garden": {
-      "inputs": {
-        "bats": [
-          "smith",
-          "bats"
-        ],
-        "conformist": [
-          "smith",
-          "conformist"
-        ],
-        "crap": [
-          "madder",
-          "crap"
-        ],
-        "flake-utils": [
-          "smith",
-          "utils"
-        ],
-        "hyphence": [
-          "madder",
-          "hyphence"
-        ],
-        "igloo": [
-          "smith",
-          "bats",
-          "igloo"
-        ],
-        "langlang": [
-          "madder",
-          "langlang"
-        ],
-        "madder": [
-          "madder"
-        ],
-        "nixpkgs-master": [
-          "smith",
-          "nixpkgs-master"
-        ],
-        "piggy": [
-          "madder",
-          "piggy"
-        ],
-        "purse-first": [
-          "purse-first"
-        ],
-        "tap": [
-          "madder",
-          "tap"
-        ],
-        "tommy": [
-          "tommy"
-        ]
-      },
-      "locked": {
-        "lastModified": 1790276130,
-        "narHash": "sha256-QQAmW5xZSvUmuldJcaqFdiYlYHNZghDnKedI85Ice1g=",
-        "rev": "d84b77f01a56340588f55d02caa5fa32eada27ce",
-        "type": "tarball",
-        "url": "https://code.linenisgreat.com/cutting-garden/archive/d84b77f01a56340588f55d02caa5fa32eada27ce.tar.gz"
-      },
-      "original": {
-        "type": "tarball",
-        "url": "https://code.linenisgreat.com/cutting-garden/archive/master.tar.gz"
-      }
-    },
     "doppelgang": {
       "inputs": {
         "conformist": [
@@ -776,7 +711,6 @@
         "nixpkgs-gomarkdoc-pin": "nixpkgs-gomarkdoc-pin",
         "nixpkgs-master": "nixpkgs-master",
         "purse-first": "purse-first",
-        "smith": "smith",
         "tommy": "tommy",
         "utils": "utils"
       }
@@ -801,34 +735,6 @@
         "owner": "oxalica",
         "repo": "rust-overlay",
         "type": "github"
-      }
-    },
-    "smith": {
-      "inputs": {
-        "bats": [
-          "bats"
-        ],
-        "conformist": [
-          "conformist"
-        ],
-        "cutting-garden": "cutting-garden",
-        "nixpkgs-master": [
-          "nixpkgs-master"
-        ],
-        "utils": [
-          "utils"
-        ]
-      },
-      "locked": {
-        "lastModified": 1790537834,
-        "narHash": "sha256-kfJyGGTGVut+MctsGBgOrJRRWqtHakm5yFSZfv3oLRU=",
-        "rev": "c8df6884b47c7b6e0048cb7f7e0286ef8058874e",
-        "type": "tarball",
-        "url": "https://code.linenisgreat.com/smith/archive/c8df6884b47c7b6e0048cb7f7e0286ef8058874e.tar.gz"
-      },
-      "original": {
-        "type": "tarball",
-        "url": "https://code.linenisgreat.com/smith/archive/master.tar.gz"
       }
     },
     "systems": {

@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-# shellcheck source=bin/.smith-common
-. "$(dirname "$0")/.smith-common"
-
-run_smith_search issue "$@"
