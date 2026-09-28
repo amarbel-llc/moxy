@@ -39,10 +39,14 @@ build: build-gomod2nix build-moxins build-go build-nix
 build-go: codemod-generate build-moxins
   go build -o build/moxy ./cmd/moxy
 
-# build the moxins nix output and link it at result-moxins
+# Builds moxy-moxins-all (every built moxin, including ones not shipped in
+# the bundle baked into moxy), so dev-loop recipes and smokes can still
+# reach arboretum/hamster/slip.
+#
+# build every moxin nix output and link it at result-moxins
 [group("build")]
 build-moxins:
-  nix build --keep-going --out-link result-moxins .#moxy-moxins
+  nix build --keep-going --out-link result-moxins .#moxy-moxins-all
 
 # Regenerate the tommy codec, deterministically, against the flake input
 # closure (mirrors dodder's `nix develop -c go generate`): `nix develop -c`

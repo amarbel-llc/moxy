@@ -110,6 +110,10 @@ The following moxins ship with moxy. Each can be served individually via
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
 
+`arboretum`, `hamster` and `slip` are built and tested but currently left out
+of the bundle baked into moxy (`moxy-moxins`); the full set is the
+`moxy-moxins-all` flake output.
+
 The `smith` (Forgejo) moxin is no longer bundled: it ships from smith's own
 flake as `packages.<system>.moxin`. Put its `share/moxy/moxins` on
 `MOXIN_PATH` (see moxin(7) DISCOVERY).

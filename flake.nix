@@ -932,22 +932,42 @@
           } { };
         */
 
-        # Symlink-only aggregation of all per-moxin derivations.
-        moxy-moxins = pkgs.runCommand "moxy-moxins" { } ''
-          mkdir -p $out/share/moxy/moxins
-          ln -s ${arboretum-moxin} $out/share/moxy/moxins/arboretum
-          ln -s ${chix-moxin} $out/share/moxy/moxins/chix
-          ln -s ${env-moxin} $out/share/moxy/moxins/env
-          ln -s ${folio-moxin} $out/share/moxy/moxins/folio
-          ln -s ${freud-moxin} $out/share/moxy/moxins/freud
-          ln -s ${grit-moxin} $out/share/moxy/moxins/grit
-          ln -s ${hamster-moxin} $out/share/moxy/moxins/hamster
-          ln -s ${jq-moxin} $out/share/moxy/moxins/jq
-          ln -s ${man-moxin} $out/share/moxy/moxins/man
-          ln -s ${rg-moxin} $out/share/moxy/moxins/rg
-          ln -s ${slip-moxin} $out/share/moxy/moxins/slip
-          # gws moxins (piers car prison gmail calendar gws) excluded for now (#391).
-        '';
+        # Every moxin moxy builds. gws moxins (piers car prison gmail
+        # calendar gws) are excluded from the build entirely for now (#391).
+        allMoxins = {
+          arboretum = arboretum-moxin;
+          chix = chix-moxin;
+          env = env-moxin;
+          folio = folio-moxin;
+          freud = freud-moxin;
+          grit = grit-moxin;
+          hamster = hamster-moxin;
+          jq = jq-moxin;
+          man = man-moxin;
+          rg = rg-moxin;
+          slip = slip-moxin;
+        };
+
+        # Built and tested (moxy-moxins-all feeds the bats lanes and the
+        # dev-loop recipes) but not shipped in the bundle baked into moxy.
+        unshippedMoxins = [
+          "arboretum"
+          "hamster"
+          "slip"
+        ];
+
+        # Symlink-only aggregation of per-moxin derivations.
+        mkMoxinBundle =
+          name: moxins:
+          pkgs.runCommand name { } ''
+            mkdir -p $out/share/moxy/moxins
+            ${pkgs.lib.concatStringsSep "\n" (
+              pkgs.lib.mapAttrsToList (n: drv: "ln -s ${drv} $out/share/moxy/moxins/${n}") moxins
+            )}
+          '';
+
+        moxy-moxins = mkMoxinBundle "moxy-moxins" (removeAttrs allMoxins unshippedMoxins);
+        moxy-moxins-all = mkMoxinBundle "moxy-moxins-all" allMoxins;
 
         madder-bin = madder.packages.${system}.default;
 
@@ -1176,7 +1196,9 @@
             batsLibPath = [ bats.packages.${system}.bats-libs.batsLibPath ];
             extraEnv = {
               BATS_TEST_TIMEOUT = "30";
-              MOXIN_PATH = "${moxy-moxins}/share/moxy/moxins";
+              # All built moxins, including the unshipped ones, so their
+              # tests keep running.
+              MOXIN_PATH = "${moxy-moxins-all}/share/moxy/moxins";
               # grit_*.bats invoke wrapped scripts at $BIN by default
               # ($BATS_TEST_DIRNAME/../result/share/moxy/moxins/grit/bin),
               # which doesn't exist inside the nix sandbox. Tests fall
@@ -1304,6 +1326,7 @@
           inherit
             moxy
             moxy-moxins
+            moxy-moxins-all
             moxy-linux
             moxy-oci-image
             ;
