@@ -1,7 +1,7 @@
 {
   inputs = {
     igloo.url = "https://code.linenisgreat.com/igloo/archive/master.tar.gz";
-    nixpkgs-master.url = "github:NixOS/nixpkgs/e94cb152ed51bd6e24eb4a41f1460252beb52cd2";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/7a0f122f5090cf4c2ade2a13a0e229d4e19ba71f";
     # Pinned to the last upstream nixpkgs commit where pkgs.gomarkdoc still
     # builds. A regression after 2026-03-23 (still present on master as of
     # 2026-05-04) breaks gomarkdoc's checkPhase — used only as the source of
