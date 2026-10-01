@@ -91,11 +91,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790869583,
-        "narHash": "sha256-w7a3c9lUiiTb8TvSP8wQgszGNMBxuSUGCo4VCGXZpB8=",
-        "rev": "189c376310d9a99f09056d0adb29bfa3bf40a643",
+        "lastModified": 1790873944,
+        "narHash": "sha256-zAvkAT5/PeiVXHGrolORqIh5LiZFCuKGQ9wpbFmoEKc=",
+        "rev": "b50afef83b12a9830325ad5c34869b51d165dba2",
         "type": "tarball",
-        "url": "https://code.linenisgreat.com/clown/archive/189c376310d9a99f09056d0adb29bfa3bf40a643.tar.gz"
+        "url": "https://code.linenisgreat.com/clown/archive/b50afef83b12a9830325ad5c34869b51d165dba2.tar.gz"
       },
       "original": {
         "type": "tarball",
@@ -404,11 +404,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790866335,
-        "narHash": "sha256-mGySnpnklRivP/I0eE01o34Jegp/+0uiqMjR53EceJY=",
+        "lastModified": 1790866708,
+        "narHash": "sha256-1yu2AwhKxU2VtZh7dB5r1KUK2iu8aSrxX0+tGyZtAf0=",
         "owner": "numtide",
         "repo": "llm-agents.nix",
-        "rev": "3286b9941aa5fe51a91f7876f1b9697d8560faa0",
+        "rev": "83cd3693f5f33071ceb33977f2298c8b40b2aba4",
         "type": "github"
       },
       "original": {
