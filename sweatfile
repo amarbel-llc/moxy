@@ -1,7 +1,12 @@
 [direnv]
 # TODO(amarbel-llc/spinclass#19): switch to dotenv when supported
 # dotenv = { MOXIN_PATH = "$WORKTREE/build/moxins" }
-envrc = ["source_up", "use flake", "export MOXIN_PATH=$PWD/result/share/moxy/moxins"]
+# An explicit MOXIN_PATH replaces moxy's legacy discovery hierarchy outright
+# (moxin(7) DISCOVERY), so the user-level dir must be re-appended by hand or
+# every moxin linked there by the host config — notably smith's, which moxy no
+# longer bundles (#442) — vanishes inside moxy worktree sessions. The locally
+# built moxins stay first so they still win for dogfooding.
+envrc = ["source_up", "use flake", "export MOXIN_PATH=$PWD/result/share/moxy/moxins:$HOME/.config/moxy/moxins"]
 
 [hooks]
 pre-merge = "just"
