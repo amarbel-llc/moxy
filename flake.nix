@@ -978,10 +978,14 @@
           "prison"
         ];
 
-        # Symlink-only aggregation of per-moxin derivations.
+        # Symlink-only aggregation of per-moxin derivations. `moxinNames`
+        # (sorted) is the bundle's contents as an eval-time attr, so a
+        # consumer can iterate `<bundle>.moxinNames` to build per-moxin links
+        # without reading the output directory — which would be
+        # import-from-derivation in every eval of the consuming config.
         mkMoxinBundle =
           name: moxins:
-          pkgs.runCommand name { } ''
+          pkgs.runCommand name { passthru.moxinNames = builtins.attrNames moxins; } ''
             mkdir -p $out/share/moxy/moxins
             ${pkgs.lib.concatStringsSep "\n" (
               pkgs.lib.mapAttrsToList (n: drv: "ln -s ${drv} $out/share/moxy/moxins/${n}") moxins

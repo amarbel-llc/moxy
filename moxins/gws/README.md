@@ -25,7 +25,9 @@ These moxins are built but not shipped in the bundle baked into moxy. To use
 them, make the `gws-moxins` flake output's `share/moxy/moxins/<name>`
 directories discoverable — link them into `~/.config/moxy/moxins/`, or put the
 bundle's `share/moxy/moxins` on `MOXIN_PATH` (`moxy-moxins-all` carries them
-too, along with every other built moxin) — and make sure no moxyfile in the hierarchy lists them under
+too, along with every other built moxin). Each bundle lists its contents at
+eval time as `<bundle>.moxinNames`, for a nix config that links them one by
+one. Also make sure no moxyfile in the hierarchy lists them under
 `disable-moxins` (that key merges additively, so a project-local moxyfile
 cannot re-enable what a parent disables).
 
