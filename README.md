@@ -105,14 +105,16 @@ The following moxins ship with moxy. Each can be served individually via
 | hamster | 6 | Go package documentation via `go doc` | go, bun |
 | jq | 1 | Execute jq filters on JSON data | jq |
 | man | 4 | Unix man page reader with section-level progressive disclosure | pandoc, mandoc |
-| piers | 13 | Google Docs: read, create, edit, and comment on documents | bun, gws |
+| piers | 16 | Google Docs: read, create, edit, and comment on documents | bun, gws |
 | prison | 1 | Google Sheets: read spreadsheet data | bun, gws |
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
 
-`arboretum`, `hamster` and `slip` are built and tested but currently left out
-of the bundle baked into moxy (`moxy-moxins`); the full set is the
-`moxy-moxins-all` flake output.
+`arboretum`, `hamster`, `slip` and the Google Workspace moxins (`calendar`,
+`car`, `gmail`, `gws`, `piers`, `prison` — they need an authenticated `gws`
+CLI) are built but currently left out of the bundle baked into moxy
+(`moxy-moxins`); the full set is the `moxy-moxins-all` flake output. Put its
+`share/moxy/moxins` on `MOXIN_PATH` to opt in.
 
 The `smith` (Forgejo) moxin is no longer bundled: it ships from smith's own
 flake as `packages.<system>.moxin`. Put its `share/moxy/moxins` on

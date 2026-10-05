@@ -41,7 +41,7 @@ build-go: codemod-generate build-moxins
 
 # Builds moxy-moxins-all (every built moxin, including ones not shipped in
 # the bundle baked into moxy), so dev-loop recipes and smokes can still
-# reach arboretum/hamster/slip.
+# reach arboretum/hamster/slip and the gws moxins.
 #
 # build every moxin nix output and link it at result-moxins
 [group("build")]
@@ -539,6 +539,69 @@ run-mcp: build-go
 [group("operational")]
 run-nix *ARGS:
   nix run . -- {{ARGS}}
+
+# Runs the same pinned `gws` the gws moxins (piers, car, …) wrap, so a
+# credential written here is in the format they read back. The setup loop is
+# `just run-gws auth login -s drive,docs,…` after dropping the OAuth client
+# JSON at ~/.config/gws/client_secret.json; see moxins/gws/README.md.
+#
+# [positional-arguments] forwards ARGS as real argv ("$@") rather than
+# {{ARGS}} text, so a `--params '{"pageSize": 1}'` JSON blob survives intact
+# instead of being brace-expanded and word-split by the shell.
+#
+# run the pinned google-workspace-cli (`gws`) with the given arguments
+[group("operational")]
+[positional-arguments]
+run-gws *ARGS:
+  nix run .#gws -- "$@"
+
+# Invokes one nix-wrapped gws-family moxin script directly (bypassing moxy),
+# to tell "the wrapper + pinned gws + stored credential work" apart from
+# "moxy's dispatch works". Needs `just build-moxins` first and a prior
+# `just run-gws auth login`. Usage: just debug-gws-moxin-smoke car get <fileId>
+#
+# run one built gws-family moxin script (e.g. car get) with the given arguments
+[group("debug")]
+[positional-arguments]
+debug-gws-moxin-smoke moxin tool *ARGS:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  bin="{{justfile_directory()}}/result-moxins/share/moxy/moxins/$1/bin/$2"
+  shift 2
+  "$bin" "$@"
+
+# Calls one gws-family tool THROUGH the moxy proxy (tools/call over stdio),
+# as a local override of an ambient moxyfile that disables those moxins:
+# `disable-moxins` merges additively across the $HOME→$CWD hierarchy, so a
+# project-local moxyfile cannot re-enable them — instead this runs moxy under
+# a throwaway $HOME (no parent moxyfile is walked) with MOXIN_PATH pointed at
+# the full built set. The real gws config dir is passed through so the stored
+# OAuth credential still resolves.
+# Usage: just debug-gws-moxy-call piers.outline '{"document_id":"<id>"}'
+#
+# call one gws-family tool through moxy, bypassing the ambient moxyfile
+[group("debug")]
+[positional-arguments]
+debug-gws-moxy-call tool args='{}': build-go build-moxins
+  #!/usr/bin/env bash
+  set -euo pipefail
+  moxy="{{justfile_directory()}}/{{dir_build}}/moxy"
+  gws_config="${GOOGLE_WORKSPACE_CLI_CONFIG_DIR:-$HOME/.config/gws}"
+  fake_home=$(mktemp -d)
+  trap 'rm -rf "$fake_home"' EXIT
+  mkdir -p "$fake_home/repo"
+  init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"gws-smoke","version":"0.1"}}}'
+  notif='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  call=$(jq -cn --arg name "$1" --argjson arguments "$2" \
+    '{jsonrpc:"2.0",id:2,method:"tools/call",params:{name:$name,arguments:$arguments}}')
+  cd "$fake_home/repo"
+  (echo "$init"; echo "$notif"; echo "$call"; sleep 15) \
+    | HOME="$fake_home" \
+      MOXIN_PATH="{{justfile_directory()}}/result-moxins/share/moxy/moxins" \
+      GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$gws_config" \
+      timeout 60s "$moxy" serve mcp 2>"$fake_home/stderr.log" \
+    | jq -c 'select(.id == 2)' \
+    || { echo "--- moxy stderr ---" >&2; cat "$fake_home/stderr.log" >&2; exit 1; }
 
 [group("maintenance")]
 update: update-go
