@@ -114,7 +114,9 @@ The following moxins ship with moxy. Each can be served individually via
 `car`, `gmail`, `gws`, `piers`, `prison` — they need an authenticated `gws`
 CLI) are built but currently left out of the bundle baked into moxy
 (`moxy-moxins`); the full set is the `moxy-moxins-all` flake output. Put its
-`share/moxy/moxins` on `MOXIN_PATH` to opt in.
+`share/moxy/moxins` on `MOXIN_PATH` to opt in. The Google Workspace six are
+also available alone as the `gws-moxins` output (see
+[moxins/gws/README.md](moxins/gws/README.md)).
 
 The `smith` (Forgejo) moxin is no longer bundled: it ships from smith's own
 flake as `packages.<system>.moxin`. Put its `share/moxy/moxins` on

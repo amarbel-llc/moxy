@@ -961,14 +961,21 @@
         # stay opt-in pending a disabled-by-default mechanism (#391).
         unshippedMoxins = [
           "arboretum"
+          "hamster"
+          "slip"
+        ]
+        ++ gwsMoxinNames;
+
+        # The moxins that wrap the `gws` CLI and need a per-user Google OAuth
+        # login (moxins/gws/README.md). Single source for both the unshipped
+        # list above and the gws-moxins opt-in bundle below.
+        gwsMoxinNames = [
           "calendar"
           "car"
           "gmail"
           "gws"
-          "hamster"
           "piers"
           "prison"
-          "slip"
         ];
 
         # Symlink-only aggregation of per-moxin derivations.
@@ -983,6 +990,11 @@
 
         moxy-moxins = mkMoxinBundle "moxy-moxins" (removeAttrs allMoxins unshippedMoxins);
         moxy-moxins-all = mkMoxinBundle "moxy-moxins-all" allMoxins;
+        # Just the gws moxins, for a host config to link into a user's moxin
+        # dir (e.g. ~/.config/moxy/moxins/<name>) without hardcoding the list
+        # or pulling in the rest of moxy-moxins-all. Layout matches the other
+        # bundles: share/moxy/moxins/<name>.
+        gws-moxins = mkMoxinBundle "gws-moxins" (pkgs.lib.getAttrs gwsMoxinNames allMoxins);
 
         madder-bin = madder.packages.${system}.default;
 
@@ -1342,6 +1354,7 @@
             moxy
             moxy-moxins
             moxy-moxins-all
+            gws-moxins
             moxy-linux
             moxy-oci-image
             ;
