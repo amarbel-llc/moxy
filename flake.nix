@@ -582,8 +582,8 @@
         wasiSdk = pkgs.stdenv.mkDerivation {
           name = "wasi-sdk-${wasiSdkVersion}";
           src = wasiSdkTarball;
-          nativeBuildInputs = pkgs.lib.optional pkgs.stdenv.isLinux pkgs.autoPatchelfHook;
-          buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [
+          nativeBuildInputs = pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.autoPatchelfHook;
+          buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
             pkgs.stdenv.cc.cc.lib # libstdc++ / libgcc_s for clang
             pkgs.zlib # libz
             pkgs.ncurses # libtinfo for clang
@@ -881,8 +881,6 @@
               pathMode = "suffix";
             };
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] { };
-        # The smith moxin is shipped by smith's own flake (packages.moxin,
-        # smith#62); moxy no longer bundles a copy (#442).
 
         # gws moxins: built, but unshipped (#391) — see the gws-bin block above
         # and unshippedMoxins below.
