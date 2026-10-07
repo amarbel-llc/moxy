@@ -104,7 +104,9 @@ includes, nothing else).
 - Exit `1`: it does not. One line per violation on stdout, `<key>: <reason>`,
   sorted by key, then subject, then reason — the same two configs always
   produce the same bytes, so a caller can store the lines verbatim.
-- Exit `2`: a side could not be read or parsed; the reason is on stderr.
+- Exit `2`: a side could not be read or parsed, or the arguments were
+  malformed; the reason is on stderr. Exit `1` is never anything but the
+  verdict.
 - `--json` prints one object instead of lines:
   `{"narrows":bool,"violations":[{"key":"servers.smith","subject":"smith","message":"not in parent"}]}`.
   `violations` is always an array.
@@ -136,7 +138,14 @@ narrows it: one line per violation on stderr, non-zero exit, no child server
 spawned, no port bound.
 
 - Unset: no check. Existing deployments are unaffected.
-- Set but unreadable or unparseable: refusal (fail closed).
+- Set but unreadable, unparseable or empty: refusal (fail closed). An empty
+  file would parse as a parent that constrains almost nothing, and is far
+  likelier a render that failed.
+- Read once, at startup, and pinned for the life of the process. A reload is
+  judged against that reading, so a child that can write the file cannot
+  loosen it and then call `restart`.
+- A restriction key written with the wrong type (`allow-tools = "x"`) is a
+  parse error on either side, never "unset": unset means unrestricted.
 - The check is in the config-loading path every serve path shares, not at
   process start only. `restart` with no argument re-reads the hierarchy; a
   moxyfile edited to grant more is refused there too — the restart tool's
@@ -167,12 +176,14 @@ spawned, no port bound.
 
 ## Limitations
 
-- **`moxy narrows` cannot pre-check moxins.** It judges a file for a process
-  that does not exist yet and never runs discovery, so the `resolved-moxins`
-  rule bites only when the child serves (or when both references given to
-  `narrows` are rendered files). A launcher that wants the early answer to
-  hold pins the child's `MOXIN_PATH` to the parent's; the serve-time check is
-  the backstop, not a substitute.
+- **`moxy narrows` cannot know a future child's `MOXIN_PATH`.** Given a child
+  *file* it judges the keys alone (plus whatever record the file carries);
+  given a child *directory* it discovers moxins in the caller's environment,
+  which matches serving only if the child is started with the same
+  `MOXIN_PATH`. The `resolved-moxins` rule is certain only when the child
+  serves. A launcher that wants the early answer to hold pins the child's
+  `MOXIN_PATH` to the parent's; the serve-time check is the backstop, not a
+  substitute.
 - **A hand-written parent reference has no record**, and then moxins are not
   compared at all. The guarantee needs a reference written by
   `show-effective-moxyfile` from a directory.

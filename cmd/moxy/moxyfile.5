@@ -50,6 +50,20 @@ This reaches configuration kept outside the
 .Ev HOME Ns \(-> Ns Pa CWD
 walk, e.g. a checkout mounted at a top-level path.
 .Sh TOP-LEVEL KEYS
+Keys
+.Xr moxy 1
+does not know are ignored.
+The keys that restrict what is served \(em
+.Va allow-tools ,
+.Va disable-moxins ,
+.Va disable-servers ,
+.Va builtin-native
+and
+.Va resolved-moxins
+\(em are the exception to leniency in one respect: written with the wrong
+type
+.Pq a string where an array belongs, say
+they are an error, never read as unset, because unset means unrestricted.
 .Bl -tag -width "progressive-disclosure"
 .It Va ephemeral
 When set to
@@ -518,9 +532,10 @@ from a directory.
 A hand-written parent reference has none, and then moxins are not compared.
 .Xr moxy 1
 .Cm narrows
-compares the records only when both of its references carry one; it never
-discovers moxins itself, because the child it is asked about is not running
-yet.
+reads its references the same way: a directory is given the record a
+.Xr moxy 1
+served from it would discover in the calling environment, and a file is taken
+as written, with whatever record it carries or none.
 .El
 .Pp
 What a moxyfile cannot say, and narrowing therefore does not judge:
@@ -528,10 +543,13 @@ What a moxyfile cannot say, and narrowing therefore does not judge:
 .It
 The
 .Ev MOXIN_PATH
-of a child that has not started.
+a child will be started with.
 .Cm narrows
-passes a child moxyfile on its keys alone; the moxin rule above bites only when
-that child serves.
+given a child
+.Em file
+judges its keys alone, and given a child directory judges the moxins found in
+the caller's environment, which need not be the child's.
+The moxin rule is certain only when that child serves.
 A launcher that wants the earlier answer to hold gives the child the parent's
 .Ev MOXIN_PATH .
 .It

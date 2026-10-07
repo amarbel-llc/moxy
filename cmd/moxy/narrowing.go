@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 
@@ -65,15 +66,48 @@ func loadServingConfig() (servingConfig, error) {
 	if err != nil {
 		return servingConfig{}, err
 	}
-	sc := servingConfig{literal: hierarchy.Merged, parentPath: os.Getenv(parentMoxyfileEnv)}
-	if sc.parentPath != "" {
-		parent, err := config.LoadFileLiteral(sc.parentPath)
-		if err != nil {
-			return servingConfig{}, fmt.Errorf("%s: %w", parentMoxyfileEnv, err)
-		}
-		sc.parent = parent.Merged
+	ref := pinnedParentReference()
+	if ref.err != nil {
+		return servingConfig{}, ref.err
 	}
-	return sc, nil
+	return servingConfig{literal: hierarchy.Merged, parentPath: ref.path, parent: ref.cfg}, nil
+}
+
+type parentReference struct {
+	path string // "" when MOXY_PARENT_MOXYFILE is unset
+	cfg  config.Config
+	err  error
+}
+
+// pinnedParentReference reads MOXY_PARENT_MOXYFILE once per process and
+// returns that same reading ever after. The reference is what every reload is
+// judged against; were it re-read, whoever can write the file — possibly the
+// very agent being confined — could widen it and then call `restart`.
+var pinnedParentReference = sync.OnceValue(readParentReference)
+
+func readParentReference() parentReference {
+	path := os.Getenv(parentMoxyfileEnv)
+	if path == "" {
+		return parentReference{}
+	}
+	fail := func(err error) parentReference {
+		return parentReference{path: path, err: fmt.Errorf("%s: %w", parentMoxyfileEnv, err)}
+	}
+	// An empty file parses as an empty config, which as a parent would
+	// constrain almost nothing. It is far more likely a render that failed
+	// than a reference anyone meant, so it is refused rather than obeyed.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fail(err)
+	}
+	if strings.TrimSpace(string(data)) == "" {
+		return fail(fmt.Errorf("%s is empty", path))
+	}
+	parent, err := config.LoadFileLiteral(path)
+	if err != nil {
+		return fail(err)
+	}
+	return parentReference{path: path, cfg: parent.Merged}
 }
 
 // judgesMoxins reports whether the parent reference bounds which moxins may
@@ -158,10 +192,13 @@ func addNarrowingCommands(app *command.App) {
 				"walked as if it were the working directory (global moxyfile, each " +
 				"directory from $HOME down to it, and includes); a file is that file " +
 				"plus its includes and nothing else, which is how a file written by " +
-				"show-effective-moxyfile is read. Prints one '<key>: <reason>' line " +
-				"per violation, sorted by key then subject, to stdout. Exits 0 when " +
-				"the child narrows the parent, 1 when it does not, 2 when either " +
-				"side cannot be read. See moxyfile(5) NARROWING.",
+				"show-effective-moxyfile is read. A directory is also given the " +
+				"resolved-moxins record a moxy served from it would discover in this " +
+				"environment; a file keeps the record it carries. Prints one " +
+				"'<key>: <reason>' line per violation, sorted by key then subject, " +
+				"to stdout. Exits 0 when the child narrows the parent, 1 when it " +
+				"does not, 2 when either side cannot be read or the arguments are " +
+				"malformed. See moxyfile(5) NARROWING.",
 		},
 		Params: []command.Param{
 			{
@@ -241,18 +278,18 @@ func runNarrows(parentRef, childRef string, asJSON bool) int {
 		fmt.Fprintf(os.Stderr, "moxy: getting home dir: %v\n", err)
 		return exitUnreadable
 	}
-	parent, err := config.LoadReferenceLiteral(home, parentRef)
+	parent, err := loadEffectiveReference(home, parentRef)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: --parent: %v\n", err)
 		return exitUnreadable
 	}
-	child, err := config.LoadReferenceLiteral(home, childRef)
+	child, err := loadEffectiveReference(home, childRef)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: --child: %v\n", err)
 		return exitUnreadable
 	}
 
-	violations := narrowing.Check(parent.Merged, child.Merged)
+	violations := narrowing.Check(parent, child)
 
 	if asJSON {
 		report := struct {
@@ -290,26 +327,34 @@ func showEffectiveMoxyfile(dir string) error {
 			return fmt.Errorf("getting cwd: %w", err)
 		}
 	}
-	hierarchy, err := config.LoadReferenceLiteral(home, dir)
+	cfg, err := loadEffectiveReference(home, dir)
 	if err != nil {
 		return err
 	}
-	cfg := hierarchy.Merged
-
-	// A directory is a live configuration: record the moxins it resolves to
-	// right now, in this environment. A file is already a document; whatever
-	// record it carries is reproduced, never recomputed, so rendering a
-	// rendered file changes nothing.
-	if info, err := os.Stat(dir); err == nil && info.IsDir() {
-		abs, err := filepath.Abs(dir)
-		if err != nil {
-			return err
-		}
-		if cfg.ResolvedMoxins, err = resolvedMoxinsFor(cfg, abs); err != nil {
-			return fmt.Errorf("discovering moxins: %w", err)
-		}
-	}
-
 	_, err = os.Stdout.Write(config.RenderEffective(cfg))
 	return err
+}
+
+// loadEffectiveReference resolves a reference the way both verbs read one. A
+// directory is a live configuration: its hierarchy is walked and the moxins it
+// resolves to right now, in this environment, are recorded — the same thing a
+// moxy served from it would discover. A file is already a document: it is
+// taken as written, record included, never recomputed, so rendering a rendered
+// file changes nothing.
+func loadEffectiveReference(home, ref string) (config.Config, error) {
+	hierarchy, err := config.LoadReferenceLiteral(home, ref)
+	if err != nil {
+		return config.Config{}, err
+	}
+	cfg := hierarchy.Merged
+	if info, err := os.Stat(ref); err == nil && info.IsDir() {
+		abs, err := filepath.Abs(ref)
+		if err != nil {
+			return config.Config{}, err
+		}
+		if cfg.ResolvedMoxins, err = resolvedMoxinsFor(cfg, abs); err != nil {
+			return config.Config{}, fmt.Errorf("discovering moxins: %w", err)
+		}
+	}
+	return cfg, nil
 }

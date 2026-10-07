@@ -71,6 +71,17 @@ func ParseLiteral(data []byte) (Config, error) {
 
 	cfg := doc.Data()
 
+	// The decoder skips a value of the wrong type instead of failing, which
+	// for these keys would read a typo as "no restriction": a string where
+	// allow-tools wants an array would allow everything. Unknown keys stay
+	// tolerated; a known restriction that did not decode is an error.
+	for _, path := range doc.Undecoded() {
+		key, _, _ := strings.Cut(path, ".")
+		if restrictionKeys[key] {
+			return Config{}, fmt.Errorf("%s: wrong type (at %q); refusing to read it as unset", key, path)
+		}
+	}
+
 	if err := validateNameOrToolEntries("disable-moxins", cfg.DisableMoxins); err != nil {
 		return Config{}, err
 	}
@@ -152,6 +163,16 @@ func ParseLiteral(data []byte) (Config, error) {
 	}
 
 	return *cfg, nil
+}
+
+// restrictionKeys are the top-level keys whose absence means "unrestricted",
+// so that silently dropping a mistyped one would widen what is served.
+var restrictionKeys = map[string]bool{
+	"allow-tools":     true,
+	"disable-moxins":  true,
+	"disable-servers": true,
+	"builtin-native":  true,
+	"resolved-moxins": true,
 }
 
 // validateNameOrToolEntries checks the grammar disable-moxins and allow-tools

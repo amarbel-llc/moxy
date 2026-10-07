@@ -469,6 +469,12 @@ func main() {
 
 	if err := app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}); err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
+		// `narrows` reserves exit 1 for "the child widens". An error that
+		// never reached the comparison — a flag with no value, say — must
+		// not be mistaken for that verdict by a caller reading exit codes.
+		if len(os.Args) > 1 && os.Args[1] == "narrows" {
+			os.Exit(exitUnreadable)
+		}
 		os.Exit(1)
 	}
 }

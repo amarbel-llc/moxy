@@ -372,6 +372,9 @@ restart_after_widening() {
       echo "$2"
       read -r <"$gate"
       cp "$HOME/widened.toml" "$HOME/child/moxyfile"
+      if [[ -n ${WIDEN_PARENT_REFERENCE_TOO:-} ]]; then
+        cp "$HOME/widened.toml" "$MOXY_PARENT_MOXYFILE"
+      fi
       echo "$3"
       read -r <"$gate"
       echo "$4"
@@ -423,4 +426,82 @@ function restart_refuses_a_widened_moxyfile_and_keeps_the_running_state { # @tes
     fail "srv tool lost after refused reload: $list_result"
   echo "$list_result" | jq -e '[.tools[] | select(.name | startswith("extra."))] | length == 0' ||
     fail "widened tool appeared after refused reload: $list_result"
+}
+
+function restart_judges_against_the_parent_reference_read_at_startup { # @test
+  # Whoever can write the reference file must not be able to widen a running
+  # moxy by rewriting it: the reference is read once, at startup.
+  write_parent
+  write_widening_child
+  mv "$HOME/child/moxyfile" "$HOME/widened.toml"
+  write_narrowing_child
+  cp "$HOME/parent/moxyfile" "$HOME/reference.toml"
+  export MOXY_PARENT_MOXYFILE="$HOME/reference.toml"
+  export WIDEN_PARENT_REFERENCE_TOO=1
+
+  restart_after_widening "$BATS_TEST_TMPDIR/moxy-stderr"
+  assert_success
+
+  local restart_result list_result
+  restart_result=$(sed -n 1p <<<"$output")
+  list_result=$(sed -n 2p <<<"$output")
+  echo "$restart_result" | jq -e '.isError == true and (.content[0].text | test("servers.extra: not in parent"))' ||
+    fail "rewriting the reference let the reload through: $restart_result"
+  echo "$list_result" | jq -e '[.tools[] | select(.name | startswith("extra."))] | length == 0' ||
+    fail "widened tool appeared: $list_result"
+}
+
+function serve_refuses_an_empty_parent_reference { # @test
+  # An empty file would parse as a parent that constrains almost nothing; it
+  # is far likelier a render that failed.
+  write_narrowing_child
+  : >"$HOME/reference.toml"
+  export MOXY_PARENT_MOXYFILE="$HOME/reference.toml"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --partial "MOXY_PARENT_MOXYFILE"
+  assert_output --partial "is empty"
+  refute_output --partial "connected to"
+}
+
+function a_mistyped_restriction_is_an_error_not_no_restriction { # @test
+  # `allow-tools` as a string must not decode to "unset, everything allowed".
+  cat >"$HOME/child/moxyfile" <<'EOF'
+allow-tools = "srv.execute-command"
+EOF
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --partial "allow-tools: wrong type"
+
+  write_parent
+  run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+  assert_failure 2
+  assert_output --partial "allow-tools: wrong type"
+}
+
+function narrows_exits_2_not_1_when_its_arguments_are_malformed { # @test
+  # Exit 1 means "the child widens". A flag with no value never got that far.
+  write_parent
+  run_moxy narrows --child "$HOME/parent/moxyfile" --parent
+  assert_failure 2
+
+  run_moxy narrows --parent "$HOME/parent/moxyfile"
+  assert_failure 2
+}
+
+function narrows_judges_a_directory_childs_moxins_as_serving_it_would { # @test
+  render_parent_with_moxins
+  unset MOXY_PARENT_MOXYFILE
+
+  run_moxy narrows --parent "$HOME/parent-reference.toml" --child "$HOME/child"
+  assert_success
+  assert_output ""
+
+  write_moxin "$OTHER_MOXINS" sneaky always-allow
+  export MOXIN_PATH="$PARENT_MOXINS:$OTHER_MOXINS"
+  run_moxy narrows --parent "$HOME/parent-reference.toml" --child "$HOME/child"
+  assert_failure 1
+  assert_output --regexp '^resolved-moxins\.sneaky: moxin from .*/other-moxins/sneaky, not in parent$'
 }

@@ -187,6 +187,12 @@ Each
 is a directory, walked as if it were the working directory
 .Pq global moxyfile, each directory from Ev HOME No down to it, and includes ,
 or a file, read as that file plus its includes and nothing else.
+A directory is also given the
+.Va resolved-moxins
+record a
+.Nm
+served from it would discover in the calling environment; a file keeps the
+record it carries, if any.
 Prints one
 .Dq Ar key Ns Li \&: Ar reason
 line per violation to stdout, sorted by key and then by subject, so the output
@@ -196,8 +202,9 @@ With
 prints a single object instead:
 .Li {"narrows":bool,"violations":[{"key","subject","message"}]} .
 Exits 0 when the child narrows the parent, 1 when it does not, and 2 when
-either side cannot be read or parsed
+either side cannot be read or parsed or the arguments are malformed
 .Pq the reason goes to stderr .
+Exit 1 is never anything but the verdict.
 .It Cm show-effective-moxyfile Op Fl -dir Ar dir
 Print the effective moxyfile for the working directory
 .Pq or Ar dir
@@ -342,7 +349,11 @@ The same check runs on every reload, so a moxyfile edited to grant more and
 then reloaded with the
 .Li restart
 tool is refused and the running configuration stays as it was.
-Set but unreadable is a refusal, not a skipped check.
+The reference is read once, at startup; later changes to the file have no
+effect on a running
+.Nm ,
+so rewriting it cannot loosen what a reload is judged against.
+Set but unreadable, unparseable or empty is a refusal, not a skipped check.
 Unset
 .Pq the default
 means no check.
