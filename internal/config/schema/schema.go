@@ -16,14 +16,17 @@ import (
 
 //go:generate tommy generate
 type Config struct {
-	Ephemeral             *bool                      `toml:"ephemeral"`
-	ProgressiveDisclosure *bool                      `toml:"progressive-disclosure"`
-	BuiltinNative         *bool                      `toml:"builtin-native"`
-	DisableMoxins         []string                   `toml:"disable-moxins,omitempty"`
-	DisableServers        []string                   `toml:"disable-servers,omitempty"`
-	Include               []string                   `toml:"include,omitempty"`
-	Credentials           *credentials.CommandConfig `toml:"credentials"`
-	Servers               []ServerConfig             `toml:"servers"`
+	Ephemeral             *bool    `toml:"ephemeral"`
+	ProgressiveDisclosure *bool    `toml:"progressive-disclosure"`
+	BuiltinNative         *bool    `toml:"builtin-native"`
+	DisableMoxins         []string `toml:"disable-moxins,omitempty"`
+	DisableServers        []string `toml:"disable-servers,omitempty"`
+	// AllowTools is nil when unset (everything is allowed) and non-nil,
+	// possibly empty, when set (only the listed names exist).
+	AllowTools  []string                   `toml:"allow-tools,omitempty"`
+	Include     []string                   `toml:"include,omitempty"`
+	Credentials *credentials.CommandConfig `toml:"credentials"`
+	Servers     []ServerConfig             `toml:"servers"`
 }
 
 type ServerConfig struct {
@@ -201,6 +204,53 @@ func (s DisableMoxinSet) ServerDisabled(name string) bool {
 // ToolDisabled reports whether a specific tool within a moxin is disabled.
 func (s DisableMoxinSet) ToolDisabled(serverName, toolName string) bool {
 	return s.tools[serverName+"."+toolName]
+}
+
+// AllowToolSet is the resolved `allow-tools` allowlist. The zero value is
+// unrestricted: every tool is allowed.
+type AllowToolSet struct {
+	restricted bool
+	names      map[string]bool // bare names: a server, a moxin, or a meta tool
+	tools      map[string]bool // dotted "server.tool" names
+}
+
+// BuildAllowToolSet resolves AllowTools. A nil list is unrestricted; a
+// non-nil list, even an empty one, allows only what it names.
+func (c Config) BuildAllowToolSet() AllowToolSet {
+	if c.AllowTools == nil {
+		return AllowToolSet{}
+	}
+	s := AllowToolSet{
+		restricted: true,
+		names:      make(map[string]bool),
+		tools:      make(map[string]bool),
+	}
+	for _, entry := range c.AllowTools {
+		if strings.Contains(entry, ".") {
+			s.tools[entry] = true
+		} else {
+			s.names[entry] = true
+		}
+	}
+	return s
+}
+
+// Restricted reports whether an allowlist is in force at all.
+func (s AllowToolSet) Restricted() bool {
+	return s.restricted
+}
+
+// Allows reports whether a tool may be listed and called. server is the
+// tool's owning server or moxin and tool its name there; a meta tool, which
+// has no owner, passes server "" and is allowed only by its own bare name.
+func (s AllowToolSet) Allows(server, tool string) bool {
+	if !s.restricted {
+		return true
+	}
+	if server == "" {
+		return s.names[tool]
+	}
+	return s.names[server] || s.tools[server+"."+tool]
 }
 
 // DisableServerSet provides O(1) lookups for disabled [[servers]] entries.

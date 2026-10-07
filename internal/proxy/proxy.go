@@ -42,6 +42,7 @@ type BootstrapResult struct {
 	Failed        []FailedServer
 	ActiveServers []config.ServerConfig
 	Ephemeral     *bool
+	AllowTools    config.AllowToolSet
 }
 
 // Bootstrapper produces a fresh BootstrapResult from the moxyfile hierarchy
@@ -124,14 +125,15 @@ type Proxy struct {
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
 	resolver                    *permcheck.Resolver
-	toolFilter                  toolfilter.Filter // which tool categories to expose; default All()
-	toolExclude                 toolexclude.Set   // dynamic per-name/per-server deny-set; default excludes nothing
-	nameTemplate                naming.Template   // how tool/prompt names are rendered; default {server}.{tool}
-	toolRegistry                naming.Registry   // rendered tool name → canonical Entry; rebuilt on every ListToolsV1
-	promptRegistry              naming.Registry   // rendered prompt name → canonical Entry; rebuilt on every ListPromptsV1
-	toolCollision               error             // last tool-name collision under a custom template (nil if none)
-	promptCollision             error             // last prompt-name collision under a custom template (nil if none)
-	dispatchSubCall             subCallDispatcher // test seam; nil → use CallToolV1
+	toolFilter                  toolfilter.Filter   // which tool categories to expose; default All()
+	toolExclude                 toolexclude.Set     // dynamic per-name/per-server deny-set; default excludes nothing
+	toolAllow                   config.AllowToolSet // moxyfile allow-tools allowlist; default unrestricted
+	nameTemplate                naming.Template     // how tool/prompt names are rendered; default {server}.{tool}
+	toolRegistry                naming.Registry     // rendered tool name → canonical Entry; rebuilt on every ListToolsV1
+	promptRegistry              naming.Registry     // rendered prompt name → canonical Entry; rebuilt on every ListPromptsV1
+	toolCollision               error               // last tool-name collision under a custom template (nil if none)
+	promptCollision             error               // last prompt-name collision under a custom template (nil if none)
+	dispatchSubCall             subCallDispatcher   // test seam; nil → use CallToolV1
 	mu                          sync.RWMutex
 }
 
@@ -743,6 +745,7 @@ func (p *Proxy) ListToolsV1(
 
 	allTools = p.applyToolFilter(allTools, reg)
 	allTools = p.applyToolExclude(allTools, reg)
+	allTools = p.applyToolAllow(allTools, reg)
 
 	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
@@ -832,6 +835,52 @@ func (p *Proxy) applyToolExclude(tools []protocol.ToolV1, reg naming.Registry) [
 		}
 	}
 	return kept
+}
+
+// applyToolAllow drops every tool the moxyfile's `allow-tools` allowlist does
+// not name. Unlike the two deny-sets above it fails closed: a tool a server
+// grows later is absent until it is listed. Meta tools are subject to it like
+// any other, by their bare name. CallToolV1 gates dispatch on the same
+// resolution, so what is listed and what is callable never disagree. With no
+// allowlist this is a no-op.
+func (p *Proxy) applyToolAllow(tools []protocol.ToolV1, reg naming.Registry) []protocol.ToolV1 {
+	p.mu.RLock()
+	allow := p.toolAllow
+	p.mu.RUnlock()
+	if !allow.Restricted() {
+		return tools
+	}
+	kept := tools[:0]
+	for _, t := range tools {
+		if allow.Allows(p.canonicalToolName(t.Name, reg)) {
+			kept = append(kept, t)
+		}
+	}
+	return kept
+}
+
+// canonicalToolName resolves a rendered tool name to the (server, tool) pair
+// the moxyfile knows it by, whatever the name template. A meta tool has no
+// owning server and resolves to ("", name).
+func (p *Proxy) canonicalToolName(name string, reg naming.Registry) (server, tool string) {
+	if p.nameTemplate.IsDefault() {
+		if srv, original, ok := splitPrefix(name, "."); ok {
+			return srv, original
+		}
+		return "", name
+	}
+	if e, ok := reg.Lookup(name); ok {
+		return e.Server, e.Original
+	}
+	return "", name
+}
+
+// SetToolAllow installs the moxyfile's `allow-tools` allowlist. Called at
+// startup and again on every reload, since the list is part of the config.
+func (p *Proxy) SetToolAllow(allow config.AllowToolSet) {
+	p.mu.Lock()
+	p.toolAllow = allow
+	p.mu.Unlock()
 }
 
 // serverFromRegistry resolves a rendered tool name to its owning server name.
@@ -998,6 +1047,28 @@ func (p *Proxy) callToolV1(
 		return protocol.ErrorResultV1(
 			fmt.Sprintf("tool %q is excluded for this session", name),
 		), nil
+	}
+
+	// Enforce the moxyfile's allow-tools allowlist at the same funnel, so a
+	// tool that is not listed does not exist for a client that guesses its
+	// name either. Under a custom name template an unknown rendered name
+	// refreshes the registry first, as resolveToolName does.
+	p.mu.RLock()
+	allow := p.toolAllow
+	reg := p.toolRegistry
+	p.mu.RUnlock()
+	if allow.Restricted() {
+		if _, known := reg.Lookup(name); !known && !p.nameTemplate.IsDefault() && !p.hasBuiltinTool(name) {
+			_, _ = p.ListToolsV1(ctx, "")
+			p.mu.RLock()
+			reg = p.toolRegistry
+			p.mu.RUnlock()
+		}
+		if !allow.Allows(p.canonicalToolName(name, reg)) {
+			return protocol.ErrorResultV1(
+				fmt.Sprintf("tool %q is not in this server's allow-tools list", name),
+			), nil
+		}
 	}
 
 	if p.builtinTools != nil && p.hasBuiltinTool(name) {
@@ -1637,6 +1708,7 @@ func (p *Proxy) Reload(ctx context.Context) error {
 	p.configs = newConfigs
 	p.ephemeral = newEphemeral
 	p.globalEphemeral = res.Ephemeral
+	p.toolAllow = res.AllowTools
 	p.mu.Unlock()
 
 	// Close old children outside the lock so a slow Close doesn't block

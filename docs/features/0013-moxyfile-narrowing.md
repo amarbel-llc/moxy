@@ -46,7 +46,28 @@ moxyfile(5) NARROWING is the normative, key-by-key statement. In brief:
 | `disable-moxins` | C covers every P entry; a whole-moxin entry covers a single-tool entry, not the reverse. Also: a server name P defines and C does not must be in C's `disable-moxins`, because a `[[servers]]` entry shadows the same-named moxin. |
 | `builtin-native` | If P is `false`, C is `false`. (The merge is closest-wins here; narrowing is not.) |
 | `[credentials]` | If C sets it, it equals P's. |
+| `allow-tools` | If P sets it, C sets it and every C entry is covered by a P entry. |
 | `ephemeral`, `progressive-disclosure`, `paginate`, `generate-resource-tools` | Presentation, not rights; ignored. |
+
+### `allow-tools`
+
+A new top-level moxyfile key, the allowlist the disable lists are not:
+
+```toml
+allow-tools = ["smith", "grit.status", "restart"]
+```
+
+A bare name is a whole server or moxin, or one of moxy's meta tools; a dotted
+pair is one tool. Anything not named is neither listed nor callable — meta
+tools and `[[servers]]` tools included. Unset allows everything; `[]` allows
+nothing. Across the cascade the lists **intersect**, so every layer that sets
+the key can only shorten it. Enforced in the proxy at `tools/list` and at the
+single dispatch funnel, beside `--expose` and the dynamic exclude set.
+
+`disable-moxins` fails open: a moxin that grows a tool exposes it until
+someone adds a disable. `allow-tools` fails closed, which is what makes
+"anything not listed does not exist" a property of moxy rather than of the
+launcher's brief.
 
 ### `moxy narrows --parent <ref> --child <ref> [--json]`
 
@@ -135,5 +156,11 @@ spawned, no port bound.
 - **`[credentials]` may be omitted by the child**, which falls back to the
   system keychain. The tokens involved are for `url` servers, and those must
   match the parent's exactly.
+- **`allow-tools` governs tools only.** Resources and prompts of a server
+  whose tools are all unlisted still flow, and the `moxy://tools/…` discovery
+  resources still describe unlisted tools. Same boundary as `--expose` and the
+  exclude endpoint.
+- **Bare names are one namespace.** `allow-tools = ["restart"]` allows the
+  meta tool and would also allow a server someone named `restart`.
 - **No signature.** The parent reference is trusted as given. Whoever sets
   `MOXY_PARENT_MOXYFILE` vouches for the file.

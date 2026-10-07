@@ -207,6 +207,36 @@ command = ["smith", "mcp"]
 			want:   []string{"credentials: differs from parent"},
 		},
 		{
+			name:   "child may set an allowlist when the parent has none",
+			parent: "",
+			child:  `allow-tools = ["grit.status"]`,
+		},
+		{
+			name:   "child allowlist within the parent's narrows",
+			parent: `allow-tools = ["grit", "folio.read", "restart"]`,
+			child:  `allow-tools = ["grit.status", "folio.read"]`,
+		},
+		{
+			name:   "an empty child allowlist narrows any parent allowlist",
+			parent: `allow-tools = ["grit"]`,
+			child:  `allow-tools = []`,
+		},
+		{
+			name:   "child may not drop the parent's allowlist",
+			parent: `allow-tools = ["grit"]`,
+			child:  "",
+			want:   []string{"allow-tools: parent sets an allowlist, child does not"},
+		},
+		{
+			name:   "child may not allow what the parent does not",
+			parent: `allow-tools = ["grit.status", "folio"]`,
+			child:  `allow-tools = ["grit", "folio.read", "restart"]`,
+			want: []string{
+				"allow-tools: child allows grit, parent does not",
+				"allow-tools: child allows restart, parent does not",
+			},
+		},
+		{
 			name:   "global presentation flags are not rights",
 			parent: "",
 			child:  "ephemeral = true\nprogressive-disclosure = true\n",

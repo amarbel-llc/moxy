@@ -198,5 +198,6 @@ func (b *bootstrapperImpl) Bootstrap(ctx context.Context) (*proxy.BootstrapResul
 		Failed:        res.failed,
 		ActiveServers: res.activeServers,
 		Ephemeral:     res.cfg.Ephemeral,
+		AllowTools:    res.cfg.BuildAllowToolSet(),
 	}, nil
 }

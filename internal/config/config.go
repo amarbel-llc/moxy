@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"code.linenisgreat.com/moxy/internal/config/schema"
@@ -24,6 +25,7 @@ type (
 	Command          = schema.Command
 	DisableMoxinSet  = schema.DisableMoxinSet
 	DisableServerSet = schema.DisableServerSet
+	AllowToolSet     = schema.AllowToolSet
 	ConfigDocument   = schema.ConfigDocument
 )
 
@@ -74,20 +76,11 @@ func ParseLiteral(data []byte) (Config, error) {
 
 	cfg := doc.Data()
 
-	for _, entry := range cfg.DisableMoxins {
-		if entry == "" {
-			return Config{}, fmt.Errorf("disable-moxins: entries must not be empty")
-		}
-		parts := strings.SplitN(entry, ".", 2)
-		if strings.Contains(parts[0], ".") {
-			return Config{}, fmt.Errorf("disable-moxins: invalid entry %q", entry)
-		}
-		if len(parts) == 2 && parts[1] == "" {
-			return Config{}, fmt.Errorf("disable-moxins: invalid entry %q (tool name is empty)", entry)
-		}
-		if len(parts) == 2 && strings.Contains(parts[1], ".") {
-			return Config{}, fmt.Errorf("disable-moxins: invalid entry %q (tool names must not contain dots)", entry)
-		}
+	if err := validateNameOrToolEntries("disable-moxins", cfg.DisableMoxins); err != nil {
+		return Config{}, err
+	}
+	if err := validateNameOrToolEntries("allow-tools", cfg.AllowTools); err != nil {
+		return Config{}, err
 	}
 
 	// disable-servers is whole-server only. Per-tool granularity is not
@@ -166,6 +159,73 @@ func ParseLiteral(data []byte) (Config, error) {
 	return *cfg, nil
 }
 
+// validateNameOrToolEntries checks the grammar disable-moxins and allow-tools
+// share: each entry is a bare name or a single "name.tool" pair.
+func validateNameOrToolEntries(key string, entries []string) error {
+	for _, entry := range entries {
+		if entry == "" {
+			return fmt.Errorf("%s: entries must not be empty", key)
+		}
+		name, tool, dotted := strings.Cut(entry, ".")
+		if name == "" {
+			return fmt.Errorf("%s: invalid entry %q", key, entry)
+		}
+		if dotted && tool == "" {
+			return fmt.Errorf("%s: invalid entry %q (tool name is empty)", key, entry)
+		}
+		if strings.Contains(tool, ".") {
+			return fmt.Errorf("%s: invalid entry %q (tool names must not contain dots)", key, entry)
+		}
+	}
+	return nil
+}
+
+// CoveredBy reports whether set names entry itself or, for a "name.tool"
+// entry, the whole name. It is the subsumption rule disable-moxins and
+// allow-tools share: a whole-server entry covers each of its tools.
+func CoveredBy(entry string, set map[string]bool) bool {
+	if set[entry] {
+		return true
+	}
+	if name, _, dotted := strings.Cut(entry, "."); dotted {
+		return set[name]
+	}
+	return false
+}
+
+// IntersectAllowTools combines two allow-tools lists into the entries both
+// allow. Each layer of the hierarchy that sets allow-tools can therefore only
+// take tools away. The result is sorted and never nil: two lists with nothing
+// in common allow nothing, which is different from no list at all.
+func IntersectAllowTools(a, b []string) []string {
+	inA, inB := stringSet(a), stringSet(b)
+	both := make(map[string]bool)
+	for entry := range inA {
+		if CoveredBy(entry, inB) {
+			both[entry] = true
+		}
+	}
+	for entry := range inB {
+		if CoveredBy(entry, inA) {
+			both[entry] = true
+		}
+	}
+	out := make([]string, 0, len(both))
+	for entry := range both {
+		out = append(out, entry)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func stringSet(entries []string) map[string]bool {
+	set := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		set[e] = true
+	}
+	return set
+}
+
 func Load(path string) (Config, error) {
 	return loadWith(path, Parse)
 }
@@ -206,6 +266,16 @@ func Merge(base, overlay Config) Config {
 				merged.DisableMoxins = append(merged.DisableMoxins, d)
 				seen[d] = true
 			}
+		}
+	}
+
+	// allow-tools narrows down the hierarchy: the first layer to set it
+	// establishes the list, every later one intersects with it.
+	if overlay.AllowTools != nil {
+		if merged.AllowTools == nil {
+			merged.AllowTools = IntersectAllowTools(overlay.AllowTools, overlay.AllowTools)
+		} else {
+			merged.AllowTools = IntersectAllowTools(merged.AllowTools, overlay.AllowTools)
 		}
 	}
 

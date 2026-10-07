@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 
 	"code.linenisgreat.com/moxy/internal/config"
 )
@@ -39,6 +38,7 @@ func Check(parent, child config.Config) []Violation {
 	var vs []Violation
 	vs = append(vs, checkBuiltinNative(parent, child)...)
 	vs = append(vs, checkDisableMoxins(parent, child)...)
+	vs = append(vs, checkAllowTools(parent, child)...)
 	vs = append(vs, checkServers(parent, child)...)
 	vs = append(vs, checkCredentials(parent, child)...)
 
@@ -73,7 +73,7 @@ func checkDisableMoxins(parent, child config.Config) []Violation {
 	childDisables := stringSet(child.DisableMoxins)
 	var vs []Violation
 	for entry := range stringSet(parent.DisableMoxins) {
-		if !coveredBy(entry, childDisables) {
+		if !config.CoveredBy(entry, childDisables) {
 			vs = append(vs, Violation{
 				Key:     "disable-moxins",
 				Subject: entry,
@@ -84,16 +84,31 @@ func checkDisableMoxins(parent, child config.Config) []Violation {
 	return vs
 }
 
-// coveredBy reports whether set names entry itself or, for a "moxin.tool"
-// entry, the whole moxin.
-func coveredBy(entry string, set map[string]bool) bool {
-	if set[entry] {
-		return true
+// checkAllowTools: an allowlist is a restriction, so once the parent has one
+// the child must have one too, naming nothing the parent's does not cover.
+// With no parent allowlist the child may set any list it likes.
+func checkAllowTools(parent, child config.Config) []Violation {
+	if parent.AllowTools == nil {
+		return nil
 	}
-	if name, _, dotted := strings.Cut(entry, "."); dotted {
-		return set[name]
+	if child.AllowTools == nil {
+		return []Violation{{
+			Key:     "allow-tools",
+			Message: "parent sets an allowlist, child does not",
+		}}
 	}
-	return false
+	parentAllows := stringSet(parent.AllowTools)
+	var vs []Violation
+	for entry := range stringSet(child.AllowTools) {
+		if !config.CoveredBy(entry, parentAllows) {
+			vs = append(vs, Violation{
+				Key:     "allow-tools",
+				Subject: entry,
+				Message: fmt.Sprintf("child allows %s, parent does not", entry),
+			})
+		}
+	}
+	return vs
 }
 
 func checkServers(parent, child config.Config) []Violation {

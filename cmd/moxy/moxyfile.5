@@ -35,6 +35,8 @@ Top-level boolean flags are replaced if present in the overlay.
 and
 .Va disable-servers
 entries are merged additively: each layer appends to the disabled set.
+.Va allow-tools
+lists are intersected: each layer that sets one can only shorten it.
 .Pp
 A moxyfile may also pull in additional moxyfiles from arbitrary paths with
 the
@@ -131,6 +133,46 @@ Entries are merged additively across the hierarchy, so a layer can add
 disables but not re-enable a server disabled by a higher-priority layer.
 Optional.
 Default: empty.
+.It Va allow-tools
+Array of the only names that exist.
+A bare name allows every tool of that server or moxin
+.Pq e.g.\& Dq smith ,
+or one of
+.Xr moxy 1 Ap s
+own meta tools by its name
+.Pq e.g.\& Dq restart ;
+a dotted pair
+.Pq e.g.\& Dq grit.status
+allows a single tool.
+Anything not named is neither listed nor callable, including the meta tools
+.Pq Li restart , batch , async No and the rest
+and including tools of
+.Sx SERVERS
+entries, which the disable lists cannot reach one by one.
+Where the disable lists hide what is named and so let through a tool a server
+grows later, this key lets through nothing it does not name.
+.Pp
+Unset means everything is allowed.
+An empty array is set, and allows nothing.
+Across the hierarchy the lists intersect: the first file to set the key
+establishes the list and every later file can only take entries away, with a
+bare name narrowed by a dotted pair under it
+.Po
+.Dq grit
+then
+.Dq grit.status
+leaves
+.Dq grit.status
+.Pc .
+A file that does not set the key leaves the list as it found it.
+It governs tools only; resources and prompts are unaffected.
+Entries name tools as
+.Ar server Ns Li \&. Ns Ar tool
+whatever
+.Fl -name-template
+is in force.
+Optional.
+Default: unset.
 .It Va include
 Array of paths to additional moxyfiles to merge.
 A leading
@@ -393,6 +435,13 @@ entry hides the moxin of the same name, even while the server is disabled.
 A child that leaves out a server the parent defines must therefore name it in
 .Va disable-moxins ,
 or the moxin the parent could never reach would appear.
+.It Va allow-tools
+If the parent sets an allowlist the child must set one too, and every child
+entry must be covered by a parent entry: the same entry, or for a dotted pair
+the parent's bare name.
+A child that leaves the key unset under a parent that sets it would allow
+everything, and is refused.
+If the parent sets none, the child may set any.
 .It Va disable-servers
 Not compared on its own; it decides which servers run, above.
 .It Va builtin-native

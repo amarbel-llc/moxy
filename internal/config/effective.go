@@ -23,6 +23,10 @@ func RenderEffective(cfg Config) []byte {
 	writeBool(&b, "builtin-native", cfg.BuiltinNative)
 	writeSortedSet(&b, "disable-moxins", cfg.DisableMoxins)
 	writeSortedSet(&b, "disable-servers", cfg.DisableServers)
+	// An empty allow-tools list is not the same as none: it allows nothing.
+	if cfg.AllowTools != nil {
+		fmt.Fprintf(&b, "allow-tools = %s\n", tomlStringArray(sortedUnique(cfg.AllowTools)))
+	}
 
 	if c := cfg.Credentials; c != nil {
 		b.WriteString("\n[credentials]\n")

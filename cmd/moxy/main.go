@@ -565,6 +565,10 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	systemDir := bootRes.systemDir
 
 	p := proxy.New(children, failed, activeServers, cfg.Ephemeral, cfg.ProgressiveDisclosure, connectServer)
+	p.SetToolAllow(cfg.BuildAllowToolSet())
+	if cfg.AllowTools != nil {
+		fmt.Fprintf(os.Stderr, "moxy: allow-tools active: %d entries; unlisted tools do not exist\n", len(cfg.AllowTools))
+	}
 	p.SetToolFilter(toolFilter)
 	if !toolFilter.IsAll() {
 		fmt.Fprintf(os.Stderr, "moxy: tool-exposure filter active (--expose): %s\n", toolFilter)
