@@ -246,9 +246,16 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 }
 
 func resolveMoxinDirs(moxinPath, systemDir string) []string {
+	cwd, _ := os.Getwd()
+	return resolveMoxinDirsFor(moxinPath, cwd, systemDir)
+}
+
+// resolveMoxinDirsFor is resolveMoxinDirs with the directory the default
+// hierarchy is computed from made explicit, for callers asking about a
+// directory other than the working one.
+func resolveMoxinDirsFor(moxinPath, cwd, systemDir string) []string {
 	if moxinPath == "" {
 		home, _ := os.UserHomeDir()
-		cwd, _ := os.Getwd()
 		if home != "" && cwd != "" {
 			moxinPath = DefaultMoxinPath(home, cwd, "")
 		}
@@ -265,8 +272,32 @@ func resolveMoxinDirs(moxinPath, systemDir string) []string {
 }
 
 func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error) {
-	dirs := resolveMoxinDirs(moxinPath, systemDir)
+	return discoverConfigsIn(resolveMoxinDirs(moxinPath, systemDir))
+}
 
+// ResolvedMoxinSources reports which directory each moxin name resolves to,
+// as discovery from dir would find it: the winning directory per name, after
+// MOXIN_PATH order and shadowing, with symlinks resolved so two spellings of
+// one directory compare equal. This is the identity of a moxin as far as its
+// tools and their permission tiers are concerned — both are read from that
+// directory.
+func ResolvedMoxinSources(moxinPath, dir, systemDir string) (map[string]string, error) {
+	configs, err := discoverConfigsIn(resolveMoxinDirsFor(moxinPath, dir, systemDir))
+	if err != nil {
+		return nil, err
+	}
+	sources := make(map[string]string, len(configs))
+	for _, cfg := range configs {
+		source := cfg.SourceDir
+		if resolved, err := filepath.EvalSymlinks(source); err == nil {
+			source = resolved
+		}
+		sources[cfg.Name] = source
+	}
+	return sources, nil
+}
+
+func discoverConfigsIn(dirs []string) ([]*NativeConfig, error) {
 	byName := make(map[string]*NativeConfig)
 	var order []string
 

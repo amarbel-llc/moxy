@@ -115,6 +115,38 @@ func TestMergeAllowToolsOnlyNarrowsDownTheHierarchy(t *testing.T) {
 	}
 }
 
+func TestRenderEffectiveKeepsAResolvedMoxinsRecordEvenWhenEmpty(t *testing.T) {
+	out := string(RenderEffective(Config{ResolvedMoxins: map[string]string{}}))
+	if out != "[resolved-moxins]\n" {
+		t.Errorf("got %q", out)
+	}
+	reparsed, err := ParseLiteral([]byte(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reparsed.ResolvedMoxins == nil {
+		t.Error("an empty record did not survive the round trip: it would read as no record")
+	}
+
+	withMoxins := Config{ResolvedMoxins: map[string]string{"zeta": "/m/zeta", "alpha": "/m/with \"quotes\""}}
+	rendered := RenderEffective(withMoxins)
+	want := "[resolved-moxins]\n\"alpha\" = \"/m/with \\\"quotes\\\"\"\n\"zeta\" = \"/m/zeta\"\n"
+	if string(rendered) != want {
+		t.Errorf("got %q, want %q", rendered, want)
+	}
+	back, err := ParseLiteral(rendered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(back.ResolvedMoxins, withMoxins.ResolvedMoxins) {
+		t.Errorf("round trip: got %v", back.ResolvedMoxins)
+	}
+
+	if got := RenderEffective(Config{}); len(got) != 0 {
+		t.Errorf("no record must render nothing, got %q", got)
+	}
+}
+
 func TestRenderEffectiveKeepsAnEmptyAllowList(t *testing.T) {
 	out := string(RenderEffective(Config{AllowTools: []string{}}))
 	if out != "allow-tools = []\n" {

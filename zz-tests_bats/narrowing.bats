@@ -244,6 +244,111 @@ function serve_without_a_parent_reference_checks_nothing { # @test
     fail "extra tool missing: $output"
 }
 
+# A one-tool moxin named $2 under moxin directory $1, with perms-request $3.
+write_moxin() {
+  mkdir -p "$1/$2"
+  cat >"$1/$2/_moxin.toml" <<EOF
+schema = 1
+name = "$2"
+EOF
+  cat >"$1/$2/hello.toml" <<EOF
+schema = 1
+description = "Say hello"
+perms-request = "$3"
+command = "echo"
+args = ["-n", "hello"]
+EOF
+}
+
+# The parent's world for the moxin-inventory cases: one moxin directory with
+# one moxin, system moxins off, and the effective moxyfile rendered from it —
+# record of resolved moxins included — as the parent reference.
+render_parent_with_moxins() {
+  PARENT_MOXINS="$BATS_TEST_TMPDIR/parent-moxins"
+  OTHER_MOXINS="$BATS_TEST_TMPDIR/other-moxins"
+  write_moxin "$PARENT_MOXINS" greeter each-use
+  echo 'builtin-native = false' >"$HOME/parent/moxyfile"
+  echo 'builtin-native = false' >"$HOME/child/moxyfile"
+
+  export MOXIN_PATH="$PARENT_MOXINS"
+  run_moxy show-effective-moxyfile --dir "$HOME/parent"
+  assert_success
+  printf '%s\n' "$output" >"$HOME/parent-reference.toml"
+  export MOXY_PARENT_MOXYFILE="$HOME/parent-reference.toml"
+}
+
+function show_effective_moxyfile_records_where_each_moxin_resolves { # @test
+  render_parent_with_moxins
+  run cat "$HOME/parent-reference.toml"
+  assert_output --partial "[resolved-moxins]"
+  assert_output --regexp '"greeter" = ".*/parent-moxins/greeter"'
+
+  # A rendered file keeps the record it carries, whatever MOXIN_PATH is now.
+  export MOXIN_PATH="$BATS_TEST_TMPDIR/no-moxins"
+  run_moxy show-effective-moxyfile --dir "$HOME/parent-reference.toml"
+  assert_success
+  assert_equal "$output" "$(cat "$HOME/parent-reference.toml")"
+}
+
+function serve_starts_when_its_moxins_are_the_parents { # @test
+  render_parent_with_moxins
+  cd "$HOME/child"
+  run_moxy_mcp tools/list
+  assert_success
+  echo "$output" | jq -e '.tools[] | select(.name == "greeter.hello")' ||
+    fail "greeter tool missing: $output"
+}
+
+function serve_refuses_a_moxin_path_that_surfaces_a_moxin_the_parent_never_had { # @test
+  render_parent_with_moxins
+  write_moxin "$OTHER_MOXINS" sneaky always-allow
+  export MOXIN_PATH="$PARENT_MOXINS:$OTHER_MOXINS"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --partial "does not narrow MOXY_PARENT_MOXYFILE"
+  assert_output --regexp 'resolved-moxins\.sneaky: moxin from .*/other-moxins/sneaky, not in parent'
+}
+
+function serve_refuses_a_moxin_path_that_shadows_a_moxin_with_looser_tiers { # @test
+  # The widening a moxyfile cannot express: same moxin name, same tool name,
+  # but from a directory whose tool asks for a looser permission tier.
+  render_parent_with_moxins
+  write_moxin "$OTHER_MOXINS" greeter always-allow
+  export MOXIN_PATH="$OTHER_MOXINS:$PARENT_MOXINS"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --regexp "resolved-moxins\.greeter: moxin from .*/other-moxins/greeter, parent's is from .*/parent-moxins/greeter"
+}
+
+function serve_accepts_a_foreign_moxin_the_child_disables { # @test
+  render_parent_with_moxins
+  write_moxin "$OTHER_MOXINS" sneaky always-allow
+  export MOXIN_PATH="$PARENT_MOXINS:$OTHER_MOXINS"
+  cat >"$HOME/child/moxyfile" <<'EOF'
+builtin-native = false
+disable-moxins = ["sneaky"]
+EOF
+  cd "$HOME/child"
+  run_moxy_mcp tools/list
+  assert_success
+  echo "$output" | jq -e '[.tools[] | select(.name | startswith("sneaky."))] | length == 0' ||
+    fail "disabled moxin is listed: $output"
+}
+
+function serve_refuses_system_moxins_the_parent_had_turned_off { # @test
+  # builtin-native is judged on its own key, and the inventory agrees: with
+  # the system moxins back on, the child resolves moxins the parent never did.
+  render_parent_with_moxins
+  : >"$HOME/child/moxyfile"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --partial "builtin-native: parent sets false, child does not"
+  assert_output --partial "resolved-moxins."
+}
+
 # Start a narrowing moxy, wait for it to finish booting (the initialize
 # response), widen its moxyfile on disk, then call `restart` and `tools/list`.
 # Prints the restart result and the tools/list result, one JSON object per

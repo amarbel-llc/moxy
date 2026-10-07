@@ -104,6 +104,19 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 		}
 		d.data.Credentials = commandConfigVal
 	}
+	if _vResolvedMoxins, _ok := model.Get("resolved-moxins"); _ok && _vResolvedMoxins.Kind == cst.VTable {
+		_vResolvedMoxins.MarkSeen()
+		d.data.ResolvedMoxins = make(map[string]string)
+		for _iResolvedMoxins := range _vResolvedMoxins.Fields {
+			_fResolvedMoxins := &_vResolvedMoxins.Fields[_iResolvedMoxins]
+			if _fResolvedMoxins.Val.Kind == cst.VLeaf {
+				if _s, _sok := cst.ExtractString(_fResolvedMoxins.Val.Leaf); _sok {
+					d.data.ResolvedMoxins[_fResolvedMoxins.Key] = _s
+					_fResolvedMoxins.Val.MarkConsumed()
+				}
+			}
+		}
+	}
 	if _vServers, _ok := model.Get("servers"); _ok && _vServers.Kind == cst.VArray {
 		_vServers.MarkSeen()
 		d.data.Servers = make([]ServerConfig, len(_vServers.Items))
@@ -344,6 +357,15 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			return nil, fmt.Errorf("credentials: %w", err)
 		}
 	}
+	if d.data.ResolvedMoxins != nil {
+		tableNode := cst.EnsureChildTable(d.cstDoc.Root(), d.cstDoc.Root(), "resolved-moxins")
+		cst.DeleteAllValues(tableNode)
+		for k, v := range d.data.ResolvedMoxins {
+			if err := cst.SetAny(tableNode, k, v); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+	}
 	{
 		for i := range d.data.Servers {
 			var container *cst.Node
@@ -536,6 +558,19 @@ func DecodeConfigInto(data *Config, sub *cst.Value) error {
 			return fmt.Errorf("credentials: %w", err)
 		}
 		data.Credentials = commandConfigVal
+	}
+	if _vResolvedMoxins, _ok := sub.Get("resolved-moxins"); _ok && _vResolvedMoxins.Kind == cst.VTable {
+		_vResolvedMoxins.MarkSeen()
+		data.ResolvedMoxins = make(map[string]string)
+		for _iResolvedMoxins := range _vResolvedMoxins.Fields {
+			_fResolvedMoxins := &_vResolvedMoxins.Fields[_iResolvedMoxins]
+			if _fResolvedMoxins.Val.Kind == cst.VLeaf {
+				if _s, _sok := cst.ExtractString(_fResolvedMoxins.Val.Leaf); _sok {
+					data.ResolvedMoxins[_fResolvedMoxins.Key] = _s
+					_fResolvedMoxins.Val.MarkConsumed()
+				}
+			}
+		}
 	}
 	if _vServers, _ok := sub.Get("servers"); _ok && _vServers.Kind == cst.VArray {
 		_vServers.MarkSeen()
@@ -769,6 +804,15 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 		tableNode := cst.EnsureChildTable(doc.Root(), container, "credentials")
 		if err := credentials.EncodeCommandConfigFrom(data.Credentials, doc, tableNode); err != nil {
 			return fmt.Errorf("credentials: %w", err)
+		}
+	}
+	if data.ResolvedMoxins != nil {
+		tableNode := cst.EnsureChildTable(doc.Root(), container, "resolved-moxins")
+		cst.DeleteAllValues(tableNode)
+		for k, v := range data.ResolvedMoxins {
+			if err := cst.SetAny(tableNode, k, v); err != nil {
+				return fmt.Errorf("%w", err)
+			}
 		}
 	}
 	{

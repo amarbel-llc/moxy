@@ -279,6 +279,12 @@ func Merge(base, overlay Config) Config {
 		}
 	}
 
+	// A record of a past discovery, not configuration: nothing to combine, the
+	// closest file that carries one is the one that was written last.
+	if overlay.ResolvedMoxins != nil {
+		merged.ResolvedMoxins = overlay.ResolvedMoxins
+	}
+
 	if len(overlay.DisableServers) > 0 {
 		seen := make(map[string]bool, len(merged.DisableServers))
 		for _, d := range merged.DisableServers {

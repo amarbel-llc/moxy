@@ -207,6 +207,12 @@ The same configuration always prints the same bytes.
 Nothing is expanded \(em header values keep their
 .Li $VAR
 references \(em so the output is safe to write to disk.
+When rendering a directory it also records, under
+.Va resolved-moxins ,
+the directory each moxin name resolves to in the current environment
+.Pq Ev MOXIN_PATH No and the system moxins ;
+when given a file it reproduces whatever record that file carries, so rendering
+a rendered file changes nothing.
 The output is what a spawner hands a child
 .Nm
 as
@@ -328,6 +334,10 @@ and
 refuse to start, with one line per violation on stderr and a non-zero exit,
 unless their own effective moxyfile narrows it
 .Pq see Xr moxyfile 5 NARROWING .
+When the reference records the parent's moxins, the moxins this process
+discovers from its own
+.Ev MOXIN_PATH
+must be among them, from the same directories.
 The same check runs on every reload, so a moxyfile edited to grant more and
 then reloaded with the
 .Li restart

@@ -26,7 +26,13 @@ type Config struct {
 	AllowTools  []string                   `toml:"allow-tools,omitempty"`
 	Include     []string                   `toml:"include,omitempty"`
 	Credentials *credentials.CommandConfig `toml:"credentials"`
-	Servers     []ServerConfig             `toml:"servers"`
+	// ResolvedMoxins records, moxin name to source directory, which moxins
+	// discovery found when an effective moxyfile was rendered. It is a
+	// record, not configuration: serving never reads it from its own
+	// moxyfile, only from a parent reference (see moxyfile(5) NARROWING).
+	// nil means no record was taken.
+	ResolvedMoxins map[string]string `toml:"resolved-moxins"`
+	Servers        []ServerConfig    `toml:"servers"`
 }
 
 type ServerConfig struct {

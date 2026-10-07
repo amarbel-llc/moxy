@@ -47,6 +47,7 @@ moxyfile(5) NARROWING is the normative, key-by-key statement. In brief:
 | `builtin-native` | If P is `false`, C is `false`. (The merge is closest-wins here; narrowing is not.) |
 | `[credentials]` | If C sets it, it equals P's. |
 | `allow-tools` | If P sets it, C sets it and every C entry is covered by a P entry. |
+| `resolved-moxins` (record) | Every moxin C resolves, and can reach, resolves to the same directory in P's record. Only when both sides carry a record. |
 | `ephemeral`, `progressive-disclosure`, `paginate`, `generate-resource-tools` | Presentation, not rights; ignored. |
 
 ### `allow-tools`
@@ -68,6 +69,30 @@ single dispatch funnel, beside `--expose` and the dynamic exclude set.
 someone adds a disable. `allow-tools` fails closed, which is what makes
 "anything not listed does not exist" a property of moxy rather than of the
 launcher's brief.
+
+### `resolved-moxins`: moxin identity
+
+Permission tiers are not in the moxyfile. Each moxin tool declares its own
+`perms-request`, read from the directory the moxin was discovered in, and
+`MOXIN_PATH` decides which directory wins. So the one way a child can widen a
+tier — or gain a moxin outright — is a different `MOXIN_PATH`, and no moxyfile
+key can express or forbid that.
+
+`show-effective-moxyfile`, when it renders a directory, therefore records what
+discovery found there and then:
+
+```toml
+[resolved-moxins]
+"grit" = "/nix/store/…-moxy-moxins/share/moxy/moxins/grit"
+"notes" = "/home/u/.config/moxy/moxins/notes"
+```
+
+(winning directory per name, symlinks resolved). The key is a record, not
+configuration: a serving moxy never reads it from its own moxyfile, only from
+the parent reference. At serve time moxy substitutes its *own* discovery for
+the child side and requires every moxin it can reach to be in the parent's
+record, from the same directory. An empty table is a record of no moxins, not
+an absent record.
 
 ### `moxy narrows --parent <ref> --child <ref> [--json]`
 
@@ -142,12 +167,23 @@ spawned, no port bound.
 
 ## Limitations
 
-- **`MOXIN_PATH` is outside the moxyfile.** A moxin's tools and their
-  permission tiers (`perms-request`) come from whichever directory wins moxin
-  discovery. A child with a different `MOXIN_PATH` can reach a same-named
-  moxin with looser tiers while its moxyfile narrows perfectly. `moxy narrows`
-  cannot see this: it judges a file for a process that does not exist yet. The
-  launcher must pin the child's `MOXIN_PATH` to the parent's.
+- **`moxy narrows` cannot pre-check moxins.** It judges a file for a process
+  that does not exist yet and never runs discovery, so the `resolved-moxins`
+  rule bites only when the child serves (or when both references given to
+  `narrows` are rendered files). A launcher that wants the early answer to
+  hold pins the child's `MOXIN_PATH` to the parent's; the serve-time check is
+  the backstop, not a substitute.
+- **A hand-written parent reference has no record**, and then moxins are not
+  compared at all. The guarantee needs a reference written by
+  `show-effective-moxyfile` from a directory.
+- **The record names directories, not contents.** For store paths that is the
+  same thing. A mutable moxin directory the child can write to can still be
+  edited after the fact; keeping the child out of it is the sandbox's job.
+- **A different moxy build is a different system moxin directory**, so a child
+  served by another build than the one that rendered the reference is refused
+  while the system moxins are on. That is the conservative answer — another
+  build may ship other tiers — but it means parent and child must run the
+  same moxy.
 - **Serve flags are outside the moxyfile.** `--expose` and `--name-template`
   belong to the child's command line.
 - **`moxy serve-moxin` reads no moxyfile** and so is not subject to this

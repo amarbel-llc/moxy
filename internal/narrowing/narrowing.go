@@ -41,6 +41,7 @@ func Check(parent, child config.Config) []Violation {
 	vs = append(vs, checkAllowTools(parent, child)...)
 	vs = append(vs, checkServers(parent, child)...)
 	vs = append(vs, checkCredentials(parent, child)...)
+	vs = append(vs, checkResolvedMoxins(parent, child)...)
 
 	sort.SliceStable(vs, func(i, j int) bool {
 		a, b := vs[i], vs[j]
@@ -105,6 +106,50 @@ func checkAllowTools(parent, child config.Config) []Violation {
 				Key:     "allow-tools",
 				Subject: entry,
 				Message: fmt.Sprintf("child allows %s, parent does not", entry),
+			})
+		}
+	}
+	return vs
+}
+
+// checkResolvedMoxins closes what the moxyfile keys cannot say: which moxin
+// directories are in play. A moxin's tools and their permission tiers are
+// read from its directory, so a child whose MOXIN_PATH resolves a name to a
+// different directory — or surfaces a moxin the parent never found — holds
+// something the parent did not, however well its moxyfile narrows.
+//
+// It applies only when both sides carry a record. A serving moxy always
+// records what it discovered; a parent reference carries one when it was
+// written by `show-effective-moxyfile`. A moxin the child cannot reach anyway
+// — one it disables, or one a [[servers]] entry shadows — is not held against
+// it.
+func checkResolvedMoxins(parent, child config.Config) []Violation {
+	if parent.ResolvedMoxins == nil || child.ResolvedMoxins == nil {
+		return nil
+	}
+	unreachable := stringSet(child.DisableMoxins)
+	for _, srv := range child.Servers {
+		unreachable[srv.Name] = true
+	}
+
+	var vs []Violation
+	for name, source := range child.ResolvedMoxins {
+		if unreachable[name] {
+			continue
+		}
+		parentSource, inParent := parent.ResolvedMoxins[name]
+		switch {
+		case !inParent:
+			vs = append(vs, Violation{
+				Key:     "resolved-moxins." + name,
+				Subject: name,
+				Message: fmt.Sprintf("moxin from %s, not in parent", source),
+			})
+		case parentSource != source:
+			vs = append(vs, Violation{
+				Key:     "resolved-moxins." + name,
+				Subject: name,
+				Message: fmt.Sprintf("moxin from %s, parent's is from %s", source, parentSource),
 			})
 		}
 	}

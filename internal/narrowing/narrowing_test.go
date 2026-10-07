@@ -237,6 +237,50 @@ command = ["smith", "mcp"]
 			},
 		},
 		{
+			name:   "child moxins a subset of the parent's record narrow",
+			parent: "[resolved-moxins]\ngrit = \"/a/grit\"\nfolio = \"/a/folio\"\n",
+			child:  "[resolved-moxins]\ngrit = \"/a/grit\"\n",
+		},
+		{
+			name:   "child may not surface a moxin the parent never found",
+			parent: "[resolved-moxins]\ngrit = \"/a/grit\"\n",
+			child:  "[resolved-moxins]\ngrit = \"/a/grit\"\nsneaky = \"/b/sneaky\"\n",
+			want:   []string{"resolved-moxins.sneaky: moxin from /b/sneaky, not in parent"},
+		},
+		{
+			name:   "child may not resolve a moxin name to another directory",
+			parent: "[resolved-moxins]\ngrit = \"/a/grit\"\n",
+			child:  "[resolved-moxins]\ngrit = \"/b/grit\"\n",
+			want:   []string{"resolved-moxins.grit: moxin from /b/grit, parent's is from /a/grit"},
+		},
+		{
+			name:   "an empty parent record admits no child moxin",
+			parent: "[resolved-moxins]\n",
+			child:  "[resolved-moxins]\ngrit = \"/a/grit\"\n",
+			want:   []string{"resolved-moxins.grit: moxin from /a/grit, not in parent"},
+		},
+		{
+			name:   "a moxin the child disables is not held against it",
+			parent: "[resolved-moxins]\n",
+			child:  "disable-moxins = [\"grit\"]\n[resolved-moxins]\ngrit = \"/a/grit\"\n",
+		},
+		{
+			name:   "disabling one tool of a foreign moxin does not excuse the rest",
+			parent: "[resolved-moxins]\n",
+			child:  "disable-moxins = [\"grit.commit\"]\n[resolved-moxins]\ngrit = \"/a/grit\"\n",
+			want:   []string{"resolved-moxins.grit: moxin from /a/grit, not in parent"},
+		},
+		{
+			name:   "without a parent record moxins are not compared",
+			parent: "",
+			child:  "[resolved-moxins]\ngrit = \"/b/grit\"\n",
+		},
+		{
+			name:   "without a child record moxins are not compared",
+			parent: "[resolved-moxins]\ngrit = \"/a/grit\"\n",
+			child:  "",
+		},
+		{
 			name:   "global presentation flags are not rights",
 			parent: "",
 			child:  "ephemeral = true\nprogressive-disclosure = true\n",

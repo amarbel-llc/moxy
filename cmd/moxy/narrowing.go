@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 
 	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/narrowing"
+	"code.linenisgreat.com/moxy/internal/native"
 )
 
 // parentMoxyfileEnv names the rendered effective moxyfile of whoever spawned
@@ -59,17 +61,40 @@ func loadServingConfig() (config.Config, error) {
 		return config.Config{}, err
 	}
 
+	cfg := hierarchy.Merged
+
 	if parentPath := os.Getenv(parentMoxyfileEnv); parentPath != "" {
 		parent, err := config.LoadFileLiteral(parentPath)
 		if err != nil {
 			return config.Config{}, fmt.Errorf("%s: %w", parentMoxyfileEnv, err)
 		}
-		if violations := narrowing.Check(parent.Merged, hierarchy.Merged); len(violations) > 0 {
+		// Judge the moxins this process would actually load, not whatever
+		// record its own moxyfile happens to carry.
+		cwd, err := os.Getwd()
+		if err != nil {
+			return config.Config{}, err
+		}
+		cfg.ResolvedMoxins, err = resolvedMoxinsFor(cfg, cwd)
+		if err != nil {
+			return config.Config{}, fmt.Errorf("discovering moxins: %w", err)
+		}
+		if violations := narrowing.Check(parent.Merged, cfg); len(violations) > 0 {
 			return config.Config{}, &wideningError{parentPath: parentPath, violations: violations}
 		}
 	}
 
-	return config.ExpandHeaders(hierarchy.Merged), nil
+	return config.ExpandHeaders(cfg), nil
+}
+
+// resolvedMoxinsFor reports the moxins a moxy serving cfg from dir would
+// discover, by name and source directory: MOXIN_PATH (or the default
+// hierarchy under dir), then the system moxins unless cfg turns them off.
+func resolvedMoxinsFor(cfg config.Config, dir string) (map[string]string, error) {
+	return native.ResolvedMoxinSources(
+		os.Getenv("MOXIN_PATH"),
+		dir,
+		native.SystemMoxinDirFor(cfg.BuiltinNative),
+	)
 }
 
 // loadServingConfigForReload is loadServingConfig for the paths that run
@@ -140,7 +165,10 @@ func addNarrowingCommands(app *command.App) {
 				"sorted lists and servers, commands in array form. The same " +
 				"configuration always prints the same bytes. Header values keep " +
 				"their $VAR references — nothing is expanded — so the output is safe " +
-				"to write to disk. A spawner captures this at spawn time and hands " +
+				"to write to disk. Rendering a directory also records, under " +
+				"resolved-moxins, the directory each moxin name resolves to in the " +
+				"current environment; rendering a file reproduces the record it " +
+				"carries. A spawner captures this at spawn time and hands " +
 				"it to a child moxy as MOXY_PARENT_MOXYFILE. See moxyfile(5) NARROWING.",
 		},
 		Params: []command.Param{
@@ -226,6 +254,22 @@ func showEffectiveMoxyfile(dir string) error {
 	if err != nil {
 		return err
 	}
-	_, err = os.Stdout.Write(config.RenderEffective(hierarchy.Merged))
+	cfg := hierarchy.Merged
+
+	// A directory is a live configuration: record the moxins it resolves to
+	// right now, in this environment. A file is already a document; whatever
+	// record it carries is reproduced, never recomputed, so rendering a
+	// rendered file changes nothing.
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return err
+		}
+		if cfg.ResolvedMoxins, err = resolvedMoxinsFor(cfg, abs); err != nil {
+			return fmt.Errorf("discovering moxins: %w", err)
+		}
+	}
+
+	_, err = os.Stdout.Write(config.RenderEffective(cfg))
 	return err
 }

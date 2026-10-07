@@ -35,6 +35,13 @@ func RenderEffective(cfg Config) []byte {
 		writeString(&b, "delete", c.Delete)
 	}
 
+	// An empty record is not the same as none: it says discovery found no
+	// moxins, which a child must then match.
+	if cfg.ResolvedMoxins != nil {
+		b.WriteString("\n[resolved-moxins]\n")
+		writeSortedStringTable(&b, cfg.ResolvedMoxins)
+	}
+
 	servers := append([]ServerConfig(nil), cfg.Servers...)
 	sort.SliceStable(servers, func(i, j int) bool { return servers[i].Name < servers[j].Name })
 	for _, srv := range servers {
@@ -68,14 +75,7 @@ func renderServer(b *strings.Builder, srv ServerConfig) {
 
 	if len(srv.Headers) > 0 {
 		b.WriteString("\n[servers.headers]\n")
-		keys := make([]string, 0, len(srv.Headers))
-		for k := range srv.Headers {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			fmt.Fprintf(b, "%s = %s\n", tomlString(k), tomlString(srv.Headers[k]))
-		}
+		writeSortedStringTable(b, srv.Headers)
 	}
 	if o := srv.OAuth; o != nil {
 		b.WriteString("\n[servers.oauth]\n")
@@ -88,6 +88,17 @@ func renderServer(b *strings.Builder, srv ServerConfig) {
 		writeBool(b, "destructiveHint", a.DestructiveHint)
 		writeBool(b, "idempotentHint", a.IdempotentHint)
 		writeBool(b, "openWorldHint", a.OpenWorldHint)
+	}
+}
+
+func writeSortedStringTable(b *strings.Builder, table map[string]string) {
+	keys := make([]string, 0, len(table))
+	for k := range table {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(b, "%s = %s\n", tomlString(k), tomlString(table[k]))
 	}
 }
 

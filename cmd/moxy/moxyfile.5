@@ -189,6 +189,19 @@ an include cycle (a file that reaches itself, directly or transitively) is
 reported as an error rather than followed.
 Optional.
 Default: empty.
+.It Va resolved-moxins
+Table of moxin name to the directory that moxin was found in.
+Not configuration: it is a record, written by
+.Xr moxy 1
+.Cm show-effective-moxyfile
+when it renders a directory, of what moxin discovery found there and then.
+.Xr moxy 1
+never reads it from the moxyfile it serves; it is read only from a parent
+reference, where it bounds which moxins a child may resolve
+.Pq see Sx NARROWING .
+A table that is present and empty records that no moxins were found, which is
+different from no table.
+Do not write one by hand.
 .It Va credentials
 Table of three commands,
 .Va read ,
@@ -466,21 +479,64 @@ rules above.
 Not rights; not compared.
 .El
 .Pp
-Two things a moxyfile cannot say, and narrowing therefore cannot judge:
-.Bl -bullet
-.It
-Which moxin directories are searched.
-That is
-.Ev MOXIN_PATH ,
-and a moxin's tools and their permission tiers
+One part of the relation is not about a key anyone writes.
+A moxin's tools and their permission tiers
 .Pq Va perms-request , see Xr moxin 7
-come from whichever directory wins.
+are read from the directory the moxin was found in, and which directory wins is
+decided by
+.Ev MOXIN_PATH ,
+not by the moxyfile.
 A child given a different
 .Ev MOXIN_PATH
-can reach a same-named moxin with looser tiers while its moxyfile narrows
-perfectly.
-Whoever launches the child must give it the parent's
+could reach a same-named moxin with looser tiers, or a moxin the parent never
+had, while its moxyfile narrowed perfectly.
+So an effective moxyfile written by
+.Xr moxy 1
+.Cm show-effective-moxyfile
+carries a record,
+.Va resolved-moxins
+.Pq see Sx TOP-LEVEL KEYS ,
+of the directory each moxin name resolved to, and:
+.Bl -tag -width "disable-servers"
+.It Va resolved-moxins
+Every moxin the child resolves must resolve to the same directory in the
+parent's record.
+The child may resolve fewer.
+A moxin the child cannot reach anyway \(em one it names whole in
+.Va disable-moxins ,
+or one hidden by a
+.Sx SERVERS
+entry of the same name \(em is not held against it.
+.Pp
+This rule needs a record on both sides.
+A serving
+.Xr moxy 1
+always has one for itself: what it just discovered.
+A parent reference has one when it was written by
+.Cm show-effective-moxyfile
+from a directory.
+A hand-written parent reference has none, and then moxins are not compared.
+.Xr moxy 1
+.Cm narrows
+compares the records only when both of its references carry one; it never
+discovers moxins itself, because the child it is asked about is not running
+yet.
+.El
+.Pp
+What a moxyfile cannot say, and narrowing therefore does not judge:
+.Bl -bullet
+.It
+The
+.Ev MOXIN_PATH
+of a child that has not started.
+.Cm narrows
+passes a child moxyfile on its keys alone; the moxin rule above bites only when
+that child serves.
+A launcher that wants the earlier answer to hold gives the child the parent's
 .Ev MOXIN_PATH .
+.It
+The contents of a moxin directory.
+The record names directories, not what is in them.
 .It
 The
 .Cm serve-http

@@ -68,6 +68,16 @@ defaults; the loader detects include cycles (`LoadHierarchy` in
 `internal/config/config.go`) and errors rather than looping. This reaches
 config kept outside the `$HOME`→`$CWD` walk.
 
+**Narrowing** (FDR 0013) is the second relation over the same data: not "merge
+C over P" but "C grants no more than P", for a spawner handing a child a
+toolset. `internal/narrowing.Check` defines it; `moxy narrows` reports it;
+`MOXY_PARENT_MOXYFILE` makes a serving moxy enforce it on itself.
+`cmd/moxy/narrowing.go`'s `loadServingConfig` is the only way a moxyfile
+becomes running tools (startup, reload, single-moxin reload) --- load config
+through it, never `config.LoadHierarchy` directly, or a reload can widen.
+`allow-tools` (intersected across layers, enforced in the proxy at list and
+call) is the fail-closed allowlist. The rules are in moxyfile(5) NARROWING.
+
 ### Proxy Flow
 
 On startup, moxy loads the merged config, spawns each non-ephemeral child server
