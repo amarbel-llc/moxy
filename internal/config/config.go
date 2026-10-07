@@ -43,7 +43,26 @@ type Hierarchy struct {
 	Merged  Config
 }
 
+// Parse decodes and validates a moxyfile, expanding $VAR references in server
+// header values against the process environment.
 func Parse(data []byte) (Config, error) {
+	cfg, err := ParseLiteral(data)
+	if err != nil {
+		return Config{}, err
+	}
+	for _, srv := range cfg.Servers {
+		for k, v := range srv.Headers {
+			srv.Headers[k] = os.ExpandEnv(v)
+		}
+	}
+	return cfg, nil
+}
+
+// ParseLiteral decodes and validates a moxyfile without expanding anything:
+// header values keep their $VAR references. It is what narrowing compares and
+// what the effective render writes, so neither ever carries an expanded
+// secret.
+func ParseLiteral(data []byte) (Config, error) {
 	if len(data) == 0 {
 		return Config{}, nil
 	}
@@ -142,17 +161,16 @@ func Parse(data []byte) (Config, error) {
 				)
 			}
 		}
-
-		// Expand environment variables in header values
-		for k, v := range srv.Headers {
-			srv.Headers[k] = os.ExpandEnv(v)
-		}
 	}
 
 	return *cfg, nil
 }
 
 func Load(path string) (Config, error) {
+	return loadWith(path, Parse)
+}
+
+func loadWith(path string, parse func([]byte) (Config, error)) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -160,7 +178,7 @@ func Load(path string) (Config, error) {
 		}
 		return Config{}, fmt.Errorf("reading moxyfile: %w", err)
 	}
-	return Parse(data)
+	return parse(data)
 }
 
 func Merge(base, overlay Config) Config {
@@ -221,7 +239,13 @@ func Merge(base, overlay Config) Config {
 	return merged
 }
 
-func LoadDefaultHierarchy() (Hierarchy, error) {
+func LoadHierarchy(home, dir string) (Hierarchy, error) {
+	return loadHierarchy(home, dir, Parse)
+}
+
+// LoadDefaultHierarchyLiteral is LoadHierarchyLiteral for the user's home and
+// the working directory.
+func LoadDefaultHierarchyLiteral() (Hierarchy, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return Hierarchy{}, err
@@ -232,70 +256,134 @@ func LoadDefaultHierarchy() (Hierarchy, error) {
 		return Hierarchy{}, err
 	}
 
-	return LoadHierarchy(home, cwd)
+	return LoadHierarchyLiteral(home, cwd)
 }
 
-func LoadHierarchy(home, dir string) (Hierarchy, error) {
-	var sources []LoadSource
-	merged := Config{}
-
-	// mergeIncludes recursively loads and merges the `include` files declared
-	// by cfg, in listed order, BEFORE the including file itself is merged — so
-	// an include acts as defaults the including file (and the rest of the
-	// $HOME→CWD walk) can still override. baseDir is the directory of the
-	// including file, against which relative include paths are resolved.
-	// visiting tracks the resolved absolute paths currently on the include
-	// stack so an include cycle (A→B→A, or a self-include) is reported instead
-	// of looping forever (#407).
-	var mergeIncludes func(cfg Config, baseDir string, visiting map[string]bool) error
-	mergeIncludes = func(cfg Config, baseDir string, visiting map[string]bool) error {
-		for _, raw := range cfg.Include {
-			incPath := resolveIncludePath(raw, baseDir)
-			if visiting[incPath] {
-				return fmt.Errorf("moxyfile include cycle detected at %q", incPath)
-			}
-			incCfg, err := Load(incPath)
-			if err != nil {
-				return fmt.Errorf("loading included moxyfile %q: %w", incPath, err)
-			}
-			_, found := fileExists(incPath)
-			visiting[incPath] = true
-			if err := mergeIncludes(incCfg, filepath.Dir(incPath), visiting); err != nil {
-				return err
-			}
-			delete(visiting, incPath)
-			sources = append(
-				sources,
-				LoadSource{Path: incPath, Found: found, File: incCfg},
-			)
-			if found {
-				merged = Merge(merged, incCfg)
-			}
+// ExpandHeaders returns cfg with $VAR references in server header values
+// expanded against the process environment, leaving cfg itself untouched. It
+// turns a literally-loaded config into the one Parse would have produced, so
+// a caller can judge the literal form and then serve the very same read.
+func ExpandHeaders(cfg Config) Config {
+	expanded := cfg
+	expanded.Servers = append([]ServerConfig(nil), cfg.Servers...)
+	for i, srv := range expanded.Servers {
+		if srv.Headers == nil {
+			continue
 		}
-		return nil
+		headers := make(map[string]string, len(srv.Headers))
+		for k, v := range srv.Headers {
+			headers[k] = os.ExpandEnv(v)
+		}
+		expanded.Servers[i].Headers = headers
 	}
+	return expanded
+}
 
-	loadAndMerge := func(path string) error {
-		cfg, err := Load(path)
+// LoadHierarchyLiteral is LoadHierarchy without $VAR expansion of header
+// values (see ParseLiteral).
+func LoadHierarchyLiteral(home, dir string) (Hierarchy, error) {
+	return loadHierarchy(home, dir, ParseLiteral)
+}
+
+// LoadFileLiteral loads exactly one moxyfile plus whatever it includes — no
+// global config, no $HOME→CWD walk — without $VAR expansion of header values.
+// Unlike the hierarchy walk, where every level is optional, a missing path is
+// an error: the caller named this file.
+func LoadFileLiteral(path string) (Hierarchy, error) {
+	if _, found := fileExists(path); !found {
+		return Hierarchy{}, fmt.Errorf("reading moxyfile: %s: no such file", path)
+	}
+	l := hierarchyLoader{parse: ParseLiteral}
+	if err := l.loadAndMerge(path); err != nil {
+		return Hierarchy{}, err
+	}
+	return Hierarchy{Sources: l.sources, Merged: l.merged}, nil
+}
+
+// LoadReferenceLiteral loads a moxyfile reference that may be either a
+// directory (walked as if it were the working directory, global config
+// included) or a single file (that file plus its includes only).
+func LoadReferenceLiteral(home, path string) (Hierarchy, error) {
+	info, found := fileExists(path)
+	if !found {
+		return Hierarchy{}, fmt.Errorf("reading moxyfile: %s: no such file or directory", path)
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return Hierarchy{}, err
+	}
+	if info.IsDir() {
+		return LoadHierarchyLiteral(home, abs)
+	}
+	return LoadFileLiteral(abs)
+}
+
+type hierarchyLoader struct {
+	parse   func([]byte) (Config, error)
+	sources []LoadSource
+	merged  Config
+}
+
+// mergeIncludes recursively loads and merges the `include` files declared
+// by cfg, in listed order, BEFORE the including file itself is merged — so
+// an include acts as defaults the including file (and the rest of the
+// $HOME→CWD walk) can still override. baseDir is the directory of the
+// including file, against which relative include paths are resolved.
+// visiting tracks the resolved absolute paths currently on the include
+// stack so an include cycle (A→B→A, or a self-include) is reported instead
+// of looping forever (#407).
+func (l *hierarchyLoader) mergeIncludes(cfg Config, baseDir string, visiting map[string]bool) error {
+	for _, raw := range cfg.Include {
+		incPath := resolveIncludePath(raw, baseDir)
+		if visiting[incPath] {
+			return fmt.Errorf("moxyfile include cycle detected at %q", incPath)
+		}
+		incCfg, err := loadWith(incPath, l.parse)
 		if err != nil {
+			return fmt.Errorf("loading included moxyfile %q: %w", incPath, err)
+		}
+		_, found := fileExists(incPath)
+		visiting[incPath] = true
+		if err := l.mergeIncludes(incCfg, filepath.Dir(incPath), visiting); err != nil {
 			return err
 		}
-		_, found := fileExists(path)
-		if found {
-			visiting := map[string]bool{filepath.Clean(path): true}
-			if err := mergeIncludes(cfg, filepath.Dir(path), visiting); err != nil {
-				return err
-			}
-		}
-		sources = append(
-			sources,
-			LoadSource{Path: path, Found: found, File: cfg},
+		delete(visiting, incPath)
+		l.sources = append(
+			l.sources,
+			LoadSource{Path: incPath, Found: found, File: incCfg},
 		)
 		if found {
-			merged = Merge(merged, cfg)
+			l.merged = Merge(l.merged, incCfg)
 		}
-		return nil
 	}
+	return nil
+}
+
+func (l *hierarchyLoader) loadAndMerge(path string) error {
+	cfg, err := loadWith(path, l.parse)
+	if err != nil {
+		return err
+	}
+	_, found := fileExists(path)
+	if found {
+		visiting := map[string]bool{filepath.Clean(path): true}
+		if err := l.mergeIncludes(cfg, filepath.Dir(path), visiting); err != nil {
+			return err
+		}
+	}
+	l.sources = append(
+		l.sources,
+		LoadSource{Path: path, Found: found, File: cfg},
+	)
+	if found {
+		l.merged = Merge(l.merged, cfg)
+	}
+	return nil
+}
+
+func loadHierarchy(home, dir string, parse func([]byte) (Config, error)) (Hierarchy, error) {
+	l := hierarchyLoader{parse: parse}
+	loadAndMerge := l.loadAndMerge
 
 	// 1. Global config
 	globalPath := filepath.Join(home, ".config", "moxy", "moxyfile")
@@ -325,7 +413,7 @@ func LoadHierarchy(home, dir string) (Hierarchy, error) {
 		return Hierarchy{}, err
 	}
 
-	return Hierarchy{Sources: sources, Merged: merged}, nil
+	return Hierarchy{Sources: l.sources, Merged: l.merged}, nil
 }
 
 func fileExists(path string) (os.FileInfo, bool) {

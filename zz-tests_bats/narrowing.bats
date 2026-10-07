@@ -1,0 +1,321 @@
+#! /usr/bin/env bats
+
+# bats file_tags=narrowing
+
+# End-to-end coverage for moxyfile narrowing: `moxy narrows`,
+# `moxy show-effective-moxyfile`, and the MOXY_PARENT_MOXYFILE refusal at
+# startup and on reload. See moxyfile(5) NARROWING and
+# docs/features/0013-moxyfile-narrowing.md. The serve-http cases live in
+# narrowing_http.bats (they need loopback binding).
+
+setup() {
+  load "$BATS_TEST_DIRNAME/common.bash"
+  setup_test_home
+  FIXTURES_DIR="$(cd "$BATS_TEST_DIRNAME/test-fixtures" && pwd)"
+  # No ambient moxins: the tool lists below must contain only what each
+  # test's moxyfile declares.
+  export MOXIN_PATH="$BATS_TEST_TMPDIR/no-moxins"
+  mkdir -p "$MOXIN_PATH" "$HOME/parent" "$HOME/child"
+}
+
+teardown() {
+  teardown_test_home
+}
+
+write_parent() {
+  cat >"$HOME/parent/moxyfile" <<EOF
+builtin-native = false
+disable-moxins = ["chix"]
+
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+}
+
+write_narrowing_child() {
+  cat >"$HOME/child/moxyfile" <<EOF
+builtin-native = false
+disable-moxins = ["chix", "grit"]
+
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+}
+
+write_widening_child() {
+  cat >"$HOME/child/moxyfile" <<EOF
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash", "--extra"]
+
+[[servers]]
+name = "extra"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+}
+
+function narrows_passes_silently_for_a_narrowing_child { # @test
+  write_parent
+  write_narrowing_child
+  run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+  assert_success
+  assert_output ""
+}
+
+function narrows_prints_one_sorted_line_per_violation { # @test
+  write_parent
+  write_widening_child
+  run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+  assert_failure 1
+  assert_output "builtin-native: parent sets false, child does not
+disable-moxins: parent disables chix, child does not
+servers.extra: not in parent
+servers.srv: command differs from parent"
+}
+
+function narrows_output_is_byte_stable_across_runs { # @test
+  write_parent
+  write_widening_child
+  run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+  local first="$output"
+  local i
+  for i in 1 2 3 4 5; do
+    run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+    assert_equal "$output" "$first"
+  done
+}
+
+function narrows_json_reports_key_subject_and_message { # @test
+  write_parent
+  write_widening_child
+  run_moxy narrows --json --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+  assert_failure 1
+  echo "$output" | jq -e '.narrows == false' || fail "narrows flag: $output"
+  echo "$output" | jq -e '.violations | length == 4' || fail "violation count: $output"
+  echo "$output" | jq -e '.violations[2] == {"key":"servers.extra","subject":"extra","message":"not in parent"}' ||
+    fail "violation shape: $output"
+
+  write_narrowing_child
+  run_moxy narrows --json --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+  assert_success
+  assert_output '{"narrows":true,"violations":[]}'
+}
+
+function narrows_exits_2_when_a_side_cannot_be_read { # @test
+  write_parent
+  run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/absent"
+  assert_failure 2
+  assert_output --partial "--child"
+
+  run_moxy narrows --parent "$HOME/parent/absent" --child "$HOME/parent/moxyfile"
+  assert_failure 2
+  assert_output --partial "--parent"
+
+  echo 'this is = = not toml' >"$HOME/child/moxyfile"
+  run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/moxyfile"
+  assert_failure 2
+}
+
+function narrows_walks_a_directory_reference_as_if_it_were_cwd { # @test
+  # The global moxyfile is part of a directory's effective config but not of
+  # a bare file's, so the same child passes against the directory and fails
+  # against the file.
+  mkdir -p "$HOME/.config/moxy"
+  cat >"$HOME/.config/moxy/moxyfile" <<EOF
+[[servers]]
+name = "global"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+  write_parent
+  cat >"$HOME/child/child.toml" <<EOF
+builtin-native = false
+disable-moxins = ["chix"]
+
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+
+[[servers]]
+name = "global"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+
+  run_moxy narrows --parent "$HOME/parent" --child "$HOME/child/child.toml"
+  assert_success
+
+  run_moxy narrows --parent "$HOME/parent/moxyfile" --child "$HOME/child/child.toml"
+  assert_failure 1
+  assert_output "servers.global: not in parent"
+}
+
+function show_effective_moxyfile_is_deterministic_and_never_expands { # @test
+  mkdir -p "$HOME/.config/moxy"
+  cat >"$HOME/.config/moxy/moxyfile" <<'EOF'
+disable-moxins = ["zeta", "alpha"]
+
+[[servers]]
+name = "web"
+url = "https://example.invalid/mcp"
+
+[servers.headers]
+Authorization = "Bearer $NARROWING_TEST_SECRET"
+EOF
+  cat >"$HOME/parent/extra.toml" <<'EOF'
+[[servers]]
+name = "included"
+command = ["included-server", "an arg with spaces"]
+EOF
+  cat >"$HOME/parent/moxyfile" <<'EOF'
+include = ["extra.toml"]
+disable-moxins = ["alpha", "mid"]
+EOF
+
+  export NARROWING_TEST_SECRET=hunter2
+  run_moxy show-effective-moxyfile --dir "$HOME/parent"
+  assert_success
+  local first="$output"
+  assert_output --partial 'disable-moxins = ["alpha", "mid", "zeta"]'
+  assert_output --partial 'command = ["included-server", "an arg with spaces"]'
+  assert_output --partial '"Authorization" = "Bearer $NARROWING_TEST_SECRET"'
+  refute_output --partial "hunter2"
+  refute_output --partial "include ="
+
+  run_moxy show-effective-moxyfile --dir "$HOME/parent"
+  assert_equal "$output" "$first"
+
+  # Without --dir it renders the working directory.
+  cd "$HOME/parent"
+  run_moxy show-effective-moxyfile
+  assert_equal "$output" "$first"
+
+  # The render is itself a moxyfile: it is its own fixed point, and the
+  # directory it came from narrows it.
+  printf '%s\n' "$first" >"$HOME/rendered.toml"
+  run_moxy show-effective-moxyfile --dir "$HOME/rendered.toml"
+  assert_equal "$output" "$first"
+  run_moxy narrows --parent "$HOME/rendered.toml" --child "$HOME/parent"
+  assert_success
+  assert_output ""
+}
+
+function serve_starts_when_its_moxyfile_narrows_the_parent { # @test
+  write_parent
+  write_narrowing_child
+  export MOXY_PARENT_MOXYFILE="$HOME/parent/moxyfile"
+  cd "$HOME/child"
+  run_moxy_mcp tools/list
+  assert_success
+  echo "$output" | jq -e '.tools[] | select(.name == "srv.execute-command")' ||
+    fail "srv tool missing: $output"
+}
+
+function serve_refuses_to_start_when_its_moxyfile_widens_the_parent { # @test
+  write_parent
+  write_widening_child
+  export MOXY_PARENT_MOXYFILE="$HOME/parent/moxyfile"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --partial "does not narrow MOXY_PARENT_MOXYFILE"
+  assert_output --partial "servers.extra: not in parent"
+  assert_output --partial "servers.srv: command differs from parent"
+  # Refused before anything was spawned.
+  refute_output --partial "connected to"
+}
+
+function serve_fails_closed_when_the_parent_reference_is_unreadable { # @test
+  write_narrowing_child
+  export MOXY_PARENT_MOXYFILE="$HOME/parent/absent"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --partial "MOXY_PARENT_MOXYFILE"
+  refute_output --partial "connected to"
+}
+
+function serve_without_a_parent_reference_checks_nothing { # @test
+  write_widening_child
+  cd "$HOME/child"
+  run_moxy_mcp tools/list
+  assert_success
+  echo "$output" | jq -e '.tools[] | select(.name == "extra.execute-command")' ||
+    fail "extra tool missing: $output"
+}
+
+# Start a narrowing moxy, wait for it to finish booting (the initialize
+# response), widen its moxyfile on disk, then call `restart` and `tools/list`.
+# Prints the restart result and the tools/list result, one JSON object per
+# line; moxy's stderr lands in $1.
+restart_after_widening() {
+  local stderr_file="$1"
+  _ensure_madder_default_store
+  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  local restart='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"restart","arguments":{}}}'
+  local list='{"jsonrpc":"2.0","id":3,"method":"tools/list"}'
+  local gate
+  gate=$(mktemp -u)
+  mkfifo "$gate"
+
+  run timeout --preserve-status "20s" bash -c '
+    cd "$HOME/child"
+    gate="$5"
+    {
+      echo "$1"
+      echo "$2"
+      read -r <"$gate"
+      cp "$HOME/widened.toml" "$HOME/child/moxyfile"
+      echo "$3"
+      read -r <"$gate"
+      echo "$4"
+      sleep 2
+    } | "${MOXY_BIN:-moxy}" serve mcp 2>"$6" | while IFS= read -r line; do
+      id=$(echo "$line" | jq -r ".id // empty")
+      case "$id" in
+        1) echo ready >"$gate" ;;
+        2)
+          echo "$line" | jq -c ".result"
+          echo ready >"$gate"
+          ;;
+        3) echo "$line" | jq -c ".result" ;;
+      esac
+    done
+  ' -- "$init" "$initialized" "$restart" "$list" "$gate" "$stderr_file"
+
+  rm -f "$gate"
+}
+
+function restart_refuses_a_widened_moxyfile_and_keeps_the_running_state { # @test
+  write_parent
+  write_widening_child
+  mv "$HOME/child/moxyfile" "$HOME/widened.toml"
+  write_narrowing_child
+  export MOXY_PARENT_MOXYFILE="$HOME/parent/moxyfile"
+
+  local stderr_file="$BATS_TEST_TMPDIR/moxy-stderr"
+  restart_after_widening "$stderr_file"
+  assert_success
+
+  local restart_result list_result
+  restart_result=$(sed -n 1p <<<"$output")
+  list_result=$(sed -n 2p <<<"$output")
+
+  # The refusal is the restart tool's result, violations included...
+  echo "$restart_result" | jq -e '.isError == true' || fail "restart did not fail: $restart_result"
+  echo "$restart_result" | jq -e '.content[0].text | test("servers.extra: not in parent")' ||
+    fail "restart result lacks the violation: $restart_result"
+
+  # ...and a line in moxy's own log.
+  run cat "$stderr_file"
+  assert_output --partial "reload refused, keeping the running configuration"
+  assert_output --partial "servers.extra: not in parent"
+
+  # The old state is intact: the tool that was there still is, the widened
+  # one never appeared.
+  echo "$list_result" | jq -e '.tools[] | select(.name == "srv.execute-command")' ||
+    fail "srv tool lost after refused reload: $list_result"
+  echo "$list_result" | jq -e '[.tools[] | select(.name | startswith("extra."))] | length == 0' ||
+    fail "widened tool appeared after refused reload: $list_result"
+}

@@ -394,6 +394,8 @@ func newApp() *command.App {
 		},
 	})
 
+	addNarrowingCommands(app)
+
 	app.AddCommand(&command.Command{
 		Name: "hook",
 		Description: command.Description{
@@ -495,6 +497,14 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		return fmt.Errorf("--name-template: %w", err)
 	}
 
+	// Load and judge the moxyfile (MOXY_PARENT_MOXYFILE) before stderr is
+	// redirected below: a refusal to serve has to reach the launcher's stderr
+	// as written, and it must come before anything is started.
+	cfgForCreds, err := loadServingConfig()
+	if err != nil {
+		return err
+	}
+
 	// Redirect os.Stderr (including Go panic traces) to a per-session log
 	// file so crashes that bypass the normal logging path can be recovered
 	// after the fact. Rotate on clean return so a leftover entry in
@@ -516,11 +526,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	// closure has its dependencies resolved up front. Reload re-reads the
 	// hierarchy on each call but the credential store is stable for the
 	// process lifetime.
-	hierarchyForCreds, err := config.LoadDefaultHierarchy()
-	if err != nil {
-		return err
-	}
-	credStore := credentials.NewStore(hierarchyForCreds.Merged.Credentials)
+	credStore := credentials.NewStore(cfgForCreds.Credentials)
 
 	connectServer := func(ctx context.Context, srvCfg config.ServerConfig) (proxy.ServerBackend, *protocol.InitializeResultV1, error) {
 		if srvCfg.IsHTTP() {
@@ -541,10 +547,11 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	}
 
 	bootInputs := bootstrapInputs{
-		moxinPath: moxinPath,
-		sessionID: sessionID,
-		connect:   connectServer,
-		madder:    madderClient,
+		moxinPath:  moxinPath,
+		sessionID:  sessionID,
+		connect:    connectServer,
+		madder:     madderClient,
+		loadConfig: loadServingConfig,
 	}
 
 	bootRes, err := bootstrap(ctx, bootInputs)
@@ -576,6 +583,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	// resolved value (cfg.BuiltinNative may flip; we still want the same
 	// system dir until the user opts out).
 	bootInputs.systemDir = systemDir
+	bootInputs.loadConfig = loadServingConfigForReload
 	p.SetBootstrapper(&bootstrapperImpl{inputs: bootInputs})
 
 	builtinRegistry := server.NewToolRegistryV1()
@@ -962,11 +970,10 @@ type moxinReloaderImpl struct {
 }
 
 func (r *moxinReloaderImpl) ReloadMoxin(name string) (*native.NativeConfig, error) {
-	hierarchy, err := config.LoadDefaultHierarchy()
+	cfg, err := loadServingConfigForReload()
 	if err != nil {
 		return nil, fmt.Errorf("re-loading moxyfile hierarchy: %w", err)
 	}
-	cfg := hierarchy.Merged
 
 	for _, srv := range cfg.Servers {
 		if srv.Name == name {

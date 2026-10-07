@@ -145,6 +145,12 @@ func (c Command) Args() []string {
 	return expanded
 }
 
+// Parts returns a copy of the command's argv exactly as configured, with no
+// $VAR or ~/ expansion (Executable and Args expand; this does not).
+func (c Command) Parts() []string {
+	return append([]string(nil), c.parts...)
+}
+
 func (c Command) IsEmpty() bool {
 	return len(c.parts) == 0
 }

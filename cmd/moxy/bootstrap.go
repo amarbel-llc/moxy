@@ -19,6 +19,9 @@ type bootstrapInputs struct {
 	sessionID string
 	connect   proxy.ConnectFunc
 	madder    native.MadderBackend
+	// loadConfig yields the effective moxyfile to serve; see
+	// loadServingConfig for why it is the only way in.
+	loadConfig func() (config.Config, error)
 }
 
 // bootstrapResult is the full picture bootstrap produces: the merged config,
@@ -41,11 +44,12 @@ type bootstrapResult struct {
 // bootstrap re-reads the moxyfile hierarchy on every call, so configuration
 // edits made between startup and reload are picked up.
 func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, error) {
-	hierarchy, err := config.LoadDefaultHierarchy()
+	// Nothing is spawned until the config has been judged: a moxyfile that
+	// widens MOXY_PARENT_MOXYFILE fails here, before any child exists.
+	cfg, err := inputs.loadConfig()
 	if err != nil {
 		return nil, err
 	}
-	cfg := hierarchy.Merged
 
 	for _, srv := range cfg.Servers {
 		if srv.Name == "" {

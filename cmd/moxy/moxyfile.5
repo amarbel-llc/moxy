@@ -1,4 +1,4 @@
-.Dd September 28, 2026
+.Dd October 7, 2026
 .Dt MOXYFILE 5
 .Os
 .Sh NAME
@@ -147,6 +147,19 @@ an include cycle (a file that reaches itself, directly or transitively) is
 reported as an error rather than followed.
 Optional.
 Default: empty.
+.It Va credentials
+Table of three commands,
+.Va read ,
+.Va write
+and
+.Va delete ,
+that store OAuth tokens for
+.Va url
+servers;
+.Li {name}
+in a command is replaced with the server name.
+Optional.
+Default: the system keychain.
 .El
 .Sh SERVERS
 Each server is defined as an array-of-tables entry:
@@ -205,6 +218,29 @@ When set, the effective command becomes:
 See
 .Sx NIX DEVSHELL
 below.
+.It Va url
+Address of a streamable-HTTP MCP server to connect to, in place of
+.Va command .
+A server has one or the other, never both.
+.It Va headers
+Table of HTTP headers sent to a
+.Va url
+server.
+.Li $VAR
+references in the values are expanded from the environment when the server is
+connected.
+.It Va headers-helper
+Command run to produce further headers for a
+.Va url
+server; it prints a JSON object of header names to values.
+.It Va oauth
+Table with
+.Va client-id
+and
+.Va callback-port
+for a
+.Va url
+server that authenticates with OAuth.
 .El
 .Sh COMMAND FORMAT
 The
@@ -284,6 +320,139 @@ Valid flake references include
 .Dq github:org/repo ,
 and
 .Dq github:org/repo?dir=path/to/subflake .
+.Sh NARROWING
+The hierarchy merge above lets a closer file add to what a farther one
+configured: it may add servers, replace a server's command, or turn the system
+moxins back on.
+That is right for one person's own directories and wrong for a process that
+hands a toolset to another.
+A spawner must not give a child more than it holds itself, so a second relation
+exists alongside the merge.
+A child moxyfile
+.Em narrows
+a parent when it grants nothing the parent does not.
+.Pp
+Narrowing compares
+.Em effective
+configurations \(em each side fully merged, with its includes resolved \(em never
+one file against another.
+It compares what is written, not what it expands to:
+.Li $VAR
+references in
+.Va command
+and
+.Va headers
+are compared as the literal text, and nothing is read from the environment.
+.Xr moxy 1
+.Cm show-effective-moxyfile
+writes a configuration in the same unexpanded form, so a parent reference
+never contains an expanded secret and is safe to write to disk.
+.Pp
+The relation, key by key:
+.Bl -tag -width "disable-servers"
+.It Sx SERVERS
+Every server the child runs must be a server the parent runs, with the same
+invocation.
+A server
+.Dq runs
+when it is defined and not named in that side's
+.Va disable-servers .
+The invocation is
+.Va command
+.Pq compared argument by argument, so one argument containing a space is not two arguments ,
+.Va url ,
+.Va headers ,
+.Va headers-helper ,
+.Va oauth
+and
+.Va nix-devshell .
+The child may leave a server out.
+It may not add one, change one, or run one the parent has disabled.
+.Pp
+An annotation filter restricts a server, so the child must keep every hint the
+parent sets, with the same value, and may set more.
+.Pp
+.Va ephemeral ,
+.Va progressive-disclosure ,
+.Va paginate
+and
+.Va generate-resource-tools
+change how a server is presented, not what it can do, and are not compared.
+.It Va disable-moxins
+The child must disable everything the parent disables.
+A parent entry for one tool
+.Pq Dq man.semantic-search
+is satisfied by the same entry or by the whole moxin
+.Pq Dq man ;
+a parent entry for a whole moxin is satisfied only by that entry.
+The child may disable more.
+.Pp
+One further case: a
+.Sx SERVERS
+entry hides the moxin of the same name, even while the server is disabled.
+A child that leaves out a server the parent defines must therefore name it in
+.Va disable-moxins ,
+or the moxin the parent could never reach would appear.
+.It Va disable-servers
+Not compared on its own; it decides which servers run, above.
+.It Va builtin-native
+If the parent's effective value is
+.Cm false ,
+the child's must be
+.Cm false
+too.
+Unset counts as
+.Cm true .
+This is the one place narrowing contradicts the merge, where the closest file
+wins.
+.It Va credentials
+If the child sets a
+.Li [credentials]
+table it must equal the parent's.
+The child may leave it out.
+.It Va include
+Resolved before the comparison; whatever an include brings in is judged by the
+rules above.
+.It Va ephemeral , progressive-disclosure
+Not rights; not compared.
+.El
+.Pp
+Two things a moxyfile cannot say, and narrowing therefore cannot judge:
+.Bl -bullet
+.It
+Which moxin directories are searched.
+That is
+.Ev MOXIN_PATH ,
+and a moxin's tools and their permission tiers
+.Pq Va perms-request , see Xr moxin 7
+come from whichever directory wins.
+A child given a different
+.Ev MOXIN_PATH
+can reach a same-named moxin with looser tiers while its moxyfile narrows
+perfectly.
+Whoever launches the child must give it the parent's
+.Ev MOXIN_PATH .
+.It
+The
+.Cm serve-http
+flags
+.Fl -expose
+and
+.Fl -name-template ,
+and what a
+.Li $VAR
+expands to.
+These belong to the command line and environment of the child process.
+.El
+.Pp
+.Xr moxy 1
+.Cm narrows
+checks the relation for two references and prints one line per violation.
+Setting
+.Ev MOXY_PARENT_MOXYFILE
+makes a serving
+.Xr moxy 1
+enforce it on itself, at startup and on every reload.
 .Sh EXAMPLES
 Minimal configuration with a single server:
 .Bd -literal -offset indent

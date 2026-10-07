@@ -1,4 +1,4 @@
-.Dd September 28, 2026
+.Dd October 7, 2026
 .Dt MOXY 1
 .Os
 .Sh NAME
@@ -11,6 +11,14 @@
 .Cm serve-http
 .Op Fl -listen Ar addr
 .Op Fl -expose Ar selector
+.Nm
+.Cm narrows
+.Fl -parent Ar ref
+.Fl -child Ar ref
+.Op Fl -json
+.Nm
+.Cm show-effective-moxyfile
+.Op Fl -dir Ar dir
 .Nm
 .Cm validate
 .Nm
@@ -170,6 +178,39 @@ does not introspect a running server \(em pass the same
 you gave
 .Cm serve-http .
 See docs/features/0007-name-template.md.
+.It Cm narrows Fl -parent Ar ref Fl -child Ar ref Op Fl -json
+Check that the child moxyfile grants no more than the parent, by the rules in
+.Xr moxyfile 5
+NARROWING.
+Each
+.Ar ref
+is a directory, walked as if it were the working directory
+.Pq global moxyfile, each directory from Ev HOME No down to it, and includes ,
+or a file, read as that file plus its includes and nothing else.
+Prints one
+.Dq Ar key Ns Li \&: Ar reason
+line per violation to stdout, sorted by key and then by subject, so the output
+for a given pair of configurations is always the same bytes.
+With
+.Fl -json ,
+prints a single object instead:
+.Li {"narrows":bool,"violations":[{"key","subject","message"}]} .
+Exits 0 when the child narrows the parent, 1 when it does not, and 2 when
+either side cannot be read or parsed
+.Pq the reason goes to stderr .
+.It Cm show-effective-moxyfile Op Fl -dir Ar dir
+Print the effective moxyfile for the working directory
+.Pq or Ar dir
+as one canonical, include-free moxyfile: fixed key order, sorted lists and
+servers, every command in array form.
+The same configuration always prints the same bytes.
+Nothing is expanded \(em header values keep their
+.Li $VAR
+references \(em so the output is safe to write to disk.
+The output is what a spawner hands a child
+.Nm
+as
+.Ev MOXY_PARENT_MOXYFILE .
 .It Cm validate
 Validate the moxyfile hierarchy and output results in TAP version 14
 format.
@@ -275,6 +316,26 @@ to
 See
 .Xr moxin 7
 for discovery details.
+.It Ev MOXY_PARENT_MOXYFILE
+Path to the effective moxyfile of whoever spawned this
+.Nm ,
+as written by
+.Cm show-effective-moxyfile .
+When set,
+.Cm serve mcp
+and
+.Cm serve-http
+refuse to start, with one line per violation on stderr and a non-zero exit,
+unless their own effective moxyfile narrows it
+.Pq see Xr moxyfile 5 NARROWING .
+The same check runs on every reload, so a moxyfile edited to grant more and
+then reloaded with the
+.Li restart
+tool is refused and the running configuration stays as it was.
+Set but unreadable is a refusal, not a skipped check.
+Unset
+.Pq the default
+means no check.
 .It Ev MOXY_HTTP_ADDR
 When set on the default
 .Pq stdio
