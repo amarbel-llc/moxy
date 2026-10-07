@@ -875,8 +875,9 @@ func (p *Proxy) canonicalToolName(name string, reg naming.Registry) (server, too
 	return "", name
 }
 
-// SetToolAllow installs the moxyfile's `allow-tools` allowlist. Called at
-// startup and again on every reload, since the list is part of the config.
+// SetToolAllow installs the moxyfile's `allow-tools` allowlist at startup.
+// Reload replaces it from the fresh BootstrapResult, since the list is part
+// of the config.
 func (p *Proxy) SetToolAllow(allow config.AllowToolSet) {
 	p.mu.Lock()
 	p.toolAllow = allow
@@ -1042,6 +1043,7 @@ func (p *Proxy) callToolV1(
 	// knows its name — mirrors the --expose gate above (FDR 0010).
 	p.mu.RLock()
 	exclude := p.toolExclude
+	allow := p.toolAllow
 	p.mu.RUnlock()
 	if !exclude.IsEmpty() && exclude.Excludes(p.excludeServerFor(name), name) {
 		return protocol.ErrorResultV1(
@@ -1049,29 +1051,27 @@ func (p *Proxy) callToolV1(
 		), nil
 	}
 
+	isBuiltin := p.builtinTools != nil && p.hasBuiltinTool(name)
+
 	// Enforce the moxyfile's allow-tools allowlist at the same funnel, so a
 	// tool that is not listed does not exist for a client that guesses its
-	// name either. Under a custom name template an unknown rendered name
-	// refreshes the registry first, as resolveToolName does.
-	p.mu.RLock()
-	allow := p.toolAllow
-	reg := p.toolRegistry
-	p.mu.RUnlock()
+	// name either. A meta tool has no owning server and answers to its bare
+	// name; anything else is resolved exactly as dispatch resolves it below.
 	if allow.Restricted() {
-		if _, known := reg.Lookup(name); !known && !p.nameTemplate.IsDefault() && !p.hasBuiltinTool(name) {
-			_, _ = p.ListToolsV1(ctx, "")
-			p.mu.RLock()
-			reg = p.toolRegistry
-			p.mu.RUnlock()
+		server, tool := "", name
+		if !isBuiltin {
+			if s, t, ok := p.resolveToolName(ctx, name); ok {
+				server, tool = s, t
+			}
 		}
-		if !allow.Allows(p.canonicalToolName(name, reg)) {
+		if !allow.Allows(server, tool) {
 			return protocol.ErrorResultV1(
 				fmt.Sprintf("tool %q is not in this server's allow-tools list", name),
 			), nil
 		}
 	}
 
-	if p.builtinTools != nil && p.hasBuiltinTool(name) {
+	if isBuiltin {
 		return p.builtinTools.CallToolV1(ctx, name, args)
 	}
 

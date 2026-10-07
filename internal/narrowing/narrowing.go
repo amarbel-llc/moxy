@@ -11,7 +11,8 @@ package narrowing
 
 import (
 	"fmt"
-	"reflect"
+	"maps"
+	"slices"
 	"sort"
 
 	"code.linenisgreat.com/moxy/internal/config"
@@ -212,55 +213,39 @@ func invocationDifferences(parent, child config.ServerConfig) []string {
 			diffs = append(diffs, field+" differs from parent")
 		}
 	}
-	differs("command", reflect.DeepEqual(parent.Command.Parts(), child.Command.Parts()))
+	differs("command", slices.Equal(parent.Command.Parts(), child.Command.Parts()))
 	differs("url", parent.URL == child.URL)
-	differs("headers", sameHeaders(parent.Headers, child.Headers))
-	differs("headers-helper", sameOptionalString(parent.HeadersHelper, child.HeadersHelper))
-	differs("oauth", sameOAuth(parent.OAuth, child.OAuth))
-	differs("nix-devshell", sameOptionalString(parent.NixDevshell, child.NixDevshell))
+	differs("headers", maps.Equal(parent.Headers, child.Headers))
+	differs("headers-helper", sameOptional(parent.HeadersHelper, child.HeadersHelper))
+	differs("oauth", sameOptional(parent.OAuth, child.OAuth))
+	differs("nix-devshell", sameOptional(parent.NixDevshell, child.NixDevshell))
 
 	// An annotation filter is a restriction: the child must keep every hint
 	// the parent filters on, and may filter on more.
-	for _, hint := range annotationHints(parent.Annotations) {
-		if kept := annotationHint(child.Annotations, hint.name); kept == nil || *kept != hint.value {
+	p, c := annotationsOrEmpty(parent.Annotations), annotationsOrEmpty(child.Annotations)
+	for _, hint := range []struct {
+		name          string
+		parent, child *bool
+	}{
+		{"readOnlyHint", p.ReadOnlyHint, c.ReadOnlyHint},
+		{"destructiveHint", p.DestructiveHint, c.DestructiveHint},
+		{"idempotentHint", p.IdempotentHint, c.IdempotentHint},
+		{"openWorldHint", p.OpenWorldHint, c.OpenWorldHint},
+	} {
+		if hint.parent != nil && !sameOptional(hint.parent, hint.child) {
 			diffs = append(diffs, fmt.Sprintf(
-				"annotations.%s = %t in parent, not kept by child", hint.name, hint.value,
+				"annotations.%s = %t in parent, not kept by child", hint.name, *hint.parent,
 			))
 		}
 	}
 	return diffs
 }
 
-type annotationHintValue struct {
-	name  string
-	value bool
-}
-
-func annotationHints(a *config.AnnotationFilter) []annotationHintValue {
-	var hints []annotationHintValue
-	for _, name := range []string{"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"} {
-		if v := annotationHint(a, name); v != nil {
-			hints = append(hints, annotationHintValue{name: name, value: *v})
-		}
-	}
-	return hints
-}
-
-func annotationHint(a *config.AnnotationFilter, name string) *bool {
+func annotationsOrEmpty(a *config.AnnotationFilter) config.AnnotationFilter {
 	if a == nil {
-		return nil
+		return config.AnnotationFilter{}
 	}
-	switch name {
-	case "readOnlyHint":
-		return a.ReadOnlyHint
-	case "destructiveHint":
-		return a.DestructiveHint
-	case "idempotentHint":
-		return a.IdempotentHint
-	case "openWorldHint":
-		return a.OpenWorldHint
-	}
-	return nil
+	return *a
 }
 
 func checkCredentials(parent, child config.Config) []Violation {
@@ -292,26 +277,9 @@ func stringSet(entries []string) map[string]bool {
 	return set
 }
 
-func sameHeaders(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if other, ok := b[k]; !ok || other != v {
-			return false
-		}
-	}
-	return true
-}
-
-func sameOptionalString(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
-}
-
-func sameOAuth(a, b *config.OAuthConfig) bool {
+// sameOptional reports whether two optional values are both unset or both
+// set to the same thing.
+func sameOptional[T comparable](a, b *T) bool {
 	if a == nil || b == nil {
 		return a == b
 	}

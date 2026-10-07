@@ -19,9 +19,6 @@ type bootstrapInputs struct {
 	sessionID string
 	connect   proxy.ConnectFunc
 	madder    native.MadderBackend
-	// loadConfig yields the effective moxyfile to serve; see
-	// loadServingConfig for why it is the only way in.
-	loadConfig func() (config.Config, error)
 }
 
 // bootstrapResult is the full picture bootstrap produces: the merged config,
@@ -44,12 +41,37 @@ type bootstrapResult struct {
 // bootstrap re-reads the moxyfile hierarchy on every call, so configuration
 // edits made between startup and reload are picked up.
 func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, error) {
-	// Nothing is spawned until the config has been judged: a moxyfile that
-	// widens MOXY_PARENT_MOXYFILE fails here, before any child exists.
-	cfg, err := inputs.loadConfig()
+	serving, err := loadServingConfig()
 	if err != nil {
 		return nil, err
 	}
+
+	systemDir := inputs.systemDir
+	if builtinNative := serving.literal.BuiltinNative; builtinNative == nil || *builtinNative {
+		if systemDir == "" {
+			systemDir = native.SystemMoxinDir()
+		}
+		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native enabled, systemDir=%q\n", systemDir)
+	} else {
+		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native DISABLED (cfg.BuiltinNative=%v)\n", *builtinNative)
+		systemDir = ""
+	}
+
+	fmt.Fprintf(os.Stderr, "moxy: bootstrap: MOXIN_PATH=%q\n", inputs.moxinPath)
+	nativeConfigs, err := native.DiscoverConfigs(inputs.moxinPath, systemDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "moxy: warning: moxin discovery: %v\n", err)
+	}
+	fmt.Fprintf(os.Stderr, "moxy: bootstrap: discovered %d moxin configs\n", len(nativeConfigs))
+
+	// Nothing is spawned until the config has been judged, against the very
+	// moxins about to be served: a moxyfile or MOXIN_PATH that widens
+	// MOXY_PARENT_MOXYFILE fails here, before any child exists. Discovery
+	// only reads moxin TOML, so running it first starts nothing.
+	if err := serving.refuseUnlessNarrows(native.MoxinSources(nativeConfigs)); err != nil {
+		return nil, err
+	}
+	cfg := serving.expanded()
 
 	for _, srv := range cfg.Servers {
 		if srv.Name == "" {
@@ -99,24 +121,6 @@ func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, e
 		fmt.Fprintf(os.Stderr, "moxy: connected to %s (%s %s)\n",
 			srvCfg.Name, result.ServerInfo.Name, result.ServerInfo.Version)
 	}
-
-	systemDir := inputs.systemDir
-	if cfg.BuiltinNative == nil || *cfg.BuiltinNative {
-		if systemDir == "" {
-			systemDir = native.SystemMoxinDir()
-		}
-		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native enabled, systemDir=%q\n", systemDir)
-	} else {
-		fmt.Fprintf(os.Stderr, "moxy: bootstrap: builtin-native DISABLED (cfg.BuiltinNative=%v)\n", *cfg.BuiltinNative)
-		systemDir = ""
-	}
-
-	fmt.Fprintf(os.Stderr, "moxy: bootstrap: MOXIN_PATH=%q\n", inputs.moxinPath)
-	nativeConfigs, err := native.DiscoverConfigs(inputs.moxinPath, systemDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: warning: moxin discovery: %v\n", err)
-	}
-	fmt.Fprintf(os.Stderr, "moxy: bootstrap: discovered %d moxin configs\n", len(nativeConfigs))
 
 	existingNames := make(map[string]bool)
 	for _, c := range children {
@@ -191,6 +195,7 @@ type bootstrapperImpl struct {
 func (b *bootstrapperImpl) Bootstrap(ctx context.Context) (*proxy.BootstrapResult, error) {
 	res, err := bootstrap(ctx, b.inputs)
 	if err != nil {
+		logReloadRefused(err)
 		return nil, err
 	}
 	return &proxy.BootstrapResult{

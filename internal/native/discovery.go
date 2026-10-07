@@ -286,6 +286,12 @@ func ResolvedMoxinSources(moxinPath, dir, systemDir string) (map[string]string, 
 	if err != nil {
 		return nil, err
 	}
+	return MoxinSources(configs), nil
+}
+
+// MoxinSources maps each discovered moxin's name to the directory it was
+// loaded from, symlinks resolved. Never nil: no moxins is an empty map.
+func MoxinSources(configs []*NativeConfig) map[string]string {
 	sources := make(map[string]string, len(configs))
 	for _, cfg := range configs {
 		source := cfg.SourceDir
@@ -294,7 +300,7 @@ func ResolvedMoxinSources(moxinPath, dir, systemDir string) (map[string]string, 
 		}
 		sources[cfg.Name] = source
 	}
-	return sources, nil
+	return sources
 }
 
 func discoverConfigsIn(dirs []string) ([]*NativeConfig, error) {

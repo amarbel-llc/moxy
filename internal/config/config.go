@@ -52,12 +52,7 @@ func Parse(data []byte) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	for _, srv := range cfg.Servers {
-		for k, v := range srv.Headers {
-			srv.Headers[k] = os.ExpandEnv(v)
-		}
-	}
-	return cfg, nil
+	return ExpandHeaders(cfg), nil
 }
 
 // ParseLiteral decodes and validates a moxyfile without expanding anything:
@@ -272,11 +267,11 @@ func Merge(base, overlay Config) Config {
 	// allow-tools narrows down the hierarchy: the first layer to set it
 	// establishes the list, every later one intersects with it.
 	if overlay.AllowTools != nil {
-		if merged.AllowTools == nil {
-			merged.AllowTools = IntersectAllowTools(overlay.AllowTools, overlay.AllowTools)
-		} else {
-			merged.AllowTools = IntersectAllowTools(merged.AllowTools, overlay.AllowTools)
+		established := merged.AllowTools
+		if established == nil {
+			established = overlay.AllowTools
 		}
+		merged.AllowTools = IntersectAllowTools(established, overlay.AllowTools)
 	}
 
 	// A record of a past discovery, not configuration: nothing to combine, the

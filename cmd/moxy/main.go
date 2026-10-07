@@ -500,7 +500,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	// Load and judge the moxyfile (MOXY_PARENT_MOXYFILE) before stderr is
 	// redirected below: a refusal to serve has to reach the launcher's stderr
 	// as written, and it must come before anything is started.
-	cfgForCreds, err := loadServingConfig()
+	cfgForCreds, err := loadJudgedConfigAtStartup()
 	if err != nil {
 		return err
 	}
@@ -547,11 +547,10 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	}
 
 	bootInputs := bootstrapInputs{
-		moxinPath:  moxinPath,
-		sessionID:  sessionID,
-		connect:    connectServer,
-		madder:     madderClient,
-		loadConfig: loadServingConfig,
+		moxinPath: moxinPath,
+		sessionID: sessionID,
+		connect:   connectServer,
+		madder:    madderClient,
 	}
 
 	bootRes, err := bootstrap(ctx, bootInputs)
@@ -587,7 +586,6 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	// resolved value (cfg.BuiltinNative may flip; we still want the same
 	// system dir until the user opts out).
 	bootInputs.systemDir = systemDir
-	bootInputs.loadConfig = loadServingConfigForReload
 	p.SetBootstrapper(&bootstrapperImpl{inputs: bootInputs})
 
 	builtinRegistry := server.NewToolRegistryV1()
@@ -974,9 +972,28 @@ type moxinReloaderImpl struct {
 }
 
 func (r *moxinReloaderImpl) ReloadMoxin(name string) (*native.NativeConfig, error) {
-	cfg, err := loadServingConfigForReload()
+	serving, err := loadServingConfig()
 	if err != nil {
 		return nil, fmt.Errorf("re-loading moxyfile hierarchy: %w", err)
+	}
+	cfg := serving.literal
+
+	// The moxyfile may have turned the system moxins off since boot; a
+	// reload must not bring one back by name.
+	systemDir := r.systemDir
+	if cfg.BuiltinNative != nil && !*cfg.BuiltinNative {
+		systemDir = ""
+	}
+	configs, err := native.DiscoverConfigs(r.moxinPath, systemDir)
+	if err != nil {
+		return nil, fmt.Errorf("discovering moxins: %w", err)
+	}
+
+	// Same gate as a full reload: the re-read moxyfile and the moxins found
+	// just now must still narrow MOXY_PARENT_MOXYFILE.
+	if err := serving.refuseUnlessNarrows(native.MoxinSources(configs)); err != nil {
+		logReloadRefused(err)
+		return nil, err
 	}
 
 	for _, srv := range cfg.Servers {
@@ -988,11 +1005,6 @@ func (r *moxinReloaderImpl) ReloadMoxin(name string) (*native.NativeConfig, erro
 	disable := cfg.BuildDisableMoxinSet()
 	if disable.ServerDisabled(name) {
 		return nil, fmt.Errorf("moxin %q is disabled by moxyfile", name)
-	}
-
-	configs, err := native.DiscoverConfigs(r.moxinPath, r.systemDir)
-	if err != nil {
-		return nil, fmt.Errorf("discovering moxins: %w", err)
 	}
 
 	for _, nc := range configs {

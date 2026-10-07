@@ -36,8 +36,19 @@ Picks up
 .Li disable-moxins
 edits, new
 .Li [[servers]]
-entries, and removed entries.
+entries, removed entries, and a changed
+.Li allow-tools
+list.
 .El
+.Pp
+When
+.Ev MOXY_PARENT_MOXYFILE
+is set
+.Pq see Xr moxy 1 ENVIRONMENT ,
+both forms judge the re-read moxyfile against the parent reference first.
+A moxyfile that no longer narrows it is refused: the tool returns an error
+naming each violation, nothing is closed or re-spawned, and the running
+configuration stays as it was.
 .Pp
 After every successful restart,
 .Nm moxy

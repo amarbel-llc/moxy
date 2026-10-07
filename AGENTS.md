@@ -309,6 +309,8 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   `ResourceProviderV1`, and `PromptProviderV1`
 - `internal/status` -- unified status display and validation of moxyfile hierarchy
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
+- `internal/narrowing` -- the "child grants no more than parent" relation
+  over two effective configs (FDR 0013)
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/statsd` -- fire-and-forget UDP statsd metrics
   (`STATSD_HOST`/`STATSD_PORT`, kill switch `MOXY_DISABLE_STATSD=1`); emit
@@ -324,6 +326,8 @@ Dispatched in `cmd/moxy/main.go`:
 - (default) -- run as MCP proxy server
 - `status` -- show per-level config hierarchy, moxins, and validation
 - `add [path]` -- interactive form to add a server entry
+- `narrows --parent --child` / `show-effective-moxyfile` -- narrowing check and
+  the canonical effective render (`cmd/moxy/narrowing.go`)
 - `install-mcp` / `generate-plugin` / `hook` -- purse-first integration
 
 ## Dependencies

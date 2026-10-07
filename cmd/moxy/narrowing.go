@@ -47,43 +47,87 @@ func (e *wideningError) Error() string {
 	return b.String()
 }
 
-// loadServingConfig reads the effective moxyfile for the current directory
-// and, when MOXY_PARENT_MOXYFILE is set, refuses it unless it narrows that
-// parent. Every path that turns a moxyfile into running tools goes through
-// here — startup, a full reload, a single-moxin reload — so editing the
-// moxyfile and calling `restart` cannot widen a running moxy.
-//
-// The config is read once, judged in its literal form, and only then has its
-// header $VARs expanded: what is served is exactly what was judged.
-func loadServingConfig() (config.Config, error) {
+// servingConfig is an effective moxyfile on its way to being served: read
+// once, in its literal form, together with the parent reference it must
+// narrow. Every path that turns a moxyfile into running tools — startup, a
+// full reload, a single-moxin reload — loads one, calls refuseUnlessNarrows
+// with the moxins it is about to serve, and only then takes expanded(). So
+// editing the moxyfile and calling `restart` cannot widen a running moxy, and
+// what is served is exactly what was judged.
+type servingConfig struct {
+	literal    config.Config
+	parentPath string        // "" when MOXY_PARENT_MOXYFILE is unset
+	parent     config.Config // meaningful only when parentPath != ""
+}
+
+func loadServingConfig() (servingConfig, error) {
 	hierarchy, err := config.LoadDefaultHierarchyLiteral()
+	if err != nil {
+		return servingConfig{}, err
+	}
+	sc := servingConfig{literal: hierarchy.Merged, parentPath: os.Getenv(parentMoxyfileEnv)}
+	if sc.parentPath != "" {
+		parent, err := config.LoadFileLiteral(sc.parentPath)
+		if err != nil {
+			return servingConfig{}, fmt.Errorf("%s: %w", parentMoxyfileEnv, err)
+		}
+		sc.parent = parent.Merged
+	}
+	return sc, nil
+}
+
+// judgesMoxins reports whether the parent reference bounds which moxins may
+// be served, i.e. whether working out the moxin set is worth it before
+// refuseUnlessNarrows.
+func (sc servingConfig) judgesMoxins() bool {
+	return sc.parentPath != "" && sc.parent.ResolvedMoxins != nil
+}
+
+// refuseUnlessNarrows judges the config against the parent reference. moxins
+// is the name-to-directory set the caller is about to serve; it stands in for
+// whatever resolved-moxins record the moxyfile itself carries, which is never
+// trusted. A nil moxins skips the moxin rule and is only right when
+// judgesMoxins is false.
+func (sc servingConfig) refuseUnlessNarrows(moxins map[string]string) error {
+	if sc.parentPath == "" {
+		return nil
+	}
+	judged := sc.literal
+	judged.ResolvedMoxins = moxins
+	if violations := narrowing.Check(sc.parent, judged); len(violations) > 0 {
+		return &wideningError{parentPath: sc.parentPath, violations: violations}
+	}
+	return nil
+}
+
+// expanded is the config to serve: the judged text with header $VARs expanded.
+func (sc servingConfig) expanded() config.Config {
+	return config.ExpandHeaders(sc.literal)
+}
+
+// loadJudgedConfigAtStartup loads and judges the moxyfile before anything is
+// started, against the moxins discovery finds in this environment. bootstrap
+// judges again against the moxins it actually loads; this earlier pass exists
+// so a refusal is the first thing a launcher sees.
+func loadJudgedConfigAtStartup() (config.Config, error) {
+	sc, err := loadServingConfig()
 	if err != nil {
 		return config.Config{}, err
 	}
-
-	cfg := hierarchy.Merged
-
-	if parentPath := os.Getenv(parentMoxyfileEnv); parentPath != "" {
-		parent, err := config.LoadFileLiteral(parentPath)
-		if err != nil {
-			return config.Config{}, fmt.Errorf("%s: %w", parentMoxyfileEnv, err)
-		}
-		// Judge the moxins this process would actually load, not whatever
-		// record its own moxyfile happens to carry.
+	var moxins map[string]string
+	if sc.judgesMoxins() {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return config.Config{}, err
 		}
-		cfg.ResolvedMoxins, err = resolvedMoxinsFor(cfg, cwd)
-		if err != nil {
+		if moxins, err = resolvedMoxinsFor(sc.literal, cwd); err != nil {
 			return config.Config{}, fmt.Errorf("discovering moxins: %w", err)
 		}
-		if violations := narrowing.Check(parent.Merged, cfg); len(violations) > 0 {
-			return config.Config{}, &wideningError{parentPath: parentPath, violations: violations}
-		}
 	}
-
-	return config.ExpandHeaders(cfg), nil
+	if err := sc.refuseUnlessNarrows(moxins); err != nil {
+		return config.Config{}, err
+	}
+	return sc.expanded(), nil
 }
 
 // resolvedMoxinsFor reports the moxins a moxy serving cfg from dir would
@@ -97,15 +141,11 @@ func resolvedMoxinsFor(cfg config.Config, dir string) (map[string]string, error)
 	)
 }
 
-// loadServingConfigForReload is loadServingConfig for the paths that run
-// inside an already-serving moxy. Their error goes back to the MCP client as a
-// tool result; the extra stderr line puts the refusal in moxy's own log too.
-func loadServingConfigForReload() (config.Config, error) {
-	cfg, err := loadServingConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: reload refused, keeping the running configuration: %v\n", err)
-	}
-	return cfg, err
+// logReloadRefused records a failed reload in moxy's own log. The error also
+// goes back to the MCP client as the restart tool's result; either way the
+// running configuration is left as it was.
+func logReloadRefused(err error) {
+	fmt.Fprintf(os.Stderr, "moxy: reload refused, keeping the running configuration: %v\n", err)
 }
 
 func addNarrowingCommands(app *command.App) {

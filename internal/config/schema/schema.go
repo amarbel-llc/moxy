@@ -212,51 +212,40 @@ func (s DisableMoxinSet) ToolDisabled(serverName, toolName string) bool {
 	return s.tools[serverName+"."+toolName]
 }
 
-// AllowToolSet is the resolved `allow-tools` allowlist. The zero value is
-// unrestricted: every tool is allowed.
-type AllowToolSet struct {
-	restricted bool
-	names      map[string]bool // bare names: a server, a moxin, or a meta tool
-	tools      map[string]bool // dotted "server.tool" names
-}
+// AllowToolSet is the resolved `allow-tools` allowlist: the entries as
+// written, bare names and "server.tool" pairs alike. A nil set is
+// unrestricted; a non-nil one, even empty, allows only what it names.
+type AllowToolSet map[string]bool
 
-// BuildAllowToolSet resolves AllowTools. A nil list is unrestricted; a
-// non-nil list, even an empty one, allows only what it names.
+// BuildAllowToolSet resolves AllowTools, keeping nil (unset) distinct from
+// empty (set, allowing nothing).
 func (c Config) BuildAllowToolSet() AllowToolSet {
 	if c.AllowTools == nil {
-		return AllowToolSet{}
+		return nil
 	}
-	s := AllowToolSet{
-		restricted: true,
-		names:      make(map[string]bool),
-		tools:      make(map[string]bool),
-	}
+	s := make(AllowToolSet, len(c.AllowTools))
 	for _, entry := range c.AllowTools {
-		if strings.Contains(entry, ".") {
-			s.tools[entry] = true
-		} else {
-			s.names[entry] = true
-		}
+		s[entry] = true
 	}
 	return s
 }
 
 // Restricted reports whether an allowlist is in force at all.
 func (s AllowToolSet) Restricted() bool {
-	return s.restricted
+	return s != nil
 }
 
 // Allows reports whether a tool may be listed and called. server is the
 // tool's owning server or moxin and tool its name there; a meta tool, which
 // has no owner, passes server "" and is allowed only by its own bare name.
 func (s AllowToolSet) Allows(server, tool string) bool {
-	if !s.restricted {
+	if s == nil {
 		return true
 	}
 	if server == "" {
-		return s.names[tool]
+		return s[tool]
 	}
-	return s.names[server] || s.tools[server+"."+tool]
+	return s[server] || s[server+"."+tool]
 }
 
 // DisableServerSet provides O(1) lookups for disabled [[servers]] entries.
