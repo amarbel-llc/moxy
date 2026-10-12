@@ -2,20 +2,29 @@ import { $ } from "zx";
 import { mkdtemp, writeFile, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { markdownForUpload } from "./inline-images";
 
 $.verbose = false;
 $.stdio = ["pipe", "pipe", "ignore"];
 
-const [fileId, content] = process.argv.slice(2);
+const [fileId, content, baseDir, contentPath] = process.argv.slice(2);
+
+// GWS_BIN is the test seam: the wrapper pins PATH, so a stub cannot shadow gws.
+const gws = process.env.GWS_BIN ?? "gws";
+
+const markdown = await markdownForUpload(content, baseDir, contentPath);
 
 const dir = await mkdtemp(join(tmpdir(), "gws-upload-"));
 const tmp = join(dir, "upload.md");
 
 try {
-  await writeFile(tmp, content);
+  await writeFile(tmp, markdown);
   const params = JSON.stringify({ fileId });
-  const result =
-    await $`gws drive files update --params ${params} --upload ${tmp} --upload-content-type text/markdown`;
+  // gws rejects an --upload path outside its working directory, so it runs
+  // from the temp dir and is handed the bare file name.
+  const result = await $({
+    cwd: dir,
+  })`${gws} drive files update --params ${params} --upload upload.md --upload-content-type text/markdown`;
 
   process.stdout.write(
     JSON.stringify({

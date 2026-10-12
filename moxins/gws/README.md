@@ -19,6 +19,34 @@ moxins:
 |------|-------------|
 | `api` | Raw gws API call (debugging) |
 
+## Images and diagrams in piers
+
+`piers create` and `piers update` build a Doc by uploading markdown to Drive,
+which converts it. That converter embeds an image only when it can fetch the
+bytes itself (an `https:` URL or a `data:` URI), never renders SVG, and sizes
+every image at 0.75pt per pixel, ignoring size hints. So both tools rewrite the
+markdown before upload (`moxins/piers/src/inline-images.ts`):
+
+| In the markdown | Becomes |
+|---|---|
+| fenced code block with language `plantuml` / `puml` | rendered diagram |
+| `![alt](x.puml)` (`.plantuml`, `.pu`) | rendered diagram |
+| `![alt](x.svg)` | rasterized PNG |
+| `![alt](x.png)` (`.jpg`, `.jpeg`, `.gif`) | the file, as-is |
+| `![alt](https://…)`, code spans, other fences | untouched |
+
+Local paths are only resolved when the caller says what they are relative to:
+pass `content_path` (the markdown file; images resolve beside it) or `content`
+plus `base_dir`. Rendered diagrams wider than the page's text width (624px) are
+scaled down to fit; PNG/JPEG/GIF files are embedded at their own size. A file
+that cannot be read or rendered fails the call before anything is uploaded.
+
+The image bytes travel inside the upload, so no asset is stored in Drive and
+`update` (which replaces the whole body) leaves nothing behind. The cost is
+resolution: at 0.75pt per pixel a page-wide image is 96 dpi. A sharper path —
+upload the file, share it by link, `insertInlineImage` with an explicit size,
+delete the file — works against the Docs API but is not implemented (#449).
+
 ## Availability
 
 These moxins are built but not shipped in the bundle baked into moxy. To use

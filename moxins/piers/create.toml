@@ -1,16 +1,16 @@
 schema = 3
 substitute-result-uris = false
 perms-request = "always-allow"
-description = "Create a new Google Doc from markdown content. Returns the created file metadata including ID and web link."
+description = "Create a new Google Doc from markdown content. Returns the created file metadata including ID and web link. Diagrams and images are embedded inline: a fenced ```plantuml code block is rendered to an image; with base_dir set, local ![alt](path) files are embedded too (PNG/JPEG/GIF as-is, SVG rasterized, .puml/.plantuml rendered). https image URLs are fetched by Google."
 command = "@BIN@/create"
-arg-order = ["title", "content"]
+arg-order = ["title", "content", "base_dir", "content_path"]
 
 [annotations]
 open-world-hint = true
 
 [input]
 type = "object"
-required = ["title", "content"]
+required = ["title"]
 
 [input.properties.title]
 type = "string"
@@ -18,4 +18,12 @@ description = "Title for the new Google Doc"
 
 [input.properties.content]
 type = "string"
-description = "Markdown content for the document"
+description = "Markdown content for the document; give this or content_path. A fenced code block with language `plantuml` (or `puml`) is replaced by the rendered diagram; @startuml/@enduml are added when missing. Use another language (e.g. `text`) to show PlantUML source literally."
+
+[input.properties.content_path]
+type = "string"
+description = "Absolute path of a markdown file to use instead of content. Preferred for documents kept on disk: the text is not re-sent through the tool call, and local images resolve relative to the file's directory without setting base_dir."
+
+[input.properties.base_dir]
+type = "string"
+description = "Absolute directory that local image paths in content are relative to (normally the directory of the markdown source file). When set, every ![alt](path) without a URI scheme is read from disk and embedded in the Doc: .png/.jpg/.jpeg/.gif as-is, .svg rasterized, .puml/.plantuml/.pu rendered. An unreadable, unsupported or unrenderable file fails the call before anything is uploaded. When omitted, local image paths are passed through and show as broken placeholders. Images are sized at 0.75pt per pixel; rendered diagrams wider than the page (624px) are scaled down to fit, PNG/JPEG/GIF files are not."

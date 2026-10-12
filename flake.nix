@@ -889,24 +889,43 @@
           pkgs.coreutils
           gws-bin
         ];
-        piers-moxin = mkBunMoxin "piers" gwsDeps {
-          "get" = "moxins/piers/src/get.ts";
-          "create" = "moxins/piers/src/create.ts";
-          "update" = "moxins/piers/src/update.ts";
-          "batch-update" = "moxins/piers/src/batch-update.ts";
-          "replace-text" = "moxins/piers/src/replace-text.ts";
-          "insert-text" = "moxins/piers/src/insert-text.ts";
-          "delete-content-range" = "moxins/piers/src/delete-content-range.ts";
-          "update-text-style" = "moxins/piers/src/update-text-style.ts";
-          "update-paragraph-style" = "moxins/piers/src/update-paragraph-style.ts";
-          "comments-list" = "moxins/piers/src/comments-list.ts";
-          "comment-reply" = "moxins/piers/src/comment-reply.ts";
-          "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
-          "outline" = "moxins/piers/src/outline.ts";
-          "tab-create" = "moxins/piers/src/tab-create.ts";
-          "tab-delete" = "moxins/piers/src/tab-delete.ts";
-          "tab-update" = "moxins/piers/src/tab-update.ts";
-        } { };
+        # piers create/update embed images in the markdown they upload
+        # (moxins/piers/src/inline-images.ts): rsvg-convert rasterizes SVG,
+        # plantuml renders diagrams. Both draw text through fontconfig, which
+        # finds no fonts in the build sandbox or on a non-NixOS host, so a
+        # default font set is pinned unless the caller's environment names one.
+        piersDeps = gwsDeps ++ [
+          pkgs.librsvg
+          pkgs.plantuml
+        ];
+        piersFontsConf = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
+        piers-moxin =
+          mkBunMoxin "piers" piersDeps
+            {
+              "get" = "moxins/piers/src/get.ts";
+              "create" = "moxins/piers/src/create.ts";
+              "update" = "moxins/piers/src/update.ts";
+              "batch-update" = "moxins/piers/src/batch-update.ts";
+              "replace-text" = "moxins/piers/src/replace-text.ts";
+              "insert-text" = "moxins/piers/src/insert-text.ts";
+              "delete-content-range" = "moxins/piers/src/delete-content-range.ts";
+              "update-text-style" = "moxins/piers/src/update-text-style.ts";
+              "update-paragraph-style" = "moxins/piers/src/update-paragraph-style.ts";
+              "comments-list" = "moxins/piers/src/comments-list.ts";
+              "comment-reply" = "moxins/piers/src/comment-reply.ts";
+              "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
+              "outline" = "moxins/piers/src/outline.ts";
+              "tab-create" = "moxins/piers/src/tab-create.ts";
+              "tab-delete" = "moxins/piers/src/tab-delete.ts";
+              "tab-update" = "moxins/piers/src/tab-update.ts";
+            }
+            {
+              extraWrapArgs = [
+                "--set-default"
+                "FONTCONFIG_FILE"
+                "${piersFontsConf}"
+              ];
+            };
         car-moxin = mkBunMoxin "car" gwsDeps {
           "search" = "moxins/car/src/search.ts";
           "get" = "moxins/car/src/get.ts";
@@ -1246,6 +1265,9 @@
               # env_*.bats invoke wrapped scripts via ${ENV_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               ENV_BIN = "${env-moxin}/bin";
+              # piers_*.bats invoke wrapped scripts via ${PIERS_BIN:-$BIN},
+              # which doesn't exist inside the nix sandbox.
+              PIERS_BIN = "${piers-moxin}/bin";
             };
             nativeBuildInputs = [
               pkgs.bash
