@@ -151,14 +151,6 @@ func DefaultMoxinPath(home, cwd, systemDir string) string {
 	return strings.Join(dirs, ":")
 }
 
-// DiscoverConfigs loads moxin configs from MOXIN_PATH directories.
-// Each moxin is a subdirectory containing _moxin.toml. Dirs are processed
-// from last to first; earlier path entries override later ones by server name.
-// systemDir is appended as the lowest-priority entry (pass "" to omit).
-//
-// When moxinPath is empty, the default hierarchy is computed from the current
-// working directory (same directories as `moxy moxin-path`), so discovery
-// works without an explicit MOXIN_PATH env var.
 // MoxinError records a moxin directory that failed to load.
 type MoxinError struct {
 	// Name is the moxin name the directory claims: `name` from its
@@ -306,11 +298,14 @@ func discover(dirs []string, skipUnreadableDirs bool) (DiscoverResult, error) {
 
 // claimedMoxinName is the name a moxin directory claims when the directory as
 // a whole could not be loaded: `name` from its _moxin.toml if that file
-// parses and names one, else the directory's own name.
+// parses and names one a moxin may have, else the directory's own name. A
+// name with a dot is not one: it is refused at load, and a failed server
+// advertised as `a.b.status` could not be routed back to `a.b`.
 func claimedMoxinName(dirPath string) string {
 	var meta MoxinMeta
 	data, err := os.ReadFile(filepath.Join(dirPath, "_moxin.toml"))
-	if err == nil && toml.Unmarshal(data, &meta) == nil && meta.Name != "" {
+	if err == nil && toml.Unmarshal(data, &meta) == nil &&
+		meta.Name != "" && !strings.Contains(meta.Name, ".") {
 		return meta.Name
 	}
 	return filepath.Base(dirPath)
@@ -342,6 +337,14 @@ func resolveMoxinDirsFor(moxinPath, cwd, systemDir string) []string {
 	return dirs
 }
 
+// DiscoverConfigs loads moxin configs from MOXIN_PATH directories.
+// Each moxin is a subdirectory containing _moxin.toml. Dirs are processed
+// from last to first; earlier path entries override later ones by server name.
+// systemDir is appended as the lowest-priority entry (pass "" to omit).
+//
+// When moxinPath is empty, the default hierarchy is computed from the current
+// working directory (same directories as `moxy moxin-path`), so discovery
+// works without an explicit MOXIN_PATH env var.
 func DiscoverConfigs(moxinPath string, systemDir string) ([]*NativeConfig, error) {
 	return discoverConfigsIn(resolveMoxinDirs(moxinPath, systemDir))
 }

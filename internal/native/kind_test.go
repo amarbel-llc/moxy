@@ -212,6 +212,24 @@ name = "grit"
 	}
 }
 
+// A manifest name with a dot is not a name a moxin may have, so the directory
+// name is claimed instead: `a.b.status` could not be routed back to `a.b`.
+func TestDiscoverRefusedMoxinWithDottedNameClaimsItsDirectoryName(t *testing.T) {
+	userDir := t.TempDir()
+	writeMoxinDir(t, userDir, "dotted", `
+schema = 1
+name = "a.b"
+`, map[string]string{"status": goodTool})
+
+	result, err := DiscoverServing(userDir, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Refused) != 1 || result.Refused[0].Name != "dotted" {
+		t.Errorf("Refused = %+v, want the directory name dotted", result.Refused)
+	}
+}
+
 // A directory whose _moxin.toml cannot name it claims its own directory name.
 func TestDiscoverUnnamedRefusedMoxinClaimsItsDirectoryName(t *testing.T) {
 	userDir, systemDir := t.TempDir(), t.TempDir()
