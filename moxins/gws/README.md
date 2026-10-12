@@ -22,30 +22,41 @@ moxins:
 ## Images and diagrams in piers
 
 `piers create` and `piers update` build a Doc by uploading markdown to Drive,
-which converts it. That converter embeds an image only when it can fetch the
-bytes itself (an `https:` URL or a `data:` URI), never renders SVG, and sizes
-every image at 0.75pt per pixel, ignoring size hints. So both tools rewrite the
-markdown before upload (`moxins/piers/src/inline-images.ts`):
+which converts it. That converter cannot be trusted with diagrams: a local
+image path becomes a broken placeholder, SVG is never rendered, PlantUML source
+stays a code block, and every image it does embed is fixed at 0.75pt per pixel
+(96 dpi) whatever size hints it is given. So both tools place images
+themselves (`moxins/piers/src/inline-images.ts`):
 
-| In the markdown | Becomes |
+| In the markdown | Placed in the Doc as |
 |---|---|
 | fenced code block with language `plantuml` / `puml` | rendered diagram |
 | `![alt](x.puml)` (`.plantuml`, `.pu`) | rendered diagram |
 | `![alt](x.svg)` | rasterized PNG |
 | `![alt](x.png)` (`.jpg`, `.jpeg`, `.gif`) | the file, as-is |
-| `![alt](https://…)`, code spans, other fences | untouched |
+| `![alt](https://…)` | left to Google's converter |
+| code spans, other fences | untouched |
+
+PlantUML and SVG are rendered at twice their natural resolution and shown at
+natural size, shrunk when needed to fit the page's text area, so text in a
+diagram stays sharp when zoomed or printed.
 
 Local paths are only resolved when the caller says what they are relative to:
 pass `content_path` (the markdown file; images resolve beside it) or `content`
-plus `base_dir`. Rendered diagrams wider than the page's text width (624px) are
-scaled down to fit; PNG/JPEG/GIF files are embedded at their own size. A file
-that cannot be read or rendered fails the call before anything is uploaded.
+plus `base_dir`. A file that cannot be read or rendered fails the call before
+anything is uploaded.
 
-The image bytes travel inside the upload, so no asset is stored in Drive and
-`update` (which replaces the whole body) leaves nothing behind. The cost is
-resolution: at 0.75pt per pixel a page-wide image is 96 dpi. A sharper path —
-upload the file, share it by link, `insertInlineImage` with an explicit size,
-delete the file — works against the Docs API but is not implemented (#449).
+How an image gets in: it is taken out of the markdown, leaving a placeholder
+token; after the upload, the token is replaced through the Docs API's
+`insertInlineImage`, the only way to give an image an explicit size. That
+request fetches the image anonymously by URL, so each image is uploaded to the
+user's Drive, shared by link, inserted, and deleted — Docs keeps its own copy,
+so nothing is left in Drive and `update` (which replaces the whole body) leaves
+no orphans. Two consequences: the image is readable by anyone holding its
+unguessable link for the few seconds the call takes, and alt text is not
+carried over (`insertInlineImage` has no field for it). If placing fails after
+the upload, the call fails naming the document, which still holds the
+placeholder tokens; the hosted files are deleted either way.
 
 ## Availability
 
