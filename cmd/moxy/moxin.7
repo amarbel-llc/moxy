@@ -194,7 +194,73 @@ and
 Moxyfile
 .Sy [servers.annotations]
 filters can select child tools by these values.
+Any other key under the table is a load error naming the file and the
+key, and the moxin is not served: the table holds exactly these five, so
+a misspelt hint such as
+.Li readOnlyHint ,
+or a key that belongs at the top level such as
+.Sy kind ,
+is refused instead of being dropped.
+.It Sy kind
+Optional string saying what the tool's result is, for example
+.Li \(dqlist\(dq
+or
+.Li \(dqissue\(dq .
+A top-level key, not an annotation.
+It is emitted on the tool in
+.Li tools/list
+as
+.Li _meta.kind ;
+a tool that omits it, or sets it to the empty string, carries no
+.Li _meta .
+Moxy does not interpret or validate the value; it is carried as written.
+See
+.Sx TOOL KIND .
 .El
+.Sh TOOL KIND
+.Sy kind
+is a declaration for the client, not for moxy.
+A client that keeps a record of what a tool call produced can use it to
+tell a call that created something from a call that only looked.
+.Pp
+The convention moxy's tools follow is the one clown's juggler reads: the
+string
+.Li kind
+in the tool's
+.Li _meta
+object.
+Juggler treats these five values as read-only, meaning the call's result
+is not counted as something the run created:
+.Bd -literal -offset indent
+list  search  read  get  query
+.Ed
+.Pp
+Any other value, such as
+.Li \(dqissue\(dq ,
+names the thing the call creates.
+A tool that declares nothing is undeclared, and the client decides what
+that means.
+The vocabulary is juggler's; moxy neither enforces it nor checks a value
+against it, so a typo is carried through as written.
+.Bd -literal -offset indent
+schema = 3
+command = "@LIBEXEC@/list-issues"
+kind = "list"
+
+[annotations]
+read-only-hint = true
+.Ed
+.Pp
+.Sy kind
+and
+.Sy read-only-hint
+answer different questions and neither implies the other: the hint says
+the tool changes nothing, the kind says what comes back.
+.Pp
+For a child MCP server the proxy passes the tool's own
+.Li _meta
+object through unchanged, so a server that already declares a kind keeps
+it.
 .Sh RESULT SHAPING
 Four keys control how a tool's stdout becomes an MCP result.
 .Pp

@@ -108,6 +108,7 @@ type ToolSpec struct {
 	NoTruncate           bool
 	SubstituteResultURIs *bool
 	Annotations          *ToolAnnotations
+	Kind                 string // what the tool's result is; emitted as `_meta.kind` (#451)
 	Input                json.RawMessage
 	InputParsed          *InputSchema
 }
@@ -155,6 +156,7 @@ type rawToolFile struct {
 	NoTruncate           bool              `toml:"no-truncate"`
 	SubstituteResultURIs *bool             `toml:"substitute-result-uris"`
 	Annotations          *ToolAnnotations  `toml:"annotations"`
+	Kind                 string            `toml:"kind"` // #451
 	Input                *InputSchema      `toml:"input"`
 }
 
@@ -238,7 +240,8 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		}
 
 		var raw rawToolFile
-		if err := toml.Unmarshal(data, &raw); err != nil {
+		md, err := toml.Decode(string(data), &raw)
+		if err != nil {
 			return nil, fmt.Errorf("parsing tool file %s: %w", filename, err)
 		}
 
@@ -247,6 +250,12 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		}
 		if raw.Command == "" {
 			return nil, fmt.Errorf("tool file %s: command is required", filename)
+		}
+		if unknown := unknownAnnotationKeys(md); len(unknown) > 0 {
+			return nil, fmt.Errorf(
+				"tool file %s: unknown key under [annotations]: %s (known: %s)",
+				filename, strings.Join(unknown, ", "), strings.Join(annotationKeys, ", "),
+			)
 		}
 
 		// Schema 1/2 backward compatibility: try the old snake_case keys.
@@ -310,6 +319,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			NoTruncate:           raw.NoTruncate,
 			SubstituteResultURIs: raw.SubstituteResultURIs,
 			Annotations:          raw.Annotations,
+			Kind:                 raw.Kind,
 		}
 
 		if raw.Input != nil {
@@ -471,6 +481,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 		"permit-async",  // #317
 		"cache-results", // #319
 		"content-type", "result-type", "no-truncate", "substitute-result-uris",
+		"kind", // #451
 	}
 	if schema <= 2 {
 		keys = append(keys, "arg_order", "stdin_param")
@@ -520,6 +531,29 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 		prefixed[i] = filename + ": " + k
 	}
 	return prefixed
+}
+
+// annotationKeys are the keys a tool file's [annotations] table may hold.
+var annotationKeys = []string{
+	"title", "read-only-hint", "destructive-hint", "idempotent-hint", "open-world-hint",
+}
+
+// unknownAnnotationKeys returns the keys under [annotations] that are not
+// annotationKeys, sorted. The decoder ignores a key it has no field for, so
+// without this a misspelt hint (or a key that belongs elsewhere, like `kind`)
+// vanishes and the tool is served without it (#451).
+//
+// It reads the decoder's own account of what it skipped, so every TOML
+// spelling is covered: the table, an inline table, and dotted keys.
+func unknownAnnotationKeys(md toml.MetaData) []string {
+	var unknown []string
+	for _, key := range md.Undecoded() {
+		if len(key) >= 2 && key[0] == "annotations" {
+			unknown = append(unknown, strings.Join(key[1:], "."))
+		}
+	}
+	sort.Strings(unknown)
+	return unknown
 }
 
 // undecodedKeys walks the CST and returns all key paths not present in the
