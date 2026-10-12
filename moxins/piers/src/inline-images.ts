@@ -67,7 +67,7 @@ export type PendingImage = {
 function runRenderer(
   command: string,
   args: string[],
-  options: { input?: string; cwd?: string },
+  options: { input?: string; cwd?: string; env?: NodeJS.ProcessEnv },
 ): Buffer {
   const result = spawnSync(command, args, {
     ...options,
@@ -77,12 +77,27 @@ function runRenderer(
     throw new ImageError(`${command}: ${result.error.message}`);
   }
   if (result.status !== 0) {
-    throw new ImageError(
-      `${command} exited ${result.status}: ${result.stderr.toString().trim()}`,
-    );
+    const stderr = result.stderr
+      .toString()
+      .trim()
+      .replace(/\s*\n\s*/g, "; ");
+    throw new ImageError(`${command} exited ${result.status}: ${stderr}`);
   }
   return result.stdout;
 }
+
+// The markdown piers publishes is often not the caller's own (a cloned
+// repo's README, a pasted document), and what PlantUML draws ends up in a
+// shared Doc. Under its default profile `!include /some/file` would draw that
+// file's text and `!include https://…` would fetch from this host; SANDBOX
+// turns file and network access off. The size limit is raised from PlantUML's
+// 4096px default, which would silently crop a 2x render of a tall diagram;
+// renderSharp's megapixel cap does the limiting instead.
+const plantumlEnv = {
+  ...process.env,
+  PLANTUML_SECURITY_PROFILE: "SANDBOX",
+  PLANTUML_LIMIT_SIZE: "16384",
+};
 
 function pngSize(png: Buffer): PixelSize {
   // 8-byte signature, then the IHDR chunk: length, "IHDR", width, height.
@@ -173,7 +188,7 @@ function renderPlantuml(source: string, cwd: string | undefined) {
         "-headless",
         `-Sdpi=${Math.floor(naturalDpi * scale)}`,
       ],
-      { input: diagram, cwd },
+      { input: diagram, cwd, env: plantumlEnv },
     ),
   );
 }
@@ -194,11 +209,19 @@ function isInsideCodeSpan(line: string, index: number): boolean {
   return backticks % 2 === 1;
 }
 
+function withoutAngleBrackets(destination: string): string {
+  return destination.startsWith("<") && destination.endsWith(">")
+    ? destination.slice(1, -1)
+    : destination;
+}
+
+function isRemote(destination: string): boolean {
+  const target = withoutAngleBrackets(destination);
+  return uriScheme.test(target) || target.startsWith("//");
+}
+
 function decodeDestination(destination: string): string {
-  const unwrapped =
-    destination.startsWith("<") && destination.endsWith(">")
-      ? destination.slice(1, -1)
-      : destination;
+  const unwrapped = withoutAngleBrackets(destination);
   try {
     return decodeURIComponent(unwrapped);
   } catch {
@@ -225,6 +248,9 @@ class ImageExtraction {
   constructor(private readonly baseDir: string | undefined) {}
 
   private add(bytes: Buffer, mimeType: string, natural: PixelSize): string {
+    if (!(natural.width > 0 && natural.height > 0)) {
+      throw new ImageError("image has no width or height");
+    }
     const token = `PIERSIMG${this.nonce}N${this.images.length + 1}E`;
     this.images.push({ token, bytes, mimeType, ...displaySizePt(natural) });
     return token;
@@ -277,7 +303,7 @@ class ImageExtraction {
     let cursor = 0;
     for (const match of line.matchAll(imageReference)) {
       const [whole, , destination] = match;
-      if (uriScheme.test(destination) || isInsideCodeSpan(line, match.index)) {
+      if (isRemote(destination) || isInsideCodeSpan(line, match.index)) {
         continue;
       }
       const token = await this.addLocalFile(destination, this.baseDir);
@@ -318,7 +344,11 @@ export async function extractImages(
     const isClosed = end < lines.length;
     if (isClosed && plantumlFenceLanguages.includes(language.toLowerCase())) {
       const source = lines.slice(i + 1, end).join("\n");
-      rewritten.push(extraction.addPlantuml(source, baseDir));
+      // Blank lines keep the diagram a paragraph of its own even when the
+      // fence abutted text; the indent keeps it inside a list item.
+      const indent = lines[i].match(/^ */)?.[0] ?? "";
+      const token = extraction.addPlantuml(source, baseDir);
+      rewritten.push("", indent + token, "");
     } else {
       rewritten.push(...lines.slice(i, end + 1));
     }
@@ -379,11 +409,18 @@ export async function gwsJson(
   })`${gws} ${args}`;
   if (result.exitCode !== 0) {
     throw new ImageError(
-      `gws ${args.slice(0, 3).join(" ")} failed: ${result.stdout.trim()}`,
+      `gws ${args.slice(0, 3).join(" ")} failed: ${result.stdout.trim().replace(/\s+/g, " ")}`,
     );
   }
   const stdout = result.stdout.trim();
-  return stdout ? JSON.parse(stdout) : {};
+  if (!stdout) return {};
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    throw new ImageError(
+      `gws ${args.slice(0, 3).join(" ")} replied with something other than JSON: ${stdout.slice(0, 200)}`,
+    );
+  }
 }
 
 // The document index of every token found in `content` (a Docs API
@@ -416,11 +453,14 @@ const imageExtensionByMimeType: Record<string, string> = {
 };
 
 // Uploads one image to Drive and shares it by link, so the Docs API can fetch
-// it. Returns the Drive file id; the caller deletes it.
+// it. Returns the Drive file id. The id is recorded in `hostedFileIds` the
+// moment the file exists — before it is shared — so that whoever owns that
+// list deletes the file even when sharing fails.
 async function hostTransiently(
   gws: string,
   workDir: string,
   image: PendingImage,
+  hostedFileIds: string[],
 ): Promise<string> {
   const fileName = `${image.token}.${imageExtensionByMimeType[image.mimeType]}`;
   await writeFile(join(workDir, fileName), image.bytes);
@@ -435,6 +475,7 @@ async function hostTransiently(
     "--upload-content-type",
     image.mimeType,
   ]);
+  hostedFileIds.push(file.id);
   await gwsJson(gws, workDir, [
     "drive",
     "permissions",
@@ -480,9 +521,62 @@ async function batchUpdateOnceFetchable(
   }
 }
 
+function deleteHostedFileArgs(fileId: string): string[] {
+  return ["drive", "files", "delete", "--params", JSON.stringify({ fileId })];
+}
+
+// Deletes the hosted files, trying each twice, and returns the ids that are
+// still there.
+async function deleteHostedFiles(
+  gws: string,
+  workDir: string,
+  fileIds: string[],
+): Promise<string[]> {
+  const undeleted: string[] = [];
+  for (const fileId of fileIds) {
+    try {
+      await gwsJson(gws, workDir, deleteHostedFileArgs(fileId));
+    } catch {
+      try {
+        await gwsJson(gws, workDir, deleteHostedFileArgs(fileId));
+      } catch {
+        undeleted.push(fileId);
+      }
+    }
+  }
+  return undeleted;
+}
+
+const terminationSignals = ["SIGTERM", "SIGINT", "SIGHUP"] as const;
+
+// While images are hosted, a termination signal (a client cancel, moxy's
+// async timeout) must not skip their deletion: nothing else knows their ids.
+// Returns the function that removes the handlers again.
+function deleteHostedFilesOnTermination(
+  gws: string,
+  workDir: string,
+  hostedFileIds: string[],
+): () => void {
+  const onSignal = () => {
+    for (const fileId of hostedFileIds) {
+      spawnSync(gws, deleteHostedFileArgs(fileId), {
+        cwd: workDir,
+        stdio: "ignore",
+      });
+    }
+    process.exit(1);
+  };
+  for (const signal of terminationSignals) process.on(signal, onSignal);
+  return () => {
+    for (const signal of terminationSignals) process.off(signal, onSignal);
+  };
+}
+
 // Replaces each image's token in the Doc with the image, at its display size.
 // The images are public-by-link on Drive for the duration of this call and
-// deleted before it returns, whether or not it succeeds.
+// deleted before it returns, whether or not placing succeeds. A hosted file
+// that cannot be deleted is an error naming it, even when placing succeeded:
+// a file left shared by link must never look like success.
 export async function placeImages(
   gws: string,
   workDir: string,
@@ -491,80 +585,91 @@ export async function placeImages(
 ): Promise<void> {
   if (images.length === 0) return;
   const hostedFileIds: string[] = [];
+  const stopWatchingSignals = deleteHostedFilesOnTermination(
+    gws,
+    workDir,
+    hostedFileIds,
+  );
+  let placingError: unknown;
   try {
-    const document = await gwsJson(gws, workDir, [
-      "docs",
-      "documents",
-      "get",
-      "--params",
-      JSON.stringify({ documentId, fields: "body" }),
-    ]);
-    const indexByToken = new Map<string, number>();
-    collectTokenIndexes(
-      document.body?.content,
-      images.map((image) => image.token),
-      indexByToken,
-    );
-
-    const placements: { index: number; requests: unknown[] }[] = [];
-    for (const image of images) {
-      const index = indexByToken.get(image.token);
-      if (index === undefined) {
-        throw new ImageError(
-          `placeholder ${image.token} not found in document ${documentId}`,
-        );
-      }
-      const fileId = await hostTransiently(gws, workDir, image);
-      hostedFileIds.push(fileId);
-      placements.push({
-        index,
-        requests: [
-          {
-            deleteContentRange: {
-              range: {
-                startIndex: index,
-                endIndex: index + image.token.length,
-              },
-            },
-          },
-          {
-            insertInlineImage: {
-              location: { index },
-              uri: `https://drive.google.com/uc?export=download&id=${fileId}`,
-              objectSize: {
-                width: { magnitude: image.widthPt, unit: "PT" },
-                height: { magnitude: image.heightPt, unit: "PT" },
-              },
-            },
-          },
-        ],
-      });
-    }
-    // Last placeholder first, so earlier indexes stay valid as text changes.
-    placements.sort((a, b) => b.index - a.index);
-    await batchUpdateOnceFetchable(
-      gws,
-      workDir,
-      documentId,
-      placements.flatMap((placement) => placement.requests),
-    );
-  } finally {
-    for (const fileId of hostedFileIds) {
-      try {
-        await gwsJson(gws, workDir, [
-          "drive",
-          "files",
-          "delete",
-          "--params",
-          JSON.stringify({ fileId }),
-        ]);
-      } catch (error) {
-        process.stderr.write(
-          `WARNING: Drive file ${fileId} is still shared by link and could not be deleted: ${(error as Error).message}\n`,
-        );
-      }
-    }
+    await placeHostedImages(gws, workDir, documentId, images, hostedFileIds);
+  } catch (error) {
+    placingError = error;
   }
+  const undeleted = await deleteHostedFiles(gws, workDir, hostedFileIds);
+  stopWatchingSignals();
+  if (undeleted.length > 0) {
+    const placing =
+      placingError instanceof Error ? `${placingError.message}; ` : "";
+    throw new ImageError(
+      `${placing}Drive file(s) ${undeleted.join(", ")} are still shared by link and could not be deleted: delete them by hand`,
+    );
+  }
+  if (placingError) throw placingError;
+}
+
+async function placeHostedImages(
+  gws: string,
+  workDir: string,
+  documentId: string,
+  images: PendingImage[],
+  hostedFileIds: string[],
+): Promise<void> {
+  const document = await gwsJson(gws, workDir, [
+    "docs",
+    "documents",
+    "get",
+    "--params",
+    JSON.stringify({ documentId, fields: "body" }),
+  ]);
+  const indexByToken = new Map<string, number>();
+  collectTokenIndexes(
+    document.body?.content,
+    images.map((image) => image.token),
+    indexByToken,
+  );
+
+  const placements: { index: number; requests: unknown[] }[] = [];
+  for (const image of images) {
+    const index = indexByToken.get(image.token);
+    if (index === undefined) {
+      throw new ImageError(
+        `placeholder ${image.token} not found in document ${documentId}`,
+      );
+    }
+    const fileId = await hostTransiently(gws, workDir, image, hostedFileIds);
+    placements.push({
+      index,
+      requests: [
+        {
+          deleteContentRange: {
+            range: {
+              startIndex: index,
+              endIndex: index + image.token.length,
+            },
+          },
+        },
+        {
+          insertInlineImage: {
+            location: { index },
+            uri: `https://drive.google.com/uc?export=download&id=${fileId}`,
+            objectSize: {
+              width: { magnitude: image.widthPt, unit: "PT" },
+              height: { magnitude: image.heightPt, unit: "PT" },
+            },
+          },
+        },
+      ],
+    });
+  }
+  // Last placeholder first, so earlier indexes stay valid as text changes.
+  placements.sort((a, b) => b.index - a.index);
+  await batchUpdateOnceFetchable(
+    gws,
+    workDir,
+    documentId,
+    placements.flatMap((placement) => placement.requests),
+  );
 }
 
 // Shared body of create and update: upload the markdown with `uploadArgs`
@@ -605,7 +710,7 @@ export async function uploadMarkdownWithImages(
     } catch (error) {
       if (!(error instanceof ImageError)) throw error;
       throw new ImageError(
-        `document ${file.id} was written, but its images were not placed (placeholders remain): ${error.message}`,
+        `document ${file.id} was written, but placing its images did not complete: ${error.message}`,
       );
     }
     process.stdout.write(

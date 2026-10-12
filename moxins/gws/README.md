@@ -56,7 +56,14 @@ no orphans. Two consequences: the image is readable by anyone holding its
 unguessable link for the few seconds the call takes, and alt text is not
 carried over (`insertInlineImage` has no field for it). If placing fails after
 the upload, the call fails naming the document, which still holds the
-placeholder tokens; the hosted files are deleted either way.
+placeholder tokens. The hosted files are deleted either way, including on
+SIGTERM/SIGINT; a file that cannot be deleted fails the call and is named in
+the error, so it can be removed by hand.
+
+PlantUML runs with `PLANTUML_SECURITY_PROFILE=SANDBOX`: the markdown being
+published is often not the caller's own, so `!include` of local files or URLs
+is disabled rather than letting a diagram draw a file's contents into a shared
+Doc. Diagrams must be self-contained.
 
 ## Availability
 

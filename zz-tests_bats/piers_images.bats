@@ -55,7 +55,13 @@ case "$1 $2 $3" in
     echo "{\"id\":\"stub-image-$n\"}"
   fi
   ;;
-"drive permissions create") echo '{"id":"anyoneWithLink"}' ;;
+"drive permissions create")
+  if [ -n "${GWS_STUB_FAIL_PERMISSIONS:-}" ]; then
+    echo '{"error":{"message":"stub sharing failure"}}'
+    exit 1
+  fi
+  echo '{"id":"anyoneWithLink"}'
+  ;;
 "docs documents get")
   "$GWS_STUB_JQ" -Rs \
     '{body:{content:[{paragraph:{elements:[{startIndex:1,textRun:{content:.}}]}}]}}' \
@@ -69,7 +75,13 @@ case "$1 $2 $3" in
   fi
   echo '{}'
   ;;
-"drive files delete") echo '{}' ;;
+"drive files delete")
+  if [ -n "${GWS_STUB_FAIL_DELETE:-}" ]; then
+    echo '{"error":{"message":"stub delete failure"}}'
+    exit 1
+  fi
+  echo '{}'
+  ;;
 esac
 EOF
   chmod +x "$GWS_BIN"
@@ -210,16 +222,50 @@ function piers_create_deletes_hosted_images_when_placing_fails { # @test
   export GWS_STUB_FAIL_BATCH_UPDATE=1
   run "$BIN/create" "Title" '![d](diagrams/pixel.png)' "$DOCS"
   assert_failure
-  assert_output --partial 'document stub-doc was written, but its images were not placed'
+  assert_output --partial 'document stub-doc was written, but placing its images did not complete'
   assert_output --partial 'stub batchUpdate failure'
+  refute_output --partial '"content"'
   assert_equal "$(calls 'drive\tfiles\tdelete')" "1"
+}
+
+function piers_create_deletes_hosted_image_when_sharing_it_fails { # @test
+  export GWS_STUB_FAIL_PERMISSIONS=1
+  run "$BIN/create" "Title" '![d](diagrams/pixel.png)' "$DOCS"
+  assert_failure
+  assert_output --partial 'stub sharing failure'
+  run grep -c $'^drive\tfiles\tdelete\t--params\t{"fileId":"stub-image-1"}' "$GWS_STUB_LOG"
+  assert_output "1"
+}
+
+function piers_create_fails_naming_hosted_image_it_could_not_delete { # @test
+  export GWS_STUB_FAIL_DELETE=1
+  run "$BIN/create" "Title" '![d](diagrams/pixel.png)' "$DOCS"
+  assert_failure
+  assert_output --partial 'Drive file(s) stub-image-1 are still shared by link'
+  refute_output --partial '"content"'
+  # Tried twice before giving up.
+  assert_equal "$(calls 'drive\tfiles\tdelete')" "2"
+}
+
+# PlantUML must not be able to pull local files into a published Doc. The
+# fragment would add a very wide participant; it must be refused or ignored.
+function piers_create_does_not_let_plantuml_include_local_files { # @test
+  long_name=$(printf 'X%.0s' {1..150})
+  printf 'participant "%s" as Wide\n' "$long_name" >"$HOME/fragment.iuml"
+  content=$'```plantuml\n!include '"$HOME"$'/fragment.iuml\nAlice -> Bob: hello\n```\n'
+  run "$BIN/create" "Title" "$content"
+  if [[ $status -eq 0 ]]; then
+    [[ $(png_width "$GWS_STUB_DIR/images/1") -lt 800 ]]
+  else
+    assert [ ! -e "$GWS_STUB_LOG" ]
+  fi
 }
 
 function piers_create_fails_on_plantuml_syntax_error_before_uploading { # @test
   content=$'```plantuml\nthis is ((( not plantuml\n```\n'
   run "$BIN/create" "Title" "$content"
   assert_failure
-  assert_output --partial 'plantuml'
+  assert_output --partial 'plantuml exited'
   assert [ ! -e "$GWS_STUB_LOG" ]
 }
 
@@ -262,7 +308,7 @@ function piers_create_requires_content_or_content_path { # @test
 }
 
 function piers_create_leaves_remote_and_code_references_untouched { # @test
-  content=$'![r](https://example.com/a.png)\n\nInline `![c](diagrams/absent.png)` code.\n\n```\n![f](diagrams/absent.png)\n```'
+  content=$'![r](https://example.com/a.png) ![a](<https://example.com/b.png>) ![p](//example.com/c.png)\n\nInline `![c](diagrams/absent.png)` code.\n\n```\n![f](diagrams/absent.png)\n```'
   run "$BIN/create" "Title" "$content" "$DOCS"
   assert_success
   run uploaded_markdown
