@@ -204,6 +204,9 @@ func (s *Server) handleToolsList() (json.RawMessage, error) {
 				OpenWorldHint:   spec.Annotations.OpenWorldHint,
 			}
 		}
+		if spec.Kind != "" {
+			tool.Meta = map[string]any{"kind": spec.Kind}
+		}
 		tools[i] = tool
 	}
 	return marshalResult(protocol.ToolsListResultV1{Tools: tools})

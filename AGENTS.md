@@ -238,6 +238,15 @@ sections, diffs); `content-type` is a pure mime label stamped onto cached
 resource blocks — alone it never causes caching, and small uncached outputs
 drop the mime.
 
+Tool kind (#451, moxin(7) TOOL KIND): a tool file's top-level `kind` string
+is emitted as `_meta.kind` on `tools/list`, where a client such as clown's
+juggler reads it; moxy carries the value as written and checks it against
+nothing. A child server's own `_meta` passes through the proxy whole — that
+works because the proxy round-trips tools through go-mcp's `ToolV1`, so any
+tool field `ToolV1` lacks is dropped (the field has to exist upstream in
+purse-first first). `[annotations]` holds exactly its five keys; any other
+key there is a load error and the moxin is not served.
+
 **Moxin dependency rule:** All moxins (`moxins/*/*.toml`) must have their
 external dependencies provided via nix wrapping. Never rely on tools being on
 the ambient PATH --- they won't be outside the moxy devshell. The pattern: put

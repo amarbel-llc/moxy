@@ -651,11 +651,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790854734,
-        "narHash": "sha256-6vEyeib6mtuyh+jW9a2waARJh0uzikTXrJ0RGByWAsw=",
-        "rev": "9d069d93c71c1901d06dd5b370c8a7c7cf127a4c",
+        "lastModified": 1791826656,
+        "narHash": "sha256-wvcqLsukWlsRI/EvRcJbG+ZbvAxneBiSHTz1+r7h/EY=",
+        "rev": "33f7819bb4ebaac6ab3b3cbe570d66fbc0c2e760",
         "type": "tarball",
-        "url": "https://code.linenisgreat.com/purse-first/archive/9d069d93c71c1901d06dd5b370c8a7c7cf127a4c.tar.gz"
+        "url": "https://code.linenisgreat.com/purse-first/archive/33f7819bb4ebaac6ab3b3cbe570d66fbc0c2e760.tar.gz"
       },
       "original": {
         "type": "tarball",

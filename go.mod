@@ -6,7 +6,7 @@ require (
 	code.linenisgreat.com/madder/go v0.4.7-0.20260907030945-c4fa5b487f34
 	code.linenisgreat.com/piggy/go v0.0.0-20260720155209-77cfdea0031e
 	code.linenisgreat.com/purse-first/libs/dewey v0.5.0
-	code.linenisgreat.com/purse-first/libs/go-mcp v0.5.0
+	code.linenisgreat.com/purse-first/libs/go-mcp v0.6.3-0.20261012173736-33f7819bb4eb
 	code.linenisgreat.com/tommy v0.5.0
 	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/huh v1.0.0
