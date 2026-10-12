@@ -11,6 +11,8 @@ setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
   setup_test_home
   FIXTURES_DIR="$(cd "$BATS_TEST_DIRNAME/test-fixtures" && pwd)"
+  # The lane's own MOXIN_PATH is every moxin this repo builds.
+  SHIPPED_MOXIN_PATH="${MOXIN_PATH:-}"
   export MOXIN_PATH="$BATS_TEST_TMPDIR/moxins"
   mkdir -p "$MOXIN_PATH/ring" "$HOME/repo"
   cat >"$MOXIN_PATH/ring/_moxin.toml" <<'EOF'
@@ -36,6 +38,10 @@ EOF
 # The `_meta` of one listed tool, or the JSON literal null when it has none.
 tool_meta() {
   echo "$output" | jq -c --arg n "$1" '.tools[] | select(.name == $n) | ._meta // null'
+}
+
+ring_tool_names() {
+  echo "$output" | jq -c '[.tools[].name | select(startswith("ring."))] | sort'
 }
 
 function a_moxin_kind_is_listed_as_meta_kind { # @test
@@ -95,9 +101,53 @@ kind = "list"'
 
   run_moxy_mcp_v1 tools/list
   assert_success
-  echo "$output" | jq -e '[.tools[].name | select(startswith("ring."))] == []' ||
-    fail "a moxin with an unknown [annotations] key was served: $output"
+  # None of its tools, the good one included; in their place the status tool
+  # of a failed server, which says why.
+  assert_equal "$(ring_tool_names)" '["ring.status"]'
+  echo "$output" | jq -e '.tools[] | select(.name == "ring.status") | .description | test("unknown key under \\[annotations\\]: kind")' ||
+    fail "ring.status does not say why the moxin was refused: $output"
 
   run_moxy status
   assert_output --partial 'bad.toml: unknown key under [annotations]: kind'
+}
+
+# A refused moxin must not be replaced by the same-named one further down
+# MOXIN_PATH: that would serve other tools, at other permission tiers, under
+# its name.
+function a_refused_moxin_is_not_replaced_by_a_same_named_one_lower_in_the_path { # @test
+  write_ring_tool override-tool '
+[annotations]
+readOnlyHint = true'
+
+  local lower="$BATS_TEST_TMPDIR/lower"
+  mkdir -p "$lower/ring"
+  cp "$MOXIN_PATH/ring/_moxin.toml" "$lower/ring/_moxin.toml"
+  cat >"$lower/ring/bundled-tool.toml" <<'EOF'
+schema = 3
+description = "the lower-priority ring"
+command = "echo"
+EOF
+  export MOXIN_PATH="$MOXIN_PATH:$lower"
+
+  run_moxy_mcp_v1 tools/list
+  assert_success
+  assert_equal "$(ring_tool_names)" '["ring.status"]'
+
+  run_moxy status
+  assert_output --partial 'unknown key under [annotations]: readOnlyHint'
+  assert_output --partial "[shadowed by $BATS_TEST_TMPDIR/moxins]"
+}
+
+# The refusal is stricter than what used to load, so everything this repo
+# builds has to pass it already. Run against the built moxins, with their
+# placeholders substituted, which is what users get.
+function every_moxin_this_repo_builds_still_loads { # @test
+  [[ -n $SHIPPED_MOXIN_PATH ]] || skip "no lane MOXIN_PATH; run through the nix bats lane"
+  export MOXIN_PATH="$SHIPPED_MOXIN_PATH"
+
+  run_moxy status
+  refute_output --partial 'FAILED:'
+  refute_output --partial 'unknown key under [annotations]'
+  # Not vacuous: the path really holds moxins.
+  assert_output --regexp 'Merged: [1-9][0-9]* moxin\(s\)'
 }

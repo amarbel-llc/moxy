@@ -245,7 +245,14 @@ nothing. A child server's own `_meta` passes through the proxy whole — that
 works because the proxy round-trips tools through go-mcp's `ToolV1`, so any
 tool field `ToolV1` lacks is dropped (the field has to exist upstream in
 purse-first first). `[annotations]` holds exactly its five keys; any other
-key there is a load error and the moxin is not served.
+key there is a load error for the whole moxin.
+
+A moxin that fails to load still claims its name (`native.discover`, the one
+discovery implementation behind `DiscoverAll`/`DiscoverConfigs`/
+`DiscoverServing`): a same-named moxin lower on `MOXIN_PATH` is NOT served in
+its place, since that would be other tools and permission tiers under the
+same name. The name is served by nothing and bootstrap reports it as a failed
+server, so the client sees `<name>.status` with the load error.
 
 **Moxin dependency rule:** All moxins (`moxins/*/*.toml`) must have their
 external dependencies provided via nix wrapping. Never rely on tools being on

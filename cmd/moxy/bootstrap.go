@@ -58,10 +58,14 @@ func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, e
 	}
 
 	fmt.Fprintf(os.Stderr, "moxy: bootstrap: MOXIN_PATH=%q\n", inputs.moxinPath)
-	nativeConfigs, err := native.DiscoverConfigs(inputs.moxinPath, systemDir)
+	discovered, err := native.DiscoverServing(inputs.moxinPath, systemDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "moxy: warning: moxin discovery: %v\n", err)
 	}
+	for _, loadErr := range discovered.Errors {
+		fmt.Fprintf(os.Stderr, "moxy: skipping moxin %s: %v\n", loadErr.Dir, loadErr.Err)
+	}
+	nativeConfigs := discovered.Configs
 	fmt.Fprintf(os.Stderr, "moxy: bootstrap: discovered %d moxin configs\n", len(nativeConfigs))
 
 	// Nothing is spawned until the config has been judged, against the very
@@ -134,6 +138,19 @@ func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, e
 	}
 
 	disableSet := cfg.BuildDisableMoxinSet()
+
+	// A moxin that was asked for and refused is a failed server, so the
+	// client sees `<name>.status` saying why instead of a missing namespace.
+	// One the moxyfile shadows or disables was never going to be served.
+	for _, refused := range discovered.Refused {
+		if existingNames[refused.Name] || disableSet.ServerDisabled(refused.Name) {
+			continue
+		}
+		failed = append(failed, proxy.FailedServer{
+			Name:  refused.Name,
+			Error: fmt.Sprintf("moxin %s failed to load: %v", refused.Dir, refused.Err),
+		})
+	}
 
 	for _, nc := range nativeConfigs {
 		if existingNames[nc.Name] {

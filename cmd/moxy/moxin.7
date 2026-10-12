@@ -195,7 +195,10 @@ Moxyfile
 .Sy [servers.annotations]
 filters can select child tools by these values.
 Any other key under the table is a load error naming the file and the
-key, and the moxin is not served: the table holds exactly these five, so
+key, and the whole moxin fails to load
+.Pq see Sx Name collisions
+for what is served in its place, which is nothing:
+the table holds exactly these five, so
 a misspelt hint such as
 .Li readOnlyHint ,
 or a key that belongs at the top level such as
@@ -463,6 +466,29 @@ and it replaces the bundled one without any moxy change.
 .Sy moxy status
 lists each shadowed moxin under its directory as
 .Dq [shadowed by <dir>] .
+.Pp
+A moxin that fails to load still wins its name.
+The copy earliest on the path is the one that was asked for, so when it
+is refused \(em a tool file that does not parse, an unknown key under
+.Sy [annotations] ,
+an invalid
+.Sy perms-request
+\(em the same-named moxin later on the path is not served in its place:
+that would be other tools, at other permission tiers, under the same
+name.
+The name is served by nothing; the client sees a single
+.Sy <name>.status
+tool whose description is the load error, and
+.Sy moxy status
+shows the directory as
+.Dq FAILED
+and the later copy as shadowed by it.
+The name a broken directory claims is the
+.Sy name
+in its
+.Pa _moxin.toml
+when that file can be read, otherwise the directory's own name.
+A broken moxin later on the path does not affect a good one before it.
 .Pp
 .Va disable-moxins
 matches by name, so it hides every copy of a moxin, not just the system

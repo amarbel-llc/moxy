@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 var moxinLogger *log.Logger
@@ -159,8 +161,11 @@ func DefaultMoxinPath(home, cwd, systemDir string) string {
 // works without an explicit MOXIN_PATH env var.
 // MoxinError records a moxin directory that failed to load.
 type MoxinError struct {
-	Dir string
-	Err error
+	// Name is the moxin name the directory claims: `name` from its
+	// _moxin.toml when that much is readable, else the directory's own name.
+	Name string
+	Dir  string
+	Err  error
 }
 
 // DiscoverResult holds both successfully loaded moxins and load failures.
@@ -173,6 +178,10 @@ type DiscoverResult struct {
 	// Shadowed lists moxins hidden by a same-named moxin in a
 	// higher-priority dir.
 	Shadowed []ShadowedMoxin
+	// Refused is the subset of Errors whose directory won its name: the
+	// moxin a caller asked for by putting it first, which failed to load.
+	// Such a name is served by nothing — see discover.
+	Refused []MoxinError
 }
 
 // ShadowedMoxin is a moxin at Dir that lost to the same-named moxin at By.
@@ -186,24 +195,55 @@ type ShadowedMoxin struct {
 // logging them to stderr. Uses the same resolution and merge logic as
 // DiscoverConfigs (the server runtime path).
 func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
-	dirs := resolveMoxinDirs(moxinPath, systemDir)
+	return discover(resolveMoxinDirs(moxinPath, systemDir), false)
+}
 
+// DiscoverServing is discovery as the serve paths need it: like
+// DiscoverConfigs it steps over an unreadable MOXIN_PATH entry, and like
+// DiscoverAll it returns the load failures, so the caller can report a
+// refused moxin instead of serving without it.
+func DiscoverServing(moxinPath string, systemDir string) (DiscoverResult, error) {
+	return discover(resolveMoxinDirs(moxinPath, systemDir), true)
+}
+
+// discover is the one implementation of moxin discovery. dirs are in
+// priority order, highest first; it walks them lowest first so each name's
+// last claimant is its highest-priority one.
+//
+// A directory that fails to load still claims its name. The moxin a caller
+// put first is the one they meant to serve: if it is refused, a same-named
+// moxin further down the path must not be served in its place, because that
+// is a different set of tools and permission tiers under the same name. The
+// name is then served by nothing, the lower moxin is reported as shadowed,
+// and the failure is in Refused.
+//
+// skipUnreadableDirs makes an unreadable MOXIN_PATH entry a stderr line
+// instead of an error: a stale entry (a `result` symlink that now points at
+// a regular file after a partial `nix build`) must not take down discovery
+// for the other dirs, or hook permission lookups fall through for every
+// moxin tool.
+func discover(dirs []string, skipUnreadableDirs bool) (DiscoverResult, error) {
 	byName := make(map[string]*NativeConfig)
+	claimedBy := make(map[string]string) // name → the dir that currently wins it
 	var order []string
 	var loadErrors []MoxinError
 	var shadowed []ShadowedMoxin
 
 	for i := len(dirs) - 1; i >= 0; i-- {
 		moxyDir := dirs[i]
-		debugMoxin("DiscoverAll: scanning dir %s", moxyDir)
+		debugMoxin("discover: scanning dir %s", moxyDir)
 		entries, err := os.ReadDir(moxyDir)
 		if os.IsNotExist(err) {
-			debugMoxin("DiscoverAll: dir %s does not exist, skipping", moxyDir)
+			debugMoxin("discover: dir %s does not exist, skipping", moxyDir)
 			continue
 		}
 		if err != nil {
-			debugMoxin("DiscoverAll: ReadDir error %s: %v", moxyDir, err)
-			return DiscoverResult{}, fmt.Errorf("reading %s: %w", moxyDir, err)
+			debugMoxin("discover: ReadDir error %s: %v", moxyDir, err)
+			if !skipUnreadableDirs {
+				return DiscoverResult{}, fmt.Errorf("reading %s: %w", moxyDir, err)
+			}
+			fmt.Fprintf(os.Stderr, "moxy: skipping unreadable moxin dir %s: %v\n", moxyDir, err)
+			continue
 		}
 
 		for _, e := range entries {
@@ -213,36 +253,67 @@ func DiscoverAll(moxinPath string, systemDir string) (DiscoverResult, error) {
 			}
 			metaPath := filepath.Join(dirPath, "_moxin.toml")
 			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
-				debugMoxin("DiscoverAll: no _moxin.toml in %s, skipping", dirPath)
+				debugMoxin("discover: no _moxin.toml in %s, skipping", dirPath)
 				continue
 			}
-			debugMoxin("DiscoverAll: parsing %s", dirPath)
+			debugMoxin("discover: parsing %s", dirPath)
 			cfg, err := ParseMoxinDir(dirPath)
+
+			name := claimedMoxinName(dirPath)
+			if err == nil {
+				name = cfg.Name
+			}
+			if prevDir, claimed := claimedBy[name]; claimed {
+				shadowed = append(shadowed, ShadowedMoxin{Name: name, Dir: prevDir})
+			} else {
+				order = append(order, name)
+			}
+			claimedBy[name] = dirPath
+
 			if err != nil {
-				debugMoxin("DiscoverAll: parse error %s: %v", dirPath, err)
-				loadErrors = append(loadErrors, MoxinError{Dir: dirPath, Err: err})
+				debugMoxin("discover: parse error %s: %v", dirPath, err)
+				loadErrors = append(loadErrors, MoxinError{Name: name, Dir: dirPath, Err: err})
+				delete(byName, name)
 				continue
 			}
 			cfg.SourceDir = dirPath
-			if prev, exists := byName[cfg.Name]; exists {
-				shadowed = append(shadowed, ShadowedMoxin{Name: cfg.Name, Dir: prev.SourceDir})
-			} else {
-				order = append(order, cfg.Name)
-			}
-			byName[cfg.Name] = cfg
-			debugMoxin("DiscoverAll: loaded %s (name=%s, %d tools)", e.Name(), cfg.Name, len(cfg.Tools))
+			byName[name] = cfg
+			debugMoxin("discover: loaded %s (name=%s, %d tools)", e.Name(), name, len(cfg.Tools))
 		}
 	}
 
 	result := make([]*NativeConfig, 0, len(order))
 	for _, name := range order {
-		result = append(result, byName[name])
+		if cfg, loaded := byName[name]; loaded {
+			result = append(result, cfg)
+		}
 	}
 	for i := range shadowed {
-		shadowed[i].By = byName[shadowed[i].Name].SourceDir
+		shadowed[i].By = claimedBy[shadowed[i].Name]
 	}
-	debugMoxin("DiscoverAll: result: %d configs, %d errors, %d shadowed", len(result), len(loadErrors), len(shadowed))
-	return DiscoverResult{Configs: result, Errors: loadErrors, Dirs: dirs, Shadowed: shadowed}, nil
+	var refused []MoxinError
+	for _, loadErr := range loadErrors {
+		if claimedBy[loadErr.Name] == loadErr.Dir {
+			refused = append(refused, loadErr)
+		}
+	}
+	debugMoxin("discover: result: %d configs, %d errors (%d refused), %d shadowed",
+		len(result), len(loadErrors), len(refused), len(shadowed))
+	return DiscoverResult{
+		Configs: result, Errors: loadErrors, Dirs: dirs, Shadowed: shadowed, Refused: refused,
+	}, nil
+}
+
+// claimedMoxinName is the name a moxin directory claims when the directory as
+// a whole could not be loaded: `name` from its _moxin.toml if that file
+// parses and names one, else the directory's own name.
+func claimedMoxinName(dirPath string) string {
+	var meta MoxinMeta
+	data, err := os.ReadFile(filepath.Join(dirPath, "_moxin.toml"))
+	if err == nil && toml.Unmarshal(data, &meta) == nil && meta.Name != "" {
+		return meta.Name
+	}
+	return filepath.Base(dirPath)
 }
 
 func resolveMoxinDirs(moxinPath, systemDir string) []string {
@@ -304,64 +375,14 @@ func MoxinSources(configs []*NativeConfig) map[string]string {
 }
 
 func discoverConfigsIn(dirs []string) ([]*NativeConfig, error) {
-	byName := make(map[string]*NativeConfig)
-	var order []string
-
-	// Load from last to first so earlier entries override later ones.
-	for i := len(dirs) - 1; i >= 0; i-- {
-		moxyDir := dirs[i]
-		debugMoxin("DiscoverConfigs: scanning dir %s", moxyDir)
-		entries, err := os.ReadDir(moxyDir)
-		if os.IsNotExist(err) {
-			debugMoxin("DiscoverConfigs: dir %s does not exist, skipping", moxyDir)
-			continue
-		}
-		if err != nil {
-			// Stale MOXIN_PATH (e.g. a `result` symlink that now points
-			// at a regular file from a partial `nix build`) shouldn't
-			// take down discovery for the other dirs in the path —
-			// otherwise hook permission lookups silently fall through
-			// for every moxin tool. Log and skip the dir.
-			debugMoxin("DiscoverConfigs: ReadDir error %s: %v (skipping)", moxyDir, err)
-			fmt.Fprintf(os.Stderr, "moxy: skipping unreadable moxin dir %s: %v\n", moxyDir, err)
-			continue
-		}
-
-		for _, e := range entries {
-			dirPath := filepath.Join(moxyDir, e.Name())
-			if !dirExists(dirPath) {
-				debugMoxin("DiscoverConfigs: %s not a dir, skipping", dirPath)
-				continue
-			}
-			metaPath := filepath.Join(dirPath, "_moxin.toml")
-			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
-				debugMoxin("DiscoverConfigs: no _moxin.toml in %s, skipping", dirPath)
-				continue
-			}
-			debugMoxin("DiscoverConfigs: parsing %s", dirPath)
-			cfg, err := ParseMoxinDir(dirPath)
-			if err != nil {
-				debugMoxin("DiscoverConfigs: parse error %s: %v", dirPath, err)
-				fmt.Fprintf(os.Stderr, "moxy: skipping moxin %s: %v\n", dirPath, err)
-				continue
-			}
-			cfg.SourceDir = dirPath
-			if prev, exists := byName[cfg.Name]; exists {
-				debugMoxin("DiscoverConfigs: %s (name=%s) overrides previous from %s", dirPath, cfg.Name, prev.SourceDir)
-			} else {
-				order = append(order, cfg.Name)
-			}
-			byName[cfg.Name] = cfg
-			debugMoxin("DiscoverConfigs: loaded %s (name=%s, %d tools, source=%s)", e.Name(), cfg.Name, len(cfg.Tools), dirPath)
-		}
+	discovered, err := discover(dirs, true)
+	if err != nil {
+		return nil, err
 	}
-
-	result := make([]*NativeConfig, 0, len(order))
-	for _, name := range order {
-		result = append(result, byName[name])
+	for _, loadErr := range discovered.Errors {
+		fmt.Fprintf(os.Stderr, "moxy: skipping moxin %s: %v\n", loadErr.Dir, loadErr.Err)
 	}
-	debugMoxin("DiscoverConfigs: result: %d configs", len(result))
-	return result, nil
+	return discovered.Configs, nil
 }
 
 func dirExists(path string) bool {
