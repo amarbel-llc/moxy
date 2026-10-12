@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"sort"
+	"strings"
 	"testing"
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
@@ -92,6 +93,48 @@ func TestApplyToolAllowUsesCanonicalNamesUnderACustomTemplate(t *testing.T) {
 	}, reg))
 	if len(got) != 1 || got[0] != "folio_read" {
 		t.Errorf("got %v, want [folio_read]", got)
+	}
+}
+
+// Under a custom template the gate must judge the canonical name, not the
+// rendered one, and must still refuse meta tools that are not listed.
+func TestCallToolAllowGateUnderACustomTemplate(t *testing.T) {
+	tmpl, err := naming.Parse("{server}_{tool}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := naming.NewBuilder(tmpl)
+	b.Add(naming.Entry{Server: "folio", Original: "read"})
+	b.Add(naming.Entry{Server: "folio", Original: "write"})
+	reg, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &Proxy{
+		toolFilter:   toolfilter.All(),
+		toolAllow:    allowSet([]string{"folio.read"}),
+		nameTemplate: tmpl,
+		toolRegistry: reg,
+	}
+	// The listed tool passes the gate; with no child behind it, dispatch then
+	// fails for another reason, which is all this asserts. It goes first:
+	// an unknown name below makes the proxy re-list, and this bare Proxy has
+	// no children to rebuild the registry from.
+	res, err := p.callToolV1(context.Background(), "folio_read", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res != nil && res.IsError && strings.Contains(res.Content[0].Text, "allow-tools") {
+		t.Errorf("listed tool was refused by the allow gate: %+v", res)
+	}
+	for _, name := range []string{"folio_write", "restart"} {
+		res, err := p.callToolV1(context.Background(), name, nil)
+		if err != nil {
+			t.Fatalf("callToolV1(%q) unexpected error: %v", name, err)
+		}
+		if res == nil || !res.IsError || !strings.Contains(res.Content[0].Text, "allow-tools") {
+			t.Errorf("callToolV1(%q): expected an allow-tools refusal, got %+v", name, res)
+		}
 	}
 }
 

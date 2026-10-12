@@ -14,6 +14,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strings"
 
 	"code.linenisgreat.com/moxy/internal/config"
 )
@@ -220,9 +221,26 @@ func invocationDifferences(parent, child config.ServerConfig) []string {
 	differs("oauth", sameOptional(parent.OAuth, child.OAuth))
 	differs("nix-devshell", sameOptional(parent.NixDevshell, child.NixDevshell))
 
-	// An annotation filter is a restriction: the child must keep every hint
-	// the parent filters on, and may filter on more.
-	p, c := annotationsOrEmpty(parent.Annotations), annotationsOrEmpty(child.Annotations)
+	// The same text can still run something else if it is resolved against
+	// the child's working directory, which the parent does not control.
+	if exe := child.Command.Parts(); len(exe) > 0 && isWorkingDirRelative(exe[0]) {
+		diffs = append(diffs, "command is relative to the working directory")
+	}
+	if child.NixDevshell != nil && strings.HasPrefix(*child.NixDevshell, ".") {
+		diffs = append(diffs, "nix-devshell is relative to the working directory")
+	}
+
+	// An annotation filter passes a tool that matches ANY of its hints, so
+	// every hint adds tools. With no parent filter the child may filter as it
+	// likes. With one, the child must filter too, on a subset of the parent's
+	// hints: no hint of its own, and none with a different value.
+	if parent.Annotations == nil {
+		return diffs
+	}
+	if child.Annotations == nil {
+		return append(diffs, "annotations: parent filters tools, child does not")
+	}
+	p, c := *parent.Annotations, *child.Annotations
 	for _, hint := range []struct {
 		name          string
 		parent, child *bool
@@ -232,20 +250,24 @@ func invocationDifferences(parent, child config.ServerConfig) []string {
 		{"idempotentHint", p.IdempotentHint, c.IdempotentHint},
 		{"openWorldHint", p.OpenWorldHint, c.OpenWorldHint},
 	} {
-		if hint.parent != nil && !sameOptional(hint.parent, hint.child) {
+		if hint.child != nil && !sameOptional(hint.parent, hint.child) {
 			diffs = append(diffs, fmt.Sprintf(
-				"annotations.%s = %t in parent, not kept by child", hint.name, *hint.parent,
+				"annotations.%s = %t in child, not in parent's filter", hint.name, *hint.child,
 			))
 		}
 	}
 	return diffs
 }
 
-func annotationsOrEmpty(a *config.AnnotationFilter) config.AnnotationFilter {
-	if a == nil {
-		return config.AnnotationFilter{}
+// isWorkingDirRelative reports whether an executable is named by a path that
+// is resolved against the working directory: it has a directory part and is
+// neither absolute nor anchored at ~/ or a $VAR. A bare name is looked up on
+// PATH, which is the launcher's to control, not this relation's.
+func isWorkingDirRelative(exe string) bool {
+	if !strings.Contains(exe, "/") {
+		return false
 	}
-	return *a
+	return !strings.HasPrefix(exe, "/") && !strings.HasPrefix(exe, "~/") && !strings.HasPrefix(exe, "$")
 }
 
 func checkCredentials(parent, child config.Config) []Violation {

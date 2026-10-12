@@ -64,6 +64,15 @@ and
 type
 .Pq a string where an array belongs, say
 they are an error, never read as unset, because unset means unrestricted.
+Earlier versions ignored such a value, so a moxyfile with, say,
+.Li builtin-native = \(dqfalse\(dq
+or
+.Li disable-moxins = \(dqchix\(dq
+that used to load
+.Pq with the key silently having no effect
+now fails to load, as does a
+.Va disable-moxins
+entry beginning with a dot.
 .Bl -tag -width "progressive-disclosure"
 .It Va ephemeral
 When set to
@@ -438,8 +447,43 @@ and
 The child may leave a server out.
 It may not add one, change one, or run one the parent has disabled.
 .Pp
-An annotation filter restricts a server, so the child must keep every hint the
-parent sets, with the same value, and may set more.
+A
+.Va command
+or
+.Va nix-devshell
+written as a path relative to the working directory
+.Pq Dq ./bin/srv , Dq \&.
+is refused in a child even when the parent's is identical: the same text names
+a different thing from the child's directory.
+Absolute paths,
+.Pa ~/
+paths and bare names found on
+.Ev PATH
+are accepted.
+.Pp
+An annotation filter
+.Pq see Sx ANNOTATIONS
+passes a tool that matches
+.Em any
+of its hints, so each hint adds tools.
+If the parent filters a server, the child must filter it too, and every hint
+the child sets must be one the parent sets, with the same value; the child may
+set fewer.
+If the parent does not filter, the child may filter as it likes.
+An empty filter
+.Pq Li "annotations = {}"
+passes nothing and is not the same as no filter.
+.Pp
+Be aware that an annotation filter only hides tools from the tool list:
+.Xr moxy 1
+does not check it when a tool is called, so a client that knows a hidden tool's
+name can still call it.
+The rule above keeps a child from
+.Em listing
+more than its parent; it does not make a filter a boundary.
+Use
+.Va allow-tools
+for that.
 .Pp
 .Va ephemeral ,
 .Va progressive-disclosure ,
@@ -529,7 +573,12 @@ always has one for itself: what it just discovered.
 A parent reference has one when it was written by
 .Cm show-effective-moxyfile
 from a directory.
-A hand-written parent reference has none, and then moxins are not compared.
+A hand-written parent reference has none.
+A serving
+.Xr moxy 1
+reads that as a record of no moxins and refuses any moxin it can reach;
+.Cm narrows ,
+comparing two documents, skips the moxin rule when either lacks a record.
 .Xr moxy 1
 .Cm narrows
 reads its references the same way: a directory is given the record a

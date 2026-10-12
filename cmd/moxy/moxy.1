@@ -353,7 +353,15 @@ The reference is read once, at startup; later changes to the file have no
 effect on a running
 .Nm ,
 so rewriting it cannot loosen what a reload is judged against.
-Set but unreadable, unparseable or empty is a refusal, not a skipped check.
+The path must be absolute.
+Set but relative, unreadable, unparseable or empty is a refusal, not a skipped
+check.
+A reference with no
+.Va resolved-moxins
+record is read as recording no moxins, so write it with
+.Cm show-effective-moxyfile ,
+and write it atomically: a truncated file that still parses is a looser
+reference than the one intended.
 Unset
 .Pq the default
 means no check.

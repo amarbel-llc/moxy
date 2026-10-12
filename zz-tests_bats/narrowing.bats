@@ -465,6 +465,31 @@ function serve_refuses_an_empty_parent_reference { # @test
   refute_output --partial "connected to"
 }
 
+function serve_refuses_a_relative_parent_reference_path { # @test
+  write_parent
+  write_narrowing_child
+  cp "$HOME/parent/moxyfile" "$HOME/child/reference.toml"
+  export MOXY_PARENT_MOXYFILE="reference.toml"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --partial "is not an absolute path"
+}
+
+function serve_treats_a_reference_without_a_moxin_record_as_having_no_moxins { # @test
+  # A hand-written reference says nothing about moxins. For a serving moxy
+  # that must not mean "any": every moxin it can reach is then refused.
+  write_parent
+  write_narrowing_child
+  write_moxin "$BATS_TEST_TMPDIR/some-moxins" greeter each-use
+  export MOXIN_PATH="$BATS_TEST_TMPDIR/some-moxins"
+  export MOXY_PARENT_MOXYFILE="$HOME/parent/moxyfile"
+  cd "$HOME/child"
+  run_moxy serve mcp
+  assert_failure
+  assert_output --regexp 'resolved-moxins\.greeter: moxin from .*/some-moxins/greeter, not in parent'
+}
+
 function a_mistyped_restriction_is_an_error_not_no_restriction { # @test
   # `allow-tools` as a string must not decode to "unset, everything allowed".
   cat >"$HOME/child/moxyfile" <<'EOF'

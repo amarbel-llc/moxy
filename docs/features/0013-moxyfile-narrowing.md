@@ -42,7 +42,8 @@ moxyfile(5) NARROWING is the normative, key-by-key statement. In brief:
 | Key | Rule |
 | --- | --- |
 | `[[servers]]` | Every server C runs (defined and not in C's `disable-servers`) is one P runs, with identical `command` (argv-exact), `url`, `headers`, `headers-helper`, `oauth`, `nix-devshell`. C may omit servers. |
-| `[servers.annotations]` | A restriction: C keeps every hint P sets, same value; may set more. |
+| relative paths | A `command` or `nix-devshell` relative to the working directory is refused in C even when identical to P's. |
+| `[servers.annotations]` | The filter is OR over its hints, so each hint adds tools. If P filters, C filters too and every hint C sets is one P sets with the same value (subset); C may set fewer. List-only: see Limitations. |
 | `disable-moxins` | C covers every P entry; a whole-moxin entry covers a single-tool entry, not the reverse. Also: a server name P defines and C does not must be in C's `disable-moxins`, because a `[[servers]]` entry shadows the same-named moxin. |
 | `builtin-native` | If P is `false`, C is `false`. (The merge is closest-wins here; narrowing is not.) |
 | `[credentials]` | If C sets it, it equals P's. |
@@ -138,7 +139,8 @@ narrows it: one line per violation on stderr, non-zero exit, no child server
 spawned, no port bound.
 
 - Unset: no check. Existing deployments are unaffected.
-- Set but unreadable, unparseable or empty: refusal (fail closed). An empty
+- The path must be absolute.
+- Set but relative, unreadable, unparseable or empty: refusal (fail closed). An empty
   file would parse as a parent that constrains almost nothing, and is far
   likelier a render that failed.
 - Read once, at startup, and pinned for the life of the process. A reload is
@@ -184,9 +186,27 @@ spawned, no port bound.
   serves. A launcher that wants the early answer to hold pins the child's
   `MOXIN_PATH` to the parent's; the serve-time check is the backstop, not a
   substitute.
-- **A hand-written parent reference has no record**, and then moxins are not
-  compared at all. The guarantee needs a reference written by
+- **Annotation filters are not a boundary.** moxy applies
+  `[servers.annotations]` to `tools/list` only; nothing checks it at call
+  time, so a client that knows a hidden tool's name can call it. Narrowing
+  keeps a child from *listing* more than its parent, no more. `allow-tools`
+  is the boundary. Enforcing the filter at dispatch is a separate change.
+- **A hand-written parent reference has no record.** A serving moxy reads
+  that as a record of no moxins and refuses any moxin it can reach (the
+  default `MOXIN_PATH` includes the working directory's `.moxy/moxins`, so
+  "unchecked" would be a hole). `moxy narrows` skips the moxin rule when
+  either document lacks a record. Write the reference with
   `show-effective-moxyfile` from a directory.
+- **Write the reference atomically.** A truncated file that still parses is a
+  looser reference than intended; there is no end marker.
+- **Arguments are not inspected.** A relative path among a command's
+  arguments still resolves against the child's working directory; only the
+  executable and `nix-devshell` are checked.
+- **Stricter parsing is not backward compatible.** `allow-tools`,
+  `disable-moxins`, `disable-servers`, `builtin-native` and `resolved-moxins`
+  written with the wrong type used to be ignored and are now a load error
+  everywhere (serve, status, reload); a `disable-moxins` entry with a leading
+  dot is likewise rejected. A moxyfile that loaded before may now refuse to.
 - **The record names directories, not contents.** For store paths that is the
   same thing. A mutable moxin directory the child can write to can still be
   edited after the fact; keeping the child out of it is the sandbox's job.

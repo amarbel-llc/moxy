@@ -96,6 +96,11 @@ func readParentReference() parentReference {
 	// An empty file parses as an empty config, which as a parent would
 	// constrain almost nothing. It is far more likely a render that failed
 	// than a reference anyone meant, so it is refused rather than obeyed.
+	// A relative path would name a different file from every working
+	// directory, the child's own included.
+	if !filepath.IsAbs(path) {
+		return fail(fmt.Errorf("%s is not an absolute path", path))
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fail(err)
@@ -107,7 +112,16 @@ func readParentReference() parentReference {
 	if err != nil {
 		return fail(err)
 	}
-	return parentReference{path: path, cfg: parent.Merged}
+	cfg := parent.Merged
+	// A reference with no moxin record says nothing about which moxins the
+	// parent had. For a process about to serve, "nothing" must not mean "any":
+	// the default MOXIN_PATH includes the working directory's own
+	// .moxy/moxins. So an absent record is read as an empty one, and a child
+	// that reaches any moxin under such a reference is refused.
+	if cfg.ResolvedMoxins == nil {
+		cfg.ResolvedMoxins = map[string]string{}
+	}
+	return parentReference{path: path, cfg: cfg}
 }
 
 // judgesMoxins reports whether the parent reference bounds which moxins may

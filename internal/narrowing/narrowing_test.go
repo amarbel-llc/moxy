@@ -101,7 +101,7 @@ command = ["smith", "mcp"]
 		{
 			name:   "child may not wrap a server in a devshell",
 			parent: smith,
-			child:  smith + "nix-devshell = \".\"\n",
+			child:  smith + "nix-devshell = \"github:org/repo\"\n",
 			want:   []string{"servers.smith: nix-devshell differs from parent"},
 		},
 		{
@@ -126,16 +126,53 @@ command = ["smith", "mcp"]
 			child:  smith + "[servers.annotations]\nreadOnlyHint = true\n",
 		},
 		{
+			name:   "child may keep the parent's annotation filter",
+			parent: smith + "[servers.annotations]\nreadOnlyHint = true\nidempotentHint = true\n",
+			child:  smith + "[servers.annotations]\nreadOnlyHint = true\n",
+		},
+		{
 			name:   "child may not drop the parent's annotation filter",
 			parent: smith + "[servers.annotations]\nreadOnlyHint = true\n",
 			child:  smith,
-			want:   []string{"servers.smith: annotations.readOnlyHint = true in parent, not kept by child"},
+			want:   []string{"servers.smith: annotations: parent filters tools, child does not"},
 		},
 		{
 			name:   "child may not flip the parent's annotation filter",
 			parent: smith + "[servers.annotations]\nreadOnlyHint = true\n",
 			child:  smith + "[servers.annotations]\nreadOnlyHint = false\n",
-			want:   []string{"servers.smith: annotations.readOnlyHint = true in parent, not kept by child"},
+			want:   []string{"servers.smith: annotations.readOnlyHint = false in child, not in parent's filter"},
+		},
+		{
+			// A filter passes a tool matching ANY hint, so a hint the parent
+			// lacks lists tools the parent hid.
+			name:   "child may not add a hint to the parent's annotation filter",
+			parent: smith + "[servers.annotations]\nreadOnlyHint = true\n",
+			child:  smith + "[servers.annotations]\nreadOnlyHint = true\ndestructiveHint = true\n",
+			want:   []string{"servers.smith: annotations.destructiveHint = true in child, not in parent's filter"},
+		},
+		{
+			// An empty filter matches nothing; no filter matches everything.
+			name:   "an empty parent filter is not satisfied by an absent child filter",
+			parent: smith + "annotations = {}\n",
+			child:  smith,
+			want:   []string{"servers.smith: annotations: parent filters tools, child does not"},
+		},
+		{
+			name:   "a command path relative to the working directory is refused even when identical",
+			parent: "[[servers]]\nname = \"s\"\ncommand = [\"./bin/s\", \"mcp\"]\n",
+			child:  "[[servers]]\nname = \"s\"\ncommand = [\"./bin/s\", \"mcp\"]\n",
+			want:   []string{"servers.s: command is relative to the working directory"},
+		},
+		{
+			name:   "absolute, home-anchored and PATH-resolved commands are not working-directory relative",
+			parent: "[[servers]]\nname = \"a\"\ncommand = \"/bin/a\"\n[[servers]]\nname = \"b\"\ncommand = \"~/bin/b\"\n[[servers]]\nname = \"c\"\ncommand = \"c\"\n[[servers]]\nname = \"d\"\ncommand = \"$D/d\"\n",
+			child:  "[[servers]]\nname = \"a\"\ncommand = \"/bin/a\"\n[[servers]]\nname = \"b\"\ncommand = \"~/bin/b\"\n[[servers]]\nname = \"c\"\ncommand = \"c\"\n[[servers]]\nname = \"d\"\ncommand = \"$D/d\"\n",
+		},
+		{
+			name:   "a devshell relative to the working directory is refused even when identical",
+			parent: smith + "nix-devshell = \".\"\n",
+			child:  smith + "nix-devshell = \".\"\n",
+			want:   []string{"servers.smith: nix-devshell is relative to the working directory"},
 		},
 		{
 			name:   "presentation-only server fields are not rights",
