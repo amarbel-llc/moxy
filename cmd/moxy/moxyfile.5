@@ -447,19 +447,31 @@ and
 The child may leave a server out.
 It may not add one, change one, or run one the parent has disabled.
 .Pp
-A
-.Va command
-or
+Anything
+.Xr moxy 1
+executes \(em
+.Va command ,
+.Va headers-helper ,
+the
+.Va credentials
+commands \(em or hands to nix \(em
 .Va nix-devshell
-written as a path relative to the working directory
-.Pq Dq ./bin/srv , Dq \&.
+\(em that is written as a path relative to the working directory
+.Pq Dq ./bin/srv , Dq bin/srv , Dq \&. , Dq path:./sub
 is refused in a child even when the parent's is identical: the same text names
 a different thing from the child's directory.
 Absolute paths,
 .Pa ~/
-paths and bare names found on
+paths, bare names found on
 .Ev PATH
-are accepted.
+and non-path flake references
+.Pq Dq nixpkgs , Dq github:org/repo
+are accepted; what
+.Ev PATH ,
+.Ev HOME
+and a
+.Li $VAR
+resolve to is the launcher's to control.
 .Pp
 An annotation filter
 .Pq see Sx ANNOTATIONS

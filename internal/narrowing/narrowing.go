@@ -226,7 +226,10 @@ func invocationDifferences(parent, child config.ServerConfig) []string {
 	if exe := child.Command.Parts(); len(exe) > 0 && isWorkingDirRelative(exe[0]) {
 		diffs = append(diffs, "command is relative to the working directory")
 	}
-	if child.NixDevshell != nil && strings.HasPrefix(*child.NixDevshell, ".") {
+	if child.HeadersHelper != nil && commandIsWorkingDirRelative(*child.HeadersHelper) {
+		diffs = append(diffs, "headers-helper is relative to the working directory")
+	}
+	if child.NixDevshell != nil && flakeRefIsWorkingDirRelative(*child.NixDevshell) {
 		diffs = append(diffs, "nix-devshell is relative to the working directory")
 	}
 
@@ -270,6 +273,34 @@ func isWorkingDirRelative(exe string) bool {
 	return !strings.HasPrefix(exe, "/") && !strings.HasPrefix(exe, "~/") && !strings.HasPrefix(exe, "$")
 }
 
+// commandIsWorkingDirRelative applies isWorkingDirRelative to the executable
+// of a whitespace-split command string (headers-helper, credentials).
+func commandIsWorkingDirRelative(command string) bool {
+	fields := strings.Fields(command)
+	return len(fields) > 0 && isWorkingDirRelative(fields[0])
+}
+
+// flakeRefIsWorkingDirRelative reports whether nix would resolve a flake
+// reference against the working directory. A path-like scheme must carry an
+// absolute or ~/ path; with no scheme, "." and ".." forms and anything with a
+// directory part are paths. A bare word ("nixpkgs") is a registry id and any
+// other scheme ("github:org/repo") is not a local path.
+func flakeRefIsWorkingDirRelative(ref string) bool {
+	for _, scheme := range []string{"path:", "git+file:", "file:"} {
+		if rest, ok := strings.CutPrefix(ref, scheme); ok {
+			rest = strings.TrimPrefix(rest, "//")
+			return !strings.HasPrefix(rest, "/") && !strings.HasPrefix(rest, "~/")
+		}
+	}
+	if strings.Contains(ref, ":") {
+		return false
+	}
+	if strings.HasPrefix(ref, ".") {
+		return true
+	}
+	return strings.Contains(ref, "/") && !strings.HasPrefix(ref, "/") && !strings.HasPrefix(ref, "~/")
+}
+
 func checkCredentials(parent, child config.Config) []Violation {
 	if child.Credentials == nil {
 		return nil
@@ -280,7 +311,23 @@ func checkCredentials(parent, child config.Config) []Violation {
 	if *parent.Credentials != *child.Credentials {
 		return []Violation{{Key: "credentials", Message: "differs from parent"}}
 	}
-	return nil
+	// These commands are executed too; identical text is not the same
+	// program when it is resolved against the child's working directory.
+	var vs []Violation
+	for _, c := range []struct{ name, command string }{
+		{"read", child.Credentials.Read},
+		{"write", child.Credentials.Write},
+		{"delete", child.Credentials.Delete},
+	} {
+		if commandIsWorkingDirRelative(c.command) {
+			vs = append(vs, Violation{
+				Key:     "credentials",
+				Subject: c.name,
+				Message: c.name + " is relative to the working directory",
+			})
+		}
+	}
+	return vs
 }
 
 func serversByName(cfg config.Config) map[string]config.ServerConfig {

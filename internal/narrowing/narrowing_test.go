@@ -337,6 +337,71 @@ command = ["smith", "mcp"]
 	}
 }
 
+func TestFlakeRefIsWorkingDirRelative(t *testing.T) {
+	for ref, want := range map[string]bool{
+		".":                 true,
+		"./sub":             true,
+		"../x":              true,
+		"bin/x":             true,
+		"a/b/c":             true,
+		"path:.":            true,
+		"path:./sub":        true,
+		"path:sub":          true,
+		"git+file:.":        true,
+		"file:rel/x":        true,
+		"nixpkgs":           false,
+		"github:org/repo":   false,
+		"git+https://h/r":   false,
+		"/abs/flake":        false,
+		"~/flake":           false,
+		"path:/abs/flake":   false,
+		"path:~/flake":      false,
+		"git+file:///abs/r": false,
+	} {
+		if got := flakeRefIsWorkingDirRelative(ref); got != want {
+			t.Errorf("flakeRefIsWorkingDirRelative(%q) = %t, want %t", ref, got, want)
+		}
+	}
+}
+
+func TestIdenticalRelativeHelperAndCredentialsCommandsAreRefused(t *testing.T) {
+	const web = "[[servers]]\nname = \"h\"\nurl = \"https://a.example/mcp\"\n"
+	cases := []struct {
+		name, cfg string
+		want      []string
+	}{
+		{
+			name: "relative headers-helper",
+			cfg:  web + "headers-helper = \"./bin/token --for h\"\n",
+			want: []string{"servers.h: headers-helper is relative to the working directory"},
+		},
+		{
+			name: "PATH and absolute headers-helper",
+			cfg:  web + "headers-helper = \"token --for ./h\"\n",
+		},
+		{
+			name: "relative credentials commands",
+			cfg:  "[credentials]\nread = \"./cred read {name}\"\nwrite = \"/bin/cred write {name}\"\ndelete = \"bin/cred rm {name}\"\n",
+			want: []string{
+				"credentials: delete is relative to the working directory",
+				"credentials: read is relative to the working directory",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mustParse(t, tc.cfg)
+			got := violationLines(Check(cfg, cfg))
+			if len(got) == 0 && len(tc.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCheckOrdersViolationsByKeyThenSubject(t *testing.T) {
 	parent := mustParse(t, `
 builtin-native = false
