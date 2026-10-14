@@ -1138,6 +1138,31 @@ debug-gws-batch-update-help:
   nix build {{justfile_directory()}}#gws -o {{justfile_directory()}}/.tmp/result-gws
   {{justfile_directory()}}/.tmp/result-gws/bin/gws docs documents batchUpdate --help
 
+# dump the pinned gws CLI's drive files create --help (checking --params/--upload/fields interplay)
+[group("debug")]
+debug-gws-files-create-help:
+  nix build {{justfile_directory()}}#gws -o {{justfile_directory()}}/.tmp/result-gws
+  {{justfile_directory()}}/.tmp/result-gws/bin/gws drive files create --help
+
+# Writes a tiny real PNG to .tmp/live-image-test/pixel.png, for a live
+# piers.create call to embed. Used to verify, against the real Drive API,
+# that `drive files create --params '{"fields":"id,webViewLink"}' --upload
+# ...` actually returns webViewLink on a media upload (it does — see
+# `images.ts`'s ImageHost.host()); pair with `just debug-gws-moxy-call
+# piers.create '{"title":"...", "content":"text\n\n![t](pixel.png)\n",
+# "base_dir":".../.tmp/live-image-test"}'` and delete both the created Doc
+# and the now-persistent uploaded image afterward (`just run-gws drive
+# files delete --params '{"fileId":"..."}'`) — they are real Drive files.
+#
+# write a tiny scratch PNG for live piers image-link checks
+[group("debug")]
+debug-write-scratch-png:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  mkdir -p {{justfile_directory()}}/.tmp/live-image-test
+  base64 -d >{{justfile_directory()}}/.tmp/live-image-test/pixel.png \
+    <<<"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
 # Reproduces #471 at the zx layer: a single argv string over Linux's
 # MAX_ARG_STRLEN (128 KiB) passed through zx's `$`, with nothrow so the
 # failure's exitCode/signal/stdout/stderr/message shape can be inspected —

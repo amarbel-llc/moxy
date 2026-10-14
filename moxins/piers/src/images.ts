@@ -4,13 +4,18 @@ import { dirname, extname, join } from "path";
 import { PiersError, gwsBin, gwsJson } from "./gws";
 
 // Images that the Docs API's insertInlineImage places: local files and
-// PlantUML diagrams, rendered and sized here, then hosted on Drive for the
-// moment Docs fetches them (#449).
+// PlantUML diagrams, rendered and sized here, then hosted on Drive so Docs
+// can fetch them (#449).
 //
 // insertInlineImage takes an explicit display size, which lets a
 // high-resolution render be shown at its natural size, and fetches the image
-// by URL, anonymously: each image is uploaded to Drive, shared by link,
-// inserted, and deleted again. Docs keeps its own copy.
+// by URL, anonymously: each image is uploaded to Drive and shared by link
+// before it is inserted. On success the file is kept — its Drive view link
+// becomes the caller's link to the full-size render (the result's `images`
+// array) — sharing "anyone with the link" along with it, for now (a known
+// trade-off; linenisgreat/moxy#452 tracks moving this to a store that
+// doesn't need it). A write that fails deletes everything it uploaded, as
+// there is nothing to link to.
 
 // Diagrams are rendered at twice their natural resolution (PlantUML's natural
 // resolution is 96 dpi) and displayed at natural size.
@@ -251,16 +256,19 @@ function deleteHostedFileArgs(fileId: string): string[] {
 
 const terminationSignals = ["SIGTERM", "SIGINT", "SIGHUP"] as const;
 
-// Images uploaded to Drive and shared by link for as long as Docs needs to
-// fetch them. The owner must call `deleteAll` whatever happens; a termination
-// signal (a client cancel, moxy's async timeout) deletes them too, since
-// nothing else knows their ids.
+// Images uploaded to Drive and shared by link. The owner must call either
+// `keepAll` (the write succeeded: every hosted file stays, as the full-size
+// render a caller can now link to) or `deleteAll` (it failed: nothing is left
+// behind to clean up by hand) whatever happens; a termination signal (a
+// client cancel, moxy's async timeout) deletes them too, since nothing else
+// knows their ids — a signal means the write did not finish, so there is
+// nothing to keep.
 export class ImageHost {
-  private readonly fileIds: string[] = [];
+  private readonly images: { fileId: string; viewUrl: string }[] = [];
   private readonly uris = new Set<string>();
   private uploads = 0;
   private readonly onSignal = () => {
-    for (const fileId of this.fileIds) {
+    for (const { fileId } of this.images) {
       spawnSync(gwsBin, deleteHostedFileArgs(fileId), {
         cwd: this.workDir,
         stdio: "ignore",
@@ -284,14 +292,16 @@ export class ImageHost {
       "drive",
       "files",
       "create",
+      "--params",
+      JSON.stringify({ fields: "id,webViewLink" }),
       "--json",
-      JSON.stringify({ name: `piers-transient-${fileName}` }),
+      JSON.stringify({ name: `piers-${fileName}` }),
       "--upload",
       fileName,
       "--upload-content-type",
       image.mimeType,
     ]);
-    this.fileIds.push(file.id);
+    this.images.push({ fileId: file.id, viewUrl: file.webViewLink });
     await gwsJson(this.workDir, [
       "drive",
       "permissions",
@@ -311,11 +321,19 @@ export class ImageHost {
     return this.uris.has(uri);
   }
 
-  // Deletes every hosted file, trying each twice, and stops watching for
-  // signals. Returns the ids that are still there.
+  // The write succeeded: keeps every hosted file (so each has a stable link
+  // to its full-size render) and stops watching for signals. Returns each
+  // image's view link, in upload order.
+  keepAll(): string[] {
+    for (const signal of terminationSignals) process.off(signal, this.onSignal);
+    return this.images.map(({ viewUrl }) => viewUrl);
+  }
+
+  // The write failed: deletes every hosted file, trying each twice, and
+  // stops watching for signals. Returns the ids that are still there.
   async deleteAll(): Promise<string[]> {
     const undeleted: string[] = [];
-    for (const fileId of this.fileIds) {
+    for (const { fileId } of this.images) {
       try {
         await gwsJson(this.workDir, deleteHostedFileArgs(fileId));
       } catch {

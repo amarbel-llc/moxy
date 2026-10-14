@@ -526,20 +526,22 @@ export async function writeMarkdown(
   } catch (error) {
     writingError = error;
   }
-  const undeleted = await host.deleteAll();
-  if (undeleted.length > 0) {
-    const writing =
-      writingError instanceof Error ? `${writingError.message}; ` : "";
-    throw new PiersError(
-      `${writing}Drive file(s) ${undeleted.join(", ")} are still shared by link and could not be deleted: delete them by hand`,
-    );
-  }
   if (writingError) {
+    const undeleted = await host.deleteAll();
+    if (undeleted.length > 0) {
+      const writing =
+        writingError instanceof Error ? `${writingError.message}; ` : "";
+      throw new PiersError(
+        `${writing}Drive file(s) ${undeleted.join(", ")} are still shared by link and could not be deleted: delete them by hand`,
+      );
+    }
     if (!(writingError instanceof PiersError)) throw writingError;
     throw new PiersError(
       `writing document ${documentId} did not complete: ${writingError.message}`,
     );
   }
+  const images = host.keepAll();
+  if (images.length > 0) result.images = images;
   if (warnings.length > 0) result.warnings = warnings;
   return result;
 }

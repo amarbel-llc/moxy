@@ -63,6 +63,8 @@ function piers_create_places_local_png_where_it_stood { # @test
   run "$BIN/create" "Title" 'Before ![d](diagrams/pixel.png "t") after' "$DOCS"
   assert_success
   assert_output --partial 'stub-doc'
+  # The hosted file is kept (the write succeeded) and linked in the result.
+  assert_equal "$(result '.images[0]')" "https://drive.google.com/file/d/stub-image-1/view"
 
   # An empty Doc is created, then written through the Docs API: no markdown
   # goes to Drive's importer.
@@ -79,14 +81,14 @@ function piers_create_places_local_png_where_it_stood { # @test
   assert_equal "$(batch 1 '[.requests[] | select(.insertInlineImage)][0].insertInlineImage.uri')" \
     "https://drive.google.com/uc?export=download&id=stub-image-1"
   assert_equal "$(image_size 0)" "0.75 0.75"
-  run grep -c $'^drive\tfiles\tdelete\t--params\t{"fileId":"stub-image-1"}' "$GWS_STUB_LOG"
-  assert_output "1"
+  assert_equal "$(calls 'drive\tfiles\tdelete')" "0"
 }
 
 function piers_update_renders_svg_at_double_resolution_and_natural_size { # @test
   write_svg "$DOCS/diagrams/small.svg" 200 100
   run "$BIN/update" "doc-id" '![d](diagrams/small.svg)' "$DOCS"
   assert_success
+  assert_equal "$(result '.images[0]')" "https://drive.google.com/file/d/stub-image-1/view"
   assert_equal "$(png_width "$GWS_STUB_DIR/images/1")" "400"
   assert_equal "$(image_size 0)" "150 75"
 }
@@ -121,6 +123,8 @@ function piers_create_renders_plantuml_fence_without_base_dir { # @test
   content=$'# Flow\n\n```plantuml\nAlice -> Bob: hello\n```\n\n```text\nAlice -> Bob: literal\n```\n'
   run "$BIN/create" "Title" "$content"
   assert_success
+  # The diagram's full-size render stays linked in the result.
+  assert_equal "$(result '.images[0]')" "https://drive.google.com/file/d/stub-image-1/view"
   run inserted_texts
   refute_output --partial 'Alice -> Bob: hello'
   assert_output --partial 'Alice -> Bob: literal'
@@ -161,7 +165,10 @@ function piers_create_places_several_images_last_first { # @test
   assert_success
   assert_equal "$(images | jq length)" "2"
   assert_equal "$(images | jq '.[0].location.index > .[1].location.index')" "true"
-  assert_equal "$(calls 'drive\tfiles\tdelete')" "2"
+  # Both hosted files are kept, linked in the result in upload order.
+  assert_equal "$(result '.images[0]')" "https://drive.google.com/file/d/stub-image-1/view"
+  assert_equal "$(result '.images[1]')" "https://drive.google.com/file/d/stub-image-2/view"
+  assert_equal "$(calls 'drive\tfiles\tdelete')" "0"
 }
 
 function piers_create_deletes_hosted_images_when_writing_fails { # @test
@@ -184,6 +191,9 @@ function piers_create_deletes_hosted_image_when_sharing_it_fails { # @test
 }
 
 function piers_create_fails_naming_hosted_image_it_could_not_delete { # @test
+  # Cleanup-by-deletion only runs on the failure path now (a success keeps
+  # the file for its link), so the write itself must fail too to exercise it.
+  export GWS_STUB_FAIL_BATCH_UPDATE=1
   export GWS_STUB_FAIL_DELETE=1
   run "$BIN/create" "Title" '![d](diagrams/pixel.png)' "$DOCS"
   assert_failure

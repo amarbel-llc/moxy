@@ -53,7 +53,7 @@ case "$1 $2 $3" in
   if [ -n "$upload" ]; then
     n=$(($(ls "$GWS_STUB_DIR/images" | wc -l) + 1))
     cp "$upload" "$GWS_STUB_DIR/images/$n"
-    echo "{\"id\":\"stub-image-$n\"}"
+    echo "{\"id\":\"stub-image-$n\",\"webViewLink\":\"https://drive.google.com/file/d/stub-image-$n/view\"}"
   else
     printf '%s' "$json" >"$GWS_STUB_DIR/doc-create.json"
     "$GWS_STUB_JQ" -c '{id: "stub-doc", kind: "drive#file", name, mimeType}' <<<"$json"
@@ -135,6 +135,9 @@ EOF
 batch() { jq -r "$2" "$GWS_STUB_DIR/batch-update-$1.json"; }
 batches() { ls "$GWS_STUB_DIR" | grep -c '^batch-update-' || true; }
 calls() { grep -c "^$(printf "$1")" "$GWS_STUB_LOG" || true; }
+# jq over the tool's own JSON result (one level decoded from the MCP content
+# wrapper): result '.images // empty'
+result() { jq -r ".content[0].text" <<<"$output" | jq -r "$1"; }
 # The text of every insertText in batch 1, one per line.
 inserted_texts() { batch 1 '.requests[] | .insertText.text // empty'; }
 # jq: does batch 1 style the inserted text `$text` (exactly) with a text style

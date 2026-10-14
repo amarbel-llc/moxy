@@ -75,13 +75,17 @@ and the result carries a `warnings` entry; so does a remote image Google cannot
 fetch.
 
 `insertInlineImage` fetches the image anonymously by URL, so each local image
-or diagram is uploaded to the user's Drive, shared by link, inserted, and
-deleted — Docs keeps its own copy, so nothing is left in Drive. Two
-consequences: the image is readable by anyone holding its unguessable link for
-the few seconds the call takes, and alt text is not carried over
-(`insertInlineImage` has no field for it). The hosted files are deleted
-whatever happens, including on SIGTERM/SIGINT; a file that cannot be deleted
-fails the call and is named in the error, so it can be removed by hand.
+or diagram is uploaded to the user's Drive and shared by link before it is
+inserted. On success the file is kept — the call's result carries an `images`
+array, one entry per placed image in order, each a link to that image's
+full-size render in Drive. A consequence: the file stays shared "anyone with
+the link" indefinitely rather than only for the moment Docs needed to fetch
+it, and alt text is not carried over (`insertInlineImage` has no field for
+it). (linenisgreat/moxy#452 tracks moving this hosting to a store that
+doesn't need either trade-off.) A call that fails instead deletes everything
+it uploaded, including on SIGTERM/SIGINT, since there is nothing to link to;
+a file that cannot be deleted fails the call and is named in the error, so it
+can be removed by hand.
 
 gws runs from a scratch directory: it only uploads files under its cwd, and it
 saves any non-JSON reply (a Drive delete's empty body) there as
