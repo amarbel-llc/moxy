@@ -33,7 +33,7 @@ const rasterMimeTypeByExtension: Record<string, string> = {
   ".gif": "image/gif",
 };
 const plantumlExtensions = [".puml", ".plantuml", ".pu"];
-export const supportedExtensions = [
+const supportedExtensions = [
   ...Object.keys(rasterMimeTypeByExtension),
   ".svg",
   ...plantumlExtensions,
@@ -87,7 +87,7 @@ const plantumlEnv = {
   PLANTUML_LIMIT_SIZE: "16384",
 };
 
-export function pngSize(png: Buffer): PixelSize {
+function pngSize(png: Buffer): PixelSize {
   // 8-byte signature, then the IHDR chunk: length, "IHDR", width, height.
   if (png.length < 24 || png.toString("latin1", 12, 16) !== "IHDR") {
     throw new PiersError("not a PNG");
@@ -290,6 +290,7 @@ const terminationSignals = ["SIGTERM", "SIGINT", "SIGHUP"] as const;
 // nothing else knows their ids.
 export class ImageHost {
   private readonly fileIds: string[] = [];
+  private readonly uris = new Set<string>();
   private uploads = 0;
   private readonly onSignal = () => {
     for (const fileId of this.fileIds) {
@@ -336,7 +337,14 @@ export class ImageHost {
       "--json",
       JSON.stringify({ role: "reader", type: "anyone" }),
     ]);
-    return `https://drive.google.com/uc?export=download&id=${file.id}`;
+    const uri = `https://drive.google.com/uc?export=download&id=${file.id}`;
+    this.uris.add(uri);
+    return uri;
+  }
+
+  // Whether `uri` is one this host put up (as opposed to the markdown's own).
+  hosts(uri: string): boolean {
+    return this.uris.has(uri);
   }
 
   // Deletes every hosted file, trying each twice, and stops watching for

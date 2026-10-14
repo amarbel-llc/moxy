@@ -4,7 +4,9 @@ A pandoc custom Lua writer that turns markdown into Google Docs API
 `batchUpdate` requests, so piers can write a Doc (or one tab of it) directly
 instead of going through Drive's markdown import.
 
-**Status:** POC — validated offline and live; not wired into piers yet.
+**Status:** POC — validated offline and live, then graduated: the shipped
+writer is `moxins/piers/src/docs-requests.lua`, which has moved on since.
+This copy is a frozen snapshot of the experiment; change the shipped one.
 Tracking: #456 (update deletes other tabs), #457 (fenced code blocks),
 #453 (markdown edge cases).
 

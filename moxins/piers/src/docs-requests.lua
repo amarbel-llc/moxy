@@ -120,8 +120,8 @@ end
 -- A structural op: `build(index, at_segment_end)` returns its requests,
 -- placed at `index`; `at_segment_end` is true when nothing follows the op's
 -- paragraph in the segment.
-local function emit_op(build, opts)
-  table.insert(current.segments, { text = "", style = {}, build = build, table = opts and opts.table })
+local function emit_op(build, is_table)
+  table.insert(current.segments, { text = "", style = {}, build = build, table = is_table })
 end
 
 local render
@@ -315,12 +315,12 @@ local function table_block(b, ctx)
   end
   if current then
     -- Anchored at the end of the previous paragraph's text, i.e. its newline.
-    emit_op(build, { table = true })
+    emit_op(build, true)
   else
     -- First block of the segment: an empty paragraph to anchor at, which
     -- Docs leaves before the table.
     begin(ctx, para_style(ctx))
-    emit_op(build, { table = true })
+    emit_op(build, true)
   end
 end
 

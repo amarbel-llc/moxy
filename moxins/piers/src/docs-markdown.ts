@@ -131,13 +131,9 @@ async function prepareImages(
 
 // Hosts each prepared image and turns it into insertInlineImage requests at
 // its location — in reverse, so several diagrams from one fence end up in
-// order. Returns the requests and the set of those fetching a hosted image.
-async function hostImages(
-  plan: Plan,
-  host: ImageHost,
-): Promise<{ plan: Plan; hosted: Set<Request> }> {
+// order.
+async function hostImages(plan: Plan, host: ImageHost): Promise<Plan> {
   const out: Plan = [];
-  const hosted = new Set<Request>();
   for (const request of plan) {
     if (!request.images) {
       out.push(request);
@@ -145,7 +141,7 @@ async function hostImages(
     }
     const images: PreparedImage[] = request.images;
     for (const image of [...images].reverse()) {
-      const placed = {
+      out.push({
         insertInlineImage: {
           location: request.location,
           uri: await host.host(image),
@@ -154,22 +150,18 @@ async function hostImages(
             height: { magnitude: image.heightPt, unit: "PT" },
           },
         },
-      };
-      hosted.add(placed);
-      out.push(placed);
+      });
     }
   }
-  return { plan: out, hosted };
+  return out;
 }
 
 // Every location and range names the tab (and segment, for a footnote);
-// every index moves by `delta`. Request objects that are keys of `hosted`
-// are mapped to their placed copies there.
+// every index moves by `delta`.
 function placed(
   plan: Plan,
   where: { tabId?: string; segmentId?: string; delta?: number },
-  hosted: Set<Request> = new Set(),
-): { plan: Plan; hosted: Set<Request> } {
+): Plan {
   const delta = where.delta ?? 0;
   const walk = (value: any, key?: string): any => {
     if (Array.isArray(value)) return value.map((v) => walk(v));
@@ -187,13 +179,7 @@ function placed(
     }
     return out;
   };
-  const placedHosted = new Set<Request>();
-  const out = plan.map((request) => {
-    const copy = walk(request);
-    if (hosted.has(request)) placedHosted.add(copy);
-    return copy;
-  });
-  return { plan: out, hosted: placedHosted };
+  return plan.map((request) => walk(request));
 }
 
 // Sends one batchUpdate. Docs fetches a just-shared image only after a
@@ -204,12 +190,15 @@ async function sendBatch(
   gws: string,
   workDir: string,
   documentId: string,
-  batch: { plan: Plan; hosted: Set<Request> },
+  plan: Plan,
+  host: ImageHost,
   revisionId: string | undefined,
   warnings: string[],
 ): Promise<any> {
-  const requests = [...batch.plan];
-  for (let hostedAttempt = 1; ;) {
+  const requests = [...plan];
+  // Fetch failures so far, per hosted image: each gets its own retries.
+  const failures = new Map<string, number>();
+  for (;;) {
     const body: Record<string, unknown> = { requests };
     if (revisionId) body.writeControl = { requiredRevisionId: revisionId };
     try {
@@ -230,12 +219,13 @@ async function sendBatch(
       if (!failing) throw error;
       const index = Number(failing[1]);
       const request = requests[index];
-      if (batch.hosted.has(request)) {
-        if (hostedAttempt === hostedFetchAttempts) throw error;
-        await new Promise((wake) => setTimeout(wake, hostedAttempt * 1500));
-        hostedAttempt++;
+      const { location, uri } = request.insertInlineImage;
+      if (host.hosts(uri)) {
+        const failed = (failures.get(uri) ?? 0) + 1;
+        if (failed === hostedFetchAttempts) throw error;
+        failures.set(uri, failed);
+        await new Promise((wake) => setTimeout(wake, failed * 1500));
       } else {
-        const { location, uri } = request.insertInlineImage;
         warnings.push(
           `remote image ${uri} could not be fetched by Google Docs and was not placed`,
         );
@@ -294,23 +284,24 @@ async function writeFootnotes(
   }
   const tab = findTab(await getDocument(gws, workDir, documentId), tabId);
   const segments = tab.documentTab.footnotes ?? {};
-  const batch = { plan: [] as Plan, hosted: new Set<Request>() };
+  const batch: Plan = [];
   for (const [i, footnoteId] of footnoteIds.entries()) {
-    const insertAt = segments[footnoteId].content.at(-1).endIndex - 1;
-    const hosted = await hostImages(footnotes[i], host);
-    const one = placed(
-      hosted.plan,
-      {
+    const segment = segments[footnoteId];
+    if (!segment) {
+      throw new PiersError(
+        `footnote ${footnoteId} created but not found in tab ${tab.tabProperties.tabId}`,
+      );
+    }
+    const insertAt = segment.content.at(-1).endIndex - 1;
+    batch.push(
+      ...placed(await hostImages(footnotes[i], host), {
         tabId: tab.tabProperties.tabId,
         segmentId: footnoteId,
         delta: insertAt - 1,
-      },
-      hosted.hosted,
+      }),
     );
-    batch.plan.push(...one.plan);
-    for (const r of one.hosted) batch.hosted.add(r);
   }
-  await sendBatch(gws, workDir, documentId, batch, undefined, warnings);
+  await sendBatch(gws, workDir, documentId, batch, host, undefined, warnings);
 }
 
 // Creates a Doc from markdown, or rewrites one tab of an existing Doc
@@ -374,17 +365,15 @@ export async function writeMarkdown(
     const host = new ImageHost(gws, workDir);
     let writingError: unknown;
     try {
-      const hosted = await hostImages(body, host);
-      const batch = placed(
-        [...clear, ...hosted.plan],
-        { tabId },
-        hosted.hosted,
-      );
+      const batch = placed([...clear, ...(await hostImages(body, host))], {
+        tabId,
+      });
       const reply = await sendBatch(
         gws,
         workDir,
         documentId,
         batch,
+        host,
         revisionId,
         warnings,
       );
