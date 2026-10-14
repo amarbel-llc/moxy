@@ -271,16 +271,17 @@ async function outlineFile(path: string): Promise<string> {
   const ext = extname(path);
   const got = await getLang(ext);
   if (!got) {
-    // outline keys language off the file extension. A /dev/fd/N path (what
-    // moxy rewrites a madder://blobs/<digest> arg to) or any extension-less
-    // path can't be classified — surface that distinctly from a genuinely
+    // outline keys language off the file extension. A madder://blobs/<digest>
+    // URI (passed through as-is: outline does not list `path` in
+    // substitute-args, #371), a /dev/fd/N path, or any extension-less path
+    // can't be classified — surface that distinctly from a genuinely
     // unsupported language so the caller knows to pass a real source-file
     // path, not a blob/fd reference (moxy#387).
     if (ext === "") {
       return (
         `# ${path}\n  (no file extension — outline needs a real source-file ` +
-        `path to detect the language; it can't outline a /dev/fd or ` +
-        `extension-less input)`
+        `path to detect the language; it can't outline a blob URI, /dev/fd ` +
+        `or extension-less input)`
       );
     }
     return `# ${path}\n  (unsupported extension: ${ext})`;
