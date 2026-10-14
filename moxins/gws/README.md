@@ -19,23 +19,45 @@ moxins:
 |------|-------------|
 | `api` | Raw gws API call (debugging) |
 
-## Images and diagrams in piers
+## Markdown in piers
 
-`piers create` and `piers update` build a Doc by uploading markdown to Drive,
-which converts it. That converter cannot be trusted with diagrams: a local
-image path becomes a broken placeholder, SVG is never rendered, PlantUML source
-stays a code block, and every image it does embed is fixed at 0.75pt per pixel
-(96 dpi) whatever size hints it is given. So both tools place images
-themselves (`moxins/piers/src/inline-images.ts`):
+`piers create` and `piers update` do not hand markdown to Drive's importer,
+which renders fenced code as a run of unstyled paragraphs (#457), can only
+replace a whole file — every tab with it (#456) — and cannot place local
+images or diagrams. Instead pandoc parses the markdown (GitHub-flavored) and a
+custom writer, `moxins/piers/src/docs-requests.lua`, turns it into Docs API
+`batchUpdate` requests that `moxins/piers/src/docs-markdown.ts` sends:
+
+- `create` makes an empty Doc and writes into it.
+- `update` rewrites one tab — `tab_id`, or the first tab — and leaves every
+  other tab and its comments alone. It clears the tab and writes it in one
+  batch carrying the revision it read, so an edit made in between makes the
+  call fail with nothing changed. Comments anchored on the tab's old text are
+  lost with it.
+- Footnote content is written in a second batch, once Docs has given the
+  footnotes their ids.
+
+Rendered: headings, emphasis, strikethrough, links, inline code; fenced code
+as one shaded monospace paragraph per fence (indentation and tabs kept); bullet,
+numbered and task lists with nesting (a numbered list interrupted by a code
+block keeps counting); block quotes; rules; tables (bold, shaded header row;
+column alignment); footnotes. Not rendered: merged table cells; a task item's
+checked state (the Docs API cannot set it — a done item is struck through).
+The writer and its findings were proven in `zz-pocs/pandoc-docs-poc`.
+
+### Images and diagrams
+
+Images are placed with the Docs API's `insertInlineImage`, the only way to give
+one an explicit size (Drive's importer fixes every image at 0.75pt per pixel):
 
 | In the markdown | Placed in the Doc as |
 |---|---|
-| fenced code block with language `plantuml` / `puml` | rendered diagram |
+| fenced code block with language `plantuml` / `puml` | rendered diagram (one per `@startuml` block) |
 | `![alt](x.puml)` (`.plantuml`, `.pu`) | rendered diagram |
 | `![alt](x.svg)` | rasterized PNG |
 | `![alt](x.png)` (`.jpg`, `.jpeg`, `.gif`) | the file, as-is |
-| `![alt](https://…)` | left to Google's converter |
-| code spans, other fences | untouched |
+| `![alt](https://…)` | fetched by Google from its URL |
+| code spans, other fences | text |
 
 PlantUML and SVG are rendered at twice their natural resolution and shown at
 natural size, shrunk when needed to fit the page's text area, so text in a
@@ -44,21 +66,22 @@ diagram stays sharp when zoomed or printed.
 Local paths are only resolved when the caller says what they are relative to:
 pass `content_path` (the markdown file; images resolve beside it) or `content`
 plus `base_dir`. A file that cannot be read or rendered fails the call before
-anything is uploaded.
+anything is written. Without either, a local image shows as `[image: path]`
+and the result carries a `warnings` entry; so does a remote image Google cannot
+fetch.
 
-How an image gets in: it is taken out of the markdown, leaving a placeholder
-token; after the upload, the token is replaced through the Docs API's
-`insertInlineImage`, the only way to give an image an explicit size. That
-request fetches the image anonymously by URL, so each image is uploaded to the
-user's Drive, shared by link, inserted, and deleted — Docs keeps its own copy,
-so nothing is left in Drive and `update` (which replaces the whole body) leaves
-no orphans. Two consequences: the image is readable by anyone holding its
-unguessable link for the few seconds the call takes, and alt text is not
-carried over (`insertInlineImage` has no field for it). If placing fails after
-the upload, the call fails naming the document, which still holds the
-placeholder tokens. The hosted files are deleted either way, including on
-SIGTERM/SIGINT; a file that cannot be deleted fails the call and is named in
-the error, so it can be removed by hand.
+`insertInlineImage` fetches the image anonymously by URL, so each local image
+or diagram is uploaded to the user's Drive, shared by link, inserted, and
+deleted — Docs keeps its own copy, so nothing is left in Drive. Two
+consequences: the image is readable by anyone holding its unguessable link for
+the few seconds the call takes, and alt text is not carried over
+(`insertInlineImage` has no field for it). The hosted files are deleted
+whatever happens, including on SIGTERM/SIGINT; a file that cannot be deleted
+fails the call and is named in the error, so it can be removed by hand.
+
+gws runs from a scratch directory: it only uploads files under its cwd, and it
+saves any non-JSON reply (a Drive delete's empty body) there as
+`download.<ext>` (#458).
 
 PlantUML runs with `PLANTUML_SECURITY_PROFILE=SANDBOX`: the markdown being
 published is often not the caller's own, so `!include` of local files or URLs

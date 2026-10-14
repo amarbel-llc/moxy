@@ -1,9 +1,9 @@
 schema = 3
 substitute-result-uris = false
 perms-request = "always-allow"
-description = "Update an existing Google Doc with new markdown. Replaces the document body entirely, including its images. PlantUML is supported and is the preferred way to put a diagram in a Doc: write a fenced ```plantuml code block (sequence, component, class, state, activity, gantt, …) and it is rendered and placed inline as a sharp image — do not paste diagram source as text or describe a diagram in prose when one would help. Local image files (PNG/JPEG/GIF/SVG, or .puml) referenced as ![alt](path) are embedded too when content_path or base_dir is given."
+description = "Rewrite one tab of an existing Google Doc from markdown (default: the first tab). Every other tab, and its comments, is left alone; the rewritten tab's previous content, including its images and any comments anchored on it, is replaced. Fails without changing anything if the Doc was edited between piers reading it and writing it. Accepts the same markdown as create (GitHub-flavored: headings, lists and task lists, tables, footnotes, block quotes, fenced code blocks rendered as shaded monospace blocks). PlantUML is supported and is the preferred way to put a diagram in a Doc: write a fenced ```plantuml code block (sequence, component, class, state, activity, gantt, …) and it is rendered and placed inline as a sharp image — do not paste diagram source as text or describe a diagram in prose when one would help. Local image files (PNG/JPEG/GIF/SVG, or .puml) referenced as ![alt](path) are embedded too when content_path or base_dir is given. Returns the document and tab id, plus `warnings` when something could not be placed."
 command = "@BIN@/update"
-arg-order = ["file_id", "content", "base_dir", "content_path"]
+arg-order = ["file_id", "content", "base_dir", "content_path", "tab_id"]
 
 [annotations]
 open-world-hint = true
@@ -16,9 +16,13 @@ required = ["file_id"]
 type = "string"
 description = "The Drive file ID of the Google Doc to update"
 
+[input.properties.tab_id]
+type = "string"
+description = "ID of the tab to rewrite (from outline or get with include_tabs_content), e.g. t.abc123. Omit to rewrite the first tab."
+
 [input.properties.content]
 type = "string"
-description = "Markdown content to replace the document body with; give this or content_path. Diagrams: a fenced code block with language `plantuml` (or `puml`) is replaced by the rendered diagram, e.g. ```plantuml / Alice -> Bob: hello / ``` (@startuml/@enduml are added when missing). A PlantUML syntax error fails the call with PlantUML's message before anything is uploaded. To show PlantUML source literally, use another fence language such as `text`."
+description = "Markdown content to replace the tab's body with; give this or content_path. Diagrams: a fenced code block with language `plantuml` (or `puml`) is replaced by the rendered diagram, e.g. ```plantuml / Alice -> Bob: hello / ``` (@startuml/@enduml are added when missing; a fence holding several @startuml…@enduml diagrams gives one image each). A PlantUML syntax error fails the call with PlantUML's message before anything is written. To show PlantUML source literally, use another fence language such as `text`."
 
 [input.properties.content_path]
 type = "string"
@@ -26,4 +30,4 @@ description = "Absolute path of a markdown file to use instead of content. Prefe
 
 [input.properties.base_dir]
 type = "string"
-description = "Absolute directory that local image paths in content are relative to (defaults to the directory of content_path). When known, every ![alt](path) without a URI scheme is read from disk and placed in the Doc: .puml/.plantuml/.pu rendered by PlantUML, .svg rasterized, .png/.jpg/.jpeg/.gif as-is. An unreadable, unsupported or unrenderable file fails the call before anything is uploaded. With neither base_dir nor content_path, local image paths are passed through and show as broken placeholders. Images are shown at natural size (diagrams rendered at 2x for sharpness), shrunk to fit the page when larger; alt text is not carried over. Each placed image is uploaded to the user's Drive, shared by link for the moment Docs needs to fetch it, then deleted."
+description = "Absolute directory that local image paths in content are relative to (defaults to the directory of content_path). Every ![alt](path) without a URI scheme is read from disk and placed in the Doc: .puml/.plantuml/.pu rendered by PlantUML, .svg rasterized, .png/.jpg/.jpeg/.gif as-is. An unreadable, unsupported or unrenderable file fails the call before anything is written. With neither base_dir nor content_path, a local image shows as the text [image: path] and the result carries a warning; so does a remote image Google cannot fetch. Images are shown at natural size (diagrams rendered at 2x for sharpness), shrunk to fit the page when larger; alt text is not carried over. Each placed local image is uploaded to the user's Drive, shared by link for the moment Docs needs to fetch it, then deleted."

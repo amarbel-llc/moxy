@@ -889,13 +889,16 @@
           pkgs.coreutils
           gws-bin
         ];
-        # piers create/update embed images in the markdown they upload
-        # (moxins/piers/src/inline-images.ts): rsvg-convert rasterizes SVG,
-        # plantuml renders diagrams. Both draw text through fontconfig, which
-        # finds no fonts in the build sandbox or on a non-NixOS host, so a
-        # default font set is pinned unless the caller's environment names one.
+        # piers create/update turn markdown into Docs API requests with pandoc
+        # and a custom writer (moxins/piers/src/docs-requests.lua, baked in as
+        # @PIERS_DOCS_WRITER@), and place images themselves
+        # (moxins/piers/src/images.ts): rsvg-convert rasterizes SVG, plantuml
+        # renders diagrams. Both draw text through fontconfig, which finds no
+        # fonts in the build sandbox or on a non-NixOS host, so a default font
+        # set is pinned unless the caller's environment names one.
         piersDeps = gwsDeps ++ [
           pkgs.librsvg
+          pkgs.pandoc
           pkgs.plantuml
         ];
         piersFontsConf = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
@@ -925,6 +928,9 @@
                 "FONTCONFIG_FILE"
                 "${piersFontsConf}"
               ];
+              extraSubstitutions = {
+                PIERS_DOCS_WRITER = "${./moxins/piers/src/docs-requests.lua}";
+              };
             };
         car-moxin = mkBunMoxin "car" gwsDeps {
           "search" = "moxins/car/src/search.ts";
@@ -1206,7 +1212,8 @@
           fileset =
             with pkgs.lib.fileset;
             unions [
-              ./zz-tests_bats/common.bash
+              # common.bash and the per-suite helpers (piers_stub.bash).
+              (fileFilter (f: f.hasExt "bash") ./zz-tests_bats)
               ./zz-tests_bats/test-fixtures
               ./zz-tests_bats/test-permission-request-hook.mjs
               (fileFilter (f: f.hasExt "bats") ./zz-tests_bats)

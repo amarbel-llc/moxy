@@ -1,7 +1,7 @@
 schema = 3
 substitute-result-uris = false
 perms-request = "always-allow"
-description = "Create a new Google Doc from markdown. Returns the created file metadata including ID. PlantUML is supported and is the preferred way to put a diagram in a Doc: write a fenced ```plantuml code block (sequence, component, class, state, activity, gantt, …) and it is rendered and placed inline as a sharp image — do not paste diagram source as text or describe a diagram in prose when one would help. Local image files (PNG/JPEG/GIF/SVG, or .puml) referenced as ![alt](path) are embedded too when content_path or base_dir is given."
+description = "Create a new Google Doc from markdown (GitHub-flavored: headings, emphasis, links, lists and task lists, tables, footnotes, block quotes, fenced code blocks rendered as shaded monospace blocks). Returns the created file metadata including ID, plus `warnings` when something could not be placed. PlantUML is supported and is the preferred way to put a diagram in a Doc: write a fenced ```plantuml code block (sequence, component, class, state, activity, gantt, …) and it is rendered and placed inline as a sharp image — do not paste diagram source as text or describe a diagram in prose when one would help. Local image files (PNG/JPEG/GIF/SVG, or .puml) referenced as ![alt](path) are embedded too when content_path or base_dir is given."
 command = "@BIN@/create"
 arg-order = ["title", "content", "base_dir", "content_path"]
 
@@ -18,7 +18,7 @@ description = "Title for the new Google Doc"
 
 [input.properties.content]
 type = "string"
-description = "Markdown content for the document; give this or content_path. Diagrams: a fenced code block with language `plantuml` (or `puml`) is replaced by the rendered diagram, e.g. ```plantuml / Alice -> Bob: hello / ``` (@startuml/@enduml are added when missing). A PlantUML syntax error fails the call with PlantUML's message before anything is uploaded. To show PlantUML source literally, use another fence language such as `text`."
+description = "Markdown content for the document; give this or content_path. Diagrams: a fenced code block with language `plantuml` (or `puml`) is replaced by the rendered diagram, e.g. ```plantuml / Alice -> Bob: hello / ``` (@startuml/@enduml are added when missing; a fence holding several @startuml…@enduml diagrams gives one image each). A PlantUML syntax error fails the call with PlantUML's message before anything is written. To show PlantUML source literally, use another fence language such as `text`."
 
 [input.properties.content_path]
 type = "string"
@@ -26,4 +26,4 @@ description = "Absolute path of a markdown file to use instead of content. Prefe
 
 [input.properties.base_dir]
 type = "string"
-description = "Absolute directory that local image paths in content are relative to (defaults to the directory of content_path). When known, every ![alt](path) without a URI scheme is read from disk and placed in the Doc: .puml/.plantuml/.pu rendered by PlantUML, .svg rasterized, .png/.jpg/.jpeg/.gif as-is. An unreadable, unsupported or unrenderable file fails the call before anything is uploaded. With neither base_dir nor content_path, local image paths are passed through and show as broken placeholders. Images are shown at natural size (diagrams rendered at 2x for sharpness), shrunk to fit the page when larger; alt text is not carried over. Each placed image is uploaded to the user's Drive, shared by link for the moment Docs needs to fetch it, then deleted."
+description = "Absolute directory that local image paths in content are relative to (defaults to the directory of content_path). Every ![alt](path) without a URI scheme is read from disk and placed in the Doc: .puml/.plantuml/.pu rendered by PlantUML, .svg rasterized, .png/.jpg/.jpeg/.gif as-is. An unreadable, unsupported or unrenderable file fails the call before anything is written. With neither base_dir nor content_path, a local image shows as the text [image: path] and the result carries a warning; so does a remote image Google cannot fetch. Images are shown at natural size (diagrams rendered at 2x for sharpness), shrunk to fit the page when larger; alt text is not carried over. Each placed local image is uploaded to the user's Drive, shared by link for the moment Docs needs to fetch it, then deleted."

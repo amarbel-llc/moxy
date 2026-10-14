@@ -105,7 +105,7 @@ The following moxins ship with moxy. Each can be served individually via
 | hamster | 6 | Go package documentation via `go doc` | go, bun |
 | jq | 1 | Execute jq filters on JSON data | jq |
 | man | 4 | Unix man page reader with section-level progressive disclosure | pandoc, mandoc |
-| piers | 16 | Google Docs: read, create, edit, and comment on documents | bun, gws |
+| piers | 16 | Google Docs: read, create, edit, and comment on documents | bun, gws, pandoc, plantuml, librsvg |
 | prison | 1 | Google Sheets: read spreadsheet data | bun, gws |
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
