@@ -101,16 +101,24 @@ func (w *fakeBlobWriter) Cleanup() {
 	<-w.done
 }
 
+// rewriteOne runs text through a fresh blobRewriter, returning the
+// rewritten text and the substitution that owns its pipes.
+func rewriteOne(text string, src blobSource) (string, *resultSubstitution, error) {
+	r := newBlobRewriter(src)
+	got, err := r.rewrite(context.Background(), text)
+	return got, r.sub, err
+}
+
 func TestSubstituteNoURIs(t *testing.T) {
 	src := &fakeMadder{blobs: map[string]string{}}
-	sub, err := substituteMadderURIs(context.Background(), "echo hello world", src)
+	got, sub, err := rewriteOne("echo hello world", src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	defer sub.Cleanup()
 
-	if sub.Command != "echo hello world" {
-		t.Errorf("command = %q, want %q", sub.Command, "echo hello world")
+	if got != "echo hello world" {
+		t.Errorf("command = %q, want %q", got, "echo hello world")
 	}
 	if len(sub.ExtraFiles) != 0 {
 		t.Errorf("len(ExtraFiles) = %d, want 0", len(sub.ExtraFiles))
@@ -122,24 +130,14 @@ func TestSubstituteSingleURI(t *testing.T) {
 		"blake2b256-abc": "cached content",
 	}}
 
-	sub, err := substituteMadderURIs(
-		context.Background(),
-		"grep pattern madder://blobs/blake2b256-abc",
-		src,
-	)
+	got, sub, err := rewriteOne("grep pattern madder://blobs/blake2b256-abc", src)
 	if err != nil {
 		t.Fatalf("substitute: %v", err)
 	}
 	defer sub.Cleanup()
 
-	if strings.Contains(sub.Command, "madder://") {
-		t.Error("URI was not rewritten")
-	}
-	if !strings.Contains(sub.Command, "/dev/fd/3") {
-		t.Errorf("expected /dev/fd/3 in command, got %q", sub.Command)
-	}
-	if sub.Command != "grep pattern /dev/fd/3" {
-		t.Errorf("command = %q, want %q", sub.Command, "grep pattern /dev/fd/3")
+	if got != "grep pattern /dev/fd/3" {
+		t.Errorf("command = %q, want %q", got, "grep pattern /dev/fd/3")
 	}
 	if len(sub.ExtraFiles) != 1 {
 		t.Errorf("len(ExtraFiles) = %d, want 1", len(sub.ExtraFiles))
@@ -152,18 +150,14 @@ func TestSubstituteMultipleURIs(t *testing.T) {
 		"blake2b256-bbb": "second content",
 	}}
 
-	sub, err := substituteMadderURIs(
-		context.Background(),
-		"diff madder://blobs/blake2b256-aaa madder://blobs/blake2b256-bbb",
-		src,
-	)
+	got, sub, err := rewriteOne("diff madder://blobs/blake2b256-aaa madder://blobs/blake2b256-bbb", src)
 	if err != nil {
 		t.Fatalf("substitute: %v", err)
 	}
 	defer sub.Cleanup()
 
-	if sub.Command != "diff /dev/fd/3 /dev/fd/4" {
-		t.Errorf("command = %q, want %q", sub.Command, "diff /dev/fd/3 /dev/fd/4")
+	if got != "diff /dev/fd/3 /dev/fd/4" {
+		t.Errorf("command = %q, want %q", got, "diff /dev/fd/3 /dev/fd/4")
 	}
 	if len(sub.ExtraFiles) != 2 {
 		t.Errorf("len(ExtraFiles) = %d, want 2", len(sub.ExtraFiles))
@@ -175,18 +169,14 @@ func TestSubstituteDuplicateURI(t *testing.T) {
 		"blake2b256-dup": "shared content",
 	}}
 
-	sub, err := substituteMadderURIs(
-		context.Background(),
-		"diff madder://blobs/blake2b256-dup madder://blobs/blake2b256-dup",
-		src,
-	)
+	got, sub, err := rewriteOne("diff madder://blobs/blake2b256-dup madder://blobs/blake2b256-dup", src)
 	if err != nil {
 		t.Fatalf("substitute: %v", err)
 	}
 	defer sub.Cleanup()
 
-	if sub.Command != "diff /dev/fd/3 /dev/fd/3" {
-		t.Errorf("command = %q, want %q", sub.Command, "diff /dev/fd/3 /dev/fd/3")
+	if got != "diff /dev/fd/3 /dev/fd/3" {
+		t.Errorf("command = %q, want %q", got, "diff /dev/fd/3 /dev/fd/3")
 	}
 	if len(sub.ExtraFiles) != 1 {
 		t.Errorf("len(ExtraFiles) = %d, want 1 (should deduplicate)", len(sub.ExtraFiles))
@@ -195,11 +185,7 @@ func TestSubstituteDuplicateURI(t *testing.T) {
 
 func TestSubstituteInvalidURI(t *testing.T) {
 	src := &fakeMadder{blobs: map[string]string{}}
-	_, err := substituteMadderURIs(
-		context.Background(),
-		"cat madder://blobs/blake2b256-nope",
-		src,
-	)
+	_, _, err := rewriteOne("cat madder://blobs/blake2b256-nope", src)
 	if err == nil {
 		t.Fatal("expected error for missing blob, got nil")
 	}

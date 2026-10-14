@@ -34,8 +34,8 @@ type blobSource interface {
 	OpenBlob(ctx context.Context, digest string) (readEnd *os.File, writer BlobWriter, err error)
 }
 
-// resultSubstitution is the result of rewriting madder://blobs/<digest>
-// references inside a command string. The caller must:
+// resultSubstitution owns the pipes behind a call's rewritten
+// madder://blobs/<digest> references (see blobRewriter). The caller must:
 //
 //  1. Set cmd.ExtraFiles = sub.ExtraFiles before cmd.Start().
 //  2. Call sub.StartWriters() after cmd.Start() (so blob bytes start
@@ -45,7 +45,6 @@ type blobSource interface {
 // The first ExtraFiles entry becomes file descriptor 3 in the child,
 // the second fd 4, and so on (the standard Go os/exec convention).
 type resultSubstitution struct {
-	Command    string
 	ExtraFiles []*os.File
 
 	// writers fill each pipe with the corresponding blob's bytes.
@@ -162,22 +161,6 @@ func (r *blobRewriter) rewrite(ctx context.Context, text string) (string, error)
 	}
 	b.WriteString(text[cursor:])
 	return b.String(), nil
-}
-
-// substituteMadderURIs rewrites the blob references in one command string
-// (see blobRewriter). On error no pipe resources are leaked.
-func substituteMadderURIs(
-	ctx context.Context,
-	command string,
-	src blobSource,
-) (*resultSubstitution, error) {
-	r := newBlobRewriter(src)
-	rewritten, err := r.rewrite(ctx, command)
-	if err != nil {
-		return nil, err
-	}
-	r.sub.Command = rewritten
-	return r.sub, nil
 }
 
 // openBlobBuffered reads the entire blob into memory via the source's

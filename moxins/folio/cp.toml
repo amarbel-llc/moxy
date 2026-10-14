@@ -3,9 +3,10 @@ result-type = "text"
 perms-request = "dynamic"
 permit-async = false
 description = """Copy a file or directory. Source is read-policy-gated; destination is write-policy-gated. \
-Use recursive to copy directories."""
+Use recursive to copy directories. A madder://blobs/<digest> source saves that cached result to the destination."""
 command = "@BIN@/cp"
 arg-order = ["source", "destination", "recursive"]
+substitute-args = ["source"]
 
 [input]
 type = "object"

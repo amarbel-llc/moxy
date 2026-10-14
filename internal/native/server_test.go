@@ -998,6 +998,50 @@ func TestServerToolsCallURISubstitutionInArrayInput(t *testing.T) {
 	}
 }
 
+// Rewriting a listed input leaves the others as sent: a null listed input
+// stays null (no empty slot turned into ""), and an unlisted string keeps
+// its <, & and > instead of coming back JSON-escaped.
+func TestServerToolsCallURISubstitutionLeavesOtherValuesVerbatim(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{{
+			Name:           "show",
+			Command:        "sh",
+			Args:           []string{"-c", `printf '%s|%s|%s' "$0" "$1" "$2"`},
+			ArgOrder:       []string{"a", "files", "note"},
+			SubstituteArgs: []string{"a", "files"},
+			ResultType:     ResultTypeText,
+			Input:          json.RawMessage(`{"type":"object","properties":{"a":{"type":"string"},"files":{"type":"array","items":{"type":"string"}},"note":{"type":"string"}}}`),
+		}},
+	}
+	text := callText(t, cfg, map[string]string{"blake2b256-aaa": "x"},
+		"show", `{"a":"madder://blobs/blake2b256-aaa","files":null,"note":"<a&b> madder://blobs/blake2b256-aaa"}`)
+	if text != `/dev/fd/3||<a&b> madder://blobs/blake2b256-aaa` {
+		t.Errorf("output = %q", text)
+	}
+}
+
+// A listed stdin-param that is a blob URI is replaced by the blob's bytes,
+// a trailing newline copied along with it notwithstanding.
+func TestServerToolsCallStdinURISubstitutionIgnoresSurroundingSpace(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{{
+			Name:           "cat",
+			Command:        "cat",
+			StdinParam:     "data",
+			SubstituteArgs: []string{"data"},
+			ResultType:     ResultTypeText,
+			Input:          json.RawMessage(`{"type":"object","properties":{"data":{"type":"string"}}}`),
+		}},
+	}
+	text := callText(t, cfg, map[string]string{"blake2b256-aaa": "cached\n"},
+		"cat", `{"data":"madder://blobs/blake2b256-aaa\n"}`)
+	if text != "cached\n" {
+		t.Errorf("output = %q, want the blob's bytes", text)
+	}
+}
+
 // A listed stdin-param that is a blob URI is replaced by the blob's bytes.
 func TestServerToolsCallStdinURISubstitutionWhenListed(t *testing.T) {
 	cfg := &NativeConfig{

@@ -116,8 +116,11 @@ with large output) nor over-writes the blob store (as `always` would).
 - `content-type` remains a pure mime label; the resolved mode governs caching
   exactly as the static modes do (a resolved `never`/`threshold` for a small
   output still drops the mime, per #319).
-- `no-truncate` and `substitute-result-uris` act on whatever resource/text
-  block the resolved mode produces; they are unaffected by this mechanism.
+- `no-truncate` acts on whatever resource/text block the resolved mode
+  produces; it is unaffected by this mechanism. (This list also named
+  `substitute-result-uris`, which governed blob-URI rewriting in a tool's
+  *arguments*, not its result; #371 replaced it with the per-input
+  `substitute-args`.)
 - The intent applies only to the `mcp-result` shaping path. The `text`-mode
   path (moxy builds the envelope from raw stdout) is out of scope and
   unreachable, since `dynamic` requires `mcp-result` (Section 1).

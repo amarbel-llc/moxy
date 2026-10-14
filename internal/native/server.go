@@ -326,7 +326,8 @@ func (s *Server) prepareStdin(
 		return stdinContent, remaining, nil
 	}
 
-	digest, ok := parseBlobURI(stdinContent)
+	// Whole-value only, but a trailing newline copied with the URI is fine.
+	digest, ok := parseBlobURI(strings.TrimSpace(stdinContent))
 	if !ok {
 		return stdinContent, remaining, nil
 	}
@@ -374,7 +375,8 @@ func (s *Server) substituteInputBlobURIs(
 	spec *ToolSpec,
 	arguments json.RawMessage,
 ) (json.RawMessage, *resultSubstitution, error) {
-	if len(spec.SubstituteArgs) == 0 || s.madder == nil || len(arguments) == 0 {
+	if len(spec.SubstituteArgs) == 0 || s.madder == nil ||
+		!bytes.Contains(arguments, []byte("madder://blobs/")) {
 		return arguments, &resultSubstitution{}, nil
 	}
 	var argMap map[string]json.RawMessage
@@ -384,6 +386,7 @@ func (s *Server) substituteInputBlobURIs(
 	}
 
 	r := newBlobRewriter(s.madder)
+	changed := false
 	for _, name := range spec.SubstituteArgs {
 		val, ok := argMap[name]
 		if !ok {
@@ -394,9 +397,16 @@ func (s *Server) substituteInputBlobURIs(
 			r.sub.Cleanup()
 			return nil, nil, fmt.Errorf("input %s: %w", name, err)
 		}
-		argMap[name] = rewritten
+		if rewritten != nil {
+			argMap[name] = rewritten
+			changed = true
+		}
 	}
-	out, err := json.Marshal(argMap)
+	if !changed {
+		// A URI outside the listed inputs: everything reaches the tool as sent.
+		return arguments, r.sub, nil
+	}
+	out, err := marshalVerbatim(argMap)
 	if err != nil {
 		r.sub.Cleanup()
 		return nil, nil, fmt.Errorf("re-encoding arguments: %w", err)
@@ -405,33 +415,65 @@ func (s *Server) substituteInputBlobURIs(
 }
 
 // rewriteJSONStrings applies r to a JSON string, or to each string of a
-// JSON array; any other value is returned unchanged.
+// JSON array, and returns the re-encoded value — or nil when nothing in it
+// changed. Other values (null, numbers, objects) are never touched.
 func rewriteJSONStrings(ctx context.Context, r *blobRewriter, val json.RawMessage) (json.RawMessage, error) {
-	var str string
-	if json.Unmarshal(val, &str) == nil {
-		rewritten, err := r.rewrite(ctx, str)
-		if err != nil {
+	trimmed := bytes.TrimSpace(val)
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+	rewriteString := func(raw json.RawMessage) (json.RawMessage, error) {
+		var str string
+		if err := json.Unmarshal(raw, &str); err != nil {
 			return nil, err
-		}
-		return json.Marshal(rewritten)
-	}
-	var items []json.RawMessage
-	if json.Unmarshal(val, &items) != nil {
-		return val, nil
-	}
-	for i, item := range items {
-		if json.Unmarshal(item, &str) != nil {
-			continue
 		}
 		rewritten, err := r.rewrite(ctx, str)
-		if err != nil {
+		if err != nil || rewritten == str {
 			return nil, err
 		}
-		if items[i], err = json.Marshal(rewritten); err != nil {
-			return nil, err
-		}
+		return marshalVerbatim(rewritten)
 	}
-	return json.Marshal(items)
+	switch trimmed[0] {
+	case '"':
+		return rewriteString(trimmed)
+	case '[':
+		var items []json.RawMessage
+		if json.Unmarshal(trimmed, &items) != nil {
+			return nil, nil
+		}
+		changed := false
+		for i, item := range items {
+			if t := bytes.TrimSpace(item); len(t) == 0 || t[0] != '"' {
+				continue
+			}
+			rewritten, err := rewriteString(item)
+			if err != nil {
+				return nil, err
+			}
+			if rewritten != nil {
+				items[i] = rewritten
+				changed = true
+			}
+		}
+		if !changed {
+			return nil, nil
+		}
+		return marshalVerbatim(items)
+	default:
+		return nil, nil
+	}
+}
+
+// marshalVerbatim encodes v as JSON without HTML escaping, so a string's
+// <, > and & reach the tool as written.
+func marshalVerbatim(v any) (json.RawMessage, error) {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(b.Bytes(), "\n"), nil
 }
 
 // runMoxinProcess starts the moxin tool's subprocess, kicks off any

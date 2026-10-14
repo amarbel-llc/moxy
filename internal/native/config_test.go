@@ -1176,6 +1176,19 @@ type = "string"
 		}
 	})
 
+	t.Run("a non-string input is an error", func(t *testing.T) {
+		_, err := parse(t, `
+schema = 3
+command = "echo"
+substitute-args = ["count"]
+[input.properties.count]
+type = "integer"
+`)
+		if err == nil || !strings.Contains(err.Error(), "only string inputs and arrays of strings") {
+			t.Fatalf("err = %v, want a type error", err)
+		}
+	})
+
 	t.Run("retired substitute-result-uris = false only warns", func(t *testing.T) {
 		result, err := parse(t, `
 schema = 3

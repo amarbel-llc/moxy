@@ -428,14 +428,21 @@ func resolveSubstituteArgs(raw rawToolFile) (args []string, warning string, err 
 		warning = "substitute-result-uris is retired (#371): no input is substituted unless listed in substitute-args; drop the key"
 	}
 	for _, name := range raw.SubstituteArgs {
-		isInput := name == raw.StdinParam
+		if name == raw.StdinParam {
+			continue
+		}
+		var prop PropertySchema
+		isInput := false
 		if raw.Input != nil {
-			if _, ok := raw.Input.Properties[name]; ok {
-				isInput = true
-			}
+			prop, isInput = raw.Input.Properties[name]
 		}
 		if !isInput {
 			return nil, "", fmt.Errorf("substitute-args names %q, which is not one of the tool's inputs", name)
+		}
+		// Only strings, and strings in an array, are rewritten; listing any
+		// other input would silently do nothing.
+		if prop.Type != "string" && !(prop.Type == "array" && (prop.Items == nil || prop.Items.Type == "string")) {
+			return nil, "", fmt.Errorf("substitute-args names %q, a %s input; only string inputs and arrays of strings can carry blob URIs", name, prop.Type)
 		}
 	}
 	return raw.SubstituteArgs, warning, nil

@@ -83,7 +83,7 @@ Schema 2 introduced
 .Sy result-type ;
 schema 3 introduced
 .Sy content-type , cache-results , no-truncate ,
-.Sy substitute-args , permit-async ,
+.Sy permit-async ,
 the
 .Sy annotations
 and
@@ -193,6 +193,8 @@ pipes in a string input or each string of an array input, or resolved to
 the blob's bytes for the
 .Sy stdin-param
 (schema 3 key).
+Only string inputs and arrays of strings can be listed.
+A stdin value is matched whole, ignoring surrounding whitespace.
 Every other input reaches the command verbatim, so list only inputs the
 tool
 .Em reads
