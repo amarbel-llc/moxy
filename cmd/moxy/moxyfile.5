@@ -625,24 +625,35 @@ names each refused tool with the level the child holds it at and the parent's,
 always none:
 .Dl allow-tools: child holds smith.issue-close at use, parent at none
 .Pp
-Pass bounds what is served, not what a holder can become.
+Pass bounds what is served, not what a holder can become \(em except by its own
+hand.
 A reload \(em the
 .Cm restart
-meta tool \(em is judged only against the parent reference pinned at startup
+meta tool \(em is judged against the parent reference pinned at startup
 .Pq Ev MOXY_PARENT_MOXYFILE ,
-and that reference permits a child to hold at use what the parent passes.
-So a session whose reference holds a tool at pass, and that can rewrite its own
-moxyfile and call
-.Cm restart ,
-can move the tool into its
+and that reference permits a child to hold at use what the parent passes: the
+one deliberate upward step, a child conferring use on
+.Em its
+child.
+A session cannot use that step to promote itself: a reload is also judged
+against this process's own
 .Va allow-tools
-and call it: such a holder is bounded only by its reference, under which pass
-may become use.
-Where that matters, keep
+as served at startup, pinned the same way the parent reference is, and a tool
+the parent reference holds at pass may reach
+.Va allow-tools
+on a reload only if it was already there when the process started
+.Pq moxy#461 .
+So a session whose reference holds a tool at pass cannot move the tool into
+its
+.Va allow-tools
+and call
 .Cm restart
-out of
-.Va allow-tools ,
-or make the moxyfile unwritable by the session.
+to make it callable; only starting the process with the tool already at use
+does \(em the operator's call, not a reload.
+Widening anything else \(em any tool not held at pass by the reference \(em
+through a moxyfile edit and
+.Cm restart
+still works exactly as before.
 .It Va disable-servers
 Not compared on its own; it decides which servers run, above.
 .It Va builtin-native

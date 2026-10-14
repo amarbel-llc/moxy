@@ -451,6 +451,67 @@ function restart_judges_against_the_parent_reference_read_at_startup { # @test
     fail "widened tool appeared: $list_result"
 }
 
+function restart_refuses_promoting_a_pass_held_tool_to_use { # @test
+  # moxy#461: srv is held at pass by both the parent reference and this
+  # session's own startup moxyfile — conferrable to a child, never callable
+  # by this session itself. Moving it into allow-tools and calling `restart`
+  # must not let the session promote itself to use what it only held at
+  # pass; that would otherwise pass the ordinary allow-tools/pass-tools
+  # relation (a pass holder may let a *child* use it) even though nothing
+  # here is spawning a child.
+  cat >"$HOME/parent/moxyfile" <<EOF
+builtin-native = false
+disable-moxins = ["chix"]
+allow-tools = ["restart"]
+pass-tools = ["srv"]
+
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+  cp "$HOME/parent/moxyfile" "$HOME/child/moxyfile"
+  cat >"$HOME/widened.toml" <<EOF
+builtin-native = false
+disable-moxins = ["chix"]
+allow-tools = ["restart", "srv"]
+
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/tool-server.bash"]
+EOF
+  export MOXY_PARENT_MOXYFILE="$HOME/parent/moxyfile"
+
+  local stderr_file="$BATS_TEST_TMPDIR/moxy-stderr"
+  restart_after_widening "$stderr_file"
+  assert_success
+
+  local restart_result list_result
+  restart_result=$(sed -n 1p <<<"$output")
+  list_result=$(sed -n 2p <<<"$output")
+
+  echo "$restart_result" | jq -e '.isError == true' || fail "restart did not fail: $restart_result"
+  echo "$restart_result" | jq -e '.content[0].text | test("allow-tools: held by the parent at pass")' ||
+    fail "restart result lacks the pass-not-promoted violation: $restart_result"
+  echo "$list_result" | jq -e '[.tools[] | select(.name | startswith("srv."))] | length == 0' ||
+    fail "pass-held tool became callable after the reload: $list_result"
+}
+
+function restart_still_allows_an_ordinary_reload_with_no_pass_tools_involved { # @test
+  # Confirms the moxy#461 fix is additive: a reload that touches nothing
+  # held at pass still narrows and succeeds exactly as before.
+  write_parent
+  write_narrowing_child
+  cp "$HOME/child/moxyfile" "$HOME/widened.toml"
+  export MOXY_PARENT_MOXYFILE="$HOME/parent/moxyfile"
+
+  restart_after_widening "$BATS_TEST_TMPDIR/moxy-stderr"
+  assert_success
+
+  local restart_result
+  restart_result=$(sed -n 1p <<<"$output")
+  echo "$restart_result" | jq -e '.isError != true' || fail "unrelated reload was refused: $restart_result"
+}
+
 function serve_refuses_an_empty_parent_reference { # @test
   # An empty file would parse as a parent that constrains almost nothing; it
   # is far likelier a render that failed.

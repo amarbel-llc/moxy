@@ -44,7 +44,13 @@ func Check(parent, child config.Config) []Violation {
 	vs = append(vs, checkServers(parent, child)...)
 	vs = append(vs, checkCredentials(parent, child)...)
 	vs = append(vs, checkResolvedMoxins(parent, child)...)
+	sortViolations(vs)
+	return vs
+}
 
+// sortViolations sorts in place by key, then subject, then message — the
+// order both Check and CheckReload report in.
+func sortViolations(vs []Violation) {
 	sort.SliceStable(vs, func(i, j int) bool {
 		a, b := vs[i], vs[j]
 		if a.Key != b.Key {
@@ -55,7 +61,6 @@ func Check(parent, child config.Config) []Violation {
 		}
 		return a.Message < b.Message
 	})
-	return vs
 }
 
 // checkBuiltinNative: the cascade lets the closest file re-enable the system
@@ -125,6 +130,68 @@ func checkAllowTools(parent, child config.Config) []Violation {
 				})
 			}
 		}
+	}
+	return vs
+}
+
+// CheckReload is Check extended with moxy#461's bound on pass: a tool the
+// parent reference holds at pass may reach child's allow-tools (use) only if
+// it was already there when this serving process started — the one
+// deliberate upward step Check permits (a pass holder's own parent
+// pre-approving conferral) is not a license for the holder to promote itself
+// via a reload.
+//
+// startupPinned is false for the very first check a process ever makes —
+// genuine startup, with no prior baseline to compare against; that first
+// check's own result becomes the baseline every later one (a `restart`
+// reload, full or single-moxin) is judged against, and startup is that
+// baseline's allow-tools set. A nil startup (the process started with
+// allow-tools itself unset) covers every tool, per AllowToolSet's own
+// nil-means-unrestricted rule — not "covers none".
+func CheckReload(
+	parent, child config.Config,
+	startupPinned bool,
+	startup config.AllowToolSet,
+) []Violation {
+	vs := Check(parent, child)
+	vs = append(vs, checkPassNotPromoted(parent, child, startupPinned, startup)...)
+	sortViolations(vs)
+	return vs
+}
+
+func checkPassNotPromoted(
+	parent, child config.Config,
+	startupPinned bool,
+	startup config.AllowToolSet,
+) []Violation {
+	if !startupPinned || startup == nil {
+		return nil
+	}
+	parentAllow := stringSet(parent.AllowTools)
+	parentPass := stringSet(parent.PassTools)
+	var vs []Violation
+	// Iterating child's own allow-tools (not parent's pass-tools) is what
+	// correctly handles a bare pass name promoted via a dotted sub-tool: a
+	// parent passing "smith" whole, with the child's reload holding only
+	// "smith.issue-close" at use, must still be caught (entry="smith.issue-close"
+	// is CoveredBy the bare "smith" in parentPass) — the reverse direction
+	// would ask whether CoveredBy("smith", {"smith.issue-close"}), which is
+	// false, and miss it entirely.
+	for entry := range stringSet(child.AllowTools) {
+		if config.CoveredBy(entry, parentAllow) {
+			continue // directly granted at use by the parent; not a pass promotion
+		}
+		if !config.CoveredBy(entry, parentPass) {
+			continue // not something the parent passes either
+		}
+		if config.CoveredBy(entry, startup) {
+			continue // already at use when the process started
+		}
+		vs = append(vs, Violation{
+			Key:     "allow-tools",
+			Subject: entry,
+			Message: "held by the parent at pass; not at use when this process started, so a reload cannot raise it (moxy#461)",
+		})
 	}
 	return vs
 }

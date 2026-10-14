@@ -45,10 +45,18 @@ When
 .Ev MOXY_PARENT_MOXYFILE
 is set
 .Pq see Xr moxy 1 ENVIRONMENT ,
-both forms judge the re-read moxyfile against the parent reference first.
-A moxyfile that no longer narrows it is refused: the tool returns an error
-naming each violation, nothing is closed or re-spawned, and the running
-configuration stays as it was.
+both forms judge the re-read moxyfile against the parent reference first, and
+also against this process's own
+.Va allow-tools
+as served at startup: a tool the reference holds at
+.Va pass-tools
+may reach
+.Va allow-tools
+on a reload only if it was already there when the process started
+.Pq moxy#461; see Xr moxyfile 5 NARROWING .
+A moxyfile that no longer narrows the reference, or that would promote such a
+tool, is refused: the tool returns an error naming each violation, nothing is
+closed or re-spawned, and the running configuration stays as it was.
 .Pp
 After every successful restart,
 .Nm moxy

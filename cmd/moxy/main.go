@@ -996,8 +996,11 @@ func (r *moxinReloaderImpl) ReloadMoxin(name string) (*native.NativeConfig, erro
 	}
 
 	// Same gate as a full reload: the re-read moxyfile and the moxins found
-	// just now must still narrow MOXY_PARENT_MOXYFILE.
-	if err := serving.refuseUnlessNarrows(native.MoxinSources(configs)); err != nil {
+	// just now must still narrow MOXY_PARENT_MOXYFILE. Also eligible to pin
+	// the moxy#461 startup allow-tools baseline, same as bootstrap() — in
+	// practice bootstrap's own first call always pins first, since a
+	// single-moxin reload can't happen before the proxy it reloads exists.
+	if err := serving.refuseUnlessNarrows(native.MoxinSources(configs), true); err != nil {
 		logReloadRefused(err)
 		return nil, err
 	}

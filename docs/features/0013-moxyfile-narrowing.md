@@ -102,16 +102,30 @@ pass-tools  = ["smith.issue-create"]
   name over a dotted allowed pair is fine: `allow-tools = ["grit.status"]`,
   `pass-tools = ["grit"]` uses one tool and may confer the rest.
 
-**Pass bounds the served surface, not what a holder can become.** A reload
-(`restart`) is judged only against the parent reference pinned at startup,
-and that reference permits a child to hold at use what the parent passes. A
-session whose `MOXY_PARENT_MOXYFILE` holds X at pass, and that can rewrite its
-own moxyfile and call `restart`, can move X into `allow-tools` and call it: it
-is bounded only by its reference, under which pass may become use. Where that
-matters, keep `restart` out of `allow-tools`, or the moxyfile unwritable by
-the session. Judging reloads against the startup config instead would also
-block deliberate operator widening; that is a policy question tracked
-separately, and the reload code is unchanged here.
+**Pass bounds the served surface, not what a holder can become — except by its
+own hand (moxy#461).** A reload (`restart`) is judged against the parent
+reference pinned at startup, and that reference permits a child to hold at
+use what the parent passes: the one deliberate upward step, a holder
+conferring use on *its own* child. Left there, a session whose
+`MOXY_PARENT_MOXYFILE` holds X at pass, and that can rewrite its own
+moxyfile, could move X into `allow-tools` and call `restart` to make X
+callable by itself — not a conferral, the holder promoting itself, bounded
+only by its reference.
+
+A reload is therefore also judged against this process's own `allow-tools` as
+served at startup — pinned the same way the parent reference is, the first
+time a judging check succeeds for the process, in `cmd/moxy/narrowing.go`'s
+`startupAllowTools` — and a tool the parent reference holds at pass may reach
+`allow-tools` on a reload only if it was already there at startup. So pass can
+reach use for *this* session only through the operator's own choice (starting
+the process with the tool already at use), never through a reload the session
+triggers itself. Widening anything else — any tool not held at pass by the
+reference — through a moxyfile edit and `restart` is unaffected; that is the
+one deliberate upward step this still permits, same as before `pass-tools`
+existed for use-level tools. The comparison lives in
+`internal/narrowing.CheckReload`, layered on top of `Check` rather than
+folded into it, since `Check` also serves `moxy narrows` (two arbitrary
+references, no "process startup" to pin).
 
 Because a parent with `pass-tools` always has an allowlist, the existing rule
 "a child may omit `allow-tools` only when P sets none" means such a parent's

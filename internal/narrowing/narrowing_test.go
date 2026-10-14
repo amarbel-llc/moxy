@@ -396,6 +396,110 @@ command = ["smith", "mcp"]
 	}
 }
 
+func TestCheckReload(t *testing.T) {
+	// A parent reference that passes smith (conferrable, never callable by
+	// the holder) and uses grit (callable as normal).
+	const parent = "allow-tools = [\"grit\"]\npass-tools = [\"smith\"]\n"
+	const childHoldsSmithAtUse = "allow-tools = [\"grit\", \"smith\"]\n"
+	const childHoldsSmithAtPass = "allow-tools = [\"grit\"]\npass-tools = [\"smith\"]\n"
+
+	cases := []struct {
+		name          string
+		child         string
+		startupPinned bool
+		startup       config.AllowToolSet
+		want          []string
+	}{
+		{
+			name:          "genuine startup: nothing pinned yet, Check's own verdict stands",
+			child:         childHoldsSmithAtUse,
+			startupPinned: false,
+		},
+		{
+			name:          "reload promoting pass to use is refused once a baseline is pinned",
+			child:         childHoldsSmithAtUse,
+			startupPinned: true,
+			startup:       config.AllowToolSet{"grit": true},
+			want: []string{
+				"allow-tools: held by the parent at pass; not at use when this process started, so a reload cannot raise it (moxy#461)",
+			},
+		},
+		{
+			name:          "reload keeping smith at use is fine when it was already there at startup",
+			child:         childHoldsSmithAtUse,
+			startupPinned: true,
+			startup:       config.AllowToolSet{"grit": true, "smith": true},
+		},
+		{
+			name:          "reload that leaves smith at pass is unaffected",
+			child:         childHoldsSmithAtPass,
+			startupPinned: true,
+			startup:       config.AllowToolSet{"grit": true},
+		},
+		{
+			name:          "a nil startup (unrestricted at startup) covers every tool",
+			child:         childHoldsSmithAtUse,
+			startupPinned: true,
+			startup:       nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := violationLines(CheckReload(
+				mustParse(t, parent), mustParse(t, tc.child), tc.startupPinned, tc.startup,
+			))
+			if len(got) == 0 && len(tc.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("violations:\n got %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("no pass-tools at all is a no-op regardless of pinning", func(t *testing.T) {
+		parent := mustParse(t, "allow-tools = [\"grit\", \"smith\"]\n")
+		child := mustParse(t, "allow-tools = [\"grit\", \"smith\"]\n")
+		got := CheckReload(parent, child, true, config.AllowToolSet{"grit": true})
+		if len(got) != 0 {
+			t.Errorf("want no violations, got %q", violationLines(got))
+		}
+	})
+
+	// A bare pass name (the whole server) promoted via a dotted sub-tool must
+	// still be caught: iterating parent's pass-tools and asking whether the
+	// bare name is covered by child's allow-tools would miss this, since
+	// CoveredBy("smith", {"smith.issue-close"}) is false (it only widens a
+	// *query* entry that is itself dotted against a bare name in the set, not
+	// the reverse).
+	t.Run("a bare pass name promoted via a dotted sub-tool is refused", func(t *testing.T) {
+		parent := mustParse(t, "allow-tools = [\"restart\"]\npass-tools = [\"smith\"]\n")
+		child := mustParse(t, "allow-tools = [\"restart\", \"smith.issue-close\"]\n")
+		got := violationLines(CheckReload(parent, child, true, config.AllowToolSet{"restart": true}))
+		want := []string{
+			"allow-tools: held by the parent at pass; not at use when this process started, so a reload cannot raise it (moxy#461)",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("violations:\n got %q\nwant %q", got, want)
+		}
+	})
+
+	// FDR 0013: "a bare pass name over a dotted allowed pair is fine" — the
+	// parent may directly allow one tool of a server it otherwise only
+	// passes. That tool is granted at use by the parent itself, not promoted
+	// by this session, so it must never be flagged regardless of the
+	// startup baseline.
+	t.Run("a tool the parent directly allows is never flagged even though a bare pass also covers it", func(t *testing.T) {
+		parent := mustParse(t, "allow-tools = [\"grit.status\"]\npass-tools = [\"grit\"]\n")
+		child := mustParse(t, "allow-tools = [\"grit.status\"]\n")
+		got := CheckReload(parent, child, true, config.AllowToolSet{})
+		if len(got) != 0 {
+			t.Errorf("want no violations, got %q", violationLines(got))
+		}
+	})
+}
+
 func TestFlakeRefIsWorkingDirRelative(t *testing.T) {
 	for ref, want := range map[string]bool{
 		".":                 true,

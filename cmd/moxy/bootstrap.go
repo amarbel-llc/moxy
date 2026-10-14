@@ -72,7 +72,10 @@ func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, e
 	// moxins about to be served: a moxyfile or MOXIN_PATH that widens
 	// MOXY_PARENT_MOXYFILE fails here, before any child exists. Discovery
 	// only reads moxin TOML, so running it first starts nothing.
-	if err := serving.refuseUnlessNarrows(native.MoxinSources(nativeConfigs)); err != nil {
+	// The one call that decides what is actually served (genuine startup's
+	// first run, and every reload after): eligible to pin the moxy#461
+	// startup allow-tools baseline if nothing has pinned one yet.
+	if err := serving.refuseUnlessNarrows(native.MoxinSources(nativeConfigs), true); err != nil {
 		return nil, err
 	}
 	cfg := serving.expanded()

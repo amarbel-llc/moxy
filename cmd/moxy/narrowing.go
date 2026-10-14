@@ -85,6 +85,40 @@ type parentReference struct {
 // very agent being confined — could widen it and then call `restart`.
 var pinnedParentReference = sync.OnceValue(readParentReference)
 
+// startupAllowTools pins, once per process, the allow-tools set this process
+// was actually serving right after the first successful judging that decides
+// what is served — bootstrap()'s own first call, genuine startup, before any
+// `restart` has run (moxy#461); never loadJudgedConfigAtStartup's separate,
+// earlier preflight read, which exists only to unlock credential setup and
+// is not what ends up served (see refuseUnlessNarrows's pin parameter). A
+// later reload's refuseUnlessNarrows compares against the pinned set via
+// narrowing.CheckReload: a tool the parent reference holds at pass may reach
+// use only if it was already there at startup, so the operator's own choice
+// is what a reload can never exceed for such a tool. A plain sync.OnceValue
+// cannot express this: its zero-ish "not yet pinned" state would be
+// indistinguishable from the perfectly meaningful nil AllowToolSet
+// (unrestricted at startup), so pinned is tracked explicitly instead.
+var startupAllowTools struct {
+	mu     sync.Mutex
+	pinned bool
+	set    config.AllowToolSet
+}
+
+func pinStartupAllowTools(set config.AllowToolSet) {
+	startupAllowTools.mu.Lock()
+	defer startupAllowTools.mu.Unlock()
+	if startupAllowTools.pinned {
+		return
+	}
+	startupAllowTools.pinned, startupAllowTools.set = true, set
+}
+
+func readStartupAllowTools() (pinned bool, set config.AllowToolSet) {
+	startupAllowTools.mu.Lock()
+	defer startupAllowTools.mu.Unlock()
+	return startupAllowTools.pinned, startupAllowTools.set
+}
+
 func readParentReference() parentReference {
 	path := os.Getenv(parentMoxyfileEnv)
 	if path == "" {
@@ -136,14 +170,28 @@ func (sc servingConfig) judgesMoxins() bool {
 // whatever resolved-moxins record the moxyfile itself carries, which is never
 // trusted. A nil moxins skips the moxin rule and is only right when
 // judgesMoxins is false.
-func (sc servingConfig) refuseUnlessNarrows(moxins map[string]string) error {
+//
+// This is the one choke point every path that turns a moxyfile into running
+// tools shares (see servingConfig's own doc comment), so it is also the one
+// place that checks the startup allow-tools snapshot (moxy#461). pin says
+// whether THIS call, if it succeeds, is the moment to record that snapshot
+// (the first time it hasn't been yet) — true from bootstrap() and
+// moxinReloaderImpl.ReloadMoxin, the calls that decide what is actually
+// served; false from loadJudgedConfigAtStartup, a preflight read for
+// credential setup alone, so its own earlier, separate read of the same
+// moxyfile never becomes the permanent baseline in bootstrap's place.
+func (sc servingConfig) refuseUnlessNarrows(moxins map[string]string, pin bool) error {
 	if sc.parentPath == "" {
 		return nil
 	}
 	judged := sc.literal
 	judged.ResolvedMoxins = moxins
-	if violations := narrowing.Check(sc.parent, judged); len(violations) > 0 {
+	pinned, startup := readStartupAllowTools()
+	if violations := narrowing.CheckReload(sc.parent, judged, pinned, startup); len(violations) > 0 {
 		return &wideningError{parentPath: sc.parentPath, violations: violations}
+	}
+	if pin && !pinned {
+		pinStartupAllowTools(judged.BuildAllowToolSet())
 	}
 	return nil
 }
@@ -172,7 +220,7 @@ func loadJudgedConfigAtStartup() (config.Config, error) {
 			return config.Config{}, fmt.Errorf("discovering moxins: %w", err)
 		}
 	}
-	if err := sc.refuseUnlessNarrows(moxins); err != nil {
+	if err := sc.refuseUnlessNarrows(moxins, false); err != nil {
 		return config.Config{}, err
 	}
 	return sc.expanded(), nil
