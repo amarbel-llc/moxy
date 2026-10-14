@@ -5,6 +5,8 @@
 #   doc-create.json        the new Doc's metadata (drive files create, no upload)
 #   images/<n>             each uploaded image (answered as stub-image-<n>)
 #   batch-update-<n>.json  the body of the n-th batchUpdate
+#   comments-params.json   the params of a comments list
+#   reply-params.json, reply.json   the params and body of a replies create
 #
 # `documents get` answers with $GWS_STUB_DIR/document.json when a test wrote
 # one, else a one-tab Doc (t.0) with an empty body and a fresh footnote fn-1.
@@ -28,12 +30,13 @@ setup_gws_stub() {
   cat >"$GWS_BIN" <<'EOF'
 set -euo pipefail
 { printf '%s\t' "$@"; printf '\n'; } >>"$GWS_STUB_LOG"
-upload="" json=""
+upload="" json="" params=""
 args=("$@")
 for ((i = 0; i < $#; i++)); do
   case "${args[i]}" in
   --upload) upload="${args[i + 1]}" ;;
   --json) json="${args[i + 1]}" ;;
+  --params) params="${args[i + 1]}" ;;
   esac
 done
 refuse_image() { # index
@@ -90,6 +93,15 @@ case "$1 $2 $3" in
   "$GWS_STUB_JQ" -c '{replies: [foreach .requests[] as $r (0;
       if $r.createFootnote then . + 1 else . end;
       if $r.createFootnote then {createFootnote: {footnoteId: "fn-\(.)"}} else {} end)]}' <<<"$json"
+  ;;
+"drive comments list")
+  printf '%s' "$params" >"$GWS_STUB_DIR/comments-params.json"
+  echo '{"comments":[{"id":"c1","content":"looks good"}]}'
+  ;;
+"drive replies create")
+  printf '%s' "$params" >"$GWS_STUB_DIR/reply-params.json"
+  printf '%s' "$json" >"$GWS_STUB_DIR/reply.json"
+  echo '{"id":"r1"}'
   ;;
 "drive files delete")
   if [ -n "${GWS_STUB_FAIL_DELETE:-}" ]; then

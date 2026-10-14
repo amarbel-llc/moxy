@@ -1,23 +1,26 @@
-import { $ } from "zx";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
+import { PiersError, gwsBin, gwsJson, printResult, runTool } from "./gws";
 
 const [documentId, requests, revisionId] = process.argv.slice(2);
 
-const params = JSON.stringify({ documentId });
-const json = JSON.stringify({
-  requests: JSON.parse(requests),
-  writeControl: { requiredRevisionId: revisionId },
+await runTool(async (workDir) => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(requests);
+  } catch (error) {
+    throw new PiersError(`requests is not JSON: ${(error as Error).message}`);
+  }
+  printResult(
+    await gwsJson(gwsBin, workDir, [
+      "docs",
+      "documents",
+      "batchUpdate",
+      "--params",
+      JSON.stringify({ documentId }),
+      "--json",
+      JSON.stringify({
+        requests: parsed,
+        writeControl: { requiredRevisionId: revisionId },
+      }),
+    ]),
+  );
 });
-
-const result =
-  await $`gws docs documents batchUpdate --params ${params} --json ${json}`;
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      { type: "text", text: result.stdout, mimeType: "application/json" },
-    ],
-  }),
-);

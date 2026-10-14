@@ -1,7 +1,7 @@
 schema = 3
 substitute-result-uris = false
 perms-request = "always-allow"
-description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate. Preserves anchored comments on unchanged text. Use replaceAllText for find-and-replace, or insertText/deleteContentRange for index-based edits."
+description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate: find-and-replace, inserting or deleting text at an index, paragraph styles (headings, alignment, spacing) and text styles (bold, italic, font, colour, links). Several requests go in one call and apply atomically, in order. Preserves anchored comments on text it leaves alone. Read the document with get first for indices and its revisionId. To rewrite a whole tab from markdown use update instead."
 command = "@BIN@/batch-update"
 arg-order = ["document_id", "requests", "revision_id"]
 
@@ -18,11 +18,20 @@ description = "The Google Docs document ID"
 
 [input.properties.requests]
 type = "string"
-description = """JSON array of request objects. Common request types:
-- replaceAllText: [{"replaceAllText": {"containsText": {"text": "old", "matchCase": true}, "replaceText": "new"}}]
-- insertText: [{"insertText": {"location": {"index": 10}, "text": "hello"}}]
-- deleteContentRange: [{"deleteContentRange": {"range": {"startIndex": 10, "endIndex": 20}}}]
-Use get first to find text content and indices."""
+description = """JSON array of Docs API request objects, applied in order. Indexes are zero-based UTF-16 positions in the target segment, as shown by get (the body starts at 1); a range's endIndex is exclusive. A location or range may name a tab with "tabId" (default: the first tab). Requests that change length shift every later index: when several edit by index, list them from the end of the document backwards.
+- Find and replace (case-sensitive unless matchCase is false; tabsCriteria limits it to tabs; keeps comments unless their whole anchor text is replaced):
+  {"replaceAllText": {"containsText": {"text": "old", "matchCase": true}, "replaceText": "new", "tabsCriteria": {"tabIds": ["t.abc"]}}}
+- Insert text at an index (does not disturb comments):
+  {"insertText": {"location": {"index": 10, "tabId": "t.abc"}, "text": "hello"}}
+- Delete a range (cannot delete the body's last newline or cut through a table or section break):
+  {"deleteContentRange": {"range": {"startIndex": 10, "endIndex": 20}}}
+- Paragraph style on the paragraphs a range touches; `fields` names the properties set, others are kept:
+  {"updateParagraphStyle": {"range": {"startIndex": 1, "endIndex": 12}, "paragraphStyle": {"namedStyleType": "HEADING_1"}, "fields": "namedStyleType"}}
+  paragraphStyle examples: {"namedStyleType": "NORMAL_TEXT"}, {"alignment": "CENTER"}, {"spaceAbove": {"magnitude": 10, "unit": "PT"}, "spaceBelow": {"magnitude": 10, "unit": "PT"}}. Named styles: TITLE, SUBTITLE, HEADING_1 … HEADING_6, NORMAL_TEXT.
+- Text style on a range; `fields` names the properties set, others are kept:
+  {"updateTextStyle": {"range": {"startIndex": 5, "endIndex": 9}, "textStyle": {"bold": true}, "fields": "bold"}}
+  textStyle examples: {"italic": true, "foregroundColor": {"color": {"rgbColor": {"red": 1.0}}}}, {"fontSize": {"magnitude": 14, "unit": "PT"}}, {"link": {"url": "https://example.com"}}.
+Any other batchUpdate request type (createParagraphBullets, insertTable, …) is passed through as given."""
 
 [input.properties.revision_id]
 type = "string"

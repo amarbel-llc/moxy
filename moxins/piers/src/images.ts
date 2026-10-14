@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process";
 import { readFile, writeFile } from "fs/promises";
 import { dirname, extname, join } from "path";
-import { $ } from "zx";
+import { PiersError, gwsJson } from "./gws";
 
 // Images that the Docs API's insertInlineImage places: local files and
 // PlantUML diagrams, rendered and sized here, then hosted on Drive for the
@@ -38,9 +38,6 @@ const supportedExtensions = [
   ".svg",
   ...plantumlExtensions,
 ];
-
-// Every failure piers reports as a one-line message rather than a stack.
-export class PiersError extends Error {}
 
 type PixelSize = { width: number; height: number };
 
@@ -239,36 +236,6 @@ export async function prepareLocalImage(
   } catch (error) {
     if (!(error instanceof PiersError)) throw error;
     throw new PiersError(`image ${label}: ${error.message}`);
-  }
-}
-
-// Runs gws from `cwd` and parses its JSON reply. gws reports API errors on
-// stdout, so that is what a failure carries. gws saves a non-JSON reply (a
-// Drive delete's empty body) as a file in its cwd, so `cwd` must be scratch.
-export async function gwsJson(
-  gws: string,
-  cwd: string,
-  args: string[],
-): Promise<any> {
-  const result = await $({
-    cwd,
-    nothrow: true,
-    verbose: false,
-    stdio: ["pipe", "pipe", "ignore"],
-  })`${gws} ${args}`;
-  if (result.exitCode !== 0) {
-    throw new PiersError(
-      `gws ${args.slice(0, 3).join(" ")} failed: ${result.stdout.trim().replace(/\s+/g, " ")}`,
-    );
-  }
-  const stdout = result.stdout.trim();
-  if (!stdout) return {};
-  try {
-    return JSON.parse(stdout);
-  } catch {
-    throw new PiersError(
-      `gws ${args.slice(0, 3).join(" ")} replied with something other than JSON: ${stdout.slice(0, 200)}`,
-    );
   }
 }
 

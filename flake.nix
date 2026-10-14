@@ -909,18 +909,9 @@
               "create" = "moxins/piers/src/create.ts";
               "update" = "moxins/piers/src/update.ts";
               "batch-update" = "moxins/piers/src/batch-update.ts";
-              "replace-text" = "moxins/piers/src/replace-text.ts";
-              "insert-text" = "moxins/piers/src/insert-text.ts";
-              "delete-content-range" = "moxins/piers/src/delete-content-range.ts";
-              "update-text-style" = "moxins/piers/src/update-text-style.ts";
-              "update-paragraph-style" = "moxins/piers/src/update-paragraph-style.ts";
-              "comments-list" = "moxins/piers/src/comments-list.ts";
-              "comment-reply" = "moxins/piers/src/comment-reply.ts";
-              "comment-resolve" = "moxins/piers/src/comment-resolve.ts";
+              "comment" = "moxins/piers/src/comment.ts";
               "outline" = "moxins/piers/src/outline.ts";
-              "tab-create" = "moxins/piers/src/tab-create.ts";
-              "tab-delete" = "moxins/piers/src/tab-delete.ts";
-              "tab-update" = "moxins/piers/src/tab-update.ts";
+              "tab" = "moxins/piers/src/tab.ts";
             }
             {
               extraWrapArgs = [

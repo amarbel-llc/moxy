@@ -1,0 +1,43 @@
+schema = 3
+substitute-result-uris = false
+perms-request = "always-allow"
+description = "Manage the tabs of a Google Doc. Subcommands: create (a new tab, optionally titled, nested under parent_tab_id, at index), update (rename, move or set the icon of tab_id), delete (remove tab_id and its content). Returns the Docs API reply; for create it carries the new tab's properties, including its tabId. To fill a tab with markdown use piers.update with tab_id."
+command = "@BIN@/tab"
+arg-order = ["subcommand", "document_id", "tab_id", "title", "parent_tab_id", "index", "icon_emoji"]
+
+[annotations]
+destructive-hint = true
+open-world-hint = true
+
+[input]
+type = "object"
+required = ["subcommand", "document_id"]
+
+[input.properties.subcommand]
+type = "string"
+enum = ["create", "update", "delete"]
+description = "create: add a tab. update: change tab_id's title, index or icon_emoji (only those given). delete: remove tab_id."
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID"
+
+[input.properties.tab_id]
+type = "string"
+description = "The tab to update or delete (from outline or get). Required by update and delete."
+
+[input.properties.title]
+type = "string"
+description = "create / update: the tab's title (create defaults to untitled)"
+
+[input.properties.parent_tab_id]
+type = "string"
+description = "create only: the tab to nest the new tab under (omit for a top-level tab)"
+
+[input.properties.index]
+type = "string"
+description = "create / update: zero-based position among its sibling tabs (create appends when omitted)"
+
+[input.properties.icon_emoji]
+type = "string"
+description = "update only: an emoji to show as the tab's icon"

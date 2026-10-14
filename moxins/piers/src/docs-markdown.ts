@@ -1,11 +1,10 @@
 import { spawnSync } from "child_process";
 import { readFile } from "fs/promises";
 import { dirname, isAbsolute, resolve } from "path";
+import { PiersError, gwsBin, gwsJson } from "./gws";
 import {
   ImageHost,
-  PiersError,
   type PreparedImage,
-  gwsJson,
   prepareLocalImage,
   renderPlantuml,
 } from "./images";
@@ -305,123 +304,106 @@ async function writeFootnotes(
 }
 
 // Creates a Doc from markdown, or rewrites one tab of an existing Doc
-// (default: its first) leaving every other tab alone. Prints the tool
-// result; any PiersError becomes a one-line stderr message and exit 1.
+// (default: its first) leaving every other tab alone. Returns the tool
+// result: the new file's metadata, or the document and tab written, plus any
+// warnings.
 export async function writeMarkdown(
   workDir: string,
   source: MarkdownSource,
   target: WriteTarget,
-): Promise<void> {
-  // GWS_BIN is the test seam: the wrapper pins PATH, so a stub cannot shadow
-  // gws there.
-  const gws = process.env.GWS_BIN ?? "gws";
+): Promise<Record<string, unknown>> {
+  const gws = gwsBin;
   const warnings: string[] = [];
-  try {
-    const markdown = await readMarkdownSource(source);
-    const imageDir =
-      source.baseDir ||
-      (source.contentPath ? dirname(resolve(source.contentPath)) : undefined);
-    const rendered = renderMarkdown(markdown);
-    const body = await prepareImages(rendered.body, imageDir, warnings);
-    const footnotes: Plan[] = [];
-    for (const plan of rendered.footnotes)
-      footnotes.push(await prepareImages(plan, imageDir, warnings));
+  const markdown = await readMarkdownSource(source);
+  const imageDir =
+    source.baseDir ||
+    (source.contentPath ? dirname(resolve(source.contentPath)) : undefined);
+  const rendered = renderMarkdown(markdown);
+  const body = await prepareImages(rendered.body, imageDir, warnings);
+  const footnotes: Plan[] = [];
+  for (const plan of rendered.footnotes)
+    footnotes.push(await prepareImages(plan, imageDir, warnings));
 
-    let documentId: string;
-    let tabId: string | undefined;
-    let revisionId: string | undefined;
-    let result: Record<string, unknown>;
-    const clear: Plan = [];
-    if (target.kind === "create") {
-      const file = await gwsJson(gws, workDir, [
-        "drive",
-        "files",
-        "create",
-        "--json",
-        JSON.stringify({
-          name: target.title,
-          mimeType: "application/vnd.google-apps.document",
-        }),
-      ]);
-      documentId = file.id;
-      result = file;
-    } else {
-      documentId = target.fileId;
-      const document = await getDocument(gws, workDir, documentId);
-      const tab = findTab(document, target.tabId);
-      tabId = tab.tabProperties.tabId;
-      // Batch 1 fails rather than overwrite edits made since this read.
-      revisionId = document.revisionId;
-      // Everything but the body's final newline, which cannot be deleted.
-      const end = tab.documentTab.body.content.at(-1).endIndex;
-      if (end - 1 > 1) {
-        clear.push({
-          deleteContentRange: { range: { startIndex: 1, endIndex: end - 1 } },
-        });
-      }
-      result = { id: documentId, tabId };
-    }
-
-    const host = new ImageHost(gws, workDir);
-    let writingError: unknown;
-    try {
-      const batch = placed([...clear, ...(await hostImages(body, host))], {
-        tabId,
-      });
-      const reply = await sendBatch(
-        gws,
-        workDir,
-        documentId,
-        batch,
-        host,
-        revisionId,
-        warnings,
-      );
-      const footnoteIds: string[] = (reply.replies ?? [])
-        .filter((r: any) => r?.createFootnote)
-        .map((r: any) => r.createFootnote.footnoteId);
-      await writeFootnotes(
-        gws,
-        workDir,
-        documentId,
-        tabId,
-        footnoteIds,
-        footnotes,
-        host,
-        warnings,
-      );
-    } catch (error) {
-      writingError = error;
-    }
-    const undeleted = await host.deleteAll();
-    if (undeleted.length > 0) {
-      const writing =
-        writingError instanceof Error ? `${writingError.message}; ` : "";
-      throw new PiersError(
-        `${writing}Drive file(s) ${undeleted.join(", ")} are still shared by link and could not be deleted: delete them by hand`,
-      );
-    }
-    if (writingError) {
-      if (!(writingError instanceof PiersError)) throw writingError;
-      throw new PiersError(
-        `writing document ${documentId} did not complete: ${writingError.message}`,
-      );
-    }
-    if (warnings.length > 0) result.warnings = warnings;
-    process.stdout.write(
+  let documentId: string;
+  let tabId: string | undefined;
+  let revisionId: string | undefined;
+  let result: Record<string, unknown>;
+  const clear: Plan = [];
+  if (target.kind === "create") {
+    const file = await gwsJson(gws, workDir, [
+      "drive",
+      "files",
+      "create",
+      "--json",
       JSON.stringify({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-            mimeType: "application/json",
-          },
-        ],
+        name: target.title,
+        mimeType: "application/vnd.google-apps.document",
       }),
+    ]);
+    documentId = file.id;
+    result = file;
+  } else {
+    documentId = target.fileId;
+    const document = await getDocument(gws, workDir, documentId);
+    const tab = findTab(document, target.tabId);
+    tabId = tab.tabProperties.tabId;
+    // Batch 1 fails rather than overwrite edits made since this read.
+    revisionId = document.revisionId;
+    // Everything but the body's final newline, which cannot be deleted.
+    const end = tab.documentTab.body.content.at(-1).endIndex;
+    if (end - 1 > 1) {
+      clear.push({
+        deleteContentRange: { range: { startIndex: 1, endIndex: end - 1 } },
+      });
+    }
+    result = { id: documentId, tabId };
+  }
+
+  const host = new ImageHost(gws, workDir);
+  let writingError: unknown;
+  try {
+    const batch = placed([...clear, ...(await hostImages(body, host))], {
+      tabId,
+    });
+    const reply = await sendBatch(
+      gws,
+      workDir,
+      documentId,
+      batch,
+      host,
+      revisionId,
+      warnings,
+    );
+    const footnoteIds: string[] = (reply.replies ?? [])
+      .filter((r: any) => r?.createFootnote)
+      .map((r: any) => r.createFootnote.footnoteId);
+    await writeFootnotes(
+      gws,
+      workDir,
+      documentId,
+      tabId,
+      footnoteIds,
+      footnotes,
+      host,
+      warnings,
     );
   } catch (error) {
-    if (!(error instanceof PiersError)) throw error;
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = 1;
+    writingError = error;
   }
+  const undeleted = await host.deleteAll();
+  if (undeleted.length > 0) {
+    const writing =
+      writingError instanceof Error ? `${writingError.message}; ` : "";
+    throw new PiersError(
+      `${writing}Drive file(s) ${undeleted.join(", ")} are still shared by link and could not be deleted: delete them by hand`,
+    );
+  }
+  if (writingError) {
+    if (!(writingError instanceof PiersError)) throw writingError;
+    throw new PiersError(
+      `writing document ${documentId} did not complete: ${writingError.message}`,
+    );
+  }
+  if (warnings.length > 0) result.warnings = warnings;
+  return result;
 }

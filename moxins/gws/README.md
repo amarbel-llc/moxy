@@ -6,7 +6,7 @@ moxins:
 
 | Moxin      | Product         | Tools |
 |------------|-----------------|-------|
-| `piers`    | Google Docs     | 16    |
+| `piers`    | Google Docs     | 7     |
 | `car`      | Google Drive    | 5     |
 | `slip`     | Google Slides   | —     |
 | `prison`   | Google Sheets   | 1     |
