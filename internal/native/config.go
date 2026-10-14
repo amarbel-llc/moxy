@@ -441,11 +441,24 @@ func resolveSubstituteArgs(raw rawToolFile) (args []string, warning string, err 
 		}
 		// Only strings, and strings in an array, are rewritten; listing any
 		// other input would silently do nothing.
-		if prop.Type != "string" && !(prop.Type == "array" && (prop.Items == nil || prop.Items.Type == "string")) {
+		if !holdsStrings(prop) {
 			return nil, "", fmt.Errorf("substitute-args names %q, a %s input; only string inputs and arrays of strings can carry blob URIs", name, prop.Type)
 		}
 	}
 	return raw.SubstituteArgs, warning, nil
+}
+
+// holdsStrings reports whether an input is a string or an array of strings
+// (an array with no declared item type counts).
+func holdsStrings(prop PropertySchema) bool {
+	switch prop.Type {
+	case "string":
+		return true
+	case "array":
+		return prop.Items == nil || prop.Items.Type == "string"
+	default:
+		return false
+	}
 }
 
 // validateDynamicCache enforces RFC 0001 §1: cache-results = "dynamic" requires
