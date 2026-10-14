@@ -87,6 +87,15 @@ func DecodeConfig(input []byte) (*ConfigDocument, error) {
 			_vAllowTools.MarkConsumed()
 		}
 	}
+	if _vPassTools, _ok := model.Get("pass-tools"); _ok && _vPassTools.Kind == cst.VLeaf {
+		if _x, _xok := cst.ExtractStringSlice(_vPassTools.Leaf); _xok {
+			d.data.PassTools = _x
+			if d.data.PassTools == nil {
+				d.data.PassTools = []string{}
+			}
+			_vPassTools.MarkConsumed()
+		}
+	}
 	if _vInclude, _ok := model.Get("include"); _ok && _vInclude.Kind == cst.VLeaf {
 		if _x, _xok := cst.ExtractStringSlice(_vInclude.Leaf); _xok {
 			d.data.Include = _x
@@ -345,6 +354,13 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 		}
 	}
 	{
+		if len(d.data.PassTools) > 0 || cst.HasValue(d.cstDoc.Root(), "pass-tools") {
+			if err := cst.SetAny(d.cstDoc.Root(), "pass-tools", d.data.PassTools); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+	}
+	{
 		if len(d.data.Include) > 0 || cst.HasValue(d.cstDoc.Root(), "include") {
 			if err := cst.SetAny(d.cstDoc.Root(), "include", d.data.Include); err != nil {
 				return nil, fmt.Errorf("%w", err)
@@ -540,6 +556,15 @@ func DecodeConfigInto(data *Config, sub *cst.Value) error {
 				data.AllowTools = []string{}
 			}
 			_vAllowTools.MarkConsumed()
+		}
+	}
+	if _vPassTools, _ok := sub.Get("pass-tools"); _ok && _vPassTools.Kind == cst.VLeaf {
+		if _x, _xok := cst.ExtractStringSlice(_vPassTools.Leaf); _xok {
+			data.PassTools = _x
+			if data.PassTools == nil {
+				data.PassTools = []string{}
+			}
+			_vPassTools.MarkConsumed()
 		}
 	}
 	if _vInclude, _ok := sub.Get("include"); _ok && _vInclude.Kind == cst.VLeaf {
@@ -789,6 +814,13 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 	{
 		if len(data.AllowTools) > 0 || cst.HasValue(container, "allow-tools") {
 			if err := cst.SetAny(container, "allow-tools", data.AllowTools); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+	}
+	{
+		if len(data.PassTools) > 0 || cst.HasValue(container, "pass-tools") {
+			if err := cst.SetAny(container, "pass-tools", data.PassTools); err != nil {
 				return fmt.Errorf("%w", err)
 			}
 		}

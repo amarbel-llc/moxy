@@ -13,6 +13,8 @@ func TestParseRejectsMistypedRestrictions(t *testing.T) {
 		`allow-tools = ["grit", 1]`,
 		`allow-tools = true`,
 		"[allow-tools]\ngrit = true\n",
+		`pass-tools = "grit.status"`,
+		`pass-tools = ["grit", 1]`,
 		`disable-moxins = "chix"`,
 		`disable-moxins = ["chix", 2]`,
 		`disable-servers = "dodder"`,

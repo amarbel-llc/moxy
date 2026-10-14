@@ -23,7 +23,11 @@ type Config struct {
 	DisableServers        []string `toml:"disable-servers,omitempty"`
 	// AllowTools is nil when unset (everything is allowed) and non-nil,
 	// possibly empty, when set (only the listed names exist).
-	AllowTools  []string                   `toml:"allow-tools,omitempty"`
+	AllowTools []string `toml:"allow-tools,omitempty"`
+	// PassTools names tools held at the pass level: the holder may confer
+	// them on a child (see moxyfile(5) NARROWING) but never calls them. It
+	// is never consulted when serving.
+	PassTools   []string                   `toml:"pass-tools,omitempty"`
 	Include     []string                   `toml:"include,omitempty"`
 	Credentials *credentials.CommandConfig `toml:"credentials"`
 	// ResolvedMoxins records, moxin name to source directory, which moxins

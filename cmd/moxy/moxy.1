@@ -193,6 +193,13 @@ record a
 .Nm
 served from it would discover in the calling environment; a file keeps the
 record it carries, if any.
+Tools are judged at three levels, none < pass < use: every tool the child
+holds in
+.Va allow-tools
+or
+.Va pass-tools
+must be one the parent holds in either, so a child may use a tool its parent
+only passes, and a refused tool is named with the level the child holds it at.
 Prints one
 .Dq Ar key Ns Li \&: Ar reason
 line per violation to stdout, sorted by key and then by subject, so the output

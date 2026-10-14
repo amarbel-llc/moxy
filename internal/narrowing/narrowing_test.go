@@ -269,9 +269,61 @@ command = ["smith", "mcp"]
 			parent: `allow-tools = ["grit.status", "folio"]`,
 			child:  `allow-tools = ["grit", "folio.read", "restart"]`,
 			want: []string{
-				"allow-tools: child allows grit, parent does not",
-				"allow-tools: child allows restart, parent does not",
+				"allow-tools: child holds grit at use, parent at none",
+				"allow-tools: child holds restart at use, parent at none",
 			},
+		},
+		{
+			// The one upward step: a pass holder confers use on its child.
+			name:   "child may allow a tool the parent passes",
+			parent: "allow-tools = [\"grit.status\"]\npass-tools = [\"smith.issue-create\"]\n",
+			child:  `allow-tools = ["smith.issue-create"]`,
+		},
+		{
+			name:   "child may allow one tool of a server the parent passes whole",
+			parent: "allow-tools = []\npass-tools = [\"smith\"]\n",
+			child:  `allow-tools = ["smith.issue-create", "smith.issue-get"]`,
+		},
+		{
+			name:   "child may not allow a tool the parent holds at neither level",
+			parent: "allow-tools = [\"grit.status\"]\npass-tools = [\"smith.issue-create\"]\n",
+			child:  `allow-tools = ["smith.issue-close", "grit.commit"]`,
+			want: []string{
+				"allow-tools: child holds grit.commit at use, parent at none",
+				"allow-tools: child holds smith.issue-close at use, parent at none",
+			},
+		},
+		{
+			name:   "child may pass on what the parent passes or allows",
+			parent: "allow-tools = [\"grit.status\"]\npass-tools = [\"smith\"]\n",
+			child:  "allow-tools = []\npass-tools = [\"smith.issue-create\", \"grit.status\"]\n",
+		},
+		{
+			name:   "child may not pass a tool the parent holds at neither level",
+			parent: "allow-tools = [\"grit.status\"]\npass-tools = [\"smith.issue-create\"]\n",
+			child:  "allow-tools = []\npass-tools = [\"smith\", \"chix.build\"]\n",
+			want: []string{
+				"pass-tools: child holds chix.build at pass, parent at none",
+				"pass-tools: child holds smith at pass, parent at none",
+			},
+		},
+		{
+			name:   "child may drop the parent's pass tools",
+			parent: "allow-tools = [\"grit\"]\npass-tools = [\"smith\"]\n",
+			child:  `allow-tools = ["grit"]`,
+		},
+		{
+			// A parent with pass-tools always has an allowlist, so the child
+			// must have one too, even if it only passes tools on.
+			name:   "child may not drop the allowlist of a parent that passes tools",
+			parent: "allow-tools = []\npass-tools = [\"smith\"]\n",
+			child:  "",
+			want:   []string{"allow-tools: parent sets an allowlist, child does not"},
+		},
+		{
+			name:   "child may pass anything when the parent sets no allowlist",
+			parent: "",
+			child:  "allow-tools = []\npass-tools = [\"smith\"]\n",
 		},
 		{
 			name:   "child moxins a subset of the parent's record narrow",

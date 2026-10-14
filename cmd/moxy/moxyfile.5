@@ -36,7 +36,10 @@ and
 .Va disable-servers
 entries are merged additively: each layer appends to the disabled set.
 .Va allow-tools
-lists are intersected: each layer that sets one can only shorten it.
+lists are intersected: each layer that sets one can only shorten it, and
+.Va pass-tools
+is merged with it, each tool kept at the lowest level any such layer holds it
+at.
 .Pp
 A moxyfile may also pull in additional moxyfiles from arbitrary paths with
 the
@@ -55,6 +58,7 @@ Keys
 does not know are ignored.
 The keys that restrict what is served \(em
 .Va allow-tools ,
+.Va pass-tools ,
 .Va disable-moxins ,
 .Va disable-servers ,
 .Va builtin-native
@@ -63,7 +67,8 @@ and
 \(em are the exception to leniency in one respect: written with the wrong
 type
 .Pq a string where an array belongs, say
-they are an error, never read as unset, because unset means unrestricted.
+they are an error, never read as unset, because for most of them unset means
+unrestricted.
 Earlier versions ignored such a value, so a moxyfile with, say,
 .Li builtin-native = \(dqfalse\(dq
 or
@@ -194,6 +199,71 @@ Entries name tools as
 whatever
 .Fl -name-template
 is in force.
+Optional.
+Default: unset.
+.It Va pass-tools
+Array of names held at the
+.Em pass
+level, written as for
+.Va allow-tools .
+A file holds every tool at one of three levels:
+.Em none ,
+.Em pass ,
+or
+.Em use ,
+in that order.
+.Va allow-tools
+names the tools held at use;
+.Va pass-tools
+names the tools held at pass; everything else is held at none.
+A pass tool is one the holder may confer on a child
+.Pq see Sx NARROWING
+but never calls: it is neither listed nor callable, because what is served is
+decided by
+.Va allow-tools
+alone.
+The nearest analogue is AWS IAM PassRole.
+.Pp
+Two writings are refused when the file loads.
+.Va pass-tools
+without
+.Va allow-tools
+is an error: with no allowlist every tool is usable, so a pass tool would be
+callable.
+A
+.Va pass-tools
+entry that
+.Va allow-tools
+already covers \(em the same entry, or a dotted pair under a bare allowed name
+\(em is an error too: the file would hold one tool at two levels, and either
+reading would betray half of what was written.
+The converse is fine: a bare pass name over a dotted allowed pair
+.Pq Li "allow-tools = [\(dqgrit.status\(dq]" , Li "pass-tools = [\(dqgrit\(dq]"
+holds
+.Dq grit.status
+at use and the rest of
+.Dq grit
+at pass.
+.Pp
+Across the hierarchy,
+.Va allow-tools
+and
+.Va pass-tools
+are merged as one: each file that sets
+.Va allow-tools
+holds every tool at a level, and the merge keeps, per tool, the lowest level
+any such file holds it at.
+So a closer file can lower a tool from use to pass or from pass to none, never
+raise it; a closer file that sets
+.Va allow-tools
+without
+.Va pass-tools
+holds nothing at pass and drops the pass tools of the files before it; and a
+file that sets neither key changes nothing.
+.Xr moxy 1
+.Cm show-effective-moxyfile
+writes both lists as merged.
+An empty array holds nothing at pass, as an unset key does, and is not written.
 Optional.
 Default: unset.
 .It Va include
@@ -518,13 +588,42 @@ entry hides the moxin of the same name, even while the server is disabled.
 A child that leaves out a server the parent defines must therefore name it in
 .Va disable-moxins ,
 or the moxin the parent could never reach would appear.
-.It Va allow-tools
-If the parent sets an allowlist the child must set one too, and every child
-entry must be covered by a parent entry: the same entry, or for a dotted pair
-the parent's bare name.
-A child that leaves the key unset under a parent that sets it would allow
-everything, and is refused.
-If the parent sets none, the child may set any.
+.It Va allow-tools , pass-tools
+Tools are held at three levels, none < pass < use
+.Pq see Va pass-tools in Sx TOP-LEVEL KEYS .
+If the parent sets an allowlist the child must set one too.
+Every tool the child holds, at use or at pass, must be one the parent holds at
+use or at pass: each child entry in
+.Va allow-tools
+and in
+.Va pass-tools
+must be covered by an entry in the parent's
+.Va allow-tools
+or
+.Va pass-tools ,
+the same entry or, for a dotted pair, the parent's bare name.
+So a child may use a tool its parent only passes.
+That is the one upward step the relation permits: whoever confers use from a
+pass holder has approved it once, when the parent's moxyfile was written, and
+.Xr moxy 1
+enforces the relation without judging that approval.
+A child may pass on what its parent passes or uses.
+A child that leaves
+.Va allow-tools
+unset under a parent that sets it would allow everything, and is refused.
+If the parent sets no allowlist it holds every tool at use, and the child may
+set any lists.
+A parent with
+.Va pass-tools
+always has an allowlist, since a file without one is refused, so its child must
+set
+.Va allow-tools
+too, if only as an empty array beside the tools it passes on.
+.Xr moxy 1
+.Cm narrows
+names each refused tool with the level the child holds it at and the parent's,
+always none:
+.Dl allow-tools: child holds smith.issue-close at use, parent at none
 .It Va disable-servers
 Not compared on its own; it decides which servers run, above.
 .It Va builtin-native

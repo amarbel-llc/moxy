@@ -88,6 +88,9 @@ func ParseLiteral(data []byte) (Config, error) {
 	if err := validateNameOrToolEntries("allow-tools", cfg.AllowTools); err != nil {
 		return Config{}, err
 	}
+	if err := validatePassTools(cfg.AllowTools, cfg.PassTools); err != nil {
+		return Config{}, err
+	}
 
 	// disable-servers is whole-server only. Per-tool granularity is not
 	// supported for [[servers]] entries because their tool lists come from
@@ -165,10 +168,13 @@ func ParseLiteral(data []byte) (Config, error) {
 	return *cfg, nil
 }
 
-// restrictionKeys are the top-level keys whose absence means "unrestricted",
-// so that silently dropping a mistyped one would widen what is served.
+// restrictionKeys are the top-level keys that decide what a moxyfile grants.
+// For most, absence means "unrestricted", so silently dropping a mistyped one
+// would widen what is served; pass-tools fails closed when dropped, but a key
+// that decides rights is still never read as unset by accident.
 var restrictionKeys = map[string]bool{
 	"allow-tools":     true,
+	"pass-tools":      true,
 	"disable-moxins":  true,
 	"disable-servers": true,
 	"builtin-native":  true,
@@ -191,6 +197,30 @@ func validateNameOrToolEntries(key string, entries []string) error {
 		}
 		if strings.Contains(tool, ".") {
 			return fmt.Errorf("%s: invalid entry %q (tool names must not contain dots)", key, entry)
+		}
+	}
+	return nil
+}
+
+// validatePassTools enforces what makes pass-tools mean "may confer, never
+// calls". Without an allowlist every tool is usable, so a pass tool would be
+// callable; and an entry allow-tools already covers is usable too, so listing
+// it at pass contradicts the file. A bare pass entry over a dotted allow entry
+// is fine: the holder calls that one tool and may confer the rest.
+func validatePassTools(allow, pass []string) error {
+	if pass == nil {
+		return nil
+	}
+	if err := validateNameOrToolEntries("pass-tools", pass); err != nil {
+		return err
+	}
+	if allow == nil {
+		return fmt.Errorf("pass-tools is set without allow-tools: with no allowlist every tool is usable, so a pass tool would be callable")
+	}
+	allowed := stringSet(allow)
+	for _, entry := range pass {
+		if CoveredBy(entry, allowed) {
+			return fmt.Errorf("pass-tools: %q is also allowed by allow-tools; a tool is held at one level, use or pass", entry)
 		}
 	}
 	return nil
@@ -232,6 +262,35 @@ func IntersectAllowTools(a, b []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// meetToolLevels combines two layers' (allow-tools, pass-tools) pairs into the
+// pair holding each tool at the lower of its two levels. A tool is at use in
+// the result when both allow it, and at least at pass when both hold it at
+// pass or use; the pass list is the latter minus what the allow list covers,
+// so the result is itself a valid pair.
+func meetToolLevels(allowA, passA, allowB, passB []string) (allow, pass []string) {
+	allow = IntersectAllowTools(allowA, allowB)
+	allowed := stringSet(allow)
+	held := IntersectAllowTools(
+		append(append([]string(nil), allowA...), passA...),
+		append(append([]string(nil), allowB...), passB...),
+	)
+	for _, entry := range held {
+		if !CoveredBy(entry, allowed) {
+			pass = append(pass, entry)
+		}
+	}
+	return allow, pass
+}
+
+// nonEmptyOrNil normalises a pass-tools list: an empty one holds nothing at
+// pass, exactly as an absent one does, so both are kept as nil.
+func nonEmptyOrNil(entries []string) []string {
+	if len(entries) == 0 {
+		return nil
+	}
+	return sortedUnique(entries)
 }
 
 func stringSet(entries []string) map[string]bool {
@@ -285,14 +344,21 @@ func Merge(base, overlay Config) Config {
 		}
 	}
 
-	// allow-tools narrows down the hierarchy: the first layer to set it
-	// establishes the list, every later one intersects with it.
+	// allow-tools and pass-tools narrow down the hierarchy together. A layer
+	// that sets allow-tools holds every tool at use, pass or none; the first
+	// such layer establishes the levels, and every later one can only lower
+	// them: per tool, the merge keeps the lowest level either side holds it
+	// at. A layer without allow-tools says nothing about tools.
 	if overlay.AllowTools != nil {
-		established := merged.AllowTools
-		if established == nil {
-			established = overlay.AllowTools
+		if merged.AllowTools == nil {
+			merged.AllowTools = IntersectAllowTools(overlay.AllowTools, overlay.AllowTools)
+			merged.PassTools = nonEmptyOrNil(overlay.PassTools)
+		} else {
+			merged.AllowTools, merged.PassTools = meetToolLevels(
+				merged.AllowTools, merged.PassTools,
+				overlay.AllowTools, overlay.PassTools,
+			)
 		}
-		merged.AllowTools = IntersectAllowTools(established, overlay.AllowTools)
 	}
 
 	// A record of a past discovery, not configuration: nothing to combine, the

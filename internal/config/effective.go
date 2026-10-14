@@ -27,6 +27,8 @@ func RenderEffective(cfg Config) []byte {
 	if cfg.AllowTools != nil {
 		fmt.Fprintf(&b, "allow-tools = %s\n", tomlStringArray(sortedUnique(cfg.AllowTools)))
 	}
+	// An empty pass-tools list holds nothing, as an absent one does.
+	writeSortedSet(&b, "pass-tools", cfg.PassTools)
 
 	if c := cfg.Credentials; c != nil {
 		b.WriteString("\n[credentials]\n")

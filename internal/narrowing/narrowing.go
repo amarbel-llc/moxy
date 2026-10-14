@@ -87,9 +87,13 @@ func checkDisableMoxins(parent, child config.Config) []Violation {
 	return vs
 }
 
-// checkAllowTools: an allowlist is a restriction, so once the parent has one
-// the child must have one too, naming nothing the parent's does not cover.
-// With no parent allowlist the child may set any list it likes.
+// checkAllowTools judges the two tool levels, use (allow-tools) and pass
+// (pass-tools), below which lies none. An allowlist is a restriction, so once
+// the parent has one the child must have one too. Every tool the child holds,
+// at either level, must be one the parent holds at some level: a pass holder
+// may confer use on its child, which is the one upward step the relation
+// permits (spinclass FDR 0032 D11). With no parent allowlist the parent holds
+// every tool at use, and the child may set any lists it likes.
 func checkAllowTools(parent, child config.Config) []Violation {
 	if parent.AllowTools == nil {
 		return nil
@@ -100,15 +104,26 @@ func checkAllowTools(parent, child config.Config) []Violation {
 			Message: "parent sets an allowlist, child does not",
 		}}
 	}
-	parentAllows := stringSet(parent.AllowTools)
+	parentHolds := stringSet(parent.AllowTools)
+	for entry := range stringSet(parent.PassTools) {
+		parentHolds[entry] = true
+	}
 	var vs []Violation
-	for entry := range stringSet(child.AllowTools) {
-		if !config.CoveredBy(entry, parentAllows) {
-			vs = append(vs, Violation{
-				Key:     "allow-tools",
-				Subject: entry,
-				Message: fmt.Sprintf("child allows %s, parent does not", entry),
-			})
+	for _, level := range []struct {
+		key, name string
+		entries   []string
+	}{
+		{"allow-tools", "use", child.AllowTools},
+		{"pass-tools", "pass", child.PassTools},
+	} {
+		for entry := range stringSet(level.entries) {
+			if !config.CoveredBy(entry, parentHolds) {
+				vs = append(vs, Violation{
+					Key:     level.key,
+					Subject: entry,
+					Message: fmt.Sprintf("child holds %s at %s, parent at none", entry, level.name),
+				})
+			}
 		}
 	}
 	return vs

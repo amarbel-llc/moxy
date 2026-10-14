@@ -208,7 +208,12 @@ func addNarrowingCommands(app *command.App) {
 				"plus its includes and nothing else, which is how a file written by " +
 				"show-effective-moxyfile is read. A directory is also given the " +
 				"resolved-moxins record a moxy served from it would discover in this " +
-				"environment; a file keeps the record it carries. Prints one " +
+				"environment; a file keeps the record it carries. Tools are judged " +
+				"at three levels, none < pass < use: every tool the child holds in " +
+				"allow-tools (use) or pass-tools (pass) must be one the parent holds " +
+				"in either, so a child may use a tool its parent only passes. A " +
+				"refused tool is reported as '<key>: child holds <tool> at <level>, " +
+				"parent at none'. Prints one " +
 				"'<key>: <reason>' line per violation, sorted by key then subject, " +
 				"to stdout. Exits 0 when the child narrows the parent, 1 when it " +
 				"does not, 2 when either side cannot be read or the arguments are " +
@@ -256,7 +261,9 @@ func addNarrowingCommands(app *command.App) {
 				"sorted lists and servers, commands in array form. The same " +
 				"configuration always prints the same bytes. Header values keep " +
 				"their $VAR references — nothing is expanded — so the output is safe " +
-				"to write to disk. Rendering a directory also records, under " +
+				"to write to disk. allow-tools and pass-tools are written as the " +
+				"hierarchy merged them, per tool at the lowest level any layer " +
+				"holds it. Rendering a directory also records, under " +
 				"resolved-moxins, the directory each moxin name resolves to in the " +
 				"current environment; rendering a file reproduces the record it " +
 				"carries. A spawner captures this at spawn time and hands " +

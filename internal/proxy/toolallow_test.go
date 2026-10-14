@@ -138,6 +138,44 @@ func TestCallToolAllowGateUnderACustomTemplate(t *testing.T) {
 	}
 }
 
+// A pass tool may be conferred on a child but is never the holder's to call:
+// the serve surface is built from allow-tools alone, so it is neither listed
+// nor callable.
+func TestPassToolsAreNeitherListedNorCallable(t *testing.T) {
+	cfg, err := config.ParseLiteral([]byte(
+		"allow-tools = [\"folio.read\", \"grit.status\"]\npass-tools = [\"folio.write\", \"grit\", \"restart\"]\n",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &Proxy{
+		toolFilter:   toolfilter.All(),
+		toolAllow:    cfg.BuildAllowToolSet(),
+		nameTemplate: naming.DefaultTemplate(),
+	}
+
+	listed := keptNames(p.applyToolAllow([]protocol.ToolV1{
+		{Name: "folio.read"},
+		{Name: "folio.write"},
+		{Name: "grit.status"},
+		{Name: "grit.commit"},
+		{Name: "restart"},
+	}, naming.Registry{}))
+	if want := []string{"folio.read", "grit.status"}; strings.Join(listed, ",") != strings.Join(want, ",") {
+		t.Errorf("listed %v, want %v", listed, want)
+	}
+
+	for _, name := range []string{"folio.write", "grit.commit", "restart"} {
+		res, err := p.callToolV1(context.Background(), name, nil)
+		if err != nil {
+			t.Fatalf("callToolV1(%q) unexpected error: %v", name, err)
+		}
+		if res == nil || !res.IsError || !strings.Contains(res.Content[0].Text, "allow-tools") {
+			t.Errorf("callToolV1(%q): expected an allow-tools refusal, got %+v", name, res)
+		}
+	}
+}
+
 // A tool that is not listed must be uncallable, not merely unlisted.
 func TestCallToolAllowGate(t *testing.T) {
 	p := &Proxy{

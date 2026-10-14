@@ -76,7 +76,9 @@ toolset. `internal/narrowing.Check` defines it; `moxy narrows` reports it;
 becomes running tools (startup, reload, single-moxin reload) --- load config
 through it, never `config.LoadHierarchy` directly, or a reload can widen.
 `allow-tools` (intersected across layers, enforced in the proxy at list and
-call) is the fail-closed allowlist. The rules are in moxyfile(5) NARROWING.
+call) is the fail-closed allowlist; `pass-tools` (moxy#459) holds tools at a
+level below it, conferrable on a child but never served. The rules are in
+moxyfile(5) NARROWING.
 
 ### Proxy Flow
 

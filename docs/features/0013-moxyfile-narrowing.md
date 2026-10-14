@@ -47,7 +47,7 @@ moxyfile(5) NARROWING is the normative, key-by-key statement. In brief:
 | `disable-moxins` | C covers every P entry; a whole-moxin entry covers a single-tool entry, not the reverse. Also: a server name P defines and C does not must be in C's `disable-moxins`, because a `[[servers]]` entry shadows the same-named moxin. |
 | `builtin-native` | If P is `false`, C is `false`. (The merge is closest-wins here; narrowing is not.) |
 | `[credentials]` | If C sets it, it equals P's. |
-| `allow-tools` | If P sets it, C sets it and every C entry is covered by a P entry. |
+| `allow-tools`, `pass-tools` | If P sets `allow-tools`, C sets it, and every entry of C's `allow-tools` and `pass-tools` is covered by an entry of P's `allow-tools` or `pass-tools` (moxy#459). |
 | `resolved-moxins` (record) | Every moxin C resolves, and can reach, resolves to the same directory in P's record. Only when both sides carry a record. |
 | `ephemeral`, `progressive-disclosure`, `paginate`, `generate-resource-tools` | Presentation, not rights; ignored. |
 
@@ -70,6 +70,41 @@ single dispatch funnel, beside `--expose` and the dynamic exclude set.
 someone adds a disable. `allow-tools` fails closed, which is what makes
 "anything not listed does not exist" a property of moxy rather than of the
 launcher's brief.
+
+### `pass-tools`: confer, never call (moxy#459)
+
+Plain subset narrowing cannot express a supervisor that may hand a tool to
+its children but must never call it: to confer `create_issue` it would have to
+hold it in `allow-tools`, making it the widest principal in its graph (circus
+FDR-0041 §P9; the AWS IAM PassRole shape). So a file holds every tool at one
+of three levels, none < pass < use, and a second key names the pass ones:
+
+```toml
+allow-tools = ["grit.status"]
+pass-tools  = ["smith.issue-create"]
+```
+
+- **Serving** reads `allow-tools` only. A pass tool is neither listed nor
+  callable by its holder.
+- **Narrowing** compares levels: every tool C holds, at use or at pass, must be
+  held by P at use or at pass. A child may therefore *use* what its parent only
+  *passes* — the one upward step, spinclass FDR 0032 D11's escalation,
+  pre-approved when P's moxyfile was written. moxy enforces the relation; it
+  does not judge whether that approval happened.
+- **The hierarchy merge** keeps, per tool, the lowest level any layer setting
+  `allow-tools` holds it at. A closer layer can lower use to pass or pass to
+  none, never raise; a layer without `allow-tools` changes nothing.
+- **Refused at load:** `pass-tools` without `allow-tools` (with no allowlist
+  every tool is usable, so a pass tool would be callable), and a `pass-tools`
+  entry `allow-tools` already covers (one tool at two levels; "use wins" would
+  let the holder call what the file said it must not, "pass wins" would make
+  something other than `allow-tools` filter the serve surface). A bare pass
+  name over a dotted allowed pair is fine: `allow-tools = ["grit.status"]`,
+  `pass-tools = ["grit"]` uses one tool and may confer the rest.
+
+Because a parent with `pass-tools` always has an allowlist, the existing rule
+"a child may omit `allow-tools` only when P sets none" means such a parent's
+child always sets `allow-tools`, if only `[]` beside the tools it passes on.
 
 ### `resolved-moxins`: moxin identity
 
