@@ -208,7 +208,8 @@ func validateNameOrToolEntries(key string, entries []string) error {
 // it at pass contradicts the file. A bare pass entry over a dotted allow entry
 // is fine: the holder calls that one tool and may confer the rest.
 func validatePassTools(allow, pass []string) error {
-	if pass == nil {
+	// An empty list holds nothing at pass, exactly as an unset key does.
+	if len(pass) == 0 {
 		return nil
 	}
 	if err := validateNameOrToolEntries("pass-tools", pass); err != nil {

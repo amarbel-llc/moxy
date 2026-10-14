@@ -26,6 +26,11 @@ func TestParsePassTools(t *testing.T) {
 			src:  "allow-tools = []\npass-tools = []\n",
 		},
 		{
+			// An empty list holds nothing at pass, as an unset key does.
+			name: "an empty pass list without an allowlist",
+			src:  `pass-tools = []`,
+		},
+		{
 			// With no allowlist every tool is usable, so a pass tool would be
 			// callable by its holder.
 			name:    "pass tools without an allowlist",

@@ -102,6 +102,17 @@ pass-tools  = ["smith.issue-create"]
   name over a dotted allowed pair is fine: `allow-tools = ["grit.status"]`,
   `pass-tools = ["grit"]` uses one tool and may confer the rest.
 
+**Pass bounds the served surface, not what a holder can become.** A reload
+(`restart`) is judged only against the parent reference pinned at startup,
+and that reference permits a child to hold at use what the parent passes. A
+session whose `MOXY_PARENT_MOXYFILE` holds X at pass, and that can rewrite its
+own moxyfile and call `restart`, can move X into `allow-tools` and call it: it
+is bounded only by its reference, under which pass may become use. Where that
+matters, keep `restart` out of `allow-tools`, or the moxyfile unwritable by
+the session. Judging reloads against the startup config instead would also
+block deliberate operator widening; that is a policy question tracked
+separately, and the reload code is unchanged here.
+
 Because a parent with `pass-tools` always has an allowlist, the existing rule
 "a child may omit `allow-tools` only when P sets none" means such a parent's
 child always sets `allow-tools`, if only `[]` beside the tools it passes on.

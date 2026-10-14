@@ -152,6 +152,38 @@ pass-tools = ["two", "restart"]'
     fail "pass meta tool was callable: $output"
 }
 
+function a_pass_tool_is_not_callable_through_batch { # @test
+  # The sub-call must clear batch's permission preflight (a [[servers]] tool
+  # has no perms-request and would bail out there), so the pass tool is a
+  # one-tool moxin that asks for nothing: only allow-tools can refuse it.
+  mkdir -p "$MOXIN_PATH/greeter"
+  cat >"$MOXIN_PATH/greeter/_moxin.toml" <<'EOF'
+schema = 1
+name = "greeter"
+EOF
+  cat >"$MOXIN_PATH/greeter/hello.toml" <<'EOF'
+schema = 1
+description = "Say hello"
+perms-request = "always-allow"
+command = "echo"
+args = ["-n", "hello"]
+EOF
+  write_two_servers "$HOME/repo/moxyfile" 'allow-tools = ["one.execute-command", "batch"]
+pass-tools = ["greeter"]'
+  cd "$HOME/repo"
+  run_moxy_mcp tools/call '{"name":"batch","arguments":{"calls":[{"tool":"greeter.hello","args":{}}]}}'
+  assert_success
+  local text
+  text=$(echo "$output" | jq -r '.content[0].text')
+  # Past the preflight, refused at dispatch by allow-tools.
+  echo "$text" | jq -se 'map(select(.type == "bailout")) | length == 0' ||
+    fail "batch bailed out in preflight instead of reaching dispatch: $text"
+  echo "$text" | jq -e 'select(.type == "test") | tostring | test("allow-tools")' ||
+    fail "pass tool was not refused by allow-tools inside batch: $text"
+  echo "$text" | jq -e 'select(.type == "summary") | .passed == 0' ||
+    fail "the pass tool ran inside batch: $text"
+}
+
 function pass_tools_without_an_allowlist_is_refused { # @test
   write_two_servers "$HOME/repo/moxyfile" 'pass-tools = ["two"]'
   cd "$HOME/repo"

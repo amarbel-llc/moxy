@@ -294,6 +294,13 @@ command = ["smith", "mcp"]
 			},
 		},
 		{
+			// A bare child entry is the whole server; the parent passes one tool.
+			name:   "child may not allow a whole server when the parent passes one of its tools",
+			parent: "allow-tools = []\npass-tools = [\"grit.status\"]\n",
+			child:  `allow-tools = ["grit"]`,
+			want:   []string{"allow-tools: child holds grit at use, parent at none"},
+		},
+		{
 			name:   "child may pass on what the parent passes or allows",
 			parent: "allow-tools = [\"grit.status\"]\npass-tools = [\"smith\"]\n",
 			child:  "allow-tools = []\npass-tools = [\"smith.issue-create\", \"grit.status\"]\n",

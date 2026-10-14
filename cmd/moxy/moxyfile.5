@@ -624,6 +624,25 @@ too, if only as an empty array beside the tools it passes on.
 names each refused tool with the level the child holds it at and the parent's,
 always none:
 .Dl allow-tools: child holds smith.issue-close at use, parent at none
+.Pp
+Pass bounds what is served, not what a holder can become.
+A reload \(em the
+.Cm restart
+meta tool \(em is judged only against the parent reference pinned at startup
+.Pq Ev MOXY_PARENT_MOXYFILE ,
+and that reference permits a child to hold at use what the parent passes.
+So a session whose reference holds a tool at pass, and that can rewrite its own
+moxyfile and call
+.Cm restart ,
+can move the tool into its
+.Va allow-tools
+and call it: such a holder is bounded only by its reference, under which pass
+may become use.
+Where that matters, keep
+.Cm restart
+out of
+.Va allow-tools ,
+or make the moxyfile unwritable by the session.
 .It Va disable-servers
 Not compared on its own; it decides which servers run, above.
 .It Va builtin-native
