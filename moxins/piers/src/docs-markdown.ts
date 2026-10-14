@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process";
 import { readFile } from "fs/promises";
 import { dirname, isAbsolute, resolve } from "path";
-import { PiersError, gwsBin, gwsJson } from "./gws";
+import { PiersError, docsBatchUpdate, gwsJson } from "./gws";
 import {
   ImageHost,
   type PreparedImage,
@@ -186,7 +186,6 @@ function placed(
 // a remote image (its URL is the markdown's own) the image becomes a visible
 // "[image: url]" and a warning, and the batch is sent again.
 async function sendBatch(
-  gws: string,
   workDir: string,
   documentId: string,
   plan: Plan,
@@ -201,15 +200,7 @@ async function sendBatch(
     const body: Record<string, unknown> = { requests };
     if (revisionId) body.writeControl = { requiredRevisionId: revisionId };
     try {
-      return await gwsJson(gws, workDir, [
-        "docs",
-        "documents",
-        "batchUpdate",
-        "--params",
-        JSON.stringify({ documentId }),
-        "--json",
-        JSON.stringify(body),
-      ]);
+      return await docsBatchUpdate(workDir, documentId, body);
     } catch (error) {
       const failing =
         error instanceof PiersError
@@ -234,8 +225,8 @@ async function sendBatch(
   }
 }
 
-const getDocument = (gws: string, workDir: string, documentId: string) =>
-  gwsJson(gws, workDir, [
+const getDocument = (workDir: string, documentId: string) =>
+  gwsJson(workDir, [
     "docs",
     "documents",
     "get",
@@ -266,7 +257,6 @@ function findTab(document: any, tabId: string | undefined): any {
 // Writes the footnotes' content: each plan goes before its segment's final
 // newline (a fresh footnote holds " \n", Docs' leading space).
 async function writeFootnotes(
-  gws: string,
   workDir: string,
   documentId: string,
   tabId: string | undefined,
@@ -281,7 +271,7 @@ async function writeFootnotes(
       `created ${footnoteIds.length} footnotes, expected ${footnotes.length}`,
     );
   }
-  const tab = findTab(await getDocument(gws, workDir, documentId), tabId);
+  const tab = findTab(await getDocument(workDir, documentId), tabId);
   const segments = tab.documentTab.footnotes ?? {};
   const batch: Plan = [];
   for (const [i, footnoteId] of footnoteIds.entries()) {
@@ -300,7 +290,7 @@ async function writeFootnotes(
       }),
     );
   }
-  await sendBatch(gws, workDir, documentId, batch, host, undefined, warnings);
+  await sendBatch(workDir, documentId, batch, host, undefined, warnings);
 }
 
 // Creates a Doc from markdown, or rewrites one tab of an existing Doc
@@ -312,7 +302,6 @@ export async function writeMarkdown(
   source: MarkdownSource,
   target: WriteTarget,
 ): Promise<Record<string, unknown>> {
-  const gws = gwsBin;
   const warnings: string[] = [];
   const markdown = await readMarkdownSource(source);
   const imageDir =
@@ -330,7 +319,7 @@ export async function writeMarkdown(
   let result: Record<string, unknown>;
   const clear: Plan = [];
   if (target.kind === "create") {
-    const file = await gwsJson(gws, workDir, [
+    const file = await gwsJson(workDir, [
       "drive",
       "files",
       "create",
@@ -344,7 +333,7 @@ export async function writeMarkdown(
     result = file;
   } else {
     documentId = target.fileId;
-    const document = await getDocument(gws, workDir, documentId);
+    const document = await getDocument(workDir, documentId);
     const tab = findTab(document, target.tabId);
     tabId = tab.tabProperties.tabId;
     // Batch 1 fails rather than overwrite edits made since this read.
@@ -359,14 +348,13 @@ export async function writeMarkdown(
     result = { id: documentId, tabId };
   }
 
-  const host = new ImageHost(gws, workDir);
+  const host = new ImageHost(workDir);
   let writingError: unknown;
   try {
     const batch = placed([...clear, ...(await hostImages(body, host))], {
       tabId,
     });
     const reply = await sendBatch(
-      gws,
       workDir,
       documentId,
       batch,
@@ -378,7 +366,6 @@ export async function writeMarkdown(
       .filter((r: any) => r?.createFootnote)
       .map((r: any) => r.createFootnote.footnoteId);
     await writeFootnotes(
-      gws,
       workDir,
       documentId,
       tabId,

@@ -86,6 +86,20 @@ function piers_tab_update_requires_a_property { # @test
   assert_equal "$(batches)" "0"
 }
 
+function piers_tab_rejects_a_non_numeric_index { # @test
+  run "$BIN/tab" create "doc-1" "" "Stories" "" "first"
+  assert_failure
+  assert_output --partial 'index must be a whole number, not first'
+  assert_equal "$(batches)" "0"
+}
+
+function piers_tab_update_refuses_parent_tab_id { # @test
+  run "$BIN/tab" update "doc-1" "t.1" "Renamed" "t.0"
+  assert_failure
+  assert_output --partial 'parent_tab_id is for create'
+  assert_equal "$(batches)" "0"
+}
+
 function piers_tab_delete_removes_the_tab { # @test
   run "$BIN/tab" delete "doc-1" "t.1"
   assert_success
@@ -112,4 +126,25 @@ function piers_batch_update_reports_a_gws_failure_in_one_line { # @test
   assert_output --partial 'gws docs documents batchUpdate failed'
   assert_output --partial 'stub batchUpdate failure'
   refute_output --partial 'ProcessOutput'
+}
+
+# gws reports its own failures (auth, usage) on stderr, not stdout.
+function piers_batch_update_reports_a_gws_failure_given_on_stderr { # @test
+  export GWS_STUB_FAIL_ON_STDERR=1
+  run "$BIN/batch-update" "doc-1" '[]' "rev-3"
+  assert_failure
+  assert_output --partial 'batchUpdate failed: error[auth]: stub token expired'
+}
+
+# get and outline go through gws.ts like the rest, so GWS_BIN reaches them.
+function piers_get_and_outline_read_through_gws_bin { # @test
+  cat >"$GWS_STUB_DIR/document.json" <<'EOF'
+{"documentId":"doc-1","title":"T","tabs":[{"tabProperties":{"tabId":"t.0","title":"Tab 1"},"documentTab":{"body":{"content":[{"startIndex":1,"endIndex":5,"paragraph":{"paragraphStyle":{"namedStyleType":"HEADING_1","headingId":"h.1"},"elements":[{"textRun":{"content":"Top\n"}}]}}]}}}]}
+EOF
+  run "$BIN/get" "doc-1"
+  assert_success
+  assert_output --partial 'doc-1'
+  run "$BIN/outline" "doc-1"
+  assert_success
+  assert_output --partial 'Top'
 }

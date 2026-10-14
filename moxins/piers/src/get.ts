@@ -1,20 +1,18 @@
-import { $ } from "zx";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
+import { gwsJson, printResult, runTool } from "./gws";
 
 const [documentId, rawIncludeTabsContent] = process.argv.slice(2);
 
-const p: Record<string, unknown> = { documentId };
-if (rawIncludeTabsContent === "true") p.includeTabsContent = true;
+const params: Record<string, unknown> = { documentId };
+if (rawIncludeTabsContent === "true") params.includeTabsContent = true;
 
-const params = JSON.stringify(p);
-const result = await $`gws docs documents get --params ${params}`;
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      { type: "text", text: result.stdout, mimeType: "application/json" },
-    ],
-  }),
+await runTool(async (workDir) =>
+  printResult(
+    await gwsJson(workDir, [
+      "docs",
+      "documents",
+      "get",
+      "--params",
+      JSON.stringify(params),
+    ]),
+  ),
 );

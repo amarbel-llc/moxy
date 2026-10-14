@@ -10,25 +10,22 @@ export class PiersError extends Error {}
 // gws there.
 export const gwsBin = process.env.GWS_BIN ?? "gws";
 
+const oneLine = (text: string) => text.trim().replace(/\s+/g, " ");
+
 // Runs gws from `cwd` and parses its JSON reply. gws reports API errors on
-// stdout, so that is what a failure carries. gws saves a non-JSON reply (a
-// Drive delete's empty body) as a file in its cwd, so `cwd` must be scratch
-// (#458).
-export async function gwsJson(
-  gws: string,
-  cwd: string,
-  args: string[],
-): Promise<any> {
+// stdout and its own failures (auth, usage) on stderr, so a failure carries
+// whichever has something to say. gws saves a non-JSON reply (a Drive
+// delete's empty body) as a file in its cwd, so `cwd` must be scratch (#458).
+export async function gwsJson(cwd: string, args: string[]): Promise<any> {
   const result = await $({
     cwd,
     nothrow: true,
     verbose: false,
-    stdio: ["pipe", "pipe", "ignore"],
-  })`${gws} ${args}`;
+    stdio: ["pipe", "pipe", "pipe"],
+  })`${gwsBin} ${args}`;
   if (result.exitCode !== 0) {
-    throw new PiersError(
-      `gws ${args.slice(0, 3).join(" ")} failed: ${result.stdout.trim().replace(/\s+/g, " ")}`,
-    );
+    const detail = oneLine(result.stdout) || oneLine(result.stderr);
+    throw new PiersError(`gws ${args.slice(0, 3).join(" ")} failed: ${detail}`);
   }
   const stdout = result.stdout.trim();
   if (!stdout) return {};
@@ -39,6 +36,23 @@ export async function gwsJson(
       `gws ${args.slice(0, 3).join(" ")} replied with something other than JSON: ${stdout.slice(0, 200)}`,
     );
   }
+}
+
+// One Docs API batchUpdate of `documentId` (body: requests, writeControl).
+export function docsBatchUpdate(
+  cwd: string,
+  documentId: string,
+  body: Record<string, unknown>,
+): Promise<any> {
+  return gwsJson(cwd, [
+    "docs",
+    "documents",
+    "batchUpdate",
+    "--params",
+    JSON.stringify({ documentId }),
+    "--json",
+    JSON.stringify(body),
+  ]);
 }
 
 // Prints `value` as the tool's JSON result.

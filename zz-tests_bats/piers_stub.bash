@@ -13,7 +13,8 @@
 # batchUpdate replies give createFootnote requests ids fn-1, fn-2, …
 #
 # Failure switches: GWS_STUB_FAIL_PERMISSIONS, GWS_STUB_FAIL_BATCH_UPDATE,
-# GWS_STUB_FAIL_DELETE; GWS_STUB_UNFETCHABLE_ONCE (the first batchUpdate
+# GWS_STUB_FAIL_DELETE, GWS_STUB_FAIL_ON_STDERR (batchUpdate fails with the
+# reason on stderr only, as gws does for auth errors); GWS_STUB_UNFETCHABLE_ONCE (the first batchUpdate
 # holding an image is refused as Docs refuses a not-yet-fetchable one);
 # GWS_STUB_UNFETCHABLE_URI=<substring> (every image whose uri contains it is
 # refused).
@@ -77,6 +78,10 @@ case "$1 $2 $3" in
   if [ -n "${GWS_STUB_FAIL_BATCH_UPDATE:-}" ]; then
     echo '{"error":{"message":"stub batchUpdate failure"}}'
     exit 1
+  fi
+  if [ -n "${GWS_STUB_FAIL_ON_STDERR:-}" ]; then
+    echo 'error[auth]: stub token expired' >&2
+    exit 2
   fi
   if [ -n "${GWS_STUB_UNFETCHABLE_ONCE:-}" ] && [ ! -e "$GWS_STUB_DIR/refused-once" ]; then
     index=$("$GWS_STUB_JQ" '.requests | map(has("insertInlineImage")) | index(true) // empty' <<<"$json")

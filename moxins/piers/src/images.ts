@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process";
 import { readFile, writeFile } from "fs/promises";
 import { dirname, extname, join } from "path";
-import { PiersError, gwsJson } from "./gws";
+import { PiersError, gwsBin, gwsJson } from "./gws";
 
 // Images that the Docs API's insertInlineImage places: local files and
 // PlantUML diagrams, rendered and sized here, then hosted on Drive for the
@@ -261,7 +261,7 @@ export class ImageHost {
   private uploads = 0;
   private readonly onSignal = () => {
     for (const fileId of this.fileIds) {
-      spawnSync(this.gws, deleteHostedFileArgs(fileId), {
+      spawnSync(gwsBin, deleteHostedFileArgs(fileId), {
         cwd: this.workDir,
         stdio: "ignore",
       });
@@ -269,10 +269,7 @@ export class ImageHost {
     process.exit(1);
   };
 
-  constructor(
-    private readonly gws: string,
-    private readonly workDir: string,
-  ) {
+  constructor(private readonly workDir: string) {
     for (const signal of terminationSignals) process.on(signal, this.onSignal);
   }
 
@@ -283,7 +280,7 @@ export class ImageHost {
   async host(image: PreparedImage): Promise<string> {
     const fileName = `image-${++this.uploads}.${imageExtensionByMimeType[image.mimeType]}`;
     await writeFile(join(this.workDir, fileName), image.bytes);
-    const file = await gwsJson(this.gws, this.workDir, [
+    const file = await gwsJson(this.workDir, [
       "drive",
       "files",
       "create",
@@ -295,7 +292,7 @@ export class ImageHost {
       image.mimeType,
     ]);
     this.fileIds.push(file.id);
-    await gwsJson(this.gws, this.workDir, [
+    await gwsJson(this.workDir, [
       "drive",
       "permissions",
       "create",
@@ -320,10 +317,10 @@ export class ImageHost {
     const undeleted: string[] = [];
     for (const fileId of this.fileIds) {
       try {
-        await gwsJson(this.gws, this.workDir, deleteHostedFileArgs(fileId));
+        await gwsJson(this.workDir, deleteHostedFileArgs(fileId));
       } catch {
         try {
-          await gwsJson(this.gws, this.workDir, deleteHostedFileArgs(fileId));
+          await gwsJson(this.workDir, deleteHostedFileArgs(fileId));
         } catch {
           undeleted.push(fileId);
         }

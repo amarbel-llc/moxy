@@ -19,7 +19,7 @@ description = "The Google Docs document ID"
 [input.properties.requests]
 type = "string"
 description = """JSON array of Docs API request objects, applied in order. Indexes are zero-based UTF-16 positions in the target segment, as shown by get (the body starts at 1); a range's endIndex is exclusive. A location or range may name a tab with "tabId" (default: the first tab). Requests that change length shift every later index: when several edit by index, list them from the end of the document backwards.
-- Find and replace (case-sensitive unless matchCase is false; tabsCriteria limits it to tabs; keeps comments unless their whole anchor text is replaced):
+- Find and replace (case-INsensitive unless matchCase is true — pass it, or "ID" also rewrites "id" inside other words; tabsCriteria limits it to tabs; keeps comments unless their whole anchor text is replaced):
   {"replaceAllText": {"containsText": {"text": "old", "matchCase": true}, "replaceText": "new", "tabsCriteria": {"tabIds": ["t.abc"]}}}
 - Insert text at an index (does not disturb comments):
   {"insertText": {"location": {"index": 10, "tabId": "t.abc"}, "text": "hello"}}

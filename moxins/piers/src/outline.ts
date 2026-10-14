@@ -1,14 +1,7 @@
-import { $ } from "zx";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
+import { gwsJson, printResult, runTool } from "./gws";
 
 const [documentId, rawIncludeLinks] = process.argv.slice(2);
 const includeLinks = rawIncludeLinks === "true";
-
-const params = JSON.stringify({ documentId, includeTabsContent: true });
-const result = await $`gws docs documents get --params ${params}`;
-const doc = JSON.parse(result.stdout);
 
 interface Heading {
   level: number;
@@ -109,33 +102,28 @@ function processTab(tab: any): TabOutline {
   return outline;
 }
 
-let tabs: TabOutline[];
-
-if (doc.tabs?.length > 0) {
-  tabs = doc.tabs.map(processTab);
-} else {
-  const body = doc.body?.content || [];
-  const { headings, links } = extractFromBody(body);
+function outlineOf(doc: any): { title: string; tabs: TabOutline[] } {
+  if (doc.tabs?.length > 0) {
+    return { title: doc.title || "", tabs: doc.tabs.map(processTab) };
+  }
+  const { headings, links } = extractFromBody(doc.body?.content || []);
   const tab: TabOutline = { id: "", title: "", headings };
   if (includeLinks && links.length > 0) {
     tab.links = links;
   }
-  tabs = [tab];
+  return { title: doc.title || "", tabs: [tab] };
 }
 
-const outline = {
-  title: doc.title || "",
-  tabs,
-};
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(outline, null, 2),
-        mimeType: "application/json",
-      },
-    ],
-  }),
+await runTool(async (workDir) =>
+  printResult(
+    outlineOf(
+      await gwsJson(workDir, [
+        "docs",
+        "documents",
+        "get",
+        "--params",
+        JSON.stringify({ documentId, includeTabsContent: true }),
+      ]),
+    ),
+  ),
 );
