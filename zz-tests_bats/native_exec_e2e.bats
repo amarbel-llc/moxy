@@ -18,6 +18,8 @@ schema = 1
 description = "Execute a shell command"
 command = "sh"
 args = ["-c"]
+# Lets the command read cached results by URI (#371: substitution is opt-in).
+substitute-args = ["command"]
 
 [input.properties.command]
 type = "string"

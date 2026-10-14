@@ -103,62 +103,81 @@ func (s *resultSubstitution) Cleanup() {
 	s.writers = nil
 }
 
-// substituteMadderURIs scans command for madder://blobs/<digest>
-// substrings, opens a pipe per unique digest, and rewrites every
-// reference to /dev/fd/N. Repeated references to the same digest
-// share a single pipe and fd so commands like `diff X X` work
-// without deadlocking or duplicating work. On error no pipe
-// resources are leaked.
-func substituteMadderURIs(
-	ctx context.Context,
-	command string,
-	src blobSource,
-) (*resultSubstitution, error) {
-	matches := blobURIPattern.FindAllStringIndex(command, -1)
+// blobRewriter rewrites madder://blobs/<digest> references in any number
+// of strings into one resultSubstitution, so every rewritten string's
+// /dev/fd/N agrees with the one ExtraFiles list the child gets, and a
+// digest referenced anywhere — even twice, as in `diff X X` — shares a
+// single pipe and fd instead of deadlocking or duplicating work.
+type blobRewriter struct {
+	src        blobSource
+	sub        *resultSubstitution
+	fdByDigest map[string]int
+}
+
+func newBlobRewriter(src blobSource) *blobRewriter {
+	return &blobRewriter{src: src, sub: &resultSubstitution{}, fdByDigest: make(map[string]int)}
+}
+
+// rewrite returns text with each blob reference replaced by its /dev/fd/N,
+// opening a pipe for each digest not seen before. On error every pipe this
+// rewriter opened is released.
+func (r *blobRewriter) rewrite(ctx context.Context, text string) (string, error) {
+	matches := blobURIPattern.FindAllStringIndex(text, -1)
 	if len(matches) == 0 {
-		return &resultSubstitution{Command: command}, nil
+		return text, nil
 	}
 
-	sub := &resultSubstitution{}
-	fdByDigest := make(map[string]int)
-
-	failf := func(format string, args ...any) (*resultSubstitution, error) {
-		sub.Cleanup()
-		return nil, fmt.Errorf(format, args...)
+	failf := func(format string, args ...any) (string, error) {
+		r.sub.Cleanup()
+		return "", fmt.Errorf(format, args...)
 	}
 
 	var b strings.Builder
 	cursor := 0
 	for _, m := range matches {
 		start, end := m[0], m[1]
-		uri := command[start:end]
+		uri := text[start:end]
 		digest, ok := parseBlobURI(uri)
 		if !ok {
 			return failf("invalid blob URI: %s", uri)
 		}
 
-		fd, seen := fdByDigest[digest]
+		fd, seen := r.fdByDigest[digest]
 		if !seen {
-			pr, writer, err := src.OpenBlob(ctx, digest)
+			pr, writer, err := r.src.OpenBlob(ctx, digest)
 			if err != nil {
 				return failf("opening %s: %w", uri, err)
 			}
 
-			fd = 3 + len(sub.ExtraFiles)
-			fdByDigest[digest] = fd
-			sub.ExtraFiles = append(sub.ExtraFiles, pr)
-			sub.pipeReads = append(sub.pipeReads, pr)
-			sub.writers = append(sub.writers, writer)
+			fd = 3 + len(r.sub.ExtraFiles)
+			r.fdByDigest[digest] = fd
+			r.sub.ExtraFiles = append(r.sub.ExtraFiles, pr)
+			r.sub.pipeReads = append(r.sub.pipeReads, pr)
+			r.sub.writers = append(r.sub.writers, writer)
 		}
 
-		b.WriteString(command[cursor:start])
+		b.WriteString(text[cursor:start])
 		fmt.Fprintf(&b, "/dev/fd/%d", fd)
 		cursor = end
 	}
-	b.WriteString(command[cursor:])
+	b.WriteString(text[cursor:])
+	return b.String(), nil
+}
 
-	sub.Command = b.String()
-	return sub, nil
+// substituteMadderURIs rewrites the blob references in one command string
+// (see blobRewriter). On error no pipe resources are leaked.
+func substituteMadderURIs(
+	ctx context.Context,
+	command string,
+	src blobSource,
+) (*resultSubstitution, error) {
+	r := newBlobRewriter(src)
+	rewritten, err := r.rewrite(ctx, command)
+	if err != nil {
+		return nil, err
+	}
+	r.sub.Command = rewritten
+	return r.sub, nil
 }
 
 // openBlobBuffered reads the entire blob into memory via the source's

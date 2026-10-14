@@ -1,5 +1,4 @@
 schema = 3
-substitute-result-uris = false
 perms-request = "always-allow"
 description = "Rewrite one tab of an existing Google Doc from markdown (default: the first tab). Every other tab, and its comments, is left alone; the rewritten tab's previous content, including its images and any comments anchored on it, is replaced. Fails without changing anything if the Doc was edited between piers reading it and writing it. Accepts the same markdown as create (GitHub-flavored: headings, lists and task lists, tables, footnotes, block quotes, fenced code blocks rendered as shaded monospace blocks). PlantUML is supported and is the preferred way to put a diagram in a Doc: write a fenced ```plantuml code block (sequence, component, class, state, activity, gantt, …) and it is rendered and placed inline as a sharp image — do not paste diagram source as text or describe a diagram in prose when one would help. Local image files (PNG/JPEG/GIF/SVG, or .puml) referenced as ![alt](path) are embedded too when content_path or base_dir is given. Returns the document and tab id, plus `warnings` when something could not be placed."
 command = "@BIN@/update"

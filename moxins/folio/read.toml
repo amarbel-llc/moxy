@@ -9,6 +9,7 @@ optional delete_start/delete_end omit that inclusive range instead (replacing `s
 Accepts madder://blobs/<digest> result URIs as file paths."""
 command = "@BIN@/read"
 arg-order = ["file_path", "start", "end", "delete_start", "delete_end"]
+substitute-args = ["file_path"]
 
 [input]
 type = "object"

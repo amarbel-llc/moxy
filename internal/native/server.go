@@ -238,18 +238,18 @@ func (s *Server) handleToolsCall(ctx context.Context, params any) (json.RawMessa
 		return errResult("%v", err)
 	}
 
+	arguments, sub, err := s.substituteInputBlobURIs(ctx, spec, arguments)
+	if err != nil {
+		return errResult("resolving blob references: %v", err)
+	}
+	defer sub.Cleanup()
+
 	extraArgs, err := buildExtraArgs(arguments, spec.Input, spec.ArgOrder)
 	if err != nil {
 		return errResult("parsing arguments: %v", err)
 	}
 
 	allArgs := append(append(make([]string, 0, len(spec.Args)+len(extraArgs)), spec.Args...), extraArgs...)
-
-	allArgs, sub, err := s.substituteArgvBlobURIs(ctx, spec, allArgs)
-	if err != nil {
-		return errResult("resolving blob references: %v", err)
-	}
-	defer sub.Cleanup()
 
 	stdout, stderr, runErr := s.runMoxinProcess(ctx, spec, allArgs, stdinContent, sub)
 	if runErr != nil {
@@ -322,7 +322,7 @@ func (s *Server) prepareStdin(
 	}
 
 	stdinContent, remaining := extractStdinParam(arguments, spec.StdinParam)
-	if stdinContent == "" || !spec.ShouldSubstituteURIs() {
+	if stdinContent == "" || !spec.SubstitutesURIsIn(spec.StdinParam) {
 		return stdinContent, remaining, nil
 	}
 
@@ -363,45 +363,75 @@ func extractStdinParam(arguments json.RawMessage, name string) (string, json.Raw
 	return val, remaining
 }
 
-// substituteArgvBlobURIs rewrites madder://blobs/<digest> URIs in
-// caller-supplied positional arguments to /dev/fd/N references. The
-// returned resultSubstitution owns the pipes and writer subprocesses;
-// callers must defer its Cleanup. When substitution is disabled or no
-// madder backend is wired, an empty substitution is returned and
-// argv passes through unchanged.
-func (s *Server) substituteArgvBlobURIs(
+// substituteInputBlobURIs rewrites madder://blobs/<digest> references to
+// /dev/fd/N pipes in the inputs the tool lists in substitute-args (#371): a
+// string input, or each string of an array input. Every other input reaches
+// the tool verbatim — a commit message or file body that mentions a blob URI
+// is data, not a reference to stream. The returned resultSubstitution owns
+// the pipes and writer subprocesses; callers must defer its Cleanup.
+func (s *Server) substituteInputBlobURIs(
 	ctx context.Context,
 	spec *ToolSpec,
-	allArgs []string,
-) ([]string, *resultSubstitution, error) {
-	if !spec.ShouldSubstituteURIs() || s.madder == nil {
-		return allArgs, &resultSubstitution{}, nil
+	arguments json.RawMessage,
+) (json.RawMessage, *resultSubstitution, error) {
+	if len(spec.SubstituteArgs) == 0 || s.madder == nil || len(arguments) == 0 {
+		return arguments, &resultSubstitution{}, nil
+	}
+	var argMap map[string]json.RawMessage
+	if err := json.Unmarshal(arguments, &argMap); err != nil {
+		// Left for buildExtraArgs to report.
+		return arguments, &resultSubstitution{}, nil
 	}
 
-	var sub *resultSubstitution
-	specArgCount := len(spec.Args)
-	for i, arg := range allArgs[specArgCount:] {
-		argSub, err := substituteMadderURIs(ctx, arg, s.madder)
-		if err != nil {
-			if sub != nil {
-				sub.Cleanup()
-			}
-			return nil, nil, err
-		}
-		allArgs[specArgCount+i] = argSub.Command
-		if sub == nil {
-			sub = argSub
+	r := newBlobRewriter(s.madder)
+	for _, name := range spec.SubstituteArgs {
+		val, ok := argMap[name]
+		if !ok {
 			continue
 		}
-		// Merge bookkeeping from this arg into the aggregate substitution.
-		sub.ExtraFiles = append(sub.ExtraFiles, argSub.ExtraFiles...)
-		sub.pipeReads = append(sub.pipeReads, argSub.pipeReads...)
-		sub.writers = append(sub.writers, argSub.writers...)
+		rewritten, err := rewriteJSONStrings(ctx, r, val)
+		if err != nil {
+			r.sub.Cleanup()
+			return nil, nil, fmt.Errorf("input %s: %w", name, err)
+		}
+		argMap[name] = rewritten
 	}
-	if sub == nil {
-		sub = &resultSubstitution{}
+	out, err := json.Marshal(argMap)
+	if err != nil {
+		r.sub.Cleanup()
+		return nil, nil, fmt.Errorf("re-encoding arguments: %w", err)
 	}
-	return allArgs, sub, nil
+	return out, r.sub, nil
+}
+
+// rewriteJSONStrings applies r to a JSON string, or to each string of a
+// JSON array; any other value is returned unchanged.
+func rewriteJSONStrings(ctx context.Context, r *blobRewriter, val json.RawMessage) (json.RawMessage, error) {
+	var str string
+	if json.Unmarshal(val, &str) == nil {
+		rewritten, err := r.rewrite(ctx, str)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(rewritten)
+	}
+	var items []json.RawMessage
+	if json.Unmarshal(val, &items) != nil {
+		return val, nil
+	}
+	for i, item := range items {
+		if json.Unmarshal(item, &str) != nil {
+			continue
+		}
+		rewritten, err := r.rewrite(ctx, str)
+		if err != nil {
+			return nil, err
+		}
+		if items[i], err = json.Marshal(rewritten); err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal(items)
 }
 
 // runMoxinProcess starts the moxin tool's subprocess, kicks off any

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -93,30 +94,32 @@ type SchemaRef struct {
 
 // ToolSpec describes a single tool within a moxin.
 type ToolSpec struct {
-	Name                 string
-	Description          string
-	Command              string
-	Args                 []string
-	ArgOrder             []string
-	StdinParam           string
-	PermsRequest         PermsRequest
-	DynamicPerms         *DynamicPermsSpec // Added for moxy POC dynamic-perms
-	PermitAsync          *bool             // nil = eligible (see PermitsAsync); #317
-	ContentType          string
-	ResultType           ResultType
-	CacheResults         CacheResults // resolved; never empty (#319)
-	NoTruncate           bool
-	SubstituteResultURIs *bool
-	Annotations          *ToolAnnotations
-	Kind                 string // what the tool's result is; emitted as `_meta.kind` (#451)
-	Input                json.RawMessage
-	InputParsed          *InputSchema
+	Name           string
+	Description    string
+	Command        string
+	Args           []string
+	ArgOrder       []string
+	StdinParam     string
+	PermsRequest   PermsRequest
+	DynamicPerms   *DynamicPermsSpec // Added for moxy POC dynamic-perms
+	PermitAsync    *bool             // nil = eligible (see PermitsAsync); #317
+	ContentType    string
+	ResultType     ResultType
+	CacheResults   CacheResults // resolved; never empty (#319)
+	NoTruncate     bool
+	SubstituteArgs []string // inputs whose blob URIs become /dev/fd/N (#371)
+	Annotations    *ToolAnnotations
+	Kind           string // what the tool's result is; emitted as `_meta.kind` (#451)
+	Input          json.RawMessage
+	InputParsed    *InputSchema
 }
 
-// ShouldSubstituteURIs reports whether madder://blobs/<digest> URIs in
-// this tool's arguments should be rewritten to /dev/fd/N pipes.
-func (s *ToolSpec) ShouldSubstituteURIs() bool {
-	return s.SubstituteResultURIs == nil || *s.SubstituteResultURIs
+// SubstitutesURIsIn reports whether madder://blobs/<digest> URIs in the
+// named input are rewritten to /dev/fd/N pipes: only for inputs the tool
+// lists in substitute-args (#371). Everything else reaches the tool
+// verbatim.
+func (s *ToolSpec) SubstitutesURIsIn(input string) bool {
+	return input != "" && slices.Contains(s.SubstituteArgs, input)
 }
 
 // PermitsAsync reports whether this tool may be dispatched asynchronously
@@ -154,7 +157,8 @@ type rawToolFile struct {
 	ContentType          string            `toml:"content-type"`
 	ResultType           string            `toml:"result-type"`
 	NoTruncate           bool              `toml:"no-truncate"`
-	SubstituteResultURIs *bool             `toml:"substitute-result-uris"`
+	SubstituteArgs       []string          `toml:"substitute-args"`        // #371
+	SubstituteResultURIs *bool             `toml:"substitute-result-uris"` // retired by #371
 	Annotations          *ToolAnnotations  `toml:"annotations"`
 	Kind                 string            `toml:"kind"` // #451
 	Input                *InputSchema      `toml:"input"`
@@ -299,27 +303,35 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
+
+		substituteArgs, warning, err := resolveSubstituteArgs(raw)
+		if err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
+		}
+		if warning != "" {
+			allWarnings = append(allWarnings, fmt.Sprintf("%s: %s", filename, warning))
+		}
 		if err := validateDynamicCache(cacheResults, resultType); err != nil {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
 
 		ts := ToolSpec{
-			Name:                 toolName,
-			Description:          raw.Description,
-			Command:              raw.Command,
-			Args:                 raw.Args,
-			ArgOrder:             raw.ArgOrder,
-			StdinParam:           raw.StdinParam,
-			PermsRequest:         raw.PermsRequest,
-			DynamicPerms:         raw.DynamicPerms, // Added for moxy POC dynamic-perms
-			PermitAsync:          raw.PermitAsync,  // #317
-			ContentType:          raw.ContentType,
-			ResultType:           resultType,
-			CacheResults:         cacheResults, // #319
-			NoTruncate:           raw.NoTruncate,
-			SubstituteResultURIs: raw.SubstituteResultURIs,
-			Annotations:          raw.Annotations,
-			Kind:                 raw.Kind,
+			Name:           toolName,
+			Description:    raw.Description,
+			Command:        raw.Command,
+			Args:           raw.Args,
+			ArgOrder:       raw.ArgOrder,
+			StdinParam:     raw.StdinParam,
+			PermsRequest:   raw.PermsRequest,
+			DynamicPerms:   raw.DynamicPerms, // Added for moxy POC dynamic-perms
+			PermitAsync:    raw.PermitAsync,  // #317
+			ContentType:    raw.ContentType,
+			ResultType:     resultType,
+			CacheResults:   cacheResults, // #319
+			NoTruncate:     raw.NoTruncate,
+			SubstituteArgs: substituteArgs,
+			Annotations:    raw.Annotations,
+			Kind:           raw.Kind,
 		}
 
 		if raw.Input != nil {
@@ -403,6 +415,32 @@ func resolveCacheResults(raw string) (CacheResults, error) {
 	}
 }
 
+// resolveSubstituteArgs checks a tool's substitute-args (#371): each name
+// must be one of the tool's inputs (its stdin-param counts). The retired
+// substitute-result-uris = true — "substitute in every argument" — is
+// refused, pointing at its replacement; = false was the opt-out from that
+// default, is now what every tool gets, and only earns a warning.
+func resolveSubstituteArgs(raw rawToolFile) (args []string, warning string, err error) {
+	if raw.SubstituteResultURIs != nil {
+		if *raw.SubstituteResultURIs {
+			return nil, "", fmt.Errorf("substitute-result-uris = true is retired (#371): list the inputs that take madder://blobs/<digest> URIs in substitute-args")
+		}
+		warning = "substitute-result-uris is retired (#371): no input is substituted unless listed in substitute-args; drop the key"
+	}
+	for _, name := range raw.SubstituteArgs {
+		isInput := name == raw.StdinParam
+		if raw.Input != nil {
+			if _, ok := raw.Input.Properties[name]; ok {
+				isInput = true
+			}
+		}
+		if !isInput {
+			return nil, "", fmt.Errorf("substitute-args names %q, which is not one of the tool's inputs", name)
+		}
+	}
+	return raw.SubstituteArgs, warning, nil
+}
+
 // validateDynamicCache enforces RFC 0001 §1: cache-results = "dynamic" requires
 // result-type = "mcp-result", because a text-mode tool's stdout IS the cached
 // payload and has no envelope to carry the `_meta."moxy/cache"` intent.
@@ -481,7 +519,8 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 		"permit-async",  // #317
 		"cache-results", // #319
 		"content-type", "result-type", "no-truncate", "substitute-result-uris",
-		"kind", // #451
+		"substitute-args", // #371
+		"kind",            // #451
 	}
 	if schema <= 2 {
 		keys = append(keys, "arg_order", "stdin_param")

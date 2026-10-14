@@ -34,12 +34,14 @@ partial output for complete output. Moxy expects a `.default` store at startup;
 spinclass auto-initializes one per worktree, otherwise run `madder init .default`
 from your repo root.
 
-**Composable result URIs.** The `madder://blobs/<digest>` URIs are first-class
-across moxin tools. A `folio.read` call can take the URI from a previous
-`rg.search` result as its file path; a `jq.jq` call can take one as stdin.
-Moxy rewrites these to file descriptors at invocation time (piping
-`madder cat <digest>` stdout through to the child process), so tools chain
-without the agent needing to copy data between calls.
+**Composable result URIs.** The `madder://blobs/<digest>` URIs chain between
+moxin tools. A `folio.read` call can take the URI from a previous `rg.search`
+result as its file path; a `jq.jq` call can take one as a file or as stdin.
+Moxy rewrites these to file descriptors at invocation time (streaming the blob
+through a pipe to the child process), so tools chain without the agent
+needing to copy data between calls. Only the inputs a tool declares in
+`substitute-args` are rewritten; everywhere else — a commit message, a file
+body — a URI is plain text and reaches the tool untouched (#371).
 
 **Declarative tool authoring.** Moxins are TOML files — a manifest plus one file
 per tool. Each tool file declares its name, description, input schema, command,

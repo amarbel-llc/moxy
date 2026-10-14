@@ -6,6 +6,7 @@ description = "Extract a section from a markdown document by HTML anchor name (`
 command = "@BIN@/md-anchor"
 arg-order = ["anchor"]
 stdin-param = "markdown"
+substitute-args = ["markdown"]
 
 [input]
 type = "object"

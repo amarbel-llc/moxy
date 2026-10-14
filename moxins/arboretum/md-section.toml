@@ -6,6 +6,7 @@ description = "Extract a section from a markdown document by heading name. Retur
 command = "@BIN@/md-section"
 arg-order = ["section_name"]
 stdin-param = "markdown"
+substitute-args = ["markdown"]
 
 [input]
 type = "object"

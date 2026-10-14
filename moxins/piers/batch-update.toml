@@ -1,5 +1,4 @@
 schema = 3
-substitute-result-uris = false
 perms-request = "always-allow"
 description = "Apply surgical edits to a Google Doc via the Docs API batchUpdate: find-and-replace, inserting or deleting text at an index, paragraph styles (headings, alignment, spacing) and text styles (bold, italic, font, colour, links). Several requests go in one call and apply atomically, in order. Preserves anchored comments on text it leaves alone. Read the document with get first for indices and its revisionId. To rewrite a whole tab from markdown use update instead."
 command = "@BIN@/batch-update"

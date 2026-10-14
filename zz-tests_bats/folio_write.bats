@@ -7,8 +7,9 @@
 # tools can stream cached results by URI. That rewrite previously also fired
 # on any madder:// URI appearing *inside* the content payload, corrupting
 # files whose literal text contains such a URI (test fixtures, docs about the
-# URI scheme, JSON records). folio.write opts out of URI substitution
-# (substitute-result-uris=false), so content reaches disk unmodified.
+# URI scheme, JSON records). Substitution is opt-in per input since #371 and
+# folio.write lists none in substitute-args, so content reaches disk
+# unmodified.
 
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"

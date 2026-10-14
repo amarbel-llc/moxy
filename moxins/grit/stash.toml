@@ -2,9 +2,6 @@ schema = 3
 result-type = "text"
 perms-request = "dynamic"
 permit-async = false
-# The stash message is verbatim data, never a blob to stream; opt out of the
-# read-side madder://blobs -> /dev/fd/N argv rewrite (#366-class; see #371).
-substitute-result-uris = false
 description = """Manage git stashes. Subcommands: save, apply, drop. \
 The arg shape for each subcommand mirrors the corresponding `git stash` invocation. \
 save and apply auto-allow; drop is destructive and prompts for confirmation."""

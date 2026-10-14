@@ -790,10 +790,11 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 		Name: "test-server",
 		Tools: []ToolSpec{
 			{
-				Name:    "exec",
-				Command: "sh",
-				Args:    []string{"-c"},
-				Input:   json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
+				Name:           "exec",
+				Command:        "sh",
+				Args:           []string{"-c"},
+				SubstituteArgs: []string{"command"},
+				Input:          json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
 			},
 		},
 	}
@@ -831,16 +832,15 @@ func TestServerToolsCallURISubstitution(t *testing.T) {
 	}
 }
 
-func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
-	falseVal := false
+// #371: an input not listed in substitute-args reaches the tool verbatim.
+func TestServerToolsCallURISubstitutionOffByDefault(t *testing.T) {
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
 			{
-				Name:                 "echo-raw",
-				Command:              "echo",
-				SubstituteResultURIs: &falseVal,
-				Input:                json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`),
+				Name:    "echo-raw",
+				Command: "echo",
+				Input:   json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`),
 			},
 		},
 	}
@@ -850,8 +850,8 @@ func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
 	srv.SetSession("test-session")
 	madder.put("blake2b256-test-abc", "cached-content\n")
 
-	// Pass a blob URI as an argument — with opt-out, it should pass
-	// through as a literal string, not be rewritten to /dev/fd/N.
+	// Pass a blob URI as an argument — not listed in substitute-args, it
+	// should pass through as a literal string, not become /dev/fd/N.
 	uri := "madder://blobs/blake2b256-test-abc"
 	params := protocol.ToolCallParams{
 		Name:      "echo-raw",
@@ -877,18 +877,17 @@ func TestServerToolsCallURISubstitutionOptOut(t *testing.T) {
 	}
 }
 
-func TestServerToolsCallStdinURISubstitutionOptOut(t *testing.T) {
-	falseVal := false
+// #371: a stdin-param not listed in substitute-args is fed verbatim.
+func TestServerToolsCallStdinURISubstitutionOffByDefault(t *testing.T) {
 	cfg := &NativeConfig{
 		Name: "test-server",
 		Tools: []ToolSpec{
 			{
-				Name:                 "cat-raw",
-				Command:              "cat",
-				StdinParam:           "data",
-				SubstituteResultURIs: &falseVal,
-				ResultType:           ResultTypeText,
-				Input:                json.RawMessage(`{"type":"object","properties":{"data":{"type":"string"}},"required":["data"]}`),
+				Name:       "cat-raw",
+				Command:    "cat",
+				StdinParam: "data",
+				ResultType: ResultTypeText,
+				Input:      json.RawMessage(`{"type":"object","properties":{"data":{"type":"string"}},"required":["data"]}`),
 			},
 		},
 	}
@@ -898,8 +897,8 @@ func TestServerToolsCallStdinURISubstitutionOptOut(t *testing.T) {
 	srv.SetSession("test-session")
 	madder.put("blake2b256-test-abc", "cached-content\n")
 
-	// With opt-out, the URI should be passed as literal stdin text to
-	// cat, not resolved to the cached content.
+	// Not listed, the URI should be passed as literal stdin text to cat,
+	// not resolved to the cached content.
 	uri := "madder://blobs/blake2b256-test-abc"
 	params := protocol.ToolCallParams{
 		Name:      "cat-raw",
@@ -921,6 +920,101 @@ func TestServerToolsCallStdinURISubstitutionOptOut(t *testing.T) {
 	text := strings.TrimSpace(result.Content[0].Text)
 	if text != uri {
 		t.Errorf("output = %q, want literal URI %q (stdin substitution should be skipped)", text, uri)
+	}
+}
+
+// callText runs one tools/call against a server over cfg whose fake madder
+// holds blobs, and returns the text result (failing the test on an error).
+func callText(t *testing.T, cfg *NativeConfig, blobs map[string]string, name, arguments string) string {
+	t.Helper()
+	srv := NewServer(cfg)
+	madder := newFakeMadder()
+	for digest, content := range blobs {
+		madder.put(digest, content)
+	}
+	srv.SetMadder(madder)
+	srv.SetSession("test-session")
+	raw, err := srv.Call(context.Background(), "tools/call", protocol.ToolCallParams{
+		Name:      name,
+		Arguments: json.RawMessage(arguments),
+	})
+	if err != nil {
+		t.Fatalf("Call tools/call: %v", err)
+	}
+	var result protocol.ToolCallResultV1
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected IsError=false, got error: %s", result.Content[0].Text)
+	}
+	return result.Content[0].Text
+}
+
+// Blob URIs in two different inputs get distinct descriptors that match
+// the child's ExtraFiles. Each argument used to be rewritten on its own, so
+// both said /dev/fd/3 and the second input read the first blob.
+func TestServerToolsCallURISubstitutionAcrossInputs(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{{
+			Name:           "cat2",
+			Command:        "sh",
+			Args:           []string{"-c", `cat "$0" "$1"`},
+			ArgOrder:       []string{"a", "b"},
+			SubstituteArgs: []string{"a", "b"},
+			ResultType:     ResultTypeText,
+			Input:          json.RawMessage(`{"type":"object","properties":{"a":{"type":"string"},"b":{"type":"string"}}}`),
+		}},
+	}
+	text := callText(t, cfg,
+		map[string]string{"blake2b256-aaa": "first\n", "blake2b256-bbb": "second\n"},
+		"cat2", `{"a":"madder://blobs/blake2b256-aaa","b":"madder://blobs/blake2b256-bbb"}`)
+	if text != "first\nsecond\n" {
+		t.Errorf("output = %q, want each input's own blob", text)
+	}
+}
+
+// Each string of a listed array input is rewritten; the array still
+// reaches the tool as one JSON argument.
+func TestServerToolsCallURISubstitutionInArrayInput(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{{
+			Name:           "show",
+			Command:        "sh",
+			Args:           []string{"-c", `printf '%s' "$0"`},
+			ArgOrder:       []string{"files"},
+			SubstituteArgs: []string{"files"},
+			ResultType:     ResultTypeText,
+			Input:          json.RawMessage(`{"type":"object","properties":{"files":{"type":"array","items":{"type":"string"}}}}`),
+		}},
+	}
+	text := callText(t, cfg,
+		map[string]string{"blake2b256-aaa": "x", "blake2b256-bbb": "y"},
+		"show", `{"files":["madder://blobs/blake2b256-aaa","plain.json","madder://blobs/blake2b256-bbb"]}`)
+	if text != `["/dev/fd/3","plain.json","/dev/fd/4"]` {
+		t.Errorf("output = %q", text)
+	}
+}
+
+// A listed stdin-param that is a blob URI is replaced by the blob's bytes.
+func TestServerToolsCallStdinURISubstitutionWhenListed(t *testing.T) {
+	cfg := &NativeConfig{
+		Name: "test-server",
+		Tools: []ToolSpec{{
+			Name:           "cat",
+			Command:        "cat",
+			StdinParam:     "data",
+			SubstituteArgs: []string{"data"},
+			ResultType:     ResultTypeText,
+			Input:          json.RawMessage(`{"type":"object","properties":{"data":{"type":"string"}}}`),
+		}},
+	}
+	text := callText(t, cfg, map[string]string{"blake2b256-aaa": "cached\n"},
+		"cat", `{"data":"madder://blobs/blake2b256-aaa"}`)
+	if text != "cached\n" {
+		t.Errorf("output = %q, want the blob's bytes", text)
 	}
 }
 

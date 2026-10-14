@@ -1114,77 +1114,93 @@ arg_order = ["pattern"]
 	}
 }
 
-func TestParseMoxinDirSubstituteResultURIs(t *testing.T) {
-	t.Run("explicit false", func(t *testing.T) {
+// #371: blob-URI substitution is opt-in per input, via substitute-args.
+func TestParseMoxinDirSubstituteArgs(t *testing.T) {
+	parse := func(t *testing.T, tool string) (*ParseResult, error) {
+		t.Helper()
 		dir := writeMoxinDir(t, t.TempDir(), "test", `
 schema = 1
 name = "test"
-`, map[string]string{
-			"tool": `
+`, map[string]string{"tool": tool})
+		return ParseMoxinDirFull(dir)
+	}
+
+	t.Run("omitted substitutes nothing", func(t *testing.T) {
+		result, err := parse(t, `
 schema = 3
 command = "echo"
-substitute-result-uris = false
-`,
-		})
+[input.properties.path]
+type = "string"
+`)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if tool := result.Config.Tools[0]; tool.SubstitutesURIsIn("path") {
+			t.Error("path substituted without being listed")
+		}
+	})
 
-		result, err := ParseMoxinDirFull(dir)
+	t.Run("lists inputs and the stdin-param", func(t *testing.T) {
+		result, err := parse(t, `
+schema = 3
+command = "echo"
+stdin-param = "body"
+substitute-args = ["path", "body"]
+[input.properties.path]
+type = "string"
+[input.properties.other]
+type = "string"
+`)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		tool := result.Config.Tools[0]
-		if tool.SubstituteResultURIs == nil {
-			t.Fatal("SubstituteResultURIs should not be nil")
-		}
-		if *tool.SubstituteResultURIs {
-			t.Error("SubstituteResultURIs = true, want false")
+		if !tool.SubstitutesURIsIn("path") || !tool.SubstitutesURIsIn("body") || tool.SubstitutesURIsIn("other") {
+			t.Errorf("SubstituteArgs = %v", tool.SubstituteArgs)
 		}
 		if len(result.Undecoded) > 0 {
 			t.Errorf("unexpected undecoded keys: %v", result.Undecoded)
 		}
 	})
 
-	t.Run("explicit true", func(t *testing.T) {
-		dir := writeMoxinDir(t, t.TempDir(), "test", `
-schema = 1
-name = "test"
-`, map[string]string{
-			"tool": `
+	t.Run("an unknown input is an error", func(t *testing.T) {
+		_, err := parse(t, `
 schema = 3
 command = "echo"
-substitute-result-uris = true
-`,
-		})
-
-		result, err := ParseMoxinDirFull(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		tool := result.Config.Tools[0]
-		if tool.SubstituteResultURIs == nil {
-			t.Fatal("SubstituteResultURIs should not be nil")
-		}
-		if !*tool.SubstituteResultURIs {
-			t.Error("SubstituteResultURIs = false, want true")
+substitute-args = ["nope"]
+[input.properties.path]
+type = "string"
+`)
+		if err == nil || !strings.Contains(err.Error(), `substitute-args names "nope"`) {
+			t.Fatalf("err = %v, want unknown-input error", err)
 		}
 	})
 
-	t.Run("omitted defaults to nil", func(t *testing.T) {
-		dir := writeMoxinDir(t, t.TempDir(), "test", `
-schema = 1
-name = "test"
-`, map[string]string{
-			"tool": `
+	t.Run("retired substitute-result-uris = false only warns", func(t *testing.T) {
+		result, err := parse(t, `
 schema = 3
 command = "echo"
-`,
-		})
-
-		cfg, err := ParseMoxinDir(dir)
+substitute-result-uris = false
+`)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if cfg.Tools[0].SubstituteResultURIs != nil {
-			t.Errorf("SubstituteResultURIs should be nil when omitted, got %v", *cfg.Tools[0].SubstituteResultURIs)
+		if len(result.Warnings) != 1 || !strings.Contains(result.Warnings[0], "substitute-result-uris is retired") {
+			t.Errorf("warnings = %v", result.Warnings)
+		}
+		if len(result.Undecoded) > 0 {
+			t.Errorf("unexpected undecoded keys: %v", result.Undecoded)
+		}
+	})
+
+	t.Run("retired substitute-result-uris = true is an error", func(t *testing.T) {
+		_, err := parse(t, `
+schema = 3
+command = "echo"
+substitute-result-uris = true
+`)
+		if err == nil || !strings.Contains(err.Error(), "list the inputs that take madder://blobs/<digest> URIs in substitute-args") {
+			t.Fatalf("err = %v, want a pointer to substitute-args", err)
 		}
 	})
 }

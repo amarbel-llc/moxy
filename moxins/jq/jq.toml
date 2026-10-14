@@ -2,10 +2,11 @@ schema = 3
 perms-request = "always-allow"
 permit-async = false
 cache-results = "always"
-description = "Execute a jq filter. Only jq is invoked — no shell evaluation. madder://blobs/<digest> URIs in args are rewritten to /dev/fd/N (streaming via `madder cat`)."
+description = "Execute a jq filter. Only jq is invoked — no shell evaluation. madder://blobs/<digest> URIs in files are rewritten to /dev/fd/N (streaming the cached blob), and one given as stdin is fed as the blob's bytes."
 command = "@BIN@/jq"
 arg-order = ["filter", "flags", "files", "cwd"]
 stdin-param = "stdin"
+substitute-args = ["files", "stdin"]
 
 [input]
 type = "object"

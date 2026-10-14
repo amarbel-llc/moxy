@@ -1,5 +1,4 @@
 schema = 3
-substitute-result-uris = false
 perms-request = "always-allow"
 description = "Create a new Google Doc from markdown (GitHub-flavored: headings, emphasis, links, lists and task lists, tables, footnotes, block quotes, fenced code blocks rendered as shaded monospace blocks). Returns the created file metadata including ID, plus `warnings` when something could not be placed. PlantUML is supported and is the preferred way to put a diagram in a Doc: write a fenced ```plantuml code block (sequence, component, class, state, activity, gantt, …) and it is rendered and placed inline as a sharp image — do not paste diagram source as text or describe a diagram in prose when one would help. Local image files (PNG/JPEG/GIF/SVG, or .puml) referenced as ![alt](path) are embedded too when content_path or base_dir is given."
 command = "@BIN@/create"

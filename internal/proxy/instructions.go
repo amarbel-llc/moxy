@@ -21,7 +21,7 @@ func FormatInstructions(servers []ServerSummary) string {
 	var b strings.Builder
 	b.WriteString("MCP proxy aggregating tools, resources, and prompts from child servers.\n\n")
 	b.WriteString("Tool outputs above the inline-token threshold are streamed into a content-addressable blob store and replaced with a `madder://blobs/<digest>` URI. ")
-	b.WriteString("These URIs can be used anywhere a file path is accepted (e.g. jq input) — moxy rewrites them to file descriptors at invocation time. ")
+	b.WriteString("Tools that say so accept these URIs in place of a file or stdin (e.g. jq files and stdin, folio read) — moxy feeds the cached bytes in at invocation time; anywhere else a URI is passed through as plain text. ")
 	b.WriteString("Read directly with `madder cat <digest>` if needed.\n\n")
 	b.WriteString("Prefer tools marked [perms: always-allow] over those requiring permission prompts, unless the task specifically needs a permissioned tool.")
 
@@ -103,7 +103,7 @@ func FormatSystemPromptFragment(servers []ServerSummary) (string, bool) {
 
 	b.WriteString("\nDiscover a server's tools with the `moxy://tools/{server}` resource. ")
 	b.WriteString("Large tool outputs are streamed to the madder blob store and returned as ")
-	b.WriteString("`madder://blobs/<digest>` URIs, usable anywhere a file path is accepted.\n")
+	b.WriteString("`madder://blobs/<digest>` URIs, which tools that say so (jq, folio read) accept in place of a file.\n")
 
 	return b.String(), true
 }

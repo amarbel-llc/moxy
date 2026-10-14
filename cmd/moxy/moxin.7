@@ -83,7 +83,7 @@ Schema 2 introduced
 .Sy result-type ;
 schema 3 introduced
 .Sy content-type , cache-results , no-truncate ,
-.Sy substitute-result-uris , permit-async ,
+.Sy substitute-args , permit-async ,
 the
 .Sy annotations
 and
@@ -127,9 +127,12 @@ Optional name of an input property whose value is fed to the command on
 .Em stdin
 instead of as an argument (schema 3 key; schema 1/2 spelling
 .Sy stdin_param ) .
-A
+When the property is listed in
+.Sy substitute-args ,
+a
 .Sy madder://blobs/<digest>
-value is resolved to its bytes before being written.
+value is resolved to its bytes before being written; otherwise the value
+is written verbatim.
 .It Sy input
 Optional JSON Schema object describing the tool's parameters.
 If present, must include
@@ -181,11 +184,32 @@ Disable the head/tail summary for oversized outputs (boolean; schema 3
 key).
 See
 .Sx RESULT SHAPING .
-.It Sy substitute-result-uris
-Whether
+.It Sy substitute-args
+Array of input-property names whose
 .Sy madder://blobs/<digest>
-URIs appearing in the tool's own output are resolved to their contents
-before the result is returned (boolean; schema 3 key).
+references are fed in as blob bytes: rewritten to
+.Pa /dev/fd/N
+pipes in a string input or each string of an array input, or resolved to
+the blob's bytes for the
+.Sy stdin-param
+(schema 3 key).
+Every other input reaches the command verbatim, so list only inputs the
+tool
+.Em reads
+\(em a file path it opens, a stdin payload \(em never free text such as
+a message or file body, which a rewrite would corrupt.
+Each name must be one of the tool's inputs, or the moxin fails to load.
+See
+.Sx RESOURCE-AS-FD COMPOSITION .
+The retired
+.Sy substitute-result-uris
+key (substitution in every argument unless set to
+.Li false )
+still parses:
+.Li false
+is now the default and only earns a warning;
+.Li true
+is a load error pointing here.
 .It Sy annotations
 Optional table of MCP behavior hints surfaced on the tool (schema 3 key):
 .Sy title , read-only-hint , destructive-hint , idempotent-hint ,
@@ -650,7 +674,9 @@ then
 .Ev SPINCLASS_SESSION_ID ,
 then a generated UUID.
 .Sh RESOURCE-AS-FD COMPOSITION
-When a tool argument contains a
+When an input the tool lists in
+.Sy substitute-args
+contains a
 .Sy madder://blobs/{digest}
 URI, the native server:
 .Pp
@@ -668,12 +694,19 @@ in the argument string and passes the pipe's read end to the child
 via
 .Sy ExtraFiles .
 .It
-Repeated references to the same digest in the same argument share a
+Repeated references to the same digest anywhere in one call share a
 single fd \(em
 .Sy diff X X
 on the same blob does not double-spawn
-.Xr madder 1 .
+.Xr madder 1 ,
+and references in different inputs number their fds consistently.
 .El
+.Pp
+Inputs not listed are passed through untouched: a commit message, an
+issue body, or file content that merely mentions a blob URI is data, not
+a reference to stream.
+Substitution was once the default for every argument, which corrupted
+such text until each writing tool opted out (#366, #371).
 .Pp
 This allows tool outputs to be composed as inputs to subsequent tools
 without the agent needing to manage temporary files.

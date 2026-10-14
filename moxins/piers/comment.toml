@@ -1,5 +1,4 @@
 schema = 3
-substitute-result-uris = false
 perms-request = "always-allow"
 description = "Work with comments on a Google Doc. Subcommands: list (comment text, author, quoted content, resolved status, replies), reply (respond to a comment, e.g. one anchored in the Docs UI), resolve and reopen (optionally with a reply message)."
 command = "@BIN@/comment"
