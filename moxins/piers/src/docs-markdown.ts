@@ -21,6 +21,7 @@ const docsWriter = "@PIERS_DOCS_WRITER@";
 
 type Request = Record<string, any>;
 type Plan = Request[];
+type Reply = Record<string, any>;
 type Pending =
   { kind: "file"; path: string } | { kind: "plantuml"; source: string };
 
@@ -38,6 +39,109 @@ export type WriteTarget =
 const imageNotFetchable =
   /requests\[(\d+)\]\.insertInlineImage: There was a problem retrieving the image/;
 const hostedFetchAttempts = 4;
+
+// gws's --json flag takes the whole batchUpdate body as one argv string,
+// which Linux caps per-string at MAX_ARG_STRLEN (128 KiB) regardless of how
+// the rest of the command line is built (#471: a few hundred plain
+// paragraphs is enough). gws has no file/stdin form for --json to fall back
+// to (`gws docs documents batchUpdate --help` lists only the literal-value
+// flag); a plan over budget is split across several batchUpdate calls
+// instead. The budget stays well under 128 KiB to leave room for the rest
+// of the body (writeControl) and argv quoting overhead. PIERS_MAX_BATCH_BYTES
+// is a test seam to exercise chunking with a small fixture.
+const MAX_BATCH_BYTES = Number(process.env.PIERS_MAX_BATCH_BYTES) || 96 * 1024;
+
+// docs-requests.lua emits a plan's entire body as one insertText request
+// (all paragraphs concatenated, styled separately afterward) — see its
+// header comment, step 1. That single request can itself be larger than
+// MAX_BATCH_BYTES, which chunkPlan's request-granularity grouping cannot
+// help with. Docs applies insertText requests in order, each pushing
+// whatever follows forward by its own length, so a long insertText can be
+// cut into several smaller ones at sequentially advancing indices with the
+// same net effect as the one bulk insert — every other request's indices
+// are absolute positions in the final text and stay correct either way.
+// Splits by halving until each piece's own serialized size fits, so this is
+// correct regardless of how much JSON-escaping a piece's text needs; never
+// cuts a UTF-16 surrogate pair (Docs indices are UTF-16 code units, like
+// `text.length`).
+function splitInsertText(request: Request, budget: number): Plan {
+  const { location, text } = request.insertText as {
+    location: Record<string, unknown> & { index: number };
+    text: string;
+  };
+  const parts: Plan = [];
+  let offset = 0;
+  let index = location.index;
+  while (offset < text.length) {
+    let length = Math.max(1, Math.min(text.length - offset, budget));
+    for (;;) {
+      let end = offset + length;
+      if (end < text.length) {
+        const code = text.charCodeAt(end - 1);
+        if (code >= 0xd800 && code <= 0xdbff) end -= 1;
+      }
+      const slice = text.slice(offset, end);
+      const piece = {
+        insertText: { location: { ...location, index }, text: slice },
+      };
+      if (
+        end - offset <= 1 ||
+        Buffer.byteLength(JSON.stringify(piece), "utf8") <= budget
+      ) {
+        parts.push(piece);
+        index += slice.length;
+        offset = end;
+        break;
+      }
+      length = Math.max(1, Math.floor((end - offset) / 2));
+    }
+  }
+  return parts;
+}
+
+// Expands any request whose own serialized JSON is already over budget.
+// Only an insertText's text is ours to split (#471 review follow-up): it is
+// the one request shape docs-requests.lua emits with unbounded size, and
+// splitting its literal text preserves every other request's indices (see
+// splitInsertText). A different oversized request is passed through as-is
+// — chunkPlan still gives it its own chunk, but that chunk can still be
+// over budget; nothing else in the writer's output grows unboundedly with
+// document length the way the body text does.
+function expandOversizedRequests(plan: Plan, budget: number): Plan {
+  const out: Plan = [];
+  for (const request of plan) {
+    const size = Buffer.byteLength(JSON.stringify(request), "utf8");
+    if (size > budget && typeof request.insertText?.text === "string") {
+      out.push(...splitInsertText(request, budget));
+    } else {
+      out.push(request);
+    }
+  }
+  return out;
+}
+
+// Splits `plan` in order into groups whose serialized JSON stays under
+// MAX_BATCH_BYTES. Never reorders requests, so a request that must run
+// first (the tab-clearing deleteContentRange) stays first. Always returns
+// at least one (possibly empty) chunk, matching a single batchUpdate call
+// for an empty plan.
+function chunkPlan(plan: Plan): Plan[] {
+  const chunks: Plan[] = [];
+  let current: Plan = [];
+  let currentBytes = 0;
+  for (const request of expandOversizedRequests(plan, MAX_BATCH_BYTES)) {
+    const size = Buffer.byteLength(JSON.stringify(request), "utf8");
+    if (current.length > 0 && currentBytes + size > MAX_BATCH_BYTES) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(request);
+    currentBytes += size;
+  }
+  if (current.length > 0 || chunks.length === 0) chunks.push(current);
+  return chunks;
+}
 
 async function readMarkdownSource(source: MarkdownSource): Promise<string> {
   if (source.content && source.contentPath) {
@@ -181,19 +285,20 @@ function placed(
   return plan.map((request) => walk(request));
 }
 
-// Sends one batchUpdate. Docs fetches a just-shared image only after a
-// moment, so "problem retrieving the image" on a hosted image is retried; on
-// a remote image (its URL is the markdown's own) the image becomes a visible
-// "[image: url]" and a warning, and the batch is sent again.
-async function sendBatch(
+// Sends one chunk of a batchUpdate. Docs fetches a just-shared image only
+// after a moment, so "problem retrieving the image" on a hosted image is
+// retried; on a remote image (its URL is the markdown's own) the image
+// becomes a visible "[image: url]" and a warning, and the chunk is sent
+// again.
+async function sendChunk(
   workDir: string,
   documentId: string,
-  plan: Plan,
+  chunk: Plan,
   host: ImageHost,
   revisionId: string | undefined,
   warnings: string[],
 ): Promise<any> {
-  const requests = [...plan];
+  const requests = [...chunk];
   // Fetch failures so far, per hosted image: each gets its own retries.
   const failures = new Map<string, number>();
   for (;;) {
@@ -223,6 +328,50 @@ async function sendBatch(
       }
     }
   }
+}
+
+// Sends `plan` as one or more batchUpdate calls (#471: gws's --json argv
+// string is capped well below what a large plan's JSON can reach). Only the
+// first chunk carries the revision check: it guards the read this plan was
+// built from, and every later chunk is applied after our own first chunk, not
+// before it. Splitting trades away the API's whole-request atomicity for
+// plans big enough to span chunks — a failure partway through a multi-chunk
+// plan leaves the earlier chunks applied, where a single-call plan is still
+// all-or-nothing (linenisgreat/moxy#472 tracks this). A failure in a later
+// chunk says so, so the caller can tell "nothing changed" from "partially
+// rewritten" instead of seeing the same message either way.
+async function sendBatch(
+  workDir: string,
+  documentId: string,
+  plan: Plan,
+  host: ImageHost,
+  revisionId: string | undefined,
+  warnings: string[],
+): Promise<{ replies: Reply[] }> {
+  const chunks = chunkPlan(plan);
+  const replies: Reply[] = [];
+  for (const [chunkIndex, chunk] of chunks.entries()) {
+    let reply: { replies?: Reply[] };
+    try {
+      reply = await sendChunk(
+        workDir,
+        documentId,
+        chunk,
+        host,
+        chunkIndex === 0 ? revisionId : undefined,
+        warnings,
+      );
+    } catch (error) {
+      if (chunkIndex > 0 && error instanceof PiersError) {
+        throw new PiersError(
+          `chunk ${chunkIndex + 1}/${chunks.length} failed, after ${chunkIndex} earlier chunk(s) already applied: ${error.message}`,
+        );
+      }
+      throw error;
+    }
+    replies.push(...(reply.replies ?? []));
+  }
+  return { replies };
 }
 
 const getDocument = (workDir: string, documentId: string) =>

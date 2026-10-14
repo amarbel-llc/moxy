@@ -12,9 +12,13 @@
 # one, else a one-tab Doc (t.0) with an empty body and a fresh footnote fn-1.
 # batchUpdate replies give createFootnote requests ids fn-1, fn-2, …
 #
-# Failure switches: GWS_STUB_FAIL_PERMISSIONS, GWS_STUB_FAIL_BATCH_UPDATE,
+# Failure switches: GWS_STUB_FAIL_PERMISSIONS, GWS_STUB_FAIL_BATCH_UPDATE
+# (every batchUpdate call fails), GWS_STUB_FAIL_BATCH_UPDATE_AT=N (only the
+# Nth batchUpdate call fails, 1-indexed — for a multi-chunk write, #471);
 # GWS_STUB_FAIL_DELETE, GWS_STUB_FAIL_ON_STDERR (batchUpdate fails with the
-# reason on stderr only, as gws does for auth errors); GWS_STUB_UNFETCHABLE_ONCE (the first batchUpdate
+# reason on stderr only, as gws does for auth errors); GWS_STUB_FAIL_SILENTLY
+# (batchUpdate exits 1 with no stdout or stderr at all, as gws does when the
+# process never ran, #471); GWS_STUB_UNFETCHABLE_ONCE (the first batchUpdate
 # holding an image is refused as Docs refuses a not-yet-fetchable one);
 # GWS_STUB_UNFETCHABLE_URI=<substring> (every image whose uri contains it is
 # refused).
@@ -79,9 +83,16 @@ case "$1 $2 $3" in
     echo '{"error":{"message":"stub batchUpdate failure"}}'
     exit 1
   fi
+  if [ -n "${GWS_STUB_FAIL_BATCH_UPDATE_AT:-}" ] && [ "$n" -eq "${GWS_STUB_FAIL_BATCH_UPDATE_AT}" ]; then
+    echo "{\"error\":{\"message\":\"stub batchUpdate failure on call $n\"}}"
+    exit 1
+  fi
   if [ -n "${GWS_STUB_FAIL_ON_STDERR:-}" ]; then
     echo 'error[auth]: stub token expired' >&2
     exit 2
+  fi
+  if [ -n "${GWS_STUB_FAIL_SILENTLY:-}" ]; then
+    exit 1
   fi
   if [ -n "${GWS_STUB_UNFETCHABLE_ONCE:-}" ] && [ ! -e "$GWS_STUB_DIR/refused-once" ]; then
     index=$("$GWS_STUB_JQ" '.requests | map(has("insertInlineImage")) | index(true) // empty' <<<"$json")

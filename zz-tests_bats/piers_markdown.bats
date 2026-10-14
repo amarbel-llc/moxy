@@ -108,6 +108,67 @@ function piers_update_finds_a_nested_tab { # @test
   assert_equal "$(batch 1 '[.requests[] | select(.deleteContentRange)] | length')" "0"
 }
 
+# #471: gws's --json flag takes the whole batchUpdate body as one argv
+# string, which Linux caps at MAX_ARG_STRLEN (128 KiB) regardless of the
+# rest of the command line, and the failure that results carries no detail
+# ("batchUpdate failed:" with nothing after the colon). docs-requests.lua
+# emits a plan's entire body as ONE insertText request (all paragraphs
+# concatenated, styled separately after) — a single long run of text, not
+# just "many paragraphs", can cross the budget by itself, and chunking
+# whole requests can't help with that. splitInsertText cuts the oversized
+# request into several smaller ones at sequentially advancing indices
+# instead; this proves the original text still reconstructs exactly, in
+# order, across however many pieces and batches it took.
+# PIERS_MAX_BATCH_BYTES shrinks the budget so a short fixture exercises it.
+function piers_update_splits_a_single_oversized_insert_text_request { # @test
+  write_two_tab_document
+  export PIERS_MAX_BATCH_BYTES=300
+  words=""
+  for i in $(seq 1 200); do words+="word$i "; done
+  content="${words% }."
+  run "$BIN/update" "doc-id" "$content" "" "" "t.1"
+  assert_success
+  [ "$(batches)" -gt 1 ]
+  # Only the first batch carries the revision check that guards the read.
+  assert_equal "$(batch 1 '.writeControl.requiredRevisionId')" "rev-7"
+  assert_equal "$(batch 2 '.writeControl | has("requiredRevisionId")')" "false"
+  total_clears=0
+  total_insert_pieces=0
+  all_text=""
+  for i in $(seq 1 "$(batches)"); do
+    total_clears=$((total_clears + $(batch "$i" '[.requests[] | select(.deleteContentRange)] | length')))
+    total_insert_pieces=$((total_insert_pieces + $(batch "$i" '[.requests[] | select(.insertText)] | length')))
+    all_text+="$(batch "$i" '.requests[] | .insertText.text // empty' | tr -d '\n')"
+  done
+  # The tab-clearing request is still issued exactly once, in the first batch.
+  assert_equal "$total_clears" "1"
+  # The one oversized insertText really did split into several pieces, none
+  # of which alone would have fit the real MAX_ARG_STRLEN-derived budget.
+  [ "$total_insert_pieces" -gt 1 ]
+  # ...and they reassemble the original text exactly, in order.
+  assert_equal "$all_text" "$content"
+}
+
+# linenisgreat/moxy#472: a multi-chunk write is no longer all-or-nothing, so
+# a failure in a later chunk says which chunk and how many earlier ones are
+# already applied, instead of repeating the same message a first-chunk
+# failure would give (where nothing was written yet).
+function piers_update_names_the_chunk_when_a_later_batch_fails { # @test
+  write_two_tab_document
+  export PIERS_MAX_BATCH_BYTES=300
+  export GWS_STUB_FAIL_BATCH_UPDATE_AT=2
+  words=""
+  for i in $(seq 1 200); do words+="word$i "; done
+  content="${words% }."
+  run "$BIN/update" "doc-id" "$content" "" "" "t.1"
+  assert_failure
+  assert_output --partial 'chunk 2/'
+  assert_output --partial 'after 1 earlier chunk(s) already applied'
+  assert_output --partial 'stub batchUpdate failure on call 2'
+  # Aborted after the failing chunk — no later chunks were attempted.
+  assert_equal "$(batches)" "2"
+}
+
 function piers_update_fails_on_an_unknown_tab_listing_the_tabs { # @test
   write_two_tab_document
   run "$BIN/update" "doc-id" 'Text.' "" "" "t.9"

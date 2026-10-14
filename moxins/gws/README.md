@@ -30,9 +30,13 @@ custom writer, `moxins/piers/src/docs-requests.lua`, turns it into Docs API
 
 - `create` makes an empty Doc and writes into it.
 - `update` rewrites one tab — `tab_id`, or the first tab — and leaves every
-  other tab and its comments alone. It clears the tab and writes it in one
-  batch carrying the revision it read, so an edit made in between makes the
-  call fail with nothing changed. Comments anchored on the tab's old text are
+  other tab and its comments alone. It clears the tab and writes it, carrying
+  the revision it read on the first `batchUpdate` call, so an edit made in
+  between fails the call. A plan too big for one call (gws's `--json` argv is
+  capped by Linux's `MAX_ARG_STRLEN`, #471) splits across several
+  `batchUpdate` calls; the revision check guards only the first of these, so a
+  failure partway through a multi-call write can leave the tab partially
+  rewritten rather than unchanged. Comments anchored on the tab's old text are
   lost with it.
 - Footnote content is written in a second batch, once Docs has given the
   footnotes their ids.

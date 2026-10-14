@@ -136,6 +136,16 @@ function piers_batch_update_reports_a_gws_failure_given_on_stderr { # @test
   assert_output --partial 'batchUpdate failed: error[auth]: stub token expired'
 }
 
+# #471: when gws never gets to say anything (the empty "batchUpdate failed:"
+# this bug was reported as), the failure still names an exit code instead of
+# nothing at all.
+function piers_batch_update_reports_a_silent_gws_failure_with_its_exit_code { # @test
+  export GWS_STUB_FAIL_SILENTLY=1
+  run "$BIN/batch-update" "doc-1" '[]' "rev-3"
+  assert_failure
+  assert_output --partial 'batchUpdate failed: exited with no output (code 1)'
+}
+
 # get and outline go through gws.ts like the rest, so GWS_BIN reaches them.
 function piers_get_and_outline_read_through_gws_bin { # @test
   cat >"$GWS_STUB_DIR/document.json" <<'EOF'

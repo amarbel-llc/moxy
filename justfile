@@ -1104,6 +1104,22 @@ explore-pandoc-docs-poc-offline:
 debug-pandoc-ast file:
   pandoc --preserve-tabs -f gfm -t native {{file}}
 
+# Measures the Docs API batchUpdate request JSON the docs-requests.lua
+# writer produces for a markdown file, against Linux's MAX_ARG_STRLEN
+# (128 KiB) — the limit piers.update's old argv-passing hit (#471).
+#
+# measure the batchUpdate request JSON size pandoc's writer produces for a markdown file
+[group("debug")]
+debug-piers-request-size file:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  json=$(pandoc --preserve-tabs -f gfm -t {{justfile_directory()}}/moxins/piers/src/docs-requests.lua {{file}} \
+    | jq -c '{requests, writeControl: {requiredRevisionId: "rev-1"}}')
+  bytes=$(printf '%s' "$json" | wc -c)
+  echo "input markdown: $(wc -c < {{file}}) bytes"
+  echo "batchUpdate body JSON: $bytes bytes"
+  echo "MAX_ARG_STRLEN (128 KiB) = $((128 * 1024)) bytes"
+
 # Live phase: creates a scratch Doc in the operator's Drive, rewrites tab 1
 # with the writer's requests beside a sentinel tab, asserts, deletes the Doc.
 #
@@ -1112,6 +1128,62 @@ debug-pandoc-ast file:
 explore-pandoc-docs-poc-live:
   nix build {{justfile_directory()}}#gws -o {{justfile_directory()}}/zz-pocs/pandoc-docs-poc/result-gws
   cd {{justfile_directory()}}/zz-pocs/pandoc-docs-poc && zx live.mjs
+
+# Builds the pinned gws CLI and dumps its batchUpdate flag help, to check
+# whether --json has a file/stdin form piers could use instead of argv (#471).
+#
+# dump the pinned gws CLI's docs documents batchUpdate --help
+[group("debug")]
+debug-gws-batch-update-help:
+  nix build {{justfile_directory()}}#gws -o {{justfile_directory()}}/.tmp/result-gws
+  {{justfile_directory()}}/.tmp/result-gws/bin/gws docs documents batchUpdate --help
+
+# Reproduces #471 at the zx layer: a single argv string over Linux's
+# MAX_ARG_STRLEN (128 KiB) passed through zx's `$`, with nothrow so the
+# failure's exitCode/signal/stdout/stderr/message shape can be inspected —
+# this is what piers' gwsJson sees when the batchUpdate JSON is too big.
+# `bun install` walks up looking for a workspace root and otherwise reaches
+# this repo's own package.json/bun.lock and pins zx's version there (true
+# even under the devshell's own $TMPDIR, which nix develop points inside
+# this repo's .tmp/) — a package.json of its own in the scratch dir stops
+# that climb.
+#
+# reproduce the argv-too-long zx failure shape piers.update hits on large bodies
+[group("debug")]
+debug-zx-arg-limit-repro:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  bun="$(nix build nixpkgs#bun --no-link --print-out-paths)/bin/bun"
+  scratch="$(mktemp -d)"
+  trap 'rm -rf "$scratch"' EXIT
+  echo '{"name":"zx-repro-scratch","private":true}' >"$scratch/package.json"
+  cat >"$scratch/repro.mjs" <<'EOF'
+  import { $ } from "zx";
+  const big = "x".repeat(140 * 1024);
+  const result = await $({ nothrow: true, stdio: ["pipe", "pipe", "pipe"] })`echo ${big}`;
+  console.log(JSON.stringify({
+    exitCode: result.exitCode,
+    signal: result.signal,
+    stdoutLen: result.stdout.length,
+    stderrLen: result.stderr.length,
+    message: result.message,
+  }, null, 2));
+  EOF
+  cat >"$scratch/repro2.mjs" <<'EOF'
+  import { $ } from "zx";
+  const result = await $({ nothrow: true, stdio: ["pipe", "pipe", "pipe"] })`false`;
+  console.log(JSON.stringify({
+    exitCode: result.exitCode,
+    signal: result.signal,
+    stdoutLen: result.stdout.length,
+    stderrLen: result.stderr.length,
+    message: result.message,
+  }, null, 2));
+  EOF
+  cd "$scratch"
+  "$bun" install zx@8.8.5
+  "$bun" run repro.mjs
+  "$bun" run repro2.mjs
 
 # Enable impure-derivations + ca-derivations on the nix-daemon and restart it.
 # Idempotent: re-running is a no-op if both features are already in nix.custom.conf.
