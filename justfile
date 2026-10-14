@@ -1087,6 +1087,32 @@ explore-poc-build-dynamic-perms:
 explore-poc-test-dynamic-perms: explore-poc-build-dynamic-perms
   bats {{justfile_directory()}}/zz-bats_explore/dynamic_perms_poc.bats
 
+# POC for #456/#457/#453: a pandoc custom Lua writer emitting Docs API
+# batchUpdate requests. Offline phase checks the requests against the text
+# they insert; no Google calls. Driver self-asserts.
+#
+# run the pandoc→Docs writer POC offline checks
+[group("explore")]
+explore-pandoc-docs-poc-offline:
+  cd {{justfile_directory()}}/zz-pocs/pandoc-docs-poc && zx offline.mjs
+
+# Shows how pandoc's gfm reader parses a markdown file (the AST the POC
+# writer walks).
+#
+# print pandoc's native AST for a markdown file read as gfm
+[group("debug")]
+debug-pandoc-ast file:
+  pandoc --preserve-tabs -f gfm -t native {{file}}
+
+# Live phase: creates a scratch Doc in the operator's Drive, rewrites tab 1
+# with the writer's requests beside a sentinel tab, asserts, deletes the Doc.
+#
+# run the pandoc→Docs writer POC against the real Docs API
+[group("explore")]
+explore-pandoc-docs-poc-live:
+  nix build {{justfile_directory()}}#gws -o {{justfile_directory()}}/zz-pocs/pandoc-docs-poc/result-gws
+  cd {{justfile_directory()}}/zz-pocs/pandoc-docs-poc && zx live.mjs
+
 # Enable impure-derivations + ca-derivations on the nix-daemon and restart it.
 # Idempotent: re-running is a no-op if both features are already in nix.custom.conf.
 # Mirrors amarbel-llc/eng#41's resolution but for Determinate Nix on Linux instead of darwin.
