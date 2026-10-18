@@ -251,9 +251,14 @@
         #
         # `strategy` picks the backend (buildGoAuto): "bga" is the whole-module
         # buildGoApplication, "native" the per-package godyn build. The shipped
-        # package and the hermetic checks stay on bga; `moxy-native` is the bare
-        # godyn binary behind `just build-go`.
+        # package and go-lint stay on bga; `moxy-native` is the bare godyn
+        # binary behind `just build-go`, and its vet/test lanes back the Go checks.
         moxyStrategy = "bga";
+
+        # Where godyn's per-package lanes are validated: x86_64-linux only
+        # (igloo#33). Gates the godyn checks; other systems keep the
+        # whole-module buildGoApplication checks.
+        godynSystem = system == "x86_64-linux";
 
         # The google-workspace (gws) moxins — gmail, calendar, car, gws, piers,
         # prison — are built and tested but NOT shipped in the bundle baked into
@@ -1103,23 +1108,33 @@
         # dev inner-loop build behind `just build-go` (build/moxy) — only the
         # changed package cone rebuilds. Same shape as the old devshell
         # `go build -o build/moxy ./cmd/moxy`, which set no ldflags either.
-        moxy-native = pkgs.buildGoAuto {
-          pname = "moxy";
-          src = moxySrc;
-          manifest = ./go.nix;
-          strategy = "native";
-          inherit inputs;
-          subPackages = [ "cmd/moxy" ];
-          # Derive the per-package test graph: `just debug-go-test`
-          # (godyn-test) runs a package's tests off this package's testWith.
-          tests = true;
-          nativeArgs = {
-            commit = moxyCommit;
-            # madder's closure carries the cgo-only github.com/DataDog/zstd; a
-            # derived graph without cc is CGO_ENABLED=0 and leaves it empty.
-            cc = pkgs.stdenv.cc;
-          };
-        };
+        mkMoxyNative =
+          extra:
+          pkgs.buildGoAuto (
+            {
+              pname = "moxy";
+              src = moxySrc;
+              manifest = ./go.nix;
+              strategy = "native";
+              inherit inputs;
+              subPackages = [ "cmd/moxy" ];
+              # Derive the per-package test graph: `just debug-go-test`
+              # (godyn-test) runs a package's tests off this package's testWith,
+              # and checkAll is the hermetic test lane.
+              tests = true;
+              nativeArgs = {
+                commit = moxyCommit;
+                # madder's closure carries the cgo-only github.com/DataDog/zstd; a
+                # derived graph without cc is CGO_ENABLED=0 and leaves it empty.
+                cc = pkgs.stdenv.cc;
+              };
+            }
+            // extra
+          );
+        moxy-native = mkMoxyNative { };
+        # The same build with -race (every compile and link, per-package test
+        # runs under the race detector): backs checks.go-test-race on godynSystem.
+        moxy-native-race = mkMoxyNative { race = true; };
 
         combined = pkgs.symlinkJoin {
           name = "moxy";
@@ -1458,8 +1473,8 @@
         # a check would only double-build.
         checks = {
           formatting = conformistEval.config.build.check self;
-          go-test-race = goTestRace;
-          go-vet = goVet;
+          # golangci-lint stays on the whole-module build until godyn-lint
+          # covers its rule set (igloo FDR 0007 § golangci-lint parity).
           go-lint = goLint;
           bats = batsLaneOutputs.bats-default;
           # Codec drift guard (igloo FDR 0008): `go generate` in the vendored
@@ -1469,7 +1484,23 @@
             command = "go generate ./internal/config/...";
             nativeBuildInputs = [ tommy.packages.${system}.default ];
           };
-        };
+        }
+        # Go vet + -race tests: godyn per-package lanes where godyn is validated
+        # (x86_64-linux, igloo#33), the whole-module buildGoApplication checks
+        # elsewhere. Same check names either way.
+        // (
+          if godynSystem then
+            {
+              go-vet = moxy-native.passthru.vetAll;
+              go-test = moxy-native.passthru.checkAll;
+              go-test-race = moxy-native-race.passthru.checkAll;
+            }
+          else
+            {
+              go-vet = goVet;
+              go-test-race = goTestRace;
+            }
+        );
 
         devShells.default = pkgs-master.mkShell {
           packages = [
