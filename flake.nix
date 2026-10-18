@@ -251,13 +251,14 @@
         #
         # `strategy` picks the backend (buildGoAuto): "bga" is the whole-module
         # buildGoApplication, "native" the per-package godyn build. The shipped
-        # package and go-lint stay on bga; `moxy-native` is the bare godyn
-        # binary behind `just build-go`, and its vet/test lanes back the Go checks.
-        moxyStrategy = "bga";
+        # package (`moxy`, via mkMoxy) is godyn on godynSystem and bga elsewhere;
+        # `moxy-build_go_application` is the explicit bga escape hatch and base
+        # of go-lint. `moxy-native` is the bare godyn binary behind
+        # `just build-go`; its vet/test lanes back the Go checks.
 
         # Where godyn's per-package lanes are validated: x86_64-linux only
-        # (igloo#33). Gates the godyn checks; other systems keep the
-        # whole-module buildGoApplication checks.
+        # (igloo#33). Gates the godyn build and checks; other systems keep the
+        # whole-module buildGoApplication ones.
         godynSystem = system == "x86_64-linux";
 
         # The google-workspace (gws) moxins — gmail, calendar, car, gws, piers,
@@ -1021,87 +1022,108 @@
         # run a hermetic, pinned ringmaster instead of relying on ambient PATH.
         clown-ringmaster = clown.packages.${system}.ringmaster;
 
-        moxy = pkgs.buildGoAuto {
-          pname = "moxy";
-          src = moxySrc;
-          # go.nix replaces go.mod/gomod2nix.toml/goFlakeInputs; its
-          # flakeInputs name entries of `inputs`.
-          manifest = ./go.nix;
-          strategy = moxyStrategy;
-          inherit inputs;
-          # On PATH in every escape-hatch run (godyn-go), for go:generate.
-          goRunInputs = [ tommy.packages.${system}.default ];
-          subPackages = [ "cmd/moxy" ];
-          # `commit` is passed per backend (src is a filtered store path, no
-          # .rev); version is auto-read from version.env by both.
-          nativeArgs = {
-            commit = moxyCommit;
-            cc = pkgs.stdenv.cc; # cgo-only DataDog/zstd (see moxy-native)
+        # The FULL moxy package (binary + moxin dir/ringmaster pins + plugin
+        # manifests + hooks + man pages) on either backend, selected by
+        # `strategy` ("native"/"dev" = godyn per-package, "bga"/"ci" =
+        # buildGoApplication). buildGoAuto forwards ldflags and postInstall to
+        # BOTH backends, so one declaration drives both; the binary is named
+        # `moxy` on each (pname on godyn, the cmd/moxy dir on bga).
+        mkMoxy =
+          strategy:
+          pkgs.buildGoAuto {
+            pname = "moxy";
+            src = moxySrc;
+            # go.nix replaces go.mod/gomod2nix.toml/goFlakeInputs; its
+            # flakeInputs name entries of `inputs`.
+            manifest = ./go.nix;
+            inherit strategy inputs;
+            # On PATH in every escape-hatch run (godyn-go), for go:generate.
+            goRunInputs = [ tommy.packages.${system}.default ];
+            # Per-package test graph for the godyn backend (passthru.checkAll);
+            # bga keeps its own checkPhase.
+            tests = true;
+            subPackages = [ "cmd/moxy" ];
+            # `commit` is passed per backend (src is a filtered store path, no
+            # .rev); version is auto-read from version.env by both.
+            nativeArgs = {
+              commit = moxyCommit;
+              cc = pkgs.stdenv.cc; # cgo-only DataDog/zstd (see moxy-native)
+            };
+            bgaArgs = {
+              commit = moxyCommit;
+              go = pkgs-master.go_1_26;
+              GOTOOLCHAIN = "local";
+            };
+            nativeBuildInputs = [
+              pkgs.makeWrapper
+              pkgs.jq
+            ];
+            # buildGoAuto auto-injects `-X main.version` (read from the
+            # version.env carried in src) and `-X main.commit` (from the
+            # per-backend `commit` above). Only project-specific ldflags need
+            # to live here.
+            ldflags = [
+              "-X"
+              "code.linenisgreat.com/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
+              # (moxy no longer pins a madder binary: internal/native links the
+              # madder Go library in-process. MADDER_BIN survives only for the
+              # bats lanes, which still shell out to `madder init`/`cat` for
+              # fixture setup + verification.)
+              # Pin the ringmaster job-control CLI (clown RFC-0015) as the async
+              # producer's default, so wakeups don't depend on ambient PATH. The
+              # RINGMASTER_BIN env var still overrides this (tests/pinning).
+              "-X"
+              "code.linenisgreat.com/moxy/internal/asyncjob.defaultRingmasterBin=${clown-ringmaster}/bin/ringmaster"
+            ];
+            postInstall = ''
+              MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
+
+              # purse-first's generate-plugin doesn't emit a `version` field;
+              # inject `<semver>+<commit>` so the distributed plugin.json
+              # matches what `moxy --version` reports (semver build-metadata
+              # is the suffix after `+`). Claude Code plugins spec requires a
+              # semver `version`, and `+commit` is valid SemVer 2.0.0
+              # build-metadata.
+              pluginJson="$out/share/purse-first/moxy/.claude-plugin/plugin.json"
+              jq --arg v "${moxyVersion}+${moxyCommit}" '.version = $v' "$pluginJson" > "$pluginJson.tmp"
+              mv "$pluginJson.tmp" "$pluginJson"
+
+              # clown-plugin-protocol manifest for HTTP MCP transport.
+              substitute ${./clown.json} $out/share/purse-first/moxy/clown.json \
+                --replace-fail "@MOXY@" "$out/bin/moxy"
+
+              # Static hooks — go-mcp's GenerateHooks no-ops (no MapsTools),
+              # so we install them at the correct plugin path.
+              mkdir -p $out/share/purse-first/moxy/hooks
+              cp ${./hooks/hooks.json} $out/share/purse-first/moxy/hooks/hooks.json
+              substitute ${./hooks/pre-tool-use} $out/share/purse-first/moxy/hooks/pre-tool-use \
+                --replace-fail "@MOXY@" "$out/bin/moxy"
+              chmod +x $out/share/purse-first/moxy/hooks/pre-tool-use
+
+              cp -rn ${moxy-man}/share/man/* $out/share/man/
+
+              # Moxin tools have their own PATH via wrapProgram in per-moxin
+              # derivations. The moxy binary itself only needs bash for
+              # process management.
+              wrapProgram $out/bin/moxy \
+                --prefix PATH : ${
+                  pkgs.lib.makeBinPath [
+                    pkgs.bash
+                  ]
+                }
+            '';
           };
-          bgaArgs = {
-            commit = moxyCommit;
-            go = pkgs-master.go_1_26;
-            GOTOOLCHAIN = "local";
-          };
-          nativeBuildInputs = [
-            pkgs.makeWrapper
-            pkgs.jq
-          ];
-          # buildGoAuto auto-injects `-X main.version` (read from the
-          # version.env carried in src) and `-X main.commit` (from the
-          # per-backend `commit` above). Only project-specific ldflags need
-          # to live here.
-          ldflags = [
-            "-X"
-            "code.linenisgreat.com/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
-            # (moxy no longer pins a madder binary: internal/native links the
-            # madder Go library in-process. MADDER_BIN survives only for the
-            # bats lanes, which still shell out to `madder init`/`cat` for
-            # fixture setup + verification.)
-            # Pin the ringmaster job-control CLI (clown RFC-0015) as the async
-            # producer's default, so wakeups don't depend on ambient PATH. The
-            # RINGMASTER_BIN env var still overrides this (tests/pinning).
-            "-X"
-            "code.linenisgreat.com/moxy/internal/asyncjob.defaultRingmasterBin=${clown-ringmaster}/bin/ringmaster"
-          ];
-          postInstall = ''
-            MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
 
-            # purse-first's generate-plugin doesn't emit a `version` field;
-            # inject `<semver>+<commit>` so the distributed plugin.json
-            # matches what `moxy --version` reports (semver build-metadata
-            # is the suffix after `+`). Claude Code plugins spec requires a
-            # semver `version`, and `+commit` is valid SemVer 2.0.0
-            # build-metadata.
-            pluginJson="$out/share/purse-first/moxy/.claude-plugin/plugin.json"
-            jq --arg v "${moxyVersion}+${moxyCommit}" '.version = $v' "$pluginJson" > "$pluginJson.tmp"
-            mv "$pluginJson.tmp" "$pluginJson"
+        # The whole-module buildGoApplication build, named explicitly: the
+        # escape hatch from the godyn default, the base of the whole-module
+        # checks (go-lint, and vet/test off godynSystem), and `moxy`
+        # itself off godynSystem.
+        moxy-build_go_application = mkMoxy "bga";
 
-            # clown-plugin-protocol manifest for HTTP MCP transport.
-            substitute ${./clown.json} $out/share/purse-first/moxy/clown.json \
-              --replace-fail "@MOXY@" "$out/bin/moxy"
-
-            # Static hooks — go-mcp's GenerateHooks no-ops (no MapsTools),
-            # so we install them at the correct plugin path.
-            mkdir -p $out/share/purse-first/moxy/hooks
-            cp ${./hooks/hooks.json} $out/share/purse-first/moxy/hooks/hooks.json
-            substitute ${./hooks/pre-tool-use} $out/share/purse-first/moxy/hooks/pre-tool-use \
-              --replace-fail "@MOXY@" "$out/bin/moxy"
-            chmod +x $out/share/purse-first/moxy/hooks/pre-tool-use
-
-            cp -rn ${moxy-man}/share/man/* $out/share/man/
-
-            # Moxin tools have their own PATH via wrapProgram in per-moxin
-            # derivations. The moxy binary itself only needs bash for
-            # process management.
-            wrapProgram $out/bin/moxy \
-              --prefix PATH : ${
-                pkgs.lib.makeBinPath [
-                  pkgs.bash
-                ]
-              }
-          '';
-        };
+        # The shipped package: godyn (per-package, incremental) on godynSystem,
+        # buildGoApplication elsewhere. Everything downstream (combined, the
+        # bats lanes, the plugin) consumes this.
+        moxy = if godynSystem then mkMoxy "native" else moxy-build_go_application;
 
         # The BARE moxy binary on igloo's per-package godyn backend (strategy
         # "native"): no moxin dir / ringmaster pins, no plugin postInstall. The
@@ -1183,7 +1205,7 @@
           manifest = ./go.nix;
           # Cross-compiling relies on buildGoApplication taking its target
           # from `go` (above); godyn's per-package build is not validated for
-          # it, so this stays on bga whatever moxyStrategy says.
+          # it, so this stays on bga even where `moxy` itself is godyn.
           strategy = "bga";
           inherit inputs;
           subPackages = [ "cmd/moxy" ];
@@ -1379,7 +1401,7 @@
         # the class that leaked into the merge hook. buildGoRace flips
         # CGO_ENABLED=1 + -race for the race deriv only, leaving the shipped
         # binary untouched.
-        goCheckBase = moxy.overrideAttrs (_: {
+        goCheckBase = moxy-build_go_application.overrideAttrs (_: {
           doCheck = true;
           postInstall = "";
           preCheck = "export MOXIN_PATH=";
@@ -1422,6 +1444,7 @@
         packages = batsLaneOutputs // {
           inherit
             moxy
+            moxy-build_go_application
             moxy-native
             moxy-moxins
             moxy-moxins-all

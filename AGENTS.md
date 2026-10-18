@@ -48,14 +48,17 @@ Generated code and dependency changes go through `godyn-go` (impure
 derivation, result applied back to the checkout): `just codemod-generate` for
 the tommy codec, `just build-go-get <args>` / `just update-go` for third-party
 requires. New files must be `git add -N`'d before `nix`/godyn can see them.
-`strategy` in `flake.nix` (`moxyStrategy`) is `"bga"` for the shipped package;
-`moxy-native` is the per-package godyn build behind `just build-go`. On
-x86_64-linux (`godynSystem`) the `go-vet`, `go-test` and `go-test-race` checks
-are godyn's per-package lanes (`passthru.vetAll` / `checkAll`, and a `race =
-true` instance), re-running only the edited cone; other systems keep the
-whole-module bga checks under the same names. `go-lint` is still golangci-lint
-on bga, pending godyn-lint parity (igloo FDR 0007), and the shipped package is
-still bga pending the cross-build story.
+The shipped `moxy` package (`mkMoxy` in `flake.nix`, via `buildGoAuto`) is
+godyn's per-package build on x86_64-linux (`godynSystem`) and
+buildGoApplication elsewhere; `.#moxy-build_go_application` is the explicit
+bga escape hatch and the base of the whole-module checks. `moxy-native` is the
+bare godyn binary behind `just build-go`. On x86_64-linux the `go-vet`,
+`go-test` and `go-test-race` checks are godyn's per-package lanes
+(`passthru.vetAll` / `checkAll`, and a `race = true` instance), re-running only
+the edited cone; other systems keep the whole-module bga checks under the same
+names. `go-lint` is still golangci-lint on bga, pending godyn-lint parity
+(igloo FDR 0007). `moxy-linux` (the aarch64 cross build for the OCI image)
+stays bga: godyn has no documented cross-compile path (igloo#77/#78).
 
 ## Architecture
 
