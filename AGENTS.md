@@ -33,7 +33,8 @@ just run-bats-tag grit
 ```
 
 `nix flake check` is the single hermetic gate: it runs `go-test-race`
-(`go test -race ./...`), `go-vet`, `go-lint` (golangci-lint), `conformist`
+(every package's tests under `-race`), `go-test`, `go-vet`, `go-lint`
+(golangci-lint), `tommy-codegen` (codec drift), `conformist`
 (fmt incl. ruff for Python + dead-jq + mypy), and the `bats-default` lane —
 all in the build sandbox, so
 env-dependent and race bugs can't slip through the way they do in the
