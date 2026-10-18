@@ -101,8 +101,9 @@
     ];
   };
 
-  # eng-versioning(7) derives the version key from go.mod's module path; moxy's
-  # module leaf already yields MOXY_VERSION (matching version.env), but pin it
+  # eng-versioning(7) derives the version key from the module path (go.nix's
+  # `module`); moxy's module leaf already yields MOXY_VERSION (matching
+  # version.env), but pin it
   # explicitly (as posh/madder do) to be robust to the derivation.
   linters.eng-versioning.key = "MOXY_VERSION";
 
@@ -117,8 +118,6 @@
   # not import this module, so excluding their files here does not blind them.)
   settings.excludes = [
     "flake.lock"
-    "go.sum"
-    "gomod2nix.toml"
     "bun.lock"
     "bun.nix"
     "internal/config/config_tommy.go"

@@ -15,15 +15,15 @@ automatically.
 
 ``` sh
 just                  # build + test (default target)
-just build-go         # go build only -> build/moxy
-just build-nix        # nix build (runs gomod2nix first)
+just build-go         # bare godyn build (.#moxy-native) -> build/moxy
+just build-nix        # nix build
 just test             # the gate: nix flake check + net_cap bats + runtime smokes
-just run-go-test      # fast devshell loop: go vet + go test (NOT the gate)
+just run-go-test      # go-vet + go-test-race nix checks (NOT the gate)
 just run-bats         # fast devshell loop: bats-default lane (NOT the gate)
 just test-bats-net_cap  # loopback-binding lane (streamable_http.bats)
 
-# Single Go test
-go test ./internal/config/... -v -run TestParse
+# Single Go test: godyn-test, one package, only the edited cone rebuilds
+just debug-go-test internal/config TestParse
 
 # Run a focused subset of bats tests through the nix sandbox: a single
 # tag's lane (tags are auto-discovered from `# bats file_tags=` directives,
@@ -42,8 +42,16 @@ hook) routes through it. The devshell `run-go-test` / `run-bats` / `lint-*`
 recipes stay as fast inner-loop iteration; the flake check is the source of
 truth. `-race` lives in the gate (#348), so it runs on every merge.
 
-After changing Go dependencies: `just build-gomod2nix` to regenerate
-`gomod2nix.toml` before `build-nix`.
+**There is no go.mod, go.sum or gomod2nix.toml and no ambient `go`**: Go
+dependencies live in `go.nix` (igloo FDR 0008, godyn(7) GO.NIX MANIFEST).
+Generated code and dependency changes go through `godyn-go` (impure
+derivation, result applied back to the checkout): `just codemod-generate` for
+the tommy codec, `just build-go-get <args>` / `just update-go` for third-party
+requires. New files must be `git add -N`'d before `nix`/godyn can see them.
+`strategy` in `flake.nix` (`moxyStrategy`) is `"bga"` for the shipped package
+and the hermetic checks; `moxy-native` is the per-package godyn build behind
+`just build-go`. Moving the checks to godyn (`tests = true`, `passthru.lintAll`
+etc.) is follow-up work.
 
 ## Architecture
 
@@ -351,8 +359,8 @@ Dispatched in `cmd/moxy/main.go`:
 ## Dependencies
 
 Built with `go-mcp` from `amarbel-llc/purse-first`. The `command.App`, `server`,
-`transport`, and `protocol` packages provide the MCP framework. Uses `gomod2nix`
-for Nix builds.
+`transport`, and `protocol` packages provide the MCP framework. Dependencies
+are declared in `go.nix` and built with igloo's `buildGoAuto`.
 
 **madder is linked in-process, so its version is load-bearing** (#11).
 `internal/native/madder.go` calls `blob_store_env` directly instead of shelling
@@ -363,17 +371,12 @@ startup with `no coders available for type: "!toml-blob_store_config-vN"` and
 never answers `initialize` (#9). Since `madder init` (and spinclass's
 per-worktree store) writes the *current* version, the pin must keep up.
 
-The pin lives in two places that **must move together**:
-
-- `go.mod` / `gomod2nix.toml` --- drives the devshell `go build` (`just build-go`).
-- The `madder` flake input --- `flake.nix`'s `goFlakeInputs` bridges
-  `code.linenisgreat.com/madder/go` to `madder.packages.<system>.go-pkgs`, so the
-  nix build uses the flake input's source and ignores go.mod's version.
-
-To bump: `nix flake update madder`, read the new rev out of `flake.lock`, then
-`go get code.linenisgreat.com/madder/go@<that rev>` (which also regenerates
-`gomod2nix.toml`). Bumping only one side leaves the devshell and nix binaries
-disagreeing about which store formats they can read.
+The pin lives in one place: the `madder` flake input. `go.nix`'s `flakeInputs`
+bridges `code.linenisgreat.com/madder/go` to `madder.packages.<system>.go-pkgs`
+(likewise tommy and go-mcp), so every build --- `build-go` and the nix package
+alike --- uses the flake input's source. To bump: `nix flake update madder`.
+There is no second pin to move; this replaces the old go.mod/gomod2nix.toml +
+flake input pair, whose disagreement broke the codegen merge gate.
 
 ## Testing Conventions
 

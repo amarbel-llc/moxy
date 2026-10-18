@@ -32,12 +32,21 @@ run-poc-list-changed:
   zx bin/serve-poc-list-changed.mjs
 
 [group("build")]
-build: build-gomod2nix build-moxins build-go build-nix
+build: build-moxins build-go build-nix
 
+# Compile the bare moxy binary to build/moxy via the godyn per-package backend
+# (`.#moxy-native`, igloo FDR 0008): only the changed package cone rebuilds.
+# There is no ambient `go` or go.mod in the checkout; new files must be
+# `git add -N`'d to be visible to the build.
+#
 # compile the moxy binary to build/moxy (after codemod-generate + build-moxins)
 [group("build")]
 build-go: codemod-generate build-moxins
-  go build -o build/moxy ./cmd/moxy
+  #!/usr/bin/env bash
+  set -euo pipefail
+  mkdir -p build
+  nix build --out-link build/moxy-native .#moxy-native
+  install -m 0755 build/moxy-native/bin/moxy build/moxy
 
 # Builds moxy-moxins-all (every built moxin, including ones not shipped in
 # the bundle baked into moxy), so dev-loop recipes and smokes can still
@@ -49,12 +58,11 @@ build-moxins:
   nix build --keep-going --out-link result-moxins .#moxy-moxins-all
 
 # Regenerate the tommy codec, deterministically, against the flake input
-# closure (mirrors dodder's `nix develop -c go generate`): `nix develop -c`
-# runs go generate with the flake's pinned tommy on PATH — the same input
-# flake-input-go_mod routes the cst *library* from — rather than whatever
-# ambient `tommy` (devshell vs ~/.nix-profile) happens to resolve first and
-# emit stale-API code. The //go:generate directive lives in
-# internal/config/schema.
+# closure: godyn-go (igloo FDR 0008) runs go generate inside nix against the
+# module rendered from go.nix, with the flake's pinned tommy on PATH
+# (goRunInputs) — the same input go.nix's flakeInputs routes the cst *library*
+# from — so the generator and the library can never disagree on the cst API.
+# The //go:generate directive lives in internal/config/schema.
 #
 # Delete the stale generated file first (like madder's generate-tommy): tommy's
 # analyze step type-checks the whole package and aborts if a prior generated
@@ -70,17 +78,23 @@ codemod-generate:
   #!/usr/bin/env bash
   set -euo pipefail
   rm -f internal/config/schema/schema_tommy.go
-  nix develop -c go generate ./internal/config/...
+  {{godyn_go}} go generate ./internal/config/...
   nix fmt internal/config
 
-# regenerate gomod2nix.toml from go.mod/go.sum
+# Run `go get <args>` through godyn-go and ingest the result back into go.nix
+# (new/bumped requires with their vendor hashes). The only way to change a
+# third-party dependency now that there is no go.mod; tommy, go-mcp and madder
+# are flake inputs (bump with `nix flake update <input>`), not `go get`.
+# Example: just build-go-get github.com/google/uuid@latest
+#
+# go get through godyn-go, ingesting the change into go.nix
 [group("build")]
-build-gomod2nix:
-  gomod2nix
+build-go-get *args:
+  {{godyn_go}} go get {{args}}
 
-# build the moxy nix package (regenerates gomod2nix.toml first)
+# build the moxy nix package
 [group("build")]
-build-nix: build-gomod2nix
+build-nix:
   nix build --keep-going --show-trace
 
 [group("codemod")]
@@ -130,7 +144,7 @@ lint-go:
 
 # Impure eng-convention checks against the WORKING TREE (not the sandbox): the
 # eng-impure preset's git-state linters — git-remotes, git-default-branch,
-# sweatfile (`spinclass validate`), agents-md, gomod2nix — which need a live
+# sweatfile (`spinclass validate`), agents-md — which need a live
 # .git plus host tools and so cannot run in the sandboxed lint-fmt gate. Builds
 # the impure config in /nix/store, then runs `conformist check` rooted at the
 # worktree.
@@ -146,6 +160,10 @@ lint-worktree:
   conformist check --config-file "$cfg" --tree-root .
 
 dir_build := "build"
+
+# godyn-go (igloo FDR 0008) from the flake's locked igloo, aimed at the `moxy`
+# package (the flake's `default` is the moxins+moxy bundle, which has no goRun).
+godyn_go := "nix run --inputs-from . igloo#godyn-go -- -A packages.$(nix eval --impure --raw --expr builtins.currentSystem).moxy --"
 
 [group("post-build")]
 test: test-flake-check test-bats-net_cap test-validate-mcp test-status test-status-clean-env
@@ -246,15 +264,25 @@ run-migrated-tools: build-moxins
 run-hamster-smoke: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-hamster.mjs
 
-# fast devshell loop: go vet then go test over all packages (MOXIN_PATH cleared)
+# Go vet plus the -race test suite as the hermetic nix checks (the same
+# derivations the gate runs, so results are cached against the gate). There is
+# no ambient `go`: for one package's fast loop use `just debug-go-test`.
+#
+# vet + race tests via the nix checks (NOT the gate)
 [group("post-build")]
 run-go-test:
-  MOXIN_PATH="" go vet ./...
-  MOXIN_PATH="" go test ./... -v
+  #!/usr/bin/env bash
+  set -euo pipefail
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  nix build --no-link --print-build-logs ".#checks.${system}.go-vet" ".#checks.${system}.go-test-race"
 
 # Per-function coverage report for a Go package.
 # Used during refactors to identify untested branches before moving code.
 # Example: just run-go-cover ./internal/hook/...
+#
+# NEEDS AMBIENT go: there is no go.mod in the checkout (igloo FDR 0008), so
+# this only works from a tree that has one rendered by hand. Rework onto
+# godyn's `cover` option when coverage is next needed.
 #
 # print a per-function coverage report for a Go package
 [group("post-build")]
@@ -399,14 +427,17 @@ debug-codemod-annotations:
 debug-sleep seconds="300":
   sleep {{seconds}}
 
-# Run a focused Go test by name pattern in one package (default ./internal/...).
-# Fast inner loop for TDD on a single test without the full `test-go` suite.
-# MOXIN_PATH is cleared to match test-go's package-loading environment.
+# Run a focused Go test by name pattern in one package via godyn-test (igloo
+# FDR 0008): builds that package's test run from a git+file: ref (tracked files
+# as in the working tree; `git add -N` a NEW file first or it is invisible);
+# only the edited cone rebuilds. `dir` is a module-relative package directory
+# (not a ./... pattern). MOXIN_PATH is cleared to match the gate's environment.
+# Example: just debug-go-test internal/native 'TestDiscover'
 #
-# run a focused Go test by name pattern in one package
+# run a focused Go test by name pattern in one package via godyn-test
 [group("debug")]
-debug-go-test pattern pkg="./internal/native/...":
-  MOXIN_PATH="" go test {{pkg}} -run '{{pattern}}' -v
+debug-go-test dir pattern='':
+  MOXIN_PATH="" nix run --inputs-from . igloo#godyn-test -- -A packages.$(nix eval --impure --raw --expr builtins.currentSystem).moxy-native {{dir}} --{{ if pattern == '' { '' } else { quote('-test.run=' + pattern) } }} -test.v
 
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
@@ -606,11 +637,15 @@ debug-gws-moxy-call tool args='{}': build-go build-moxins
 [group("maintenance")]
 update: update-go
 
-# update all Go module dependencies to latest and tidy go.mod/go.sum
+# Update all third-party Go module dependencies to latest and tidy, through
+# godyn-go (each step is ingested back into go.nix). Fleet modules (tommy,
+# go-mcp, madder) are flake inputs: bump them with `nix flake update`.
+#
+# update all third-party Go dependencies to latest and tidy go.nix
 [group("maintenance")]
 update-go:
-  env GOPROXY=direct go get -u -t ./...
-  go mod tidy
+  {{godyn_go}} go get -u -t ./...
+  {{godyn_go}} go mod tidy
 
 # list all unique man-page names in the given section (default 1)
 [group("inspection")]
@@ -1073,7 +1108,9 @@ debug-py-typecheck:
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
 
-# POC scope only — not wired into main test.
+# POC scope only — not wired into main test. NEEDS AMBIENT go: no go.mod in the
+# checkout under go.nix (igloo FDR 0008), and cmd/moxy-exporel-dynamic-perms is
+# not in the nix-built source set; revive via a godyn package if the POC is.
 #
 # build the dynamic-perms POC driver
 [group("explore")]

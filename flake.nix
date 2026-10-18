@@ -109,7 +109,7 @@
   };
 
   outputs =
-    {
+    inputs@{
       self,
       igloo,
       nixpkgs-master,
@@ -121,6 +121,7 @@
       madder,
       conformist,
       clown,
+      ...
     }:
     (utils.lib.eachDefaultSystem (
       system:
@@ -210,11 +211,16 @@
 
         # Impure git-state lane: the eng-convention checks that need a live .git
         # or host tools (git-remotes, git-default-branch, sweatfile's `spinclass
-        # validate`, agents-md, gomod2nix). They can't run in the sandboxed
+        # validate`, agents-md). They can't run in the sandboxed
         # gate, so this config drives a working-tree `conformist check` via
         # `just lint-worktree`. See the eng-impure preset and conformist-nix(7).
         conformistImpureEval = conformist.lib.evalModule pkgs {
-          imports = [ conformist.lib.presets.eng-impure ];
+          imports = [
+            conformist.lib.presets.eng-impure
+            # Nothing for presets.eng-impure's gomod2nix.toml drift check to
+            # check: dependencies live in go.nix (igloo FDR 0008).
+            { linters.gomod2nix.enable = pkgs.lib.mkForce false; }
+          ];
           package = conformistPkg;
           projectRootFile = "flake.nix";
         };
@@ -224,41 +230,30 @@
           fileset =
             with pkgs.lib.fileset;
             unions [
-              ./go.mod
-              ./go.sum
-              ./gomod2nix.toml
+              ./go.nix
               ./cmd/moxy
               ./internal
-              # Consumed by the fork's buildGoApplication version.env
-              # auto-read (nixpkgs#31): the read is at pwd (= moxySrc), so
-              # the file must survive into the filtered tree or the
-              # embedded version falls back to the gomod2nix placeholder.
+              # Consumed by buildGoAuto's version.env auto-read (both
+              # backends): the file must survive into the filtered tree or the
+              # embedded version falls back to the placeholder.
               ./version.env
             ];
         };
 
-        # flake-input-go_mod bridge (amarbel-llc/nixpkgs RFC 0001). Routes the
-        # two amarbel-llc Go modules moxy directly imports onto their producer
-        # flakes' `go-pkgs` source trees, so a tommy/go-mcp bump is a flake.lock
-        # change alone — no go.mod pseudo-version + gomod2nix.toml hash lockstep.
-        # The bridge synthesizes `replace` directives at eval time and strips
-        # these keys from the merged gomod2nix.toml, so go.mod/gomod2nix.toml are
-        # left untouched (their real require versions still drive out-of-nix
-        # `go build`). Consumed by both buildGoApplication and the devshell
-        # mkGoEnv.
+        # Go dependencies live in ./go.nix (igloo FDR 0008): there is no go.mod,
+        # go.sum or gomod2nix.toml in the checkout. Its `flakeInputs` route the
+        # amarbel-llc modules moxy imports (tommy, go-mcp, and madder for its
+        # in-process blob_store_env library) onto the producer flakes' `go-pkgs`
+        # trees, so a bump of any of them is a flake.lock change alone and the
+        # library always matches the flake's codegen binary. Third-party pins
+        # (version + vendor hash) are in go.nix `require`; change them through
+        # `just build-go-get` (godyn-go), never by hand.
         #
-        # madder is bridged for its Go library: internal/native calls the
-        # blob_store_env in-process instead of shelling out to the `madder`
-        # binary. Module path is code.linenisgreat.com/madder/go; its go-pkgs
-        # derivation is rooted at the repo's /go subdir, so no subPath.
-        goFlakeInputs = {
-          "code.linenisgreat.com/tommy" = tommy.packages.${system}.go-pkgs;
-          "code.linenisgreat.com/purse-first/libs/go-mcp" = {
-            src = purse-first.packages.${system}.go-pkgs;
-            subPath = "libs/go-mcp";
-          };
-          "code.linenisgreat.com/madder/go" = madder.packages.${system}.go-pkgs;
-        };
+        # `strategy` picks the backend (buildGoAuto): "bga" is the whole-module
+        # buildGoApplication, "native" the per-package godyn build. The shipped
+        # package and the hermetic checks stay on bga; `moxy-native` is the bare
+        # godyn binary behind `just build-go`.
+        moxyStrategy = "bga";
 
         # The google-workspace (gws) moxins — gmail, calendar, car, gws, piers,
         # prison — are built and tested but NOT shipped in the bundle baked into
@@ -1021,26 +1016,36 @@
         # run a hermetic, pinned ringmaster instead of relying on ambient PATH.
         clown-ringmaster = clown.packages.${system}.ringmaster;
 
-        moxy = pkgs.buildGoApplication {
+        moxy = pkgs.buildGoAuto {
           pname = "moxy";
-          commit = moxyCommit;
           src = moxySrc;
-          # pwd lets the goFlakeInputs merge read the consumer go.mod (mirrors
-          # madder's src+pwd pairing).
-          pwd = moxySrc;
-          inherit goFlakeInputs;
+          # go.nix replaces go.mod/gomod2nix.toml/goFlakeInputs; its
+          # flakeInputs name entries of `inputs`.
+          manifest = ./go.nix;
+          strategy = moxyStrategy;
+          inherit inputs;
+          # On PATH in every escape-hatch run (godyn-go), for go:generate.
+          goRunInputs = [ tommy.packages.${system}.default ];
           subPackages = [ "cmd/moxy" ];
-          modules = ./gomod2nix.toml;
-          go = pkgs-master.go_1_26;
-          GOTOOLCHAIN = "local";
+          # `commit` is passed per backend (src is a filtered store path, no
+          # .rev); version is auto-read from version.env by both.
+          nativeArgs = {
+            commit = moxyCommit;
+            cc = pkgs.stdenv.cc; # cgo-only DataDog/zstd (see moxy-native)
+          };
+          bgaArgs = {
+            commit = moxyCommit;
+            go = pkgs-master.go_1_26;
+            GOTOOLCHAIN = "local";
+          };
           nativeBuildInputs = [
             pkgs.makeWrapper
             pkgs.jq
           ];
-          # The fork's buildGoApplication auto-injects `-X main.version`
-          # (read from the version.env carried in src/pwd, nixpkgs#31)
-          # and `-X main.commit` (from the `commit` attr above). Only
-          # project-specific ldflags need to live here.
+          # buildGoAuto auto-injects `-X main.version` (read from the
+          # version.env carried in src) and `-X main.commit` (from the
+          # per-backend `commit` above). Only project-specific ldflags need
+          # to live here.
           ldflags = [
             "-X"
             "code.linenisgreat.com/moxy/internal/native.defaultSystemMoxinDir=${moxy-moxins}/share/moxy/moxins"
@@ -1093,6 +1098,29 @@
           '';
         };
 
+        # The BARE moxy binary on igloo's per-package godyn backend (strategy
+        # "native"): no moxin dir / ringmaster pins, no plugin postInstall. The
+        # dev inner-loop build behind `just build-go` (build/moxy) — only the
+        # changed package cone rebuilds. Same shape as the old devshell
+        # `go build -o build/moxy ./cmd/moxy`, which set no ldflags either.
+        moxy-native = pkgs.buildGoAuto {
+          pname = "moxy";
+          src = moxySrc;
+          manifest = ./go.nix;
+          strategy = "native";
+          inherit inputs;
+          subPackages = [ "cmd/moxy" ];
+          # Derive the per-package test graph: `just debug-go-test`
+          # (godyn-test) runs a package's tests off this package's testWith.
+          tests = true;
+          nativeArgs = {
+            commit = moxyCommit;
+            # madder's closure carries the cgo-only github.com/DataDog/zstd; a
+            # derived graph without cc is CGO_ENABLED=0 and leaves it empty.
+            cc = pkgs.stdenv.cc;
+          };
+        };
+
         combined = pkgs.symlinkJoin {
           name = "moxy";
           # pname is consulted by `batsLane` for lane derivation naming;
@@ -1134,21 +1162,26 @@
           GOOS = "linux";
           GOARCH = "arm64";
         };
-        moxy-linux = pkgs.buildGoApplication {
+        moxy-linux = pkgs.buildGoAuto {
           pname = "moxy";
-          commit = moxyCommit;
           src = moxySrc;
-          pwd = moxySrc;
-          inherit goFlakeInputs;
+          manifest = ./go.nix;
+          # Cross-compiling relies on buildGoApplication taking its target
+          # from `go` (above); godyn's per-package build is not validated for
+          # it, so this stays on bga whatever moxyStrategy says.
+          strategy = "bga";
+          inherit inputs;
           subPackages = [ "cmd/moxy" ];
-          modules = ./gomod2nix.toml;
-          go = goLinuxArm64;
-          GOTOOLCHAIN = "local";
-          CGO_ENABLED = "0";
-          # The check phase runs `go test`, which can't exec a linux/arm64
-          # test binary on the darwin builder ("exec format error"). Tests run
-          # natively in the gate; skip them for the cross artifact.
-          doCheck = false;
+          bgaArgs = {
+            commit = moxyCommit;
+            go = goLinuxArm64;
+            GOTOOLCHAIN = "local";
+            CGO_ENABLED = "0";
+            # The check phase runs `go test`, which can't exec a linux/arm64
+            # test binary on the darwin builder ("exec format error"). Tests
+            # run natively in the gate; skip them for the cross artifact.
+            doCheck = false;
+          };
           # Cross builds nest the binary under bin/<goos>_<goarch>/ (Go's
           # GOOS/GOARCH-suffixed output dir). Flatten it back to bin/moxy so the
           # image entrypoint /bin/moxy resolves. Unconditional: if Go ever stops
@@ -1374,6 +1407,7 @@
         packages = batsLaneOutputs // {
           inherit
             moxy
+            moxy-native
             moxy-moxins
             moxy-moxins-all
             gws-moxins
@@ -1401,7 +1435,7 @@
           # The impure-lane config (eng-impure preset). `just lint-worktree`
           # runs `conformist check` against the working tree with this config
           # to exercise the git-state linters (git-remotes, git-default-branch,
-          # sweatfile, agents-md, gomod2nix) the sandboxed gate cannot.
+          # sweatfile, agents-md) the sandboxed gate cannot.
           conformist-impure-config = conformistImpureEval.config.build.configFile;
         };
 
@@ -1428,24 +1462,24 @@
           go-vet = goVet;
           go-lint = goLint;
           bats = batsLaneOutputs.bats-default;
+          # Codec drift guard (igloo FDR 0008): `go generate` in the vendored
+          # module tree, failing on any diff from the committed source.
+          # Backend-independent. `just verify-tommy-codegen` builds this.
+          tommy-codegen = moxy.passthru.codegenCheck {
+            command = "go generate ./internal/config/...";
+            nativeBuildInputs = [ tommy.packages.${system}.default ];
+          };
         };
 
         devShells.default = pkgs-master.mkShell {
           packages = [
-            # mkGoEnv (RFC 0001 consumer parity) puts the gomod2nix-regen `go`
-            # wrapper + gomod2nix CLI on PATH and gives `nix develop` the same
-            # goFlakeInputs-merged module graph as `nix build` for nix-driven
-            # go work. Replaces the bare go_1_26 + gomod2nix entries.
-            (pkgs.mkGoEnv {
-              pwd = ./.;
-              inherit goFlakeInputs;
-            })
-            pkgs-master.delve
+            # No ambient `go`: dependencies live in go.nix (igloo FDR 0008);
+            # go commands run through `godyn-go -- <cmd>` (see the justfile),
+            # builds through `.#moxy-native`. golangci-lint and govulncheck are
+            # kept as standalone tools for the lint-go / vuln recipes.
             pkgs-master.gofumpt
             pkgs-master.golangci-lint
             pkgs-master.golines
-            pkgs-master.gopls
-            pkgs-master.gotools
             pkgs-master.govulncheck
             pkgs.just
             pkgs.manix
