@@ -76,15 +76,6 @@ func (r *streamRegistry) remove(id string) {
 	delete(r.streams, id)
 }
 
-func (r *streamRegistry) closeAll() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, s := range r.streams {
-		s.closeStream()
-	}
-	r.streams = make(map[string]*sseStream)
-}
-
 func (r *streamRegistry) broadcast(msg *jsonrpc.Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
