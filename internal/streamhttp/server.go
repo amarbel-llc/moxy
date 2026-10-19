@@ -2,8 +2,10 @@ package streamhttp
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -38,6 +40,10 @@ type Options struct {
 	// /clown/system-prompt for clown's dynamic system-prompt contribution
 	// (RFC-0002 §5). Empty means nothing to add (the handler returns 204).
 	SystemPromptFragment string
+	// SessionIDPath, when set, persists the server-wide Mcp-Session-Id there
+	// and reloads it on start, so an origin restart does not invalidate the
+	// id every client still holds. Empty keeps the id in memory only.
+	SessionIDPath string
 }
 
 type Server struct {
@@ -51,7 +57,18 @@ type Server struct {
 
 func New(opts Options) *Server {
 	excluder, _ := opts.Tools.(ToolExcluder)
+	var sessionID string
+	if opts.SessionIDPath != "" {
+		id, err := loadOrCreateSessionID(opts.SessionIDPath)
+		if err != nil {
+			// Fall back to minting an in-memory id on first initialize:
+			// serving without restart-survival beats not serving.
+			fmt.Fprintf(os.Stderr, "moxy: session id not persisted: %v\n", err)
+		}
+		sessionID = id
+	}
 	return &Server{
+		sessionID: sessionID,
 		dispatcher: &dispatcher{
 			tools:         opts.Tools,
 			resources:     opts.Resources,
@@ -290,12 +307,11 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.streams.closeAll()
-
-	s.mu.Lock()
-	s.sessionID = ""
-	s.mu.Unlock()
-
+	// serve-http has ONE session shared by every client, so there is no
+	// per-client session for a DELETE to end. Honoring it would clear the id
+	// and close every SSE stream for all other clients; acknowledge it and
+	// leave the shared session (and the persisted id) intact.
+	streamhttpLog("delete ignored: session is shared by all clients")
 	w.WriteHeader(http.StatusOK)
 }
 

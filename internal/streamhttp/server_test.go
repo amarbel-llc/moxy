@@ -221,7 +221,7 @@ func TestNotificationReturns202(t *testing.T) {
 	}
 }
 
-func TestDeleteTerminatesSession(t *testing.T) {
+func TestDeleteKeepsSharedSession(t *testing.T) {
 	srv := newTestServer()
 
 	initMsg := jsonrpc.Message{
@@ -247,8 +247,8 @@ func TestDeleteTerminatesSession(t *testing.T) {
 		Method:  "tools/list",
 	}
 	w = postJSON(srv, toolsMsg, sid)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("after delete: want 404, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("after delete: want 200 (session is shared), got %d", w.Code)
 	}
 }
 

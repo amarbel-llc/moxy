@@ -759,7 +759,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		}
 		fmt.Fprintf(os.Stdout, "1|1|tcp|%s|streamable-http\n", ln.Addr())
 		fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (clown-plugin-protocol)\n", ln.Addr())
-		return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt)
+		return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt, "")
 
 	default:
 		if httpAddr := os.Getenv("MOXY_HTTP_ADDR"); httpAddr != "" {
@@ -808,10 +808,13 @@ func runHTTPServer(ctx context.Context, addr, source string, p *proxy.Proxy, chi
 		return fmt.Errorf("listening on %s: %w", addr, err)
 	}
 	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (%s)\n", ln.Addr(), source)
-	return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt)
+	// A fixed address is a long-lived origin behind a tunnel: persist the
+	// session id so a restart is invisible to clients (the ephemeral
+	// clown-plugin path is one session per process and stays in memory).
+	return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt, streamhttp.DefaultSessionIDPath())
 }
 
-func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt string) error {
+func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt, sessionIDPath string) error {
 	httpSrv := streamhttp.New(streamhttp.Options{
 		Tools:                p,
 		Resources:            p,
@@ -820,6 +823,7 @@ func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Prox
 		ServerVersion:        version,
 		Instructions:         instructions,
 		SystemPromptFragment: systemPrompt,
+		SessionIDPath:        sessionIDPath,
 	})
 	p.SetNotifier(httpSrv.Notify)
 
