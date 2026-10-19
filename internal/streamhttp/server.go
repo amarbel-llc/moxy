@@ -50,6 +50,7 @@ type Server struct {
 	dispatcher           *dispatcher
 	streams              *streamRegistry
 	sessionID            string
+	sessionIDPath        string
 	systemPromptFragment string
 	toolExcluder         ToolExcluder // nil if opts.Tools doesn't implement ToolExcluder
 	mu                   sync.RWMutex
@@ -59,16 +60,16 @@ func New(opts Options) *Server {
 	excluder, _ := opts.Tools.(ToolExcluder)
 	var sessionID string
 	if opts.SessionIDPath != "" {
-		id, err := loadOrCreateSessionID(opts.SessionIDPath)
+		id, err := loadSessionID(opts.SessionIDPath)
 		if err != nil {
-			// Fall back to minting an in-memory id on first initialize:
-			// serving without restart-survival beats not serving.
-			fmt.Fprintf(os.Stderr, "moxy: session id not persisted: %v\n", err)
+			// Serving without restart-survival beats not serving.
+			fmt.Fprintf(os.Stderr, "moxy: session id not restored: %v\n", err)
 		}
 		sessionID = id
 	}
 	return &Server{
-		sessionID: sessionID,
+		sessionID:     sessionID,
+		sessionIDPath: opts.SessionIDPath,
 		dispatcher: &dispatcher{
 			tools:         opts.Tools,
 			resources:     opts.Resources,
@@ -237,6 +238,11 @@ func (s *Server) handleInitializePost(w http.ResponseWriter, r *http.Request, ms
 	s.mu.Lock()
 	if s.sessionID == "" {
 		s.sessionID = uuid.New().String()
+		if s.sessionIDPath != "" {
+			if err := storeSessionID(s.sessionIDPath, s.sessionID); err != nil {
+				fmt.Fprintf(os.Stderr, "moxy: session id not persisted: %v\n", err)
+			}
+		}
 	}
 	sid := s.sessionID
 	s.mu.Unlock()

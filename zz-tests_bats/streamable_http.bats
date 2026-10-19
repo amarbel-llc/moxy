@@ -231,7 +231,7 @@ function tools_list_without_session_returns_404 { # @test
   assert_equal "$HTTP_STATUS" "404"
 }
 
-function delete_terminates_session { # @test
+function delete_leaves_shared_session_intact { # @test
   start_moxy_http
 
   http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
@@ -241,10 +241,10 @@ function delete_terminates_session { # @test
   assert_equal "$HTTP_STATUS" "200"
 
   http_post_mcp "tools/list" "" "$sid"
-  assert_equal "$HTTP_STATUS" "404"
+  assert_equal "$HTTP_STATUS" "200"
 }
 
-function reinitialize_after_delete_yields_new_session_id { # @test
+function reinitialize_after_delete_keeps_shared_session_id { # @test
   start_moxy_http
 
   http_post_mcp initialize '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
@@ -258,7 +258,7 @@ function reinitialize_after_delete_yields_new_session_id { # @test
   local sid_after="$MOXY_SESSION_ID"
 
   [[ -n $sid_after ]]
-  [[ $sid_before != "$sid_after" ]]
+  [[ $sid_before == "$sid_after" ]]
 }
 
 function reinitialize_without_delete_is_idempotent { # @test
