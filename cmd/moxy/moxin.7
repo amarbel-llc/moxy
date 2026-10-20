@@ -404,6 +404,24 @@ This is the default when
 .Sy perms-request
 is omitted.
 .El
+.Pp
+When the client session runs in Claude Code's
+.Li dontAsk
+permission mode nobody can answer a prompt, so the hook never leaves a
+call pending.
+The tool's check still runs: an allow or deny outcome is honoured, and
+any outcome that would need a human \(em
+.Dq ask ,
+including a
+.Sy dynamic-perms
+helper that crashes, times out, or exits with an unmapped code \(em is
+returned as an immediate deny whose reason names the tool, its arguments,
+why it would have asked, and that
+.Li dontAsk
+is in force.
+A permission request for a tool with no
+.Sy perms-request
+is denied the same way.
 .Sh DISCOVERY
 Moxin configs are discovered from directories listed in the
 .Ev MOXIN_PATH

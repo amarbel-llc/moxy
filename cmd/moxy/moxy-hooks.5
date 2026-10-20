@@ -48,6 +48,33 @@ Contains
 .Cm tool_input ,
 and
 .Cm permission_suggestions .
+When
+.Cm permission_mode
+is
+.Dq dontAsk ,
+.Nm moxy
+answers the request itself rather than leaving it pending: see
+.Sx PERMISSIONS
+in
+.Xr moxin 7 .
+.It Cm MoxyDecision
+Written by
+.Nm moxy ,
+not Claude Code: the permission decision
+.Nm moxy
+returned for a
+.Cm PreToolUse
+or
+.Cm PermissionRequest
+event.
+Contains
+.Cm for_event ,
+.Cm tool_name ,
+.Cm permission_mode ,
+.Cm decision
+.Pq Dq allow , Dq ask , or Dq deny ,
+and
+.Cm reason .
 .El
 .Pp
 Additional event types

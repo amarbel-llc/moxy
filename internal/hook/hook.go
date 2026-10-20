@@ -127,6 +127,18 @@ type hookInput struct {
 	// Claude Code on every PreToolUse hook. Dynamic-perms scripts run with
 	// this as their CWD so relative paths resolve correctly.
 	Cwd string `json:"cwd,omitempty"`
+	// PermissionMode is the session's permission tier ("default",
+	// "acceptEdits", "dontAsk", ...). Under dontAsk nobody can answer a
+	// prompt, so an ask outcome is turned into an immediate deny (#484).
+	PermissionMode string `json:"permission_mode,omitempty"`
+}
+
+// permissionModeDontAsk is Claude Code's non-interactive permission mode:
+// anything that would prompt is refused instead.
+const permissionModeDontAsk = "dontAsk"
+
+func (hi hookInput) isDontAsk() bool {
+	return hi.PermissionMode == permissionModeDontAsk
 }
 
 type hookOutput struct {
@@ -166,9 +178,12 @@ func matchMoxyPrefix(toolName string) string {
 // Then dispatches based on hook_event_name:
 //
 //   - PreToolUse: permission decisions for moxin tools, then falls through to
-//     go-mcp's HandleHook for deny-redirect logic.
+//     go-mcp's HandleHook for deny-redirect logic. Under dontAsk an ask
+//     decision is written as deny instead (#484).
 //   - PermissionRequest: returns empty output so Claude Code shows the normal
-//     permission dialog (the event is already logged above).
+//     permission dialog (the event is already logged above). Under dontAsk
+//     there is no dialog, so moxy decides: the tool's allow or deny is
+//     honoured and anything else is denied (#484).
 //   - All other events: logged only (no response needed).
 //
 // The hook matcher in hooks.json is ".*" so this fires for all tools.
@@ -211,33 +226,178 @@ func Handle(app *command.App, r io.Reader, w io.Writer) error {
 
 	switch hi.HookEventName {
 	case "PermissionRequest":
-		// Return empty output — Claude Code shows the normal permission dialog.
-		return nil
+		if !hi.isDontAsk() {
+			// Return empty output — Claude Code shows the normal permission
+			// dialog.
+			return nil
+		}
+		// dontAsk (#484): there is no dialog to show and no one to answer
+		// it, so an empty response leaves the call pending forever. Decide
+		// now: honour allow and deny, refuse everything else.
+		behavior, reason := permissionRequestDecisionUnderDontAsk(hi, prefix)
+		debugHook("  decision: dontAsk PermissionRequest %s (%s)", behavior, reason)
+		logHookDecision(hi, behavior, reason)
+		return writePermissionRequestDecision(w, behavior, reason)
 
 	default:
-		// PreToolUse (and any future event types): existing behavior.
-		parsed, ok := parseNativeToolName(hi.ToolName, prefix)
-		debugHook("  parsed=%q ok=%v", parsed, ok)
-		if tryAsyncInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
-			debugHook("  decision: async inner-tool resolved")
-			return nil
+		// PreToolUse (and any future event types). Decisions are buffered so
+		// a dontAsk session can have an ask turned into a deny before it
+		// reaches Claude Code.
+		var buf bytes.Buffer
+		err := decidePreToolUse(app, raw, hi, prefix, &buf)
+		out := buf.Bytes()
+		if dec, ok := decodePreToolUseDecision(out); ok {
+			if hi.isDontAsk() && dec.PermissionDecision == "ask" {
+				reason := dontAskDenyReason(hi, dec.PermissionDecisionReason)
+				debugHook("  decision: dontAsk downgraded ask to deny")
+				var denied bytes.Buffer
+				if writeHookDecision(&denied, "deny", reason) {
+					dec = hookDecision{PermissionDecision: "deny", PermissionDecisionReason: reason}
+					out = denied.Bytes()
+				}
+			}
+			logHookDecision(hi, dec.PermissionDecision, dec.PermissionDecisionReason)
 		}
-		if tryBatchAsyncInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
-			debugHook("  decision: batch async inner-list resolved")
-			return nil
+		if _, werr := w.Write(out); werr != nil {
+			log.Printf("hook: ignoring write error (fail-open): %v", werr)
 		}
-		if tryBuiltinAutoAllow(hi.ToolName, prefix, w) {
-			debugHook("  decision: builtin auto-allowed")
-			return nil
-		}
-		if tryPermsDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
-			debugHook("  decision: allowed")
-			return nil
-		}
-		debugHook("  decision: fall-through")
-
-		return app.HandleHook(bytes.NewReader(raw), w)
+		return err
 	}
+}
+
+// decidePreToolUse runs the PreToolUse decision chain, writing at most one
+// decision to w, or falling through to go-mcp's HandleHook.
+func decidePreToolUse(app *command.App, raw []byte, hi hookInput, prefix string, w io.Writer) error {
+	parsed, ok := parseNativeToolName(hi.ToolName, prefix)
+	debugHook("  parsed=%q ok=%v", parsed, ok)
+	if tryAsyncInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
+		debugHook("  decision: async inner-tool resolved")
+		return nil
+	}
+	if tryBatchAsyncInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
+		debugHook("  decision: batch async inner-list resolved")
+		return nil
+	}
+	if tryBuiltinAutoAllow(hi.ToolName, prefix, w) {
+		debugHook("  decision: builtin auto-allowed")
+		return nil
+	}
+	if tryPermsDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
+		debugHook("  decision: allowed")
+		return nil
+	}
+	debugHook("  decision: fall-through")
+
+	return app.HandleHook(bytes.NewReader(raw), w)
+}
+
+// decodePreToolUseDecision parses a PreToolUse decision written by the
+// chain. ok is false when nothing (or something other than a permission
+// decision) was written.
+func decodePreToolUseDecision(out []byte) (hookDecision, bool) {
+	var parsed hookOutput
+	if len(bytes.TrimSpace(out)) == 0 || json.Unmarshal(out, &parsed) != nil {
+		return hookDecision{}, false
+	}
+	dec := parsed.HookSpecificOutput
+	return dec, dec.PermissionDecision != ""
+}
+
+// permissionRequestDecisionUnderDontAsk resolves a PermissionRequest that
+// arrived while the session runs in dontAsk mode. The tool's permission
+// check runs as usual; allow and deny are honoured, and every outcome that
+// would need a human (ask, a resolver that crashed or timed out, a tool with
+// no moxin perms-request) becomes deny with a reason the agent can act on.
+func permissionRequestDecisionUnderDontAsk(hi hookInput, prefix string) (behavior, reason string) {
+	suffix := strings.TrimPrefix(hi.ToolName, prefix)
+	if builtinAutoAllow[suffix] {
+		return "allow", "auto-allowed builtin tool"
+	}
+
+	var decision permcheck.Decision
+	resolved := "no moxin perm-request for " + suffix
+	if serverTool, ok := parseNativeToolName(hi.ToolName, prefix); ok {
+		if resolver, err := getResolver(); err != nil {
+			resolved = fmt.Sprintf("permission resolver unavailable: %v", err)
+		} else if args, err := json.Marshal(hi.ToolInput); err != nil {
+			resolved = fmt.Sprintf("could not encode tool input: %v", err)
+		} else {
+			decision, resolved = resolver.Resolve(context.Background(), serverTool, args, hi.Cwd)
+		}
+	}
+
+	switch decision {
+	case permcheck.Allow:
+		return "allow", resolved
+	case permcheck.Deny:
+		return "deny", resolved
+	default:
+		return "deny", dontAskDenyReason(hi, resolved)
+	}
+}
+
+// maxReasonArgsBytes bounds how much of the tool input a dontAsk denial
+// quotes back to the agent.
+const maxReasonArgsBytes = 400
+
+// dontAskDenyReason explains a dontAsk denial: which tool, with which
+// arguments, why it would have asked, and that dontAsk is in force.
+func dontAskDenyReason(hi hookInput, whyAsk string) string {
+	args, _ := json.Marshal(hi.ToolInput)
+	argText := string(args)
+	if len(argText) > maxReasonArgsBytes {
+		argText = argText[:maxReasonArgsBytes] + "…"
+	}
+	if whyAsk == "" {
+		whyAsk = "no reason given"
+	}
+	return fmt.Sprintf(
+		"moxy denied %s with arguments %s: its permission check needs a human to approve this call (%s), "+
+			"and the session runs in dontAsk mode, so nobody can answer. "+
+			"Retry with arguments the check allows (for example a path inside the working tree), "+
+			"or ask the operator to run it.",
+		hi.ToolName, argText, whyAsk,
+	)
+}
+
+// writePermissionRequestDecision encodes a PermissionRequest hook decision
+// (behavior "allow" or "deny") to w.
+func writePermissionRequestDecision(w io.Writer, behavior, message string) error {
+	decision := map[string]any{"behavior": behavior}
+	if behavior == "deny" {
+		decision["message"] = message
+	}
+	out := map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName": "PermissionRequest",
+			"decision":      decision,
+		},
+	}
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		log.Printf("hook: ignoring encode error (fail-open): %v", err)
+	}
+	return nil
+}
+
+// logHookDecision appends the decision moxy returned for a hook event to the
+// same per-session JSONL file logHookEvent writes (see moxy-hooks(5)), as a
+// record with hook_event_name "MoxyDecision".
+func logHookDecision(hi hookInput, decision, reason string) {
+	record := map[string]any{
+		"hook_event_name": "MoxyDecision",
+		"session_id":      hi.SessionID,
+		"for_event":       hi.HookEventName,
+		"tool_name":       hi.ToolName,
+		"permission_mode": hi.PermissionMode,
+		"decision":        decision,
+		"reason":          reason,
+	}
+	raw, err := json.Marshal(record)
+	if err != nil {
+		debugHook("logHookDecision: marshal error: %v", err)
+		return
+	}
+	logHookEvent(raw, hi)
 }
 
 // builtinAutoAllow lists builtin (non-moxin) tool names that are
