@@ -2,5 +2,7 @@ build/
 node_modules/
 __pycache__/
 result-moxins
+result-go-pkgs
+result-go-pkgs-test
 result-lint-py
 zz-pocs/pandoc-docs-poc/result-gws

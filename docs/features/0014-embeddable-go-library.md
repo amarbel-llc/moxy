@@ -290,10 +290,13 @@ tool result with a reason in the same shape as the hook's dontAsk denial
   `"code.linenisgreat.com/moxy" = { input = "moxy"; }` to its `go.nix`
   `flakeInputs` (clown is on godyn `go.nix` since clown#249, closed). Then
   `import "code.linenisgreat.com/moxy/pkg/moxy"` just works.
-  UNVERIFIED: whether a consumer must also declare moxy's own fleet
-  `flakeInputs` (`madder`, `purse-first`, `tommy`) in its go.nix, or
-  whether the producer's `go-pkgs` tree carries them transitively.
-  UNVERIFIED and worth checking before step 1: moxy's `go.nix` pins
+  moxy's own fleet `flakeInputs` (`madder`, `purse-first`, `tommy`) ride
+  along: `nix eval .#go-pkgs.passthru.goFlakeInputs` (recipe
+  `debug-go-pkgs-flake-inputs`) shows the three resolved producer trees,
+  which a consumer's bridge unions transitively per mkGoPkgs(7) ARGUMENTS,
+  so clown declares only `moxy`. UNVERIFIED end to end until clown's flake
+  actually evaluates with the bridge in place.
+  UNVERIFIED and worth checking before step 2: moxy's `go.nix` pins
   `code.linenisgreat.com/purse-first/libs/dewey` as a versioned `require`
   (v0.5.0) while clown bridges the same module as a `flakeInput`; how godyn
   reconciles a module that is a require on one side and a flake input on
@@ -370,9 +373,9 @@ readable because moves are `git mv` with import rewrites in the same
 commit and no behaviour change in a move commit.
 
 1. **Producer + skeleton.** `packages.go-pkgs` / `go-pkgs-test` via
-   `mkGoPkgs`; `pkg/moxy/doc.go` with `Version()`; a `just` recipe that
-   builds `.#go-pkgs`. Settles the two UNVERIFIED build questions above
-   before any code moves.
+   `mkGoPkgs`; `pkg/moxy/doc.go` with `Version()`; `just build-go-pkgs`
+   and `just debug-go-pkgs-flake-inputs`. Settles the transitive-inputs
+   question above before any code moves.
 2. **`internal/config` → `pkg/moxyfile`**, `internal/narrowing` →
    `pkg/narrowing`. Pure moves. The tommy `//go:generate` and
    `codemod-generate` follow the package.

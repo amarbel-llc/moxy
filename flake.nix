@@ -233,6 +233,8 @@
               ./go.nix
               ./cmd/moxy
               ./internal
+              # The public library surface (FDR 0014, moxy#487).
+              ./pkg
               # Consumed by buildGoAuto's version.env auto-read (both
               # backends): the file must survive into the filtered tree or the
               # embedded version falls back to the placeholder.
@@ -260,6 +262,24 @@
         # (igloo#33). Gates the godyn build and checks; other systems keep the
         # whole-module buildGoApplication ones.
         godynSystem = system == "x86_64-linux";
+
+        # igloo RFC 0001 go-pkgs producer, so another fleet module (clown, and
+        # the juggler loop it hosts) can link moxy's public Go packages under
+        # pkg/ (FDR 0014, moxy#487) through its go.nix `flakeInputs` bridge:
+        # `"code.linenisgreat.com/moxy" = { input = "moxy"; }`. The same call
+        # clown's flake makes for pkg/profilelookup: mkGoPkgs renders
+        # go.mod/gomod2nix.toml from ./go.nix into both outputs. moxy's own
+        # fleet deps (madder, go-mcp, tommy) are go.nix flakeInputs; mkGoPkgs
+        # reads them from the manifest, so no `goFlakeInputs` is passed here.
+        inherit
+          (pkgs.mkGoPkgs {
+            src = self;
+            manifest = ./go.nix;
+            inherit inputs;
+          })
+          go-pkgs
+          go-pkgs-test
+          ;
 
         # The google-workspace (gws) moxins — gmail, calendar, car, gws, piers,
         # prison — are built and tested but NOT shipped in the bundle baked into
@@ -1074,6 +1094,10 @@
               # RINGMASTER_BIN env var still overrides this (tests/pinning).
               "-X"
               "code.linenisgreat.com/moxy/internal/asyncjob.defaultRingmasterBin=${clown-ringmaster}/bin/ringmaster"
+              # The library's own version identity (pkg/moxy.Version, FDR
+              # 0014): the same MOXY_VERSION buildGoAuto injects into main.
+              "-X"
+              "code.linenisgreat.com/moxy/pkg/moxy.version=${moxyVersion}"
             ];
             postInstall = ''
               MOXY_MCP_BINARY="$out/bin/moxy" $out/bin/moxy generate-plugin $out
@@ -1451,6 +1475,8 @@
             gws-moxins
             moxy-linux
             moxy-oci-image
+            go-pkgs
+            go-pkgs-test
             ;
           default = combined;
           # The pinned google-workspace-cli the gws moxins wrap, exposed so

@@ -97,6 +97,26 @@ build-go-get *args:
 build-nix:
   nix build --keep-going --show-trace
 
+# Build the igloo RFC 0001 producer outputs a consumer's go.nix bridge links
+# (FDR 0014, moxy#487), so a change to pkg/ or go.nix is checked against the
+# shape clown will import before it lands. Agent dev-loop for the library
+# refactor: run after touching pkg/, go.nix, or the mkGoPkgs call.
+#
+# build the go-pkgs / go-pkgs-test producer trees and link them at result-go-pkgs
+[group("build")]
+build-go-pkgs:
+  nix build --keep-going --out-link result-go-pkgs .#go-pkgs .#go-pkgs-test
+
+# A consumer's go.nix bridge unions a producer's passthru.goFlakeInputs
+# transitively (mkGoPkgs(7) ARGUMENTS); this shows what moxy's go-pkgs carries
+# so a consumer knows which fleet inputs (madder, purse-first, tommy) it must
+# be able to resolve. Agent dev-loop for FDR 0014's consumption question.
+#
+# print the go-pkgs producer's passthru.goFlakeInputs as JSON
+[group("debug")]
+debug-go-pkgs-flake-inputs:
+  nix eval --json .#go-pkgs.passthru.goFlakeInputs
+
 [group("codemod")]
 codemod: codemod-fmt codemod-generate
 
