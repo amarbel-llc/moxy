@@ -39,7 +39,7 @@ func (p Policy) Enforcing() bool { return p.Effective() == Enforce }
 // moxyfile narrowing (FDR 0013) applies to the mode, and the rule a per-call
 // policy override is held to.
 func (p Policy) Narrower(parent Policy) bool {
-	return !(parent.Enforcing() && !p.Enforcing())
+	return !parent.Enforcing() || p.Enforcing()
 }
 
 // ParseMode validates a mode as written in a moxyfile or flag.
