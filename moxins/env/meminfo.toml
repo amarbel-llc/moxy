@@ -1,0 +1,13 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Report memory and swap usage as JSON, all values in bytes: total, free, available, used (total - available), swap_total, swap_free, swap_used. Linux only (reads /proc/meminfo)."
+command = "@BIN@/meminfo"
+
+[input]
+type = "object"
+
+[annotations]
+read-only-hint = true
+open-world-hint = false

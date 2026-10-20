@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Report per-cpu busy percentage over a short sampling window. /proc/stat holds
+# cumulative counters, so two reads interval_ms apart are differenced. Linux only.
+set -euo pipefail
+
+interval_ms="${1:-250}"
+
+case "$interval_ms" in
+'' | *[!0-9]*)
+  echo "Error: interval_ms must be a non-negative integer: $interval_ms" >&2
+  exit 1
+  ;;
+esac
+if [ "$interval_ms" -lt 10 ] || [ "$interval_ms" -gt 5000 ]; then
+  echo "Error: interval_ms must be between 10 and 5000: $interval_ms" >&2
+  exit 1
+fi
+
+if [ ! -r /proc/stat ]; then
+  echo "Error: /proc/stat not available (cpu is Linux-only)" >&2
+  exit 1
+fi
+
+# Emit "<name> <total> <idle>" per cpu line; idle includes iowait.
+sample() {
+  while read -r name user nice system idle iowait irq softirq steal _; do
+    case "$name" in
+    cpu*)
+      echo "$name $((user + nice + system + idle + iowait + irq + softirq + steal)) $((idle + iowait))"
+      ;;
+    esac
+  done </proc/stat
+}
+
+before=$(sample)
+sleep "$((interval_ms / 1000)).$(printf '%03d' $((interval_ms % 1000)))"
+after=$(sample)
+
+jq -n -R \
+  --argjson interval_ms "$interval_ms" \
+  --arg before "$before" \
+  --arg after "$after" \
+  '
+  def parse: split("\n") | map(select(length > 0) | split(" ")
+    | {key: .[0], value: {total: (.[1] | tonumber), idle: (.[2] | tonumber)}}) | from_entries;
+  def busy($b; $a):
+    ($a.total - $b.total) as $dt
+    | if $dt <= 0 then 0
+      else ((1 - (($a.idle - $b.idle) / $dt)) * 1000 | round / 10) end;
+  ($before | parse) as $b | ($after | parse) as $a
+  | {
+      interval_ms: $interval_ms,
+      total_busy_pct: busy($b.cpu; $a.cpu),
+      per_cpu: ($a | del(.cpu) | keys_unsorted
+        | map({key: ., value: busy($b[.]; $a[.])}) | from_entries)
+    }' </dev/null

@@ -1,0 +1,18 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Report cpu utilization as JSON by sampling /proc/stat twice: total_busy_pct and per_cpu busy percentages (0-100) over the sampling window. Blocks for interval_ms. Linux only."
+command = "@BIN@/cpu"
+arg-order = ["interval_ms"]
+
+[input]
+type = "object"
+
+[input.properties.interval_ms]
+type = "integer"
+description = "Sampling window in milliseconds, 10-5000. Defaults to 250."
+
+[annotations]
+read-only-hint = true
+open-world-hint = false

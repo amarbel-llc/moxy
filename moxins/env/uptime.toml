@@ -1,0 +1,13 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Report system uptime as JSON: uptime_sec, idle_sec (summed across cpus), and boot_time_utc (ISO-8601 Z). Linux only (reads /proc/uptime)."
+command = "@BIN@/uptime"
+
+[input]
+type = "object"
+
+[annotations]
+read-only-hint = true
+open-world-hint = false

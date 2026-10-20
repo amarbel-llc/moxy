@@ -1,0 +1,13 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Report the system load average as JSON: load1/load5/load15, running and total task counts, the cpu count, and per_cpu (load divided by cpu count, where ~1.0 means saturated). Linux only (reads /proc/loadavg)."
+command = "@BIN@/loadavg"
+
+[input]
+type = "object"
+
+[annotations]
+read-only-hint = true
+open-world-hint = false

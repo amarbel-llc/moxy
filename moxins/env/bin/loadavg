@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Report the system load average as JSON. Reads /proc/loadavg (Linux only) and
+# adds the cpu count so callers can judge load relative to capacity.
+set -euo pipefail
+
+if [ ! -r /proc/loadavg ]; then
+  echo "Error: /proc/loadavg not available (loadavg is Linux-only)" >&2
+  exit 1
+fi
+
+read -r l1 l5 l15 procs _ </proc/loadavg
+running="${procs%%/*}"
+total="${procs##*/}"
+cpus=$(nproc)
+
+jq -n \
+  --argjson load1 "$l1" \
+  --argjson load5 "$l5" \
+  --argjson load15 "$l15" \
+  --argjson running "$running" \
+  --argjson total "$total" \
+  --argjson cpus "$cpus" \
+  '{
+    load1: $load1, load5: $load5, load15: $load15,
+    running: $running, total: $total, cpus: $cpus,
+    per_cpu: {
+      load1: ($load1 / $cpus), load5: ($load5 / $cpus), load15: ($load15 / $cpus)
+    }
+  }'

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Report system uptime as JSON. Reads /proc/uptime (Linux only); boot time is
+# derived from a single reference instant so it stays consistent with uptime.
+set -euo pipefail
+
+if [ ! -r /proc/uptime ]; then
+  echo "Error: /proc/uptime not available (uptime is Linux-only)" >&2
+  exit 1
+fi
+
+read -r up idle </proc/uptime
+now=$(date +%s)
+
+jq -n \
+  --argjson up "$up" \
+  --argjson idle "$idle" \
+  --argjson now "$now" \
+  '{
+    uptime_sec: $up,
+    idle_sec: $idle,
+    boot_time_utc: (($now - $up) | floor | todate)
+  }'

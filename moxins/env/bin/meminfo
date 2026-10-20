@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Report memory and swap usage as JSON, in bytes. Reads /proc/meminfo (Linux
+# only), whose values are in kB.
+set -euo pipefail
+
+if [ ! -r /proc/meminfo ]; then
+  echo "Error: /proc/meminfo not available (meminfo is Linux-only)" >&2
+  exit 1
+fi
+
+declare -A kb
+while read -r key val _; do
+  kb["${key%:}"]="$val"
+done </proc/meminfo
+
+jq -n \
+  --argjson total "$((${kb[MemTotal]} * 1024))" \
+  --argjson free "$((${kb[MemFree]} * 1024))" \
+  --argjson available "$((${kb[MemAvailable]} * 1024))" \
+  --argjson swap_total "$((${kb[SwapTotal]} * 1024))" \
+  --argjson swap_free "$((${kb[SwapFree]} * 1024))" \
+  '{
+    total: $total, free: $free, available: $available,
+    used: ($total - $available),
+    swap_total: $swap_total, swap_free: $swap_free,
+    swap_used: ($swap_total - $swap_free)
+  }'
