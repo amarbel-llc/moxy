@@ -69,6 +69,39 @@ function no_listen_flag_still_prints_handshake { # @test
   assert_output --partial "|streamable-http"
 }
 
+function listen_accepts_and_holds_requests_until_slow_child_is_ready { # @test
+  # A restart must look like a slow answer, never a refused connection (the
+  # tunnel's 502): --listen binds before children start, /healthz says
+  # "starting" (503), and an MCP request arriving mid-startup is held, then
+  # answered with Instructions that already describe every child.
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "slow"
+command = ["bash", "$FIXTURES_DIR/slow-start-server.bash"]
+EOF
+  spawn_moxy_http_listen
+
+  run curl -sS -w "\n%{http_code}" "$MOXY_HTTP_URL/healthz"
+  assert_success
+  assert_output --partial '"status":"starting"'
+  assert_output --partial "503"
+
+  http_post_mcp initialize '{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}'
+  assert_equal "$HTTP_STATUS" "200"
+  local sid="$MOXY_SESSION_ID"
+  [[ -n $sid ]]
+  run jq -e '.result.instructions | test("slow: 1 tools")' <<<"$output"
+  assert_success
+
+  http_post_mcp "tools/list" "" "$sid"
+  assert_equal "$HTTP_STATUS" "200"
+  run jq -e '.result.tools[] | select(.name == "slow.ping-slow")' <<<"$output"
+  assert_success
+
+  run curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz"
+  assert_output "200"
+}
+
 function initialize_assigns_session_id { # @test
   start_moxy_http
 

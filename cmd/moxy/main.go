@@ -132,7 +132,16 @@ func newApp() *command.App {
 				"stdout (for clown-plugin-host). With --listen ADDR, binds that " +
 				"fixed address instead and logs the bound address to stderr only — " +
 				"use this to put moxy behind a reverse proxy or tunnel that needs a " +
-				"stable upstream.",
+				"stable upstream. STARTUP: a fixed --listen address is bound before " +
+				"child servers are spawned, so a restart never refuses connections " +
+				"(which a tunnel surfaces as a 502). Until every child has " +
+				"finished starting, /healthz answers 503 {\"status\":\"starting\"} and " +
+				"every other request (initialize, tools/list, /clown/*) is held on " +
+				"its accepted connection, then served once startup completes, so " +
+				"the initialize instructions are complete; a request held longer " +
+				"than 90s gets a 503 with Retry-After. The ephemeral-port " +
+				"(clown-plugin) mode binds after startup, since its handshake line " +
+				"announces a ready server.",
 		},
 		Params: []command.Param{
 			{
@@ -528,6 +537,18 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	// A fixed-address HTTP origin sits behind a tunnel, so bind it before the
+	// slow part (spawning every child) rather than after: a restart is then a
+	// held request, not a refused connection / 502. See streamhttp.StartupGate.
+	var early *earlyHTTP
+	if addr, source := fixedHTTPAddr(mode, listenAddr); addr != "" {
+		early, err = startEarlyHTTP(ctx, addr, source)
+		if err != nil {
+			return err
+		}
+		defer early.close()
+	}
+
 	// Build the credential store from a one-shot config read so the connect
 	// closure has its dependencies resolved up front. Reload re-reads the
 	// hierarchy on each call but the credential store is stable for the
@@ -747,8 +768,8 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		// meant to sit behind a reverse proxy or tunnel — there is no
 		// clown-plugin-host on the other end of stdout, so suppress the
 		// handshake line and report the bound address on stderr only.
-		if listenAddr != "" {
-			return runHTTPServer(ctx, listenAddr, "--listen", p, children, instructions, systemPrompt)
+		if early != nil {
+			return early.serve(p, children, instructions, systemPrompt)
 		}
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
@@ -762,8 +783,8 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt, "")
 
 	default:
-		if httpAddr := os.Getenv("MOXY_HTTP_ADDR"); httpAddr != "" {
-			return runHTTPServer(ctx, httpAddr, "MOXY_HTTP_ADDR", p, children, instructions, systemPrompt)
+		if early != nil {
+			return early.serve(p, children, instructions, systemPrompt)
 		}
 
 		fmt.Fprintf(os.Stderr, "moxy: serving stdio\n")
@@ -798,23 +819,67 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	}
 }
 
-// runHTTPServer binds a fixed address and serves streamable HTTP on it.
-// source labels the stderr line with what selected the fixed bind (e.g.
-// "--listen" or "MOXY_HTTP_ADDR") and never reaches the wire — unlike the
-// ephemeral path, no clown-plugin handshake is printed to stdout.
-func runHTTPServer(ctx context.Context, addr, source string, p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt string) error {
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("listening on %s: %w", addr, err)
+// startupHoldMax bounds how long a request is held while children start; past
+// it the caller gets a well-formed 503 + Retry-After instead of hanging into
+// the tunnel's own (~100s) timeout.
+const startupHoldMax = 90 * time.Second
+
+// fixedHTTPAddr reports the caller-chosen address (and what selected it, for
+// the stderr line) a fixed-bind HTTP origin listens on: --listen under
+// serve-http, or MOXY_HTTP_ADDR under the default stdio command. Empty means
+// no fixed bind (the ephemeral clown-plugin path, or plain stdio).
+func fixedHTTPAddr(mode transportMode, listenAddr string) (addr, source string) {
+	switch {
+	case mode == transportHTTP && listenAddr != "":
+		return listenAddr, "--listen"
+	case mode == transportStdio:
+		if a := os.Getenv("MOXY_HTTP_ADDR"); a != "" {
+			return a, "MOXY_HTTP_ADDR"
+		}
 	}
-	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (%s)\n", ln.Addr(), source)
-	// A fixed address is a long-lived origin behind a tunnel: persist the
-	// session id so a restart is invisible to clients (the ephemeral
-	// clown-plugin path is one session per process and stays in memory).
-	return runHTTPServerOnListener(ctx, ln, p, children, instructions, systemPrompt, streamhttp.DefaultSessionIDPath())
+	return "", ""
 }
 
-func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt, sessionIDPath string) error {
+// earlyHTTP is a fixed-address origin already accepting connections while
+// children are still starting. Its gate holds requests until serve installs
+// the real handler.
+type earlyHTTP struct {
+	srv  *http.Server
+	gate *streamhttp.StartupGate
+	done chan error
+}
+
+// startEarlyHTTP binds addr and starts serving the startup gate. source labels
+// the stderr line with what selected the fixed bind and never reaches the wire
+// — unlike the ephemeral path, no clown-plugin handshake is printed to stdout.
+func startEarlyHTTP(ctx context.Context, addr, source string) (*earlyHTTP, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("listening on %s: %w", addr, err)
+	}
+	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (%s)\n", ln.Addr(), source)
+	fmt.Fprintf(os.Stderr, "moxy: accepting connections before children are ready; requests are held until startup completes\n")
+
+	gate := streamhttp.NewStartupGate(startupHoldMax)
+	e := &earlyHTTP{srv: &http.Server{Handler: gate}, gate: gate, done: make(chan error, 1)}
+	shutdownOnDone(ctx, e.srv)
+	go func() { e.done <- e.srv.Serve(ln) }()
+	return e, nil
+}
+
+func (e *earlyHTTP) close() { e.srv.Close() }
+
+// serve releases the held requests onto the real handler, then blocks until
+// the server stops and tears down. A fixed address is a long-lived origin
+// behind a tunnel: the session id is persisted so a restart is invisible to
+// clients (the ephemeral clown-plugin path is one session per process and
+// stays in memory).
+func (e *earlyHTTP) serve(p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt string) error {
+	e.gate.Ready(newStreamHTTP(p, instructions, systemPrompt, streamhttp.DefaultSessionIDPath()))
+	return finishHTTPServe(p, children, <-e.done)
+}
+
+func newStreamHTTP(p *proxy.Proxy, instructions, systemPrompt, sessionIDPath string) *streamhttp.Server {
 	httpSrv := streamhttp.New(streamhttp.Options{
 		Tools:                p,
 		Resources:            p,
@@ -826,14 +891,13 @@ func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Prox
 		SessionIDPath:        sessionIDPath,
 	})
 	p.SetNotifier(httpSrv.Notify)
+	return httpSrv
+}
 
-	httpServer := &http.Server{
-		Handler: httpSrv,
-	}
-
-	// Clown grants up to 5s between SIGTERM and SIGKILL. Budget: 3s for HTTP
-	// graceful shutdown, 1s for child teardown, ~1s slack for stderrlog
-	// rotation and runtime exit.
+// shutdownOnDone stops httpServer when ctx is cancelled. Clown grants up to 5s
+// between SIGTERM and SIGKILL. Budget: 3s for HTTP graceful shutdown, 1s for
+// child teardown, ~1s slack for stderrlog rotation and runtime exit.
+func shutdownOnDone(ctx context.Context, httpServer *http.Server) {
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -842,9 +906,15 @@ func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Prox
 			httpServer.Close()
 		}
 	}()
+}
 
-	err := httpServer.Serve(ln)
+func runHTTPServerOnListener(ctx context.Context, ln net.Listener, p *proxy.Proxy, children []proxy.ChildEntry, instructions, systemPrompt, sessionIDPath string) error {
+	httpServer := &http.Server{Handler: newStreamHTTP(p, instructions, systemPrompt, sessionIDPath)}
+	shutdownOnDone(ctx, httpServer)
+	return finishHTTPServe(p, children, httpServer.Serve(ln))
+}
 
+func finishHTTPServe(p *proxy.Proxy, children []proxy.ChildEntry, err error) error {
 	// Same ordering as the stdio path: interrupt async jobs while their
 	// dispatch path is still alive, then tear down children.
 	p.SweepAsyncJobs()

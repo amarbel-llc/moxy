@@ -76,6 +76,26 @@ environment variable applies the same fixed-bind behavior to the default
 .Pq stdio
 command.
 .Pp
+Startup: a fixed address
+.Pq Fl -listen No or Ev MOXY_HTTP_ADDR
+is bound before any child server is spawned, so a restart never refuses
+connections \(em which a tunnel in front surfaces as a 502.
+Until every child has finished starting,
+.Pa /healthz
+answers
+.Li 503
+.Li {"status":"starting"} ,
+and every other request
+.Pq initialize, tools/list, Pa /clown/*
+is held on its accepted connection and served once startup completes, so the
+initialize instructions are complete.
+A request held longer than 90 seconds receives a
+.Li 503
+with
+.Li Retry-After .
+The ephemeral-port mode binds after startup, since its handshake line announces
+a ready server.
+.Pp
 The
 .Fl -expose Ar selector
 flag restricts which categories of tools are advertised and dispatched \(em

@@ -267,7 +267,12 @@ start_moxy_http() {
 # and logs the bound address to stderr. We parse that address from stderr,
 # then wait for /healthz. Same exports and teardown contract as
 # start_moxy_http, so stop_moxy_http cleans up either.
-start_moxy_http_listen() {
+#
+# spawn_moxy_http_listen does the first half only: it returns as soon as the
+# address is bound, without waiting for /healthz, because a fixed-address
+# origin accepts connections before its children are ready (and answers
+# /healthz 503 until they are).
+spawn_moxy_http_listen() {
   _ensure_madder_default_store
   MOXY_HTTP_STDOUT=$(mktemp)
   MOXY_HTTP_STDERR=$(mktemp)
@@ -294,8 +299,12 @@ start_moxy_http_listen() {
     return 1
   fi
   MOXY_HTTP_URL="http://$addr"
+}
 
-  local code
+start_moxy_http_listen() {
+  spawn_moxy_http_listen || return 1
+
+  local code i
   for ((i = 0; i < 30; i++)); do
     code=$(curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz" 2>/dev/null || true)
     if [[ $code == 200 ]]; then

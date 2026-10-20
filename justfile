@@ -165,6 +165,16 @@ dir_build := "build"
 # package (the flake's `default` is the moxins+moxy bundle, which has no goRun).
 godyn_go := "nix run --inputs-from . igloo#godyn-go -- -A packages.$(nix eval --impure --raw --expr builtins.currentSystem).moxy --"
 
+# Measure how long `serve-http --listen` refuses connections after a start
+# when a child is slow to initialize (the post-restart 502 window behind a
+# tunnel). Serves the serve-http readiness dev loop; args: moxy binary and
+# child delay in seconds.
+#
+# measure serve-http's connection-refused window with a slow child
+[group("debug")]
+debug-serve-http-gap bin="build/moxy" delay="8":
+  zx bin/debug-serve-http-gap.mjs {{bin}} {{delay}}
+
 [group("post-build")]
 test: test-flake-check test-bats-net_cap test-validate-mcp test-status test-status-clean-env
 
