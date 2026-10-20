@@ -93,11 +93,22 @@ func (p *Proxy) HandleBatch(
 		return p.handleBatchAsync(ctx, params, onError)
 	}
 
-	// Pre-flight: resolve every sub-call.
+	// Pre-flight: resolve every sub-call. Allow and Ask proceed (the hook's
+	// single prompt covers the batch); under enforce (moxy#486) nobody can
+	// answer an Ask, so only Allow — or an enforce-allow grant lifting
+	// Unknown — proceeds.
+	policy := p.effectivePolicy(ctx)
 	var rejected []batchRejection
 	for i, c := range params.Calls {
-		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, ".")
-		if dec == perms.Allow || dec == perms.Ask {
+		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, callCwd(ctx))
+		if policy.Enforcing() {
+			if dec == perms.Unknown && policy.Grants(c.Tool) {
+				continue
+			}
+			if dec == perms.Allow {
+				continue
+			}
+		} else if dec == perms.Allow || dec == perms.Ask {
 			continue
 		}
 		rejected = append(rejected, batchRejection{

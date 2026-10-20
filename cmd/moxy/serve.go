@@ -18,6 +18,7 @@ import (
 	"code.linenisgreat.com/moxy/internal/stderrlog"
 	"code.linenisgreat.com/moxy/internal/streamhttp"
 	"code.linenisgreat.com/moxy/pkg/moxy"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 type transportMode int
@@ -34,11 +35,16 @@ const (
 // stderr for startup chatter. The library itself reads none of the
 // environment; this is the one place the binary's conventions become
 // options.
-func serveOptions(app *command.App, expose, nameTemplate string) (moxy.Options, string, error) {
+func serveOptions(app *command.App, expose, nameTemplate, permissions string) (moxy.Options, string, error) {
 	sessionID, sessionSource := resolveSessionID()
+	mode, ok := perms.ParseMode(permissions)
+	if !ok {
+		return moxy.Options{}, "", fmt.Errorf("--permissions: unknown mode %q (want delegate or enforce)", permissions)
+	}
 	o := moxy.Options{
 		MoxinPath:     os.Getenv("MOXIN_PATH"),
 		SessionID:     sessionID,
+		Permissions:   perms.Policy{Mode: mode},
 		NameTemplate:  nameTemplate,
 		Expose:        expose,
 		MetaTools:     true,
@@ -56,8 +62,8 @@ func serveOptions(app *command.App, expose, nameTemplate string) (moxy.Options, 
 	return o, sessionSource, nil
 }
 
-func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTemplate string) error {
-	opts, sessionSource, err := serveOptions(app, expose, nameTemplate)
+func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTemplate, permissions string) error {
+	opts, sessionSource, err := serveOptions(app, expose, nameTemplate, permissions)
 	if err != nil {
 		return err
 	}
@@ -81,6 +87,9 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	defer stderrlog.Rotate()
 
 	fmt.Fprintf(os.Stderr, "moxy: session %s (from %s)\n", opts.SessionID, sessionSource)
+	if policy := prepared.Policy(); policy.Enforcing() {
+		fmt.Fprintf(os.Stderr, "moxy: permission-mode enforce: the server resolves every call's tier itself; %d enforce-allow grant(s)\n", len(policy.Allow))
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

@@ -27,9 +27,19 @@ type Config struct {
 	// PassTools names tools held at the pass level: the holder may confer
 	// them on a child (see moxyfile(5) NARROWING) but never calls them. It
 	// is never consulted when serving.
-	PassTools   []string                   `toml:"pass-tools,omitempty"`
-	Include     []string                   `toml:"include,omitempty"`
-	Credentials *credentials.CommandConfig `toml:"credentials"`
+	PassTools []string `toml:"pass-tools,omitempty"`
+	// PermissionMode is the serve-time permission posture (moxy#486,
+	// moxyfile(5) TOP-LEVEL KEYS): "" or "delegate" leaves permission
+	// decisions to a hook in front of moxy, "enforce" makes the call funnel
+	// resolve each tool's tier itself and run only what resolves to allow.
+	// Across the hierarchy enforce wins: a closer file cannot switch it off.
+	PermissionMode string `toml:"permission-mode,omitempty"`
+	// EnforceAllow names tools (a bare server or moxin name, or server.tool)
+	// an enforcing moxy runs although they declare no permission tier. It
+	// lifts only the "unknown" outcome; a declared tier is never overridden.
+	EnforceAllow []string                   `toml:"enforce-allow,omitempty"`
+	Include      []string                   `toml:"include,omitempty"`
+	Credentials  *credentials.CommandConfig `toml:"credentials"`
 	// ResolvedMoxins records, moxin name to source directory, which moxins
 	// discovery found when an effective moxyfile was rendered. It is a
 	// record, not configuration: serving never reads it from its own
@@ -53,6 +63,16 @@ type ServerConfig struct {
 	ProgressiveDisclosure *bool             `toml:"progressive-disclosure"`
 	NixDevshell           *string           `toml:"nix-devshell"`
 }
+
+// The values permission-mode accepts (moxy#486). Unset reads as delegate.
+const (
+	PermissionModeDelegate = "delegate"
+	PermissionModeEnforce  = "enforce"
+)
+
+// Enforces reports whether the effective config asks the serving moxy to
+// resolve permissions itself.
+func (c Config) Enforces() bool { return c.PermissionMode == PermissionModeEnforce }
 
 // OAuthConfig holds OAuth 2.1 configuration for HTTP servers.
 type OAuthConfig struct {

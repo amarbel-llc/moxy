@@ -41,6 +41,7 @@ func Check(parent, child moxyfile.Config) []Violation {
 	vs = append(vs, checkBuiltinNative(parent, child)...)
 	vs = append(vs, checkDisableMoxins(parent, child)...)
 	vs = append(vs, checkAllowTools(parent, child)...)
+	vs = append(vs, checkPermissions(parent, child)...)
 	vs = append(vs, checkServers(parent, child)...)
 	vs = append(vs, checkCredentials(parent, child)...)
 	vs = append(vs, checkResolvedMoxins(parent, child)...)
@@ -86,6 +87,37 @@ func checkDisableMoxins(parent, child moxyfile.Config) []Violation {
 				Key:     "disable-moxins",
 				Subject: entry,
 				Message: fmt.Sprintf("parent disables %s, child does not", entry),
+			})
+		}
+	}
+	return vs
+}
+
+// checkPermissions judges the serve-time permission posture (moxy#486). A
+// parent that enforces has decided that nobody answers for its children; a
+// child may not go back to delegating, and may grant an unannotated tool
+// through enforce-allow only if the parent grants it (the same entry, or the
+// parent's bare name over the child's dotted one). A delegating parent
+// constrains neither: enforce is a tightening a child may always choose, and
+// enforce-allow is inert without enforce.
+func checkPermissions(parent, child moxyfile.Config) []Violation {
+	if !parent.Enforces() {
+		return nil
+	}
+	var vs []Violation
+	if !child.Enforces() {
+		vs = append(vs, Violation{
+			Key:     "permission-mode",
+			Message: "parent enforces, child does not",
+		})
+	}
+	parentGrants := stringSet(parent.EnforceAllow)
+	for entry := range stringSet(child.EnforceAllow) {
+		if !moxyfile.CoveredBy(entry, parentGrants) {
+			vs = append(vs, Violation{
+				Key:     "enforce-allow",
+				Subject: entry,
+				Message: fmt.Sprintf("child grants %s under enforce, parent does not", entry),
 			})
 		}
 	}

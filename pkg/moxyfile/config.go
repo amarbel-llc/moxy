@@ -91,6 +91,12 @@ func ParseLiteral(data []byte) (Config, error) {
 	if err := validatePassTools(cfg.AllowTools, cfg.PassTools); err != nil {
 		return Config{}, err
 	}
+	if err := validatePermissionMode(cfg.PermissionMode); err != nil {
+		return Config{}, err
+	}
+	if err := validateNameOrToolEntries("enforce-allow", cfg.EnforceAllow); err != nil {
+		return Config{}, err
+	}
 
 	// disable-servers is whole-server only. Per-tool granularity is not
 	// supported for [[servers]] entries because their tool lists come from
@@ -179,6 +185,24 @@ var restrictionKeys = map[string]bool{
 	"disable-servers": true,
 	"builtin-native":  true,
 	"resolved-moxins": true,
+	"permission-mode": true,
+	"enforce-allow":   true,
+}
+
+// The values permission-mode accepts (moxy#486). Unset reads as delegate.
+const (
+	PermissionModeDelegate = schema.PermissionModeDelegate
+	PermissionModeEnforce  = schema.PermissionModeEnforce
+)
+
+// validatePermissionMode rejects any permission-mode but the two known
+// values: a misspelt "enforce" must not quietly mean delegate.
+func validatePermissionMode(mode string) error {
+	switch mode {
+	case "", PermissionModeDelegate, PermissionModeEnforce:
+		return nil
+	}
+	return fmt.Errorf("permission-mode: unknown value %q (want %q or %q)", mode, PermissionModeDelegate, PermissionModeEnforce)
 }
 
 // validateNameOrToolEntries checks the grammar disable-moxins and allow-tools
@@ -359,6 +383,32 @@ func Merge(base, overlay Config) Config {
 				merged.AllowTools, merged.PassTools,
 				overlay.AllowTools, overlay.PassTools,
 			)
+		}
+	}
+
+	// permission-mode is a restriction, so it only ever tightens down the
+	// hierarchy: once any layer says enforce, the merge says enforce, and a
+	// closer file saying delegate changes nothing. A layer that sets delegate
+	// over an unset base makes it explicit.
+	switch {
+	case overlay.PermissionMode == PermissionModeEnforce:
+		merged.PermissionMode = PermissionModeEnforce
+	case overlay.PermissionMode != "" && merged.PermissionMode == "":
+		merged.PermissionMode = overlay.PermissionMode
+	}
+
+	// enforce-allow is a grant a closer file may add to, like a server it
+	// defines; narrowing, not the merge, is what bounds a child's grants.
+	if len(overlay.EnforceAllow) > 0 {
+		seen := make(map[string]bool, len(merged.EnforceAllow))
+		for _, e := range merged.EnforceAllow {
+			seen[e] = true
+		}
+		for _, e := range overlay.EnforceAllow {
+			if !seen[e] {
+				merged.EnforceAllow = append(merged.EnforceAllow, e)
+				seen[e] = true
+			}
 		}
 	}
 

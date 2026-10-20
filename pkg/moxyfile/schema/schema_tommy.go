@@ -120,6 +120,21 @@ func decodeConfigParsed(doc *document.Document) (*ConfigDocument, error) {
 			_vPassTools.MarkConsumed()
 		}
 	}
+	if _vPermissionMode, _ok := model.Field("permission-mode"); _ok && _vPermissionMode.Kind == cst.VLeaf {
+		if _x, _xok := cst.ExtractString(_vPermissionMode.Leaf); _xok {
+			d.data.PermissionMode = _x
+			_vPermissionMode.MarkConsumedString()
+		}
+	}
+	if _vEnforceAllow, _ok := model.Field("enforce-allow"); _ok && _vEnforceAllow.Kind == cst.VLeaf {
+		if _x, _xok := cst.ExtractStringSlice(_vEnforceAllow.Leaf); _xok {
+			d.data.EnforceAllow = _x
+			if d.data.EnforceAllow == nil {
+				d.data.EnforceAllow = []string{}
+			}
+			_vEnforceAllow.MarkConsumed()
+		}
+	}
 	if _vInclude, _ok := model.Field("include"); _ok && _vInclude.Kind == cst.VLeaf {
 		if _x, _xok := cst.ExtractStringSlice(_vInclude.Leaf); _xok {
 			d.data.Include = _x
@@ -386,6 +401,20 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			}
 		}
 	}
+	if d.data.PermissionMode != "" {
+		if err := cst.SetAny(d.cstDoc.Root(), "permission-mode", d.data.PermissionMode); err != nil {
+			return nil, fmt.Errorf("%w", err)
+		}
+	} else {
+		cst.DeleteValue(d.cstDoc.Root(), "permission-mode")
+	}
+	{
+		if len(d.data.EnforceAllow) > 0 || cst.HasValue(d.cstDoc.Root(), "enforce-allow") {
+			if err := cst.SetAny(d.cstDoc.Root(), "enforce-allow", d.data.EnforceAllow); err != nil {
+				return nil, fmt.Errorf("%w", err)
+			}
+		}
+	}
 	{
 		if len(d.data.Include) > 0 || cst.HasValue(d.cstDoc.Root(), "include") {
 			if err := cst.SetAny(d.cstDoc.Root(), "include", d.data.Include); err != nil {
@@ -591,6 +620,21 @@ func DecodeConfigInto(data *Config, sub *cst.Value) error {
 				data.PassTools = []string{}
 			}
 			_vPassTools.MarkConsumed()
+		}
+	}
+	if _vPermissionMode, _ok := sub.Field("permission-mode"); _ok && _vPermissionMode.Kind == cst.VLeaf {
+		if _x, _xok := cst.ExtractString(_vPermissionMode.Leaf); _xok {
+			data.PermissionMode = _x
+			_vPermissionMode.MarkConsumedString()
+		}
+	}
+	if _vEnforceAllow, _ok := sub.Field("enforce-allow"); _ok && _vEnforceAllow.Kind == cst.VLeaf {
+		if _x, _xok := cst.ExtractStringSlice(_vEnforceAllow.Leaf); _xok {
+			data.EnforceAllow = _x
+			if data.EnforceAllow == nil {
+				data.EnforceAllow = []string{}
+			}
+			_vEnforceAllow.MarkConsumed()
 		}
 	}
 	if _vInclude, _ok := sub.Field("include"); _ok && _vInclude.Kind == cst.VLeaf {
@@ -849,6 +893,20 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 	{
 		if len(data.PassTools) > 0 || cst.HasValue(container, "pass-tools") {
 			if err := cst.SetAny(container, "pass-tools", data.PassTools); err != nil {
+				return fmt.Errorf("%w", err)
+			}
+		}
+	}
+	if data.PermissionMode != "" {
+		if err := cst.SetAny(container, "permission-mode", data.PermissionMode); err != nil {
+			return fmt.Errorf("%w", err)
+		}
+	} else {
+		cst.DeleteValue(container, "permission-mode")
+	}
+	{
+		if len(data.EnforceAllow) > 0 || cst.HasValue(container, "enforce-allow") {
+			if err := cst.SetAny(container, "enforce-allow", data.EnforceAllow); err != nil {
 				return fmt.Errorf("%w", err)
 			}
 		}

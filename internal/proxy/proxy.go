@@ -104,6 +104,7 @@ type Proxy struct {
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
 	resolver                    *perms.Resolver
+	policy                      perms.Policy          // serve-time permission posture (moxy#486); zero = Delegate
 	toolFilter                  toolfilter.Filter     // which tool categories to expose; default All()
 	toolExclude                 toolexclude.Set       // dynamic per-name/per-server deny-set; default excludes nothing
 	toolAllow                   moxyfile.AllowToolSet // moxyfile allow-tools allowlist; default unrestricted
@@ -1047,6 +1048,24 @@ func (p *Proxy) callToolV1(
 			return protocol.ErrorResultV1(
 				fmt.Sprintf("tool %q is not in this server's allow-tools list", name),
 			), nil
+		}
+	}
+
+	// Under an enforcing policy (moxy#486) the funnel resolves the tool's
+	// tier itself, right here, after the shape gates and before dispatch:
+	// allow runs; ask, deny and unknown are refused with a result that says
+	// nobody can answer. Delegate leaves this to a hook in front of moxy.
+	if policy := p.effectivePolicy(ctx); policy.Enforcing() {
+		canonical := name
+		if !isBuiltin {
+			if s, t, ok := p.resolveToolName(ctx, name); ok {
+				canonical = s + "." + t
+			}
+		}
+		dec, reason := p.enforceDecision(ctx, policy, name, canonical, isBuiltin, args)
+		recordDecision(ctx, dec)
+		if dec != perms.Allow {
+			return enforceRefusal(name, args, dec, reason), nil
 		}
 	}
 

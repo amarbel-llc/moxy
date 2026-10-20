@@ -29,6 +29,12 @@ func RenderEffective(cfg Config) []byte {
 	}
 	// An empty pass-tools list holds nothing, as an absent one does.
 	writeSortedSet(&b, "pass-tools", cfg.PassTools)
+	// Unset is delegate; writing it would turn "said nothing" into "said
+	// delegate", which narrowing and the merge treat alike but a reader may not.
+	if cfg.PermissionMode != "" {
+		writeString(&b, "permission-mode", cfg.PermissionMode)
+	}
+	writeSortedSet(&b, "enforce-allow", cfg.EnforceAllow)
 
 	if c := cfg.Credentials; c != nil {
 		b.WriteString("\n[credentials]\n")

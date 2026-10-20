@@ -63,6 +63,7 @@ const (
 	asyncRejectBuiltin
 	asyncRejectDeny
 	asyncRejectPermitAsyncFalse
+	asyncRejectEnforce
 )
 
 // asyncEligible decides whether tool may be dispatched asynchronously, per
@@ -85,12 +86,24 @@ func (p *Proxy) asyncEligible(
 	if p.hasBuiltinTool(tool) {
 		return asyncRejectBuiltin, perms.Unknown, builtinAsyncRefusal(tool)
 	}
-	dec, reason = p.resolver.Resolve(ctx, tool, args, ".")
+	dec, reason = p.resolver.Resolve(ctx, tool, args, callCwd(ctx))
 	if dec == perms.Deny {
 		return asyncRejectDeny, dec, reason
 	}
 	if !p.resolver.PermitsAsync(tool) {
 		return asyncRejectPermitAsyncFalse, dec, "tool declares permit-async = false"
+	}
+	// Under enforce (moxy#486) there is no hook to have obtained consent, so
+	// the FDR 0011 relaxation does not apply: only allow backgrounds, and the
+	// consent is the policy itself, which travels with the job (the detached
+	// call re-enters the same enforcing funnel).
+	if policy := p.effectivePolicy(ctx); policy.Enforcing() {
+		if dec == perms.Unknown && policy.Grants(tool) {
+			return asyncRejectNone, perms.Allow, "granted by enforce-allow"
+		}
+		if dec != perms.Allow {
+			return asyncRejectEnforce, dec, reason
+		}
 	}
 	return asyncRejectNone, dec, reason
 }
@@ -131,7 +144,7 @@ func (p *Proxy) HandleAsync(
 		), nil
 	}
 
-	switch kind, _, reason := p.asyncEligible(ctx, params.Tool, params.Args); kind {
+	switch kind, dec, reason := p.asyncEligible(ctx, params.Tool, params.Args); kind {
 	case asyncRejectBuiltin:
 		return protocol.ErrorResultV1(reason), nil
 	case asyncRejectDeny:
@@ -143,6 +156,11 @@ func (p *Proxy) HandleAsync(
 		return protocol.ErrorResultV1(fmt.Sprintf(
 			"%s declares permit-async = false; it cannot be dispatched asynchronously",
 			params.Tool,
+		)), nil
+	case asyncRejectEnforce:
+		return protocol.ErrorResultV1(fmt.Sprintf(
+			"async refuses a call this server cannot approve unattended; %s resolved to %q (%s) and the server enforces permissions itself",
+			params.Tool, string(dec), reason,
 		)), nil
 	}
 
@@ -158,9 +176,13 @@ func (p *Proxy) HandleAsync(
 		timeout = d
 	}
 
+	// The caller's cwd and any per-call policy override travel with the job
+	// (moxy#486): the detached call re-enters the funnel exactly as the
+	// attached one would have.
+	jobValues := carryCallValues(ctx)
 	id, err := p.asyncManager.Dispatch(ctx, params.Tool, params.Args, timeout,
 		func(jobCtx context.Context, tool string, callArgs json.RawMessage) (*protocol.ToolCallResultV1, error) {
-			return p.CallToolV1(jobCtx, tool, callArgs)
+			return p.CallToolV1(jobValues(jobCtx), tool, callArgs)
 		})
 	if err != nil {
 		return protocol.ErrorResultV1(
@@ -415,9 +437,10 @@ func (p *Proxy) handleBatchAsync(
 	// per FDR 0011) just admitted — the job would report "running" but bail
 	// out instantly instead of doing the work.
 	calls := params.Calls
+	jobValues := carryCallValues(ctx)
 	id, err := p.asyncManager.Dispatch(ctx, "batch", nil, 0,
 		func(jobCtx context.Context, _ string, _ json.RawMessage) (*protocol.ToolCallResultV1, error) {
-			return p.runBatchCalls(jobCtx, calls, onError), nil
+			return p.runBatchCalls(jobValues(jobCtx), calls, onError), nil
 		})
 	if err != nil {
 		return protocol.ErrorResultV1(

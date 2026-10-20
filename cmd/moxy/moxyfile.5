@@ -61,9 +61,11 @@ The keys that restrict what is served \(em
 .Va pass-tools ,
 .Va disable-moxins ,
 .Va disable-servers ,
-.Va builtin-native
+.Va builtin-native ,
+.Va resolved-moxins ,
+.Va permission-mode
 and
-.Va resolved-moxins
+.Va enforce-allow
 \(em are the exception to leniency in one respect: written with the wrong
 type
 .Pq a string where an array belongs, say
@@ -95,6 +97,81 @@ enables progressive disclosure for servers without an explicit setting.
 Optional.
 Default:
 .Cm false .
+.It Va permission-mode
+Who answers a tool call's permission question at serve time
+.Pq moxy#486 .
+.Cm delegate ,
+the default, is the historical behaviour: a serving
+.Xr moxy 1
+resolves nothing itself; the Claude Code PreToolUse hook in front of it
+decides from each tool's
+.Sy perms-request
+.Pq see Xr moxin 7 Sx PERMISSIONS ,
+and a client with no such hook runs every tool it can name.
+.Cm enforce
+makes the call funnel resolve the tier itself, right after the
+.Va allow-tools
+gate: a tool that resolves to allow runs; one that resolves to ask, to deny, or
+to nothing
+.Pq no Sy perms-request , or Li delegate-to-client
+is refused with an
+.Li isError
+result beginning
+.Dq moxy denied ,
+which names the tool, its arguments and why nobody can answer \(em the same
+shape as the hook's
+.Li dontAsk
+denial.
+A
+.Sy dynamic
+predicate that crashes, times out or exits with an unmapped code counts as
+ask.
+Of moxy's own tools,
+.Cm status , async-result , async-cancel , async
+and
+.Cm batch
+run
+.Pq async and batch judge each call they carry through this same funnel ,
+.Cm restart
+is refused.
+Across the hierarchy enforce wins: once any layer sets it, a closer file cannot
+switch it back.
+Use it for a client that has no hook in front of
+.Xr moxy 1
+\(em a headless agent, any non\-Claude MCP client.
+Where a hook is also present, a
+.Sy dynamic
+predicate runs twice, once in the hook and once here; that is the price of
+not trusting the hook to exist.
+Optional.
+Default:
+.Cm delegate .
+.It Va enforce-allow
+Tools an enforcing
+.Xr moxy 1
+runs although they declare no permission tier: every tool of a child server
+.Pq Li [[servers]]
+and every moxin tool without
+.Sy perms-request
+is refused under
+.Cm enforce
+otherwise, since an unannotated tool has not been reviewed for unattended use.
+Entries follow the
+.Va allow-tools
+grammar: a bare name grants a whole server or moxin, a dotted pair one tool.
+A grant lifts only the
+.Dq no tier
+outcome; a tool that declares
+.Li each-use
+or whose
+.Sy dynamic
+predicate says ask or deny keeps that verdict.
+Inert under
+.Cm delegate .
+Layers of the hierarchy add their grants together; narrowing bounds what a child
+may grant
+.Pq see Sx NARROWING .
+Optional.
 .It Va builtin-native
 When set to
 .Cm false ,
@@ -654,6 +731,23 @@ Widening anything else \(em any tool not held at pass by the reference \(em
 through a moxyfile edit and
 .Cm restart
 still works exactly as before.
+.It Va permission-mode , enforce-allow
+If the parent enforces, the child must enforce: a spawner that decided nobody
+answers for its children has locked that in, and a child moxyfile
+.Pq a brief's, say
+cannot switch back to
+.Cm delegate .
+Under an enforcing parent, every child
+.Va enforce-allow
+entry must be covered by a parent entry \(em the same entry, or the parent's
+bare name over the child's dotted one.
+A delegating parent constrains neither:
+.Cm enforce
+is a tightening a child may always choose, and
+.Va enforce-allow
+is inert without it.
+.Dl permission-mode: parent enforces, child does not
+.Dl enforce-allow: child grants permfix under enforce, parent does not
 .It Va disable-servers
 Not compared on its own; it decides which servers run, above.
 .It Va builtin-native

@@ -35,6 +35,7 @@ type Prepared struct {
 	cfg     moxyfile.Config // the judged config, header $VARs expanded
 	filter  toolfilter.Filter
 	tmpl    naming.Template
+	policy  perms.Policy
 }
 
 // Prepare resolves Options into a Prepared: the moxyfile is loaded in its
@@ -86,8 +87,21 @@ func Prepare(o Options) (*Prepared, error) {
 		cfg:     moxyfile.ExpandHeaders(literal),
 		filter:  filter,
 		tmpl:    tmpl,
+		policy:  effectivePolicy(o, literal),
 	}, nil
 }
+
+// effectivePolicy is the serve-time policy an Instance runs under: the
+// moxyfile's permission-mode / enforce-allow tightened by what the embedder
+// or the serve flags asked for (moxy#486). Either side can turn enforce on;
+// neither can turn the other's off.
+func effectivePolicy(o Options, cfg moxyfile.Config) perms.Policy {
+	fromFile := perms.Policy{Mode: perms.Mode(cfg.PermissionMode), Allow: cfg.EnforceAllow}
+	return perms.Tighten(o.Permissions, fromFile)
+}
+
+// Policy is the serve-time permission policy the Instance will run under.
+func (pr *Prepared) Policy() perms.Policy { return pr.policy }
 
 // Config is the judged, expanded configuration Prepare loaded. A Reload
 // re-reads the source; this value does not change.
@@ -183,12 +197,16 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 	}
 	p.SetMoxinReloader(&moxinReloader{in: inputs})
 	p.SetResolver(perms.NewResolverFromConfigs(res.moxins))
+	p.SetPolicy(pr.policy)
 	p.SetBootstrapper(&bootstrapper{
 		in: inputs,
-		// A reload serves a possibly different moxin set; the resolver the
-		// batch/async preflights and an enforcing funnel consult follows it.
+		// A reload serves a possibly different moxin set and a re-read
+		// moxyfile; the resolver the batch/async preflights and an enforcing
+		// funnel consult follows the moxins, and the policy follows the file
+		// (bounded by the pinned parent reference as every other key is).
 		onReload: func(r *bootstrapResult) {
 			p.SetResolver(perms.NewResolverFromConfigs(r.moxins))
+			p.SetPolicy(effectivePolicy(o, r.cfg))
 		},
 	})
 	if o.Notify != nil {
@@ -223,7 +241,7 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 		}
 	}
 
-	inst := &Instance{p: p, opts: o, blobs: blobs, policy: o.Permissions}
+	inst := &Instance{p: p, opts: o, blobs: blobs, policy: pr.policy}
 	inst.refreshInstructions(ctx)
 	return inst, nil
 }
@@ -278,8 +296,10 @@ func (i *Instance) SetNotifier(fn func(*jsonrpc.Message) error) { i.p.SetNotifie
 // against, for reading a madder://blobs/<digest> a Result names.
 func (i *Instance) Blobs() BlobStore { return i.blobs }
 
-// Policy is the serve-time permission policy this instance was opened with.
-func (i *Instance) Policy() perms.Policy { return i.policy }
+// Policy is the serve-time permission policy this instance runs under: the
+// moxyfile's permission-mode and enforce-allow tightened by Options.Permissions,
+// as of the last Open or Reload.
+func (i *Instance) Policy() perms.Policy { return i.p.Policy() }
 
 // Tools lists the tools a client would see: children, moxins, ephemeral
 // metadata, meta tools if enabled, after the exposure filter, the exclude
@@ -344,15 +364,22 @@ func (i *Instance) Call(ctx context.Context, c Call) (*Result, error) {
 	if i.closed.Load() {
 		return nil, ErrClosed
 	}
-	if c.Caller.Policy != nil && !c.Caller.Policy.Narrower(i.policy) {
-		return nil, fmt.Errorf("moxy: a per-call policy may not loosen the instance policy %q to %q",
-			i.policy.Effective(), c.Caller.Policy.Effective())
+	policy := i.Policy()
+	ctx = proxy.WithCallCwd(ctx, c.Caller.Cwd)
+	if c.Caller.Policy != nil {
+		if !c.Caller.Policy.Narrower(policy) {
+			return nil, fmt.Errorf("moxy: a per-call policy may not loosen the instance policy %q to %q",
+				policy.Effective(), c.Caller.Policy.Effective())
+		}
+		ctx = proxy.WithPolicyOverride(ctx, *c.Caller.Policy)
 	}
+	var decision perms.Decision
+	ctx = proxy.WithDecisionSink(ctx, &decision)
 	res, err := i.p.CallToolV1(ctx, c.Name, c.Args)
 	if err != nil {
 		return nil, err
 	}
-	out := &Result{ToolCallResultV1: *res}
+	out := &Result{ToolCallResultV1: *res, Decision: decision}
 	out.Blobs = blobRefsIn(res.Content)
 	return out, nil
 }

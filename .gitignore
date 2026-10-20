@@ -4,6 +4,7 @@ build/
 # add` and from rg; re-include it here so the repo does not depend on the
 # operator's global excludes.
 !pkg/
+!pkg/**
 node_modules/
 __pycache__/
 result-moxins

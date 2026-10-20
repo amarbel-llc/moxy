@@ -17,6 +17,7 @@ import (
 
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/pkg/moxyfile"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 // memBlobs is an in-memory BlobStore: enough for Open to run without a
@@ -120,6 +121,16 @@ args = ["-c", "printf 'ran each-use'"]
 [input]
 type = "object"
 `)
+	write("plain.toml", `schema = 3
+result-type = "text"
+content-type = "text/plain"
+description = "tool with no perms-request"
+command = "bash"
+args = ["-c", "printf 'ran plain'"]
+
+[input]
+type = "object"
+`)
 	write("dyndeny.toml", `schema = 3
 result-type = "text"
 content-type = "text/plain"
@@ -172,7 +183,7 @@ func TestOpenListsFixtureToolsAndNoMetaToolsByDefault(t *testing.T) {
 	for _, tool := range tools {
 		names[tool.Name] = true
 	}
-	for _, want := range []string{"fix.echo", "fix.asky", "fix.dyndeny"} {
+	for _, want := range []string{"fix.echo", "fix.asky", "fix.dyndeny", "fix.plain"} {
 		if !names[want] {
 			t.Errorf("tools/list lacks %s; got %v", want, names)
 		}
@@ -226,12 +237,12 @@ func TestServersReportsTheFixtureRunning(t *testing.T) {
 	inst := openFixture(t, nil)
 	var seen bool
 	for _, s := range inst.Servers(context.Background()) {
-		if s.Name == "fix" && s.Status == "running" && s.Tools == 3 {
+		if s.Name == "fix" && s.Status == "running" && s.Tools == 4 {
 			seen = true
 		}
 	}
 	if !seen {
-		t.Fatalf("Servers = %+v, want fix running with 3 tools", inst.Servers(context.Background()))
+		t.Fatalf("Servers = %+v, want fix running with 4 tools", inst.Servers(context.Background()))
 	}
 }
 
@@ -269,6 +280,113 @@ func TestOpenRefusesAMoxyfileThatWidensTheParent(t *testing.T) {
 	}
 	if len(widening.Violations) == 0 {
 		t.Fatal("WideningError carries no violations")
+	}
+}
+
+// moxy#486: under an enforcing policy the funnel resolves each tool's tier
+// itself. always-allow runs; each-use (ask) and a dynamic predicate that
+// denies are refused with the "moxy denied" shape and the Decision on the
+// Result; the fixture's unannotated tool is refused too, unless enforce-allow
+// grants it.
+func TestEnforceRefusesWhatNobodyCanApprove(t *testing.T) {
+	inst := openFixture(t, func(o *Options) { o.Permissions = perms.Policy{Mode: perms.Enforce} })
+	call := func(name string) *Result {
+		t.Helper()
+		res, err := inst.Call(context.Background(), Call{Name: name, Args: json.RawMessage(`{}`)})
+		if err != nil {
+			t.Fatalf("Call(%s): %v", name, err)
+		}
+		return res
+	}
+	text := func(res *Result) string {
+		var s string
+		for _, b := range res.Content {
+			s += b.Text
+		}
+		return s
+	}
+
+	if res := call("fix.echo"); res.IsError || res.Decision != perms.Allow {
+		t.Fatalf("fix.echo under enforce: isError=%v decision=%q content=%q", res.IsError, res.Decision, text(res))
+	}
+	if res := call("fix.asky"); !res.IsError || res.Decision != perms.Ask ||
+		!strings.HasPrefix(text(res), "moxy denied fix.asky") || strings.Contains(text(res), "ran each-use") {
+		t.Fatalf("fix.asky under enforce: isError=%v decision=%q content=%q", res.IsError, res.Decision, text(res))
+	}
+	if res := call("fix.dyndeny"); !res.IsError || res.Decision != perms.Deny || strings.Contains(text(res), "ran dynamic-deny") {
+		t.Fatalf("fix.dyndeny under enforce: isError=%v decision=%q content=%q", res.IsError, res.Decision, text(res))
+	}
+	if res := call("fix.plain"); !res.IsError || res.Decision != perms.Unknown || strings.Contains(text(res), "ran plain") {
+		t.Fatalf("fix.plain under enforce: isError=%v decision=%q content=%q", res.IsError, res.Decision, text(res))
+	}
+}
+
+func TestEnforceAllowLiftsAnUnannotatedTool(t *testing.T) {
+	inst := openFixture(t, func(o *Options) {
+		o.Permissions = perms.Policy{Mode: perms.Enforce, Allow: []string{"fix.plain"}}
+	})
+	res, err := inst.Call(context.Background(), Call{Name: "fix.plain", Args: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError || res.Decision != perms.Allow {
+		t.Fatalf("fix.plain with enforce-allow: isError=%v decision=%q", res.IsError, res.Decision)
+	}
+	// A declared tier is never overridden by a grant.
+	inst2 := openFixture(t, func(o *Options) {
+		o.Permissions = perms.Policy{Mode: perms.Enforce, Allow: []string{"fix"}}
+	})
+	res, err = inst2.Call(context.Background(), Call{Name: "fix.asky", Args: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || res.Decision != perms.Ask {
+		t.Fatalf("fix.asky with a bare grant: isError=%v decision=%q, want refused each-use", res.IsError, res.Decision)
+	}
+}
+
+func TestDelegateRunsEverythingAndReportsNoDecision(t *testing.T) {
+	inst := openFixture(t, nil)
+	res, err := inst.Call(context.Background(), Call{Name: "fix.asky", Args: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError || res.Decision != perms.Unknown {
+		t.Fatalf("fix.asky under delegate: isError=%v decision=%q; a delegating funnel resolves nothing", res.IsError, res.Decision)
+	}
+}
+
+func TestPerCallPolicyMayTightenNotLoosen(t *testing.T) {
+	inst := openFixture(t, nil)
+	enforce := perms.Policy{Mode: perms.Enforce}
+	res, err := inst.Call(context.Background(), Call{Name: "fix.asky", Caller: Caller{Policy: &enforce}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || res.Decision != perms.Ask {
+		t.Fatalf("per-call enforce on a delegating instance: isError=%v decision=%q", res.IsError, res.Decision)
+	}
+
+	strict := openFixture(t, func(o *Options) { o.Permissions = enforce })
+	delegate := perms.Policy{Mode: perms.Delegate}
+	if _, err := strict.Call(context.Background(), Call{Name: "fix.echo", Caller: Caller{Policy: &delegate}}); err == nil {
+		t.Fatal("a per-call delegate on an enforcing instance must be refused as an error")
+	}
+}
+
+func TestMoxyfilePermissionModeEnforcesAndTightensWithOptions(t *testing.T) {
+	inst := openFixture(t, func(o *Options) {
+		o.Config = &moxyfile.Config{BuiltinNative: boolp(false), PermissionMode: moxyfile.PermissionModeEnforce}
+	})
+	if !inst.Policy().Enforcing() {
+		t.Fatal("permission-mode = enforce in the moxyfile must enforce")
+	}
+	res, err := inst.Call(context.Background(), Call{Name: "fix.asky", Args: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError {
+		t.Fatal("each-use must be refused under the moxyfile's enforce")
 	}
 }
 

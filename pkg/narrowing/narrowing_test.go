@@ -24,6 +24,44 @@ func violationLines(vs []Violation) []string {
 	return lines
 }
 
+// moxy#486: enforce is locked under narrowing, and a child's enforce-allow
+// grants must be covered by the parent's.
+func TestCheckPermissionMode(t *testing.T) {
+	cases := []struct {
+		name          string
+		parent, child string
+		want          []string
+	}{
+		{"delegating parent constrains nothing", "", `permission-mode = "enforce"` + "\n" + `enforce-allow = ["smith"]`, nil},
+		{"enforcing child under enforcing parent", `permission-mode = "enforce"`, `permission-mode = "enforce"`, nil},
+		{"child drops enforce", `permission-mode = "enforce"`, "", []string{"permission-mode: parent enforces, child does not"}},
+		{"child says delegate explicitly", `permission-mode = "enforce"`, `permission-mode = "delegate"`, []string{"permission-mode: parent enforces, child does not"}},
+		{
+			"child grant covered by parent's bare name",
+			`permission-mode = "enforce"` + "\n" + `enforce-allow = ["smith"]`,
+			`permission-mode = "enforce"` + "\n" + `enforce-allow = ["smith.issue-get"]`,
+			nil,
+		},
+		{
+			"child grant the parent lacks",
+			`permission-mode = "enforce"` + "\n" + `enforce-allow = ["smith.issue-get"]`,
+			`permission-mode = "enforce"` + "\n" + `enforce-allow = ["smith"]`,
+			[]string{"enforce-allow: child grants smith under enforce, parent does not"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := violationLines(Check(mustParse(t, c.parent), mustParse(t, c.child)))
+			if len(got) == 0 && len(c.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("Check = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 func TestCheck(t *testing.T) {
 	const smith = `
 [[servers]]

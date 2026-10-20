@@ -48,7 +48,7 @@ initialize handshakes, probes ephemeral servers, discovers moxins from
 and serves as a unified MCP server on stdin/stdout.
 Shuts down gracefully on
 .Dv SIGINT .
-.It Cm serve-http Op Fl -listen Ar addr Op Fl -expose Ar selector Op Fl -name-template Ar template
+.It Cm serve-http Op Fl -listen Ar addr Op Fl -expose Ar selector Op Fl -name-template Ar template Op Fl -permissions Ar mode
 Run as an MCP proxy server over streamable HTTP, serving
 .Pa /healthz ,
 .Pa /mcp ,
@@ -182,6 +182,27 @@ to gate the meta tools \(em e.g.
 not name-template alone. See
 .Cm render
 below and docs/features/0007-name-template.md.
+.Pp
+The
+.Fl -permissions Ar mode
+flag sets the serve-time permission posture
+.Pq Cm delegate No or Cm enforce ,
+the same choice as the moxyfile's
+.Va permission-mode
+.Pq Xr moxyfile 5 ;
+the flag can tighten the moxyfile's value to
+.Cm enforce ,
+never loosen it.
+Under
+.Cm enforce
+the server resolves every call's
+.Sy perms-request
+itself and runs only what resolves to allow, for clients with no Claude Code
+hook in front of it.
+The default,
+.Cm delegate ,
+leaves the decision to the hook.
+See docs/features/0015-serve-time-permission-enforcement.md.
 .It Cm render Op Fl -name-template Ar template
 Render or reverse-resolve a namespaced tool/prompt name under a template,
 without a running server. Forward

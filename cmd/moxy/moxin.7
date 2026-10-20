@@ -422,6 +422,29 @@ is in force.
 A permission request for a tool with no
 .Sy perms-request
 is denied the same way.
+.Pp
+All of the above runs in the client's hook.
+A client that reaches
+.Xr moxy 1
+without one \(em a headless agent, any non\-Claude MCP client \(em gets a
+plain
+.Sy tools/call ,
+which by default consults no tier at all
+.Pq moxy#485 .
+The moxyfile key
+.Va permission-mode
+.Pq Xr moxyfile 5
+set to
+.Cm enforce
+moves the decision into the server: the funnel resolves the tier itself and
+runs only what resolves to allow, refusing ask, deny and a missing tier with a
+.Dq moxy denied
+result, unless the moxyfile's
+.Va enforce-allow
+grants the unannotated tool.
+An embedder of moxy's Go library sets the same policy through
+.Li pkg/moxy
+.Pq Li Options.Permissions .
 .Sh DISCOVERY
 Moxin configs are discovered from directories listed in the
 .Ev MOXIN_PATH

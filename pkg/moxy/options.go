@@ -90,8 +90,15 @@ type Options struct {
 	// SPINCLASS_SESSION_ID / generated chain.
 	SessionID string
 
-	// Permissions is the serve-time permission policy (moxy#486). The zero
-	// value is Delegate, today's behaviour: the funnel resolves nothing.
+	// Permissions is the serve-time permission policy (moxy#486, FDR 0015).
+	// It is tightened with the moxyfile's own permission-mode / enforce-allow
+	// (either side can turn Enforce on; neither can turn it off), and a
+	// Caller may tighten it again per call. The zero value is Delegate,
+	// today's behaviour: the funnel resolves nothing and a hook in front of
+	// moxy decides. Under Enforce the funnel resolves every call's tier
+	// itself: allow runs; ask, deny and unknown (no perms-request) are
+	// refused with an isError result, unless Allow grants the unannotated
+	// tool.
 	Permissions perms.Policy
 
 	// NameTemplate renders advertised tool and prompt names; empty is

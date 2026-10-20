@@ -97,7 +97,7 @@ func newApp() *command.App {
 				"unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT/SIGTERM.",
 		},
 		RunCLI: func(_ context.Context, _ json.RawMessage) error {
-			return runServer(app, transportStdio, "", "", "")
+			return runServer(app, transportStdio, "", "", "", "")
 		},
 	})
 
@@ -142,17 +142,24 @@ func newApp() *command.App {
 				Description: "Template for advertised tool/prompt names using {server} and {tool}, e.g. '{server}_{tool}' for claude.ai-safe dot-free names. Default '{server}.{tool}'. {tool} is required; omitting {server} risks cross-server collisions (rejected at startup). See docs/features/0007-name-template.md.",
 				Default:     "",
 			},
+			{
+				Name:        "permissions",
+				Type:        command.String,
+				Description: "Serve-time permission mode: 'delegate' (default: a Claude Code hook in front of moxy decides) or 'enforce' (moxy resolves every call's perms-request itself and refuses anything but allow, for clients with no hook). Tightens the moxyfile's permission-mode; it cannot loosen it. See moxyfile(5) and docs/features/0015-serve-time-permission-enforcement.md.",
+				Default:     "",
+			},
 		},
 		RunCLI: func(_ context.Context, argsJSON json.RawMessage) error {
 			var args struct {
 				Listen       string `json:"listen"`
 				Expose       string `json:"expose"`
 				NameTemplate string `json:"name-template"`
+				Permissions  string `json:"permissions"`
 			}
 			if err := json.Unmarshal(argsJSON, &args); err != nil {
 				return err
 			}
-			return runServer(app, transportHTTP, args.Listen, args.Expose, args.NameTemplate)
+			return runServer(app, transportHTTP, args.Listen, args.Expose, args.NameTemplate, args.Permissions)
 		},
 	})
 
