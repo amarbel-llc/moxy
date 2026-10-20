@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 // Run prints a unified status view of the moxyfile hierarchy, moxin
@@ -19,7 +19,7 @@ import (
 // server runtime (native.DiscoverAll). Returns 0 if all checks pass, 1 if any
 // fail.
 func Run(w io.Writer, home, dir string) int {
-	hierarchy, err := config.LoadHierarchy(home, dir)
+	hierarchy, err := moxyfile.LoadHierarchy(home, dir)
 	if err != nil {
 		fmt.Fprintf(w, "error: loading moxyfile hierarchy: %v\n", err)
 		return 1
@@ -183,7 +183,7 @@ func Run(w io.Writer, home, dir string) int {
 			continue
 		}
 
-		if _, parseErr := config.Parse(data); parseErr != nil {
+		if _, parseErr := moxyfile.Parse(data); parseErr != nil {
 			printFail(w, "%s valid TOML: %v", src.Path, parseErr)
 			failed = true
 			continue
@@ -280,7 +280,7 @@ func Format(home, dir string) (string, error) {
 	return buf.String(), nil
 }
 
-func serverSummary(srv config.ServerConfig) string {
+func serverSummary(srv moxyfile.ServerConfig) string {
 	if srv.IsHTTP() {
 		return "url=" + srv.URL
 	}
@@ -299,7 +299,7 @@ func printWarn(w io.Writer, format string, args ...any) {
 	fmt.Fprintf(w, "  WARN %s\n", fmt.Sprintf(format, args...))
 }
 
-func checkServers(servers []config.ServerConfig, checkPath bool) []string {
+func checkServers(servers []moxyfile.ServerConfig, checkPath bool) []string {
 	var issues []string
 	seen := make(map[string]bool)
 	for _, srv := range servers {

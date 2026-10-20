@@ -11,9 +11,9 @@ import (
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 
-	"code.linenisgreat.com/moxy/internal/config"
-	"code.linenisgreat.com/moxy/internal/narrowing"
 	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
+	"code.linenisgreat.com/moxy/pkg/narrowing"
 )
 
 // parentMoxyfileEnv names the rendered effective moxyfile of whoever spawned
@@ -56,13 +56,13 @@ func (e *wideningError) Error() string {
 // editing the moxyfile and calling `restart` cannot widen a running moxy, and
 // what is served is exactly what was judged.
 type servingConfig struct {
-	literal    config.Config
-	parentPath string        // "" when MOXY_PARENT_MOXYFILE is unset
-	parent     config.Config // meaningful only when parentPath != ""
+	literal    moxyfile.Config
+	parentPath string          // "" when MOXY_PARENT_MOXYFILE is unset
+	parent     moxyfile.Config // meaningful only when parentPath != ""
 }
 
 func loadServingConfig() (servingConfig, error) {
-	hierarchy, err := config.LoadDefaultHierarchyLiteral()
+	hierarchy, err := moxyfile.LoadDefaultHierarchyLiteral()
 	if err != nil {
 		return servingConfig{}, err
 	}
@@ -75,7 +75,7 @@ func loadServingConfig() (servingConfig, error) {
 
 type parentReference struct {
 	path string // "" when MOXY_PARENT_MOXYFILE is unset
-	cfg  config.Config
+	cfg  moxyfile.Config
 	err  error
 }
 
@@ -101,10 +101,10 @@ var pinnedParentReference = sync.OnceValue(readParentReference)
 var startupAllowTools struct {
 	mu     sync.Mutex
 	pinned bool
-	set    config.AllowToolSet
+	set    moxyfile.AllowToolSet
 }
 
-func pinStartupAllowTools(set config.AllowToolSet) {
+func pinStartupAllowTools(set moxyfile.AllowToolSet) {
 	startupAllowTools.mu.Lock()
 	defer startupAllowTools.mu.Unlock()
 	if startupAllowTools.pinned {
@@ -113,7 +113,7 @@ func pinStartupAllowTools(set config.AllowToolSet) {
 	startupAllowTools.pinned, startupAllowTools.set = true, set
 }
 
-func readStartupAllowTools() (pinned bool, set config.AllowToolSet) {
+func readStartupAllowTools() (pinned bool, set moxyfile.AllowToolSet) {
 	startupAllowTools.mu.Lock()
 	defer startupAllowTools.mu.Unlock()
 	return startupAllowTools.pinned, startupAllowTools.set
@@ -142,7 +142,7 @@ func readParentReference() parentReference {
 	if strings.TrimSpace(string(data)) == "" {
 		return fail(fmt.Errorf("%s is empty", path))
 	}
-	parent, err := config.LoadFileLiteral(path)
+	parent, err := moxyfile.LoadFileLiteral(path)
 	if err != nil {
 		return fail(err)
 	}
@@ -197,31 +197,31 @@ func (sc servingConfig) refuseUnlessNarrows(moxins map[string]string, pin bool) 
 }
 
 // expanded is the config to serve: the judged text with header $VARs expanded.
-func (sc servingConfig) expanded() config.Config {
-	return config.ExpandHeaders(sc.literal)
+func (sc servingConfig) expanded() moxyfile.Config {
+	return moxyfile.ExpandHeaders(sc.literal)
 }
 
 // loadJudgedConfigAtStartup loads and judges the moxyfile before anything is
 // started, against the moxins discovery finds in this environment. bootstrap
 // judges again against the moxins it actually loads; this earlier pass exists
 // so a refusal is the first thing a launcher sees.
-func loadJudgedConfigAtStartup() (config.Config, error) {
+func loadJudgedConfigAtStartup() (moxyfile.Config, error) {
 	sc, err := loadServingConfig()
 	if err != nil {
-		return config.Config{}, err
+		return moxyfile.Config{}, err
 	}
 	var moxins map[string]string
 	if sc.judgesMoxins() {
 		cwd, err := os.Getwd()
 		if err != nil {
-			return config.Config{}, err
+			return moxyfile.Config{}, err
 		}
 		if moxins, err = resolvedMoxinsFor(sc.literal, cwd); err != nil {
-			return config.Config{}, fmt.Errorf("discovering moxins: %w", err)
+			return moxyfile.Config{}, fmt.Errorf("discovering moxins: %w", err)
 		}
 	}
 	if err := sc.refuseUnlessNarrows(moxins, false); err != nil {
-		return config.Config{}, err
+		return moxyfile.Config{}, err
 	}
 	return sc.expanded(), nil
 }
@@ -229,7 +229,7 @@ func loadJudgedConfigAtStartup() (config.Config, error) {
 // resolvedMoxinsFor reports the moxins a moxy serving cfg from dir would
 // discover, by name and source directory: MOXIN_PATH (or the default
 // hierarchy under dir), then the system moxins unless cfg turns them off.
-func resolvedMoxinsFor(cfg config.Config, dir string) (map[string]string, error) {
+func resolvedMoxinsFor(cfg moxyfile.Config, dir string) (map[string]string, error) {
 	return native.ResolvedMoxinSources(
 		os.Getenv("MOXIN_PATH"),
 		dir,
@@ -400,7 +400,7 @@ func showEffectiveMoxyfile(dir string) error {
 	if err != nil {
 		return err
 	}
-	_, err = os.Stdout.Write(config.RenderEffective(cfg))
+	_, err = os.Stdout.Write(moxyfile.RenderEffective(cfg))
 	return err
 }
 
@@ -410,19 +410,19 @@ func showEffectiveMoxyfile(dir string) error {
 // moxy served from it would discover. A file is already a document: it is
 // taken as written, record included, never recomputed, so rendering a rendered
 // file changes nothing.
-func loadEffectiveReference(home, ref string) (config.Config, error) {
-	hierarchy, err := config.LoadReferenceLiteral(home, ref)
+func loadEffectiveReference(home, ref string) (moxyfile.Config, error) {
+	hierarchy, err := moxyfile.LoadReferenceLiteral(home, ref)
 	if err != nil {
-		return config.Config{}, err
+		return moxyfile.Config{}, err
 	}
 	cfg := hierarchy.Merged
 	if info, err := os.Stat(ref); err == nil && info.IsDir() {
 		abs, err := filepath.Abs(ref)
 		if err != nil {
-			return config.Config{}, err
+			return moxyfile.Config{}, err
 		}
 		if cfg.ResolvedMoxins, err = resolvedMoxinsFor(cfg, abs); err != nil {
-			return config.Config{}, fmt.Errorf("discovering moxins: %w", err)
+			return moxyfile.Config{}, fmt.Errorf("discovering moxins: %w", err)
 		}
 	}
 	return cfg, nil

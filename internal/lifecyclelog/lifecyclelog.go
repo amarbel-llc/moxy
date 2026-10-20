@@ -1,39 +1,15 @@
 // Package lifecyclelog writes proxy lifecycle events (child spawn/exit,
 // JSON-RPC call tracing, moxin invocations, transport write errors) to a
-// single append-only log at $XDG_LOG_HOME/moxy/lifecycle.log so events from
-// multiple subsystems form one timeline.
+// single append-only log at <log home>/moxy/lifecycle.log so events from
+// multiple subsystems form one timeline. The file is owned by diaglog and is
+// written only once the process has enabled diagnostics (the moxy binary
+// does in main; an embedder that never calls diaglog.Enable writes nothing).
 package lifecyclelog
 
-import (
-	"log"
-	"os"
-	"path/filepath"
-)
+import "code.linenisgreat.com/moxy/internal/diaglog"
 
-var logger *log.Logger
-
-func init() {
-	logHome := os.Getenv("XDG_LOG_HOME")
-	if logHome == "" {
-		home, _ := os.UserHomeDir()
-		logHome = filepath.Join(home, ".local", "log")
-	}
-	logDir := filepath.Join(logHome, "moxy")
-	os.MkdirAll(logDir, 0o755)
-	f, err := os.OpenFile(
-		filepath.Join(logDir, "lifecycle.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o644,
-	)
-	if err == nil {
-		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-	}
-}
-
-// Log writes a formatted line to lifecycle.log. No-op if the log file could
-// not be opened at init time.
+// Log writes a formatted line to lifecycle.log. No-op while diagnostics are
+// off or if the log file cannot be opened.
 func Log(format string, args ...any) {
-	if logger != nil {
-		logger.Printf(format, args...)
-	}
+	diaglog.Printf("lifecycle", format, args...)
 }

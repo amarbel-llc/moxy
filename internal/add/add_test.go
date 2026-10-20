@@ -3,7 +3,7 @@ package add
 import (
 	"testing"
 
-	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 func TestBuildServerConfigNoAnnotations(t *testing.T) {
@@ -35,4 +35,4 @@ func TestBuildServerConfigWithAnnotations(t *testing.T) {
 	}
 }
 
-var _ = config.ServerConfig{} // ensure config import is used
+var _ = moxyfile.ServerConfig{} // ensure config import is used

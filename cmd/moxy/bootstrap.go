@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/internal/proxy"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 // bootstrapInputs are the static inputs threaded through bootstrap. Closures
@@ -25,8 +25,8 @@ type bootstrapInputs struct {
 // the spawned child servers (subprocess + moxin), the ephemeral metadata
 // (empty until ProbeEphemeral runs), and the failed-startup list.
 type bootstrapResult struct {
-	cfg           config.Config
-	activeServers []config.ServerConfig
+	cfg           moxyfile.Config
+	activeServers []moxyfile.ServerConfig
 	children      []proxy.ChildEntry
 	failed        []proxy.FailedServer
 	moxinPath     string
@@ -90,7 +90,7 @@ func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, e
 	}
 
 	disableServers := cfg.BuildDisableServerSet()
-	var activeServers []config.ServerConfig
+	var activeServers []moxyfile.ServerConfig
 	for _, srvCfg := range cfg.Servers {
 		if disableServers.ServerDisabled(srvCfg.Name) {
 			fmt.Fprintf(os.Stderr, "moxy: skipping server %q (disabled by moxyfile)\n", srvCfg.Name)
@@ -185,7 +185,7 @@ func bootstrap(ctx context.Context, inputs bootstrapInputs) (*bootstrapResult, e
 		initResult := srv.InitializeResult()
 		children = append(children, proxy.ChildEntry{
 			Client:       srv,
-			Config:       config.ServerConfig{Name: nc.Name},
+			Config:       moxyfile.ServerConfig{Name: nc.Name},
 			Capabilities: initResult.Capabilities,
 			ServerInfo:   initResult.ServerInfo,
 			Instructions: nc.Description,

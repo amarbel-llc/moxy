@@ -4,12 +4,12 @@ import (
 	"reflect"
 	"testing"
 
-	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
-func mustParse(t *testing.T, src string) config.Config {
+func mustParse(t *testing.T, src string) moxyfile.Config {
 	t.Helper()
-	cfg, err := config.ParseLiteral([]byte(src))
+	cfg, err := moxyfile.ParseLiteral([]byte(src))
 	if err != nil {
 		t.Fatalf("parsing %q: %v", src, err)
 	}
@@ -407,7 +407,7 @@ func TestCheckReload(t *testing.T) {
 		name          string
 		child         string
 		startupPinned bool
-		startup       config.AllowToolSet
+		startup       moxyfile.AllowToolSet
 		want          []string
 	}{
 		{
@@ -419,7 +419,7 @@ func TestCheckReload(t *testing.T) {
 			name:          "reload promoting pass to use is refused once a baseline is pinned",
 			child:         childHoldsSmithAtUse,
 			startupPinned: true,
-			startup:       config.AllowToolSet{"grit": true},
+			startup:       moxyfile.AllowToolSet{"grit": true},
 			want: []string{
 				"allow-tools: held by the parent at pass; not at use when this process started, so a reload cannot raise it (moxy#461)",
 			},
@@ -428,13 +428,13 @@ func TestCheckReload(t *testing.T) {
 			name:          "reload keeping smith at use is fine when it was already there at startup",
 			child:         childHoldsSmithAtUse,
 			startupPinned: true,
-			startup:       config.AllowToolSet{"grit": true, "smith": true},
+			startup:       moxyfile.AllowToolSet{"grit": true, "smith": true},
 		},
 		{
 			name:          "reload that leaves smith at pass is unaffected",
 			child:         childHoldsSmithAtPass,
 			startupPinned: true,
-			startup:       config.AllowToolSet{"grit": true},
+			startup:       moxyfile.AllowToolSet{"grit": true},
 		},
 		{
 			name:          "a nil startup (unrestricted at startup) covers every tool",
@@ -461,7 +461,7 @@ func TestCheckReload(t *testing.T) {
 	t.Run("no pass-tools at all is a no-op regardless of pinning", func(t *testing.T) {
 		parent := mustParse(t, "allow-tools = [\"grit\", \"smith\"]\n")
 		child := mustParse(t, "allow-tools = [\"grit\", \"smith\"]\n")
-		got := CheckReload(parent, child, true, config.AllowToolSet{"grit": true})
+		got := CheckReload(parent, child, true, moxyfile.AllowToolSet{"grit": true})
 		if len(got) != 0 {
 			t.Errorf("want no violations, got %q", violationLines(got))
 		}
@@ -476,7 +476,7 @@ func TestCheckReload(t *testing.T) {
 	t.Run("a bare pass name promoted via a dotted sub-tool is refused", func(t *testing.T) {
 		parent := mustParse(t, "allow-tools = [\"restart\"]\npass-tools = [\"smith\"]\n")
 		child := mustParse(t, "allow-tools = [\"restart\", \"smith.issue-close\"]\n")
-		got := violationLines(CheckReload(parent, child, true, config.AllowToolSet{"restart": true}))
+		got := violationLines(CheckReload(parent, child, true, moxyfile.AllowToolSet{"restart": true}))
 		want := []string{
 			"allow-tools: held by the parent at pass; not at use when this process started, so a reload cannot raise it (moxy#461)",
 		}
@@ -493,7 +493,7 @@ func TestCheckReload(t *testing.T) {
 	t.Run("a tool the parent directly allows is never flagged even though a bare pass also covers it", func(t *testing.T) {
 		parent := mustParse(t, "allow-tools = [\"grit.status\"]\npass-tools = [\"grit\"]\n")
 		child := mustParse(t, "allow-tools = [\"grit.status\"]\n")
-		got := CheckReload(parent, child, true, config.AllowToolSet{})
+		got := CheckReload(parent, child, true, moxyfile.AllowToolSet{})
 		if len(got) != 0 {
 			t.Errorf("want no violations, got %q", violationLines(got))
 		}

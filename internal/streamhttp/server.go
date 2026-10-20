@@ -122,7 +122,7 @@ func (s *Server) handleSystemPrompt(w http.ResponseWriter, r *http.Request) {
 // response for /clown/exclude-tools: a flat list of excluded names, each
 // either a whole moxin/server name (e.g. "chix") or a dotted rendered tool
 // name (e.g. "folio.write") — matching disable-moxins' entry syntax
-// (internal/config/schema). Full-replace: each POST overwrites the prior set.
+// (pkg/moxyfile/schema). Full-replace: each POST overwrites the prior set.
 type excludeToolsBody struct {
 	Exclude []string `json:"exclude"`
 }

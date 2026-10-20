@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 )
 
@@ -32,7 +32,7 @@ func TestRestartMoxinSwapsChildAndNotifies(t *testing.T) {
 
 	var notified int
 	p := &Proxy{
-		children: []ChildEntry{{Client: original, Config: config.ServerConfig{Name: "fixture"}}},
+		children: []ChildEntry{{Client: original, Config: moxyfile.ServerConfig{Name: "fixture"}}},
 		notifier: func(msg *jsonrpc.Message) error {
 			notified++
 			return nil
@@ -80,7 +80,7 @@ func TestRestartMoxinReloaderError(t *testing.T) {
 	original := native.NewServer(&native.NativeConfig{Name: "fixture"})
 
 	p := &Proxy{
-		children: []ChildEntry{{Client: original, Config: config.ServerConfig{Name: "fixture"}}},
+		children: []ChildEntry{{Client: original, Config: moxyfile.ServerConfig{Name: "fixture"}}},
 	}
 	p.SetMoxinReloader(&fakeMoxinReloader{err: errors.New("disk on fire")})
 
@@ -97,7 +97,7 @@ func TestRestartMoxinNoReloaderConfigured(t *testing.T) {
 	original := native.NewServer(&native.NativeConfig{Name: "fixture"})
 
 	p := &Proxy{
-		children: []ChildEntry{{Client: original, Config: config.ServerConfig{Name: "fixture"}}},
+		children: []ChildEntry{{Client: original, Config: moxyfile.ServerConfig{Name: "fixture"}}},
 	}
 
 	err := p.restartServer(context.Background(), "fixture")
@@ -132,7 +132,7 @@ func TestReloadSwapsAllChildrenAndNotifies(t *testing.T) {
 	var notified int
 	p := &Proxy{
 		children: []ChildEntry{
-			{Client: originalMoxin, Config: config.ServerConfig{Name: "alpha"}},
+			{Client: originalMoxin, Config: moxyfile.ServerConfig{Name: "alpha"}},
 		},
 		ephemeral: make(map[string]*EphemeralMeta),
 		notifier: func(msg *jsonrpc.Message) error {
@@ -152,8 +152,8 @@ func TestReloadSwapsAllChildrenAndNotifies(t *testing.T) {
 	p.SetBootstrapper(&fakeBootstrapper{
 		result: &BootstrapResult{
 			Children: []ChildEntry{
-				{Client: freshMoxin, Config: config.ServerConfig{Name: "alpha"}},
-				{Client: beta, Config: config.ServerConfig{Name: "beta"}},
+				{Client: freshMoxin, Config: moxyfile.ServerConfig{Name: "alpha"}},
+				{Client: beta, Config: moxyfile.ServerConfig{Name: "beta"}},
 			},
 		},
 	})
@@ -180,7 +180,7 @@ func TestReloadFailureLeavesStateIntact(t *testing.T) {
 	originalMoxin := native.NewServer(&native.NativeConfig{Name: "alpha"})
 	p := &Proxy{
 		children: []ChildEntry{
-			{Client: originalMoxin, Config: config.ServerConfig{Name: "alpha"}},
+			{Client: originalMoxin, Config: moxyfile.ServerConfig{Name: "alpha"}},
 		},
 	}
 	p.SetBootstrapper(&fakeBootstrapper{err: errors.New("disk on fire")})
@@ -211,7 +211,7 @@ func TestHandleRestartEmptyServerCallsReload(t *testing.T) {
 	var notified int
 	p := &Proxy{
 		children: []ChildEntry{
-			{Client: originalMoxin, Config: config.ServerConfig{Name: "alpha"}},
+			{Client: originalMoxin, Config: moxyfile.ServerConfig{Name: "alpha"}},
 		},
 		ephemeral: make(map[string]*EphemeralMeta),
 		notifier: func(msg *jsonrpc.Message) error {
@@ -221,7 +221,7 @@ func TestHandleRestartEmptyServerCallsReload(t *testing.T) {
 	}
 	bs := &fakeBootstrapper{
 		result: &BootstrapResult{
-			Children: []ChildEntry{{Client: freshMoxin, Config: config.ServerConfig{Name: "alpha"}}},
+			Children: []ChildEntry{{Client: freshMoxin, Config: moxyfile.ServerConfig{Name: "alpha"}}},
 		},
 	}
 	p.SetBootstrapper(bs)

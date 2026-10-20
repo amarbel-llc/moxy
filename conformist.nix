@@ -120,7 +120,7 @@
     "flake.lock"
     "bun.lock"
     "bun.nix"
-    "internal/config/config_tommy.go"
+    "pkg/moxyfile/config_tommy.go"
     "zz-tests_bats/test-fixtures/**"
     "sweatfile"
     "LICENSE"

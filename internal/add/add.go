@@ -10,9 +10,9 @@ import (
 
 	"github.com/charmbracelet/huh"
 
-	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/credentials"
 	"code.linenisgreat.com/moxy/internal/oauth"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 func Run(path string, credStore credentials.Store) error {
@@ -95,7 +95,7 @@ func addCommandServer(path string) error {
 	}
 
 	srv := buildCommandServerConfig(name, command, annotations)
-	return config.WriteServer(path, srv)
+	return moxyfile.WriteServer(path, srv)
 }
 
 func addURLServer(path string, credStore credentials.Store) error {
@@ -137,7 +137,7 @@ func addURLServer(path string, credStore credentials.Store) error {
 		return err
 	}
 
-	srv := config.ServerConfig{
+	srv := moxyfile.ServerConfig{
 		Name: name,
 		URL:  serverURL,
 	}
@@ -182,22 +182,22 @@ func addURLServer(path string, credStore credentials.Store) error {
 		fmt.Println("Authentication successful. Token stored.")
 
 		// Save OAuth config in moxyfile
-		srv.OAuth = &config.OAuthConfig{
+		srv.OAuth = &moxyfile.OAuthConfig{
 			ClientID: oauthCfg.ClientID,
 		}
 	}
 
-	return config.WriteServer(path, srv)
+	return moxyfile.WriteServer(path, srv)
 }
 
-func buildCommandServerConfig(name, command string, annotations []string) config.ServerConfig {
-	srv := config.ServerConfig{
+func buildCommandServerConfig(name, command string, annotations []string) moxyfile.ServerConfig {
+	srv := moxyfile.ServerConfig{
 		Name:    name,
-		Command: config.MakeCommand(strings.Fields(command)...),
+		Command: moxyfile.MakeCommand(strings.Fields(command)...),
 	}
 
 	if len(annotations) > 0 {
-		af := &config.AnnotationFilter{}
+		af := &moxyfile.AnnotationFilter{}
 		for _, a := range annotations {
 			t := true
 			switch a {

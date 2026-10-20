@@ -62,7 +62,7 @@ build-moxins:
 # module rendered from go.nix, with the flake's pinned tommy on PATH
 # (goRunInputs) — the same input go.nix's flakeInputs routes the cst *library*
 # from — so the generator and the library can never disagree on the cst API.
-# The //go:generate directive lives in internal/config/schema.
+# The //go:generate directive lives in pkg/moxyfile/schema.
 #
 # Delete the stale generated file first (like madder's generate-tommy): tommy's
 # analyze step type-checks the whole package and aborts if a prior generated
@@ -77,9 +77,9 @@ build-moxins:
 codemod-generate:
   #!/usr/bin/env bash
   set -euo pipefail
-  rm -f internal/config/schema/schema_tommy.go
-  {{godyn_go}} go generate ./internal/config/...
-  nix fmt internal/config
+  rm -f pkg/moxyfile/schema/schema_tommy.go
+  {{godyn_go}} go generate ./pkg/moxyfile/...
+  nix fmt pkg/moxyfile
 
 # Run `go get <args>` through godyn-go and ingest the result back into go.nix
 # (new/bumped requires with their vendor hashes). The only way to change a
@@ -112,6 +112,27 @@ build-go-pkgs:
 # so a consumer knows which fleet inputs (madder, purse-first, tommy) it must
 # be able to resolve. Agent dev-loop for FDR 0014's consumption question.
 #
+# `rg` honours ignore files, and a global gitignore listing `pkg/` (a common
+# Go build-dir rule) hides this repo's tracked pkg/ tree from it entirely —
+# rg-based searches then report "no matches" for files that plainly exist.
+# `git grep` consults only the index, so it sees every tracked path. Agent
+# dev-loop for any search that must cover pkg/.
+#
+# search tracked files with git grep (sees paths an ignore rule hides from rg)
+[group("debug")]
+debug-git-grep pattern path='.':
+  git grep -n -E -- {{quote(pattern)}} {{quote(path)}}
+
+# Before starting a nix build or the merge gate on a shared host, see what the
+# box is already doing: 1/5/15-minute load averages and the CPU count, so a
+# gate is not launched into a load of 40 on 8 CPUs (a serve-http startup
+# timeout in the net_cap bats lane looked like a bug and was load).
+#
+# print the host's load averages and CPU count
+[group("debug")]
+debug-load:
+  @cat /proc/loadavg; nproc
+
 # print the go-pkgs producer's passthru.goFlakeInputs as JSON
 [group("debug")]
 debug-go-pkgs-flake-inputs:
@@ -119,6 +140,45 @@ debug-go-pkgs-flake-inputs:
 
 [group("codemod")]
 codemod: codemod-fmt codemod-generate
+
+# Move a Go package within this module (FDR 0014's internal/ → pkg/ moves):
+# `git mv` the directory, rewrite the import path prefix everywhere (so
+# subpackages such as <old>/schema follow), and when the last path element
+# changes, rename the package clause in the moved files and the qualified
+# uses (`<old>.X` → `<new>.X`) in every file that imports it. Mechanical by
+# design — review the diff; a local identifier that happens to equal the old
+# package name in an importing file would be renamed too. Agent dev-loop for
+# the library refactor: one invocation per step-2/step-3 move.
+# Example: just codemod-move-go-package internal/config pkg/moxyfile
+#
+# move a Go package directory, rewriting import paths and the package identifier
+[group("codemod")]
+codemod-move-go-package old new:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  module="code.linenisgreat.com/moxy"
+  old="{{old}}"; new="{{new}}"
+  old_ident="$(basename "$old")"; new_ident="$(basename "$new")"
+  mkdir -p "$(dirname "$new")"
+  git mv "$old" "$new"
+  # git grep, not rg: rg honours ignore files (a global gitignore that lists
+  # `pkg/` hides the destination), while git grep sees every tracked path —
+  # and `git mv` has already tracked the moved files under the new path.
+  mapfile -t files < <(git grep -l -F "$module/$old" -- '*.go' || true)
+  if ((${#files[@]})); then
+    sed -i "s#$module/$old#$module/$new#g" "${files[@]}"
+  fi
+  if [[ "$old_ident" != "$new_ident" ]]; then
+    mapfile -t moved < <(git grep -l -E "^package ${old_ident}(_test)?\$" -- "$new/*.go" || true)
+    if ((${#moved[@]})); then
+      sed -i -E "s/^package ${old_ident}(_test)?\$/package ${new_ident}\1/" "${moved[@]}"
+    fi
+    mapfile -t users < <(git grep -l -F "\"$module/$new\"" -- '*.go' | grep -v "^$new/" || true)
+    if ((${#users[@]})); then
+      sed -i -E "s/\b${old_ident}\./${new_ident}./g" "${users[@]}"
+    fi
+  fi
+  echo "moved $old -> $new (import rewrites: ${#files[@]} files)"
 
 # Format + repair the whole tree via conformist (goimports→gofumpt, nixfmt,
 # shfmt for shell/bats, prettier for ts/mjs/cjs, ruff for python, tommy for

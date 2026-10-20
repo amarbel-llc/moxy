@@ -1,6 +1,6 @@
 // Package toolexclude implements a runtime-mutable, name-based deny-set for
 // moxy's tool surface — the dynamic counterpart to the moxyfile's static
-// `disable-moxins` key (internal/config/schema).
+// `disable-moxins` key (pkg/moxyfile/schema).
 //
 // A Set partitions excluded names into whole-server entries (e.g. "chix",
 // blocking every tool that server owns) and per-tool entries (e.g.

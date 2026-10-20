@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +14,7 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/server"
 
 	"code.linenisgreat.com/moxy/internal/asyncjob"
-	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/internal/diaglog"
 	"code.linenisgreat.com/moxy/internal/naming"
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/internal/paginate"
@@ -24,6 +22,7 @@ import (
 	"code.linenisgreat.com/moxy/internal/statsd"
 	"code.linenisgreat.com/moxy/internal/toolexclude"
 	"code.linenisgreat.com/moxy/internal/toolfilter"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 // MoxinReloader re-discovers a single moxin's config by name from the
@@ -40,9 +39,9 @@ type MoxinReloader interface {
 type BootstrapResult struct {
 	Children      []ChildEntry
 	Failed        []FailedServer
-	ActiveServers []config.ServerConfig
+	ActiveServers []moxyfile.ServerConfig
 	Ephemeral     *bool
-	AllowTools    config.AllowToolSet
+	AllowTools    moxyfile.AllowToolSet
 }
 
 // Bootstrapper produces a fresh BootstrapResult from the moxyfile hierarchy
@@ -52,35 +51,15 @@ type Bootstrapper interface {
 	Bootstrap(ctx context.Context) (*BootstrapResult, error)
 }
 
-var debugLogger *log.Logger
-
-func init() {
-	logHome := os.Getenv("XDG_LOG_HOME")
-	if logHome == "" {
-		home, _ := os.UserHomeDir()
-		logHome = filepath.Join(home, ".local", "log")
-	}
-	logDir := filepath.Join(logHome, "moxy")
-	os.MkdirAll(logDir, 0o755)
-	f, err := os.OpenFile(
-		filepath.Join(logDir, "debug.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o644,
-	)
-	if err == nil {
-		debugLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-	}
-}
-
+// debugLog writes to the debug diagnostic log — a no-op until the process
+// enables diagnostics (diaglog.Enable; the binary does, an embedder need not).
 func debugLog(format string, args ...any) {
-	if debugLogger != nil {
-		debugLogger.Printf(format, args...)
-	}
+	diaglog.Printf("debug", format, args...)
 }
 
 type ChildEntry struct {
 	Client       ServerBackend
-	Config       config.ServerConfig
+	Config       moxyfile.ServerConfig
 	Capabilities protocol.ServerCapabilitiesV1
 	ServerInfo   protocol.ImplementationV1
 	Instructions string
@@ -92,7 +71,7 @@ type FailedServer struct {
 }
 
 type EphemeralMeta struct {
-	Config       config.ServerConfig
+	Config       moxyfile.ServerConfig
 	Capabilities protocol.ServerCapabilitiesV1
 	ServerInfo   protocol.ImplementationV1
 	Instructions string
@@ -102,15 +81,15 @@ type EphemeralMeta struct {
 	Prompts      []protocol.PromptV1
 }
 
-// ConnectFunc creates and initializes a client for a given server config.
+// ConnectFunc creates and initializes a client for a given server moxyfile.
 // This abstraction allows the proxy to reconnect servers without knowing
 // transport details (stdio vs HTTP, credentials, etc.).
-type ConnectFunc func(ctx context.Context, cfg config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error)
+type ConnectFunc func(ctx context.Context, cfg moxyfile.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error)
 
 type Proxy struct {
 	children                    []ChildEntry
 	failed                      []FailedServer
-	configs                     map[string]config.ServerConfig
+	configs                     map[string]moxyfile.ServerConfig
 	ephemeral                   map[string]*EphemeralMeta
 	globalEphemeral             *bool
 	globalProgressiveDisclosure *bool
@@ -125,15 +104,15 @@ type Proxy struct {
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
 	resolver                    *permcheck.Resolver
-	toolFilter                  toolfilter.Filter   // which tool categories to expose; default All()
-	toolExclude                 toolexclude.Set     // dynamic per-name/per-server deny-set; default excludes nothing
-	toolAllow                   config.AllowToolSet // moxyfile allow-tools allowlist; default unrestricted
-	nameTemplate                naming.Template     // how tool/prompt names are rendered; default {server}.{tool}
-	toolRegistry                naming.Registry     // rendered tool name → canonical Entry; rebuilt on every ListToolsV1
-	promptRegistry              naming.Registry     // rendered prompt name → canonical Entry; rebuilt on every ListPromptsV1
-	toolCollision               error               // last tool-name collision under a custom template (nil if none)
-	promptCollision             error               // last prompt-name collision under a custom template (nil if none)
-	dispatchSubCall             subCallDispatcher   // test seam; nil → use CallToolV1
+	toolFilter                  toolfilter.Filter     // which tool categories to expose; default All()
+	toolExclude                 toolexclude.Set       // dynamic per-name/per-server deny-set; default excludes nothing
+	toolAllow                   moxyfile.AllowToolSet // moxyfile allow-tools allowlist; default unrestricted
+	nameTemplate                naming.Template       // how tool/prompt names are rendered; default {server}.{tool}
+	toolRegistry                naming.Registry       // rendered tool name → canonical Entry; rebuilt on every ListToolsV1
+	promptRegistry              naming.Registry       // rendered prompt name → canonical Entry; rebuilt on every ListPromptsV1
+	toolCollision               error                 // last tool-name collision under a custom template (nil if none)
+	promptCollision             error                 // last prompt-name collision under a custom template (nil if none)
+	dispatchSubCall             subCallDispatcher     // test seam; nil → use CallToolV1
 	mu                          sync.RWMutex
 }
 
@@ -300,12 +279,12 @@ func (p *Proxy) notifyToolsChanged() {
 func New(
 	children []ChildEntry,
 	failed []FailedServer,
-	allConfigs []config.ServerConfig,
+	allConfigs []moxyfile.ServerConfig,
 	globalEphemeral *bool,
 	globalProgressiveDisclosure *bool,
 	connectFunc ConnectFunc,
 ) *Proxy {
-	configs := make(map[string]config.ServerConfig, len(allConfigs))
+	configs := make(map[string]moxyfile.ServerConfig, len(allConfigs))
 	ephemeral := make(map[string]*EphemeralMeta)
 	for _, cfg := range allConfigs {
 		configs[cfg.Name] = cfg
@@ -877,8 +856,8 @@ func (p *Proxy) canonicalToolName(name string, reg naming.Registry) (server, too
 
 // SetToolAllow installs the moxyfile's `allow-tools` allowlist at startup.
 // Reload replaces it from the fresh BootstrapResult, since the list is part
-// of the config.
-func (p *Proxy) SetToolAllow(allow config.AllowToolSet) {
+// of the moxyfile.
+func (p *Proxy) SetToolAllow(allow moxyfile.AllowToolSet) {
 	p.mu.Lock()
 	p.toolAllow = allow
 	p.mu.Unlock()
@@ -1692,7 +1671,7 @@ func (p *Proxy) Reload(ctx context.Context) error {
 	}
 
 	// Build new configs + ephemeral maps from the fresh result.
-	newConfigs := make(map[string]config.ServerConfig, len(res.ActiveServers))
+	newConfigs := make(map[string]moxyfile.ServerConfig, len(res.ActiveServers))
 	newEphemeral := make(map[string]*EphemeralMeta)
 	for _, cfg := range res.ActiveServers {
 		newConfigs[cfg.Name] = cfg
@@ -1910,7 +1889,7 @@ func (p *Proxy) restartMoxin(serverName string) error {
 	}
 	p.children = append(p.children, ChildEntry{
 		Client:       srv,
-		Config:       config.ServerConfig{Name: nc.Name},
+		Config:       moxyfile.ServerConfig{Name: nc.Name},
 		Capabilities: initResult.Capabilities,
 		ServerInfo:   initResult.ServerInfo,
 		Instructions: nc.Description,
@@ -2232,7 +2211,7 @@ func splitPrefix(s, sep string) (prefix, rest string, ok bool) {
 
 func matchesAnnotationFilter(
 	annotations *protocol.ToolAnnotations,
-	filter *config.AnnotationFilter,
+	filter *moxyfile.AnnotationFilter,
 ) bool {
 	if filter == nil {
 		return true

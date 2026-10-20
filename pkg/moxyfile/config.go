@@ -1,4 +1,4 @@
-package config
+package moxyfile
 
 import (
 	"errors"
@@ -10,13 +10,13 @@ import (
 	"sort"
 	"strings"
 
-	"code.linenisgreat.com/moxy/internal/config/schema"
+	"code.linenisgreat.com/moxy/pkg/moxyfile/schema"
 )
 
 // The moxyfile TOML data model and its tommy-generated codec live in the
 // schema subpackage. They are isolated there so that regenerating the
 // generated file never depends on (and never breaks) the code that consumes
-// it. These aliases keep existing config.* references working unchanged.
+// it. These aliases keep existing moxyfile.* references working unchanged.
 type (
 	Config           = schema.Config
 	ServerConfig     = schema.ServerConfig

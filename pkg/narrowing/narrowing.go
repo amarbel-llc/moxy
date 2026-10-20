@@ -5,7 +5,7 @@
 // NARROWING is the user-facing statement of the same rules.
 //
 // Both sides must be effective configs: cascade merged, includes resolved,
-// loaded without $VAR expansion (config.Load*Literal). Check never reads the
+// loaded without $VAR expansion (moxyfile.Load*Literal). Check never reads the
 // environment, so it compares what was written, not what it expands to.
 package narrowing
 
@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 // Violation is one way the child grants more than the parent.
@@ -36,7 +36,7 @@ func (v Violation) String() string {
 
 // Check returns every way child grants more than parent, sorted by key, then
 // subject, then message. An empty result means child narrows parent.
-func Check(parent, child config.Config) []Violation {
+func Check(parent, child moxyfile.Config) []Violation {
 	var vs []Violation
 	vs = append(vs, checkBuiltinNative(parent, child)...)
 	vs = append(vs, checkDisableMoxins(parent, child)...)
@@ -65,7 +65,7 @@ func sortViolations(vs []Violation) {
 
 // checkBuiltinNative: the cascade lets the closest file re-enable the system
 // moxins; a child may not, because the parent never had them.
-func checkBuiltinNative(parent, child config.Config) []Violation {
+func checkBuiltinNative(parent, child moxyfile.Config) []Violation {
 	parentOff := parent.BuiltinNative != nil && !*parent.BuiltinNative
 	childOff := child.BuiltinNative != nil && !*child.BuiltinNative
 	if parentOff && !childOff {
@@ -77,11 +77,11 @@ func checkBuiltinNative(parent, child config.Config) []Violation {
 	return nil
 }
 
-func checkDisableMoxins(parent, child config.Config) []Violation {
+func checkDisableMoxins(parent, child moxyfile.Config) []Violation {
 	childDisables := stringSet(child.DisableMoxins)
 	var vs []Violation
 	for entry := range stringSet(parent.DisableMoxins) {
-		if !config.CoveredBy(entry, childDisables) {
+		if !moxyfile.CoveredBy(entry, childDisables) {
 			vs = append(vs, Violation{
 				Key:     "disable-moxins",
 				Subject: entry,
@@ -99,7 +99,7 @@ func checkDisableMoxins(parent, child config.Config) []Violation {
 // may confer use on its child, which is the one upward step the relation
 // permits (spinclass FDR 0032 D11). With no parent allowlist the parent holds
 // every tool at use, and the child may set any lists it likes.
-func checkAllowTools(parent, child config.Config) []Violation {
+func checkAllowTools(parent, child moxyfile.Config) []Violation {
 	if parent.AllowTools == nil {
 		return nil
 	}
@@ -122,7 +122,7 @@ func checkAllowTools(parent, child config.Config) []Violation {
 		{"pass-tools", "pass", child.PassTools},
 	} {
 		for entry := range stringSet(level.entries) {
-			if !config.CoveredBy(entry, parentHolds) {
+			if !moxyfile.CoveredBy(entry, parentHolds) {
 				vs = append(vs, Violation{
 					Key:     level.key,
 					Subject: entry,
@@ -149,9 +149,9 @@ func checkAllowTools(parent, child config.Config) []Violation {
 // allow-tools itself unset) covers every tool, per AllowToolSet's own
 // nil-means-unrestricted rule — not "covers none".
 func CheckReload(
-	parent, child config.Config,
+	parent, child moxyfile.Config,
 	startupPinned bool,
-	startup config.AllowToolSet,
+	startup moxyfile.AllowToolSet,
 ) []Violation {
 	vs := Check(parent, child)
 	vs = append(vs, checkPassNotPromoted(parent, child, startupPinned, startup)...)
@@ -160,9 +160,9 @@ func CheckReload(
 }
 
 func checkPassNotPromoted(
-	parent, child config.Config,
+	parent, child moxyfile.Config,
 	startupPinned bool,
-	startup config.AllowToolSet,
+	startup moxyfile.AllowToolSet,
 ) []Violation {
 	if !startupPinned || startup == nil {
 		return nil
@@ -178,13 +178,13 @@ func checkPassNotPromoted(
 	// would ask whether CoveredBy("smith", {"smith.issue-close"}), which is
 	// false, and miss it entirely.
 	for entry := range stringSet(child.AllowTools) {
-		if config.CoveredBy(entry, parentAllow) {
+		if moxyfile.CoveredBy(entry, parentAllow) {
 			continue // directly granted at use by the parent; not a pass promotion
 		}
-		if !config.CoveredBy(entry, parentPass) {
+		if !moxyfile.CoveredBy(entry, parentPass) {
 			continue // not something the parent passes either
 		}
-		if config.CoveredBy(entry, startup) {
+		if moxyfile.CoveredBy(entry, startup) {
 			continue // already at use when the process started
 		}
 		vs = append(vs, Violation{
@@ -207,7 +207,7 @@ func checkPassNotPromoted(
 // written by `show-effective-moxyfile`. A moxin the child cannot reach anyway
 // — one it disables, or one a [[servers]] entry shadows — is not held against
 // it.
-func checkResolvedMoxins(parent, child config.Config) []Violation {
+func checkResolvedMoxins(parent, child moxyfile.Config) []Violation {
 	if parent.ResolvedMoxins == nil || child.ResolvedMoxins == nil {
 		return nil
 	}
@@ -240,7 +240,7 @@ func checkResolvedMoxins(parent, child config.Config) []Violation {
 	return vs
 }
 
-func checkServers(parent, child config.Config) []Violation {
+func checkServers(parent, child moxyfile.Config) []Violation {
 	parentServers := serversByName(parent)
 	childServers := serversByName(child)
 	parentDisabled := stringSet(parent.DisableServers)
@@ -289,7 +289,7 @@ func checkServers(parent, child config.Config) []Violation {
 // other than what parent runs. Fields that only change how moxy presents the
 // same server (ephemeral, paginate, progressive-disclosure,
 // generate-resource-tools) are not rights and are not compared.
-func invocationDifferences(parent, child config.ServerConfig) []string {
+func invocationDifferences(parent, child moxyfile.ServerConfig) []string {
 	var diffs []string
 	differs := func(field string, same bool) {
 		if !same {
@@ -383,7 +383,7 @@ func flakeRefIsWorkingDirRelative(ref string) bool {
 	return strings.Contains(ref, "/") && !strings.HasPrefix(ref, "/") && !strings.HasPrefix(ref, "~/")
 }
 
-func checkCredentials(parent, child config.Config) []Violation {
+func checkCredentials(parent, child moxyfile.Config) []Violation {
 	if child.Credentials == nil {
 		return nil
 	}
@@ -412,8 +412,8 @@ func checkCredentials(parent, child config.Config) []Violation {
 	return vs
 }
 
-func serversByName(cfg config.Config) map[string]config.ServerConfig {
-	byName := make(map[string]config.ServerConfig, len(cfg.Servers))
+func serversByName(cfg moxyfile.Config) map[string]moxyfile.ServerConfig {
+	byName := make(map[string]moxyfile.ServerConfig, len(cfg.Servers))
 	for _, srv := range cfg.Servers {
 		byName[srv.Name] = srv
 	}

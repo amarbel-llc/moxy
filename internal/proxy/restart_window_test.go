@@ -9,7 +9,7 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
-	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 // fakeBackend is a minimal NON-native ServerBackend, so a restart routes
@@ -49,10 +49,10 @@ func TestRestartServerKeepsServerRoutableDuringRespawn(t *testing.T) {
 	p := &Proxy{
 		children: []ChildEntry{{
 			Client: &fakeBackend{name: "srv", callRaw: okRaw},
-			Config: config.ServerConfig{Name: "srv"},
+			Config: moxyfile.ServerConfig{Name: "srv"},
 		}},
-		configs: map[string]config.ServerConfig{"srv": {Name: "srv"}},
-		connectFunc: func(context.Context, config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error) {
+		configs: map[string]moxyfile.ServerConfig{"srv": {Name: "srv"}},
+		connectFunc: func(context.Context, moxyfile.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error) {
 			close(respawnStarted)
 			<-respawnRelease
 			return &fakeBackend{name: "srv", callRaw: okRaw}, &protocol.InitializeResultV1{}, nil

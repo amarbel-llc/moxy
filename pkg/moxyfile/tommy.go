@@ -1,4 +1,4 @@
-package config
+package moxyfile
 
 import (
 	"errors"

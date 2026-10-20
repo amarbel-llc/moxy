@@ -1,8 +1,12 @@
 build/
+# The public Go library lives in pkg/ (FDR 0014). A common global gitignore
+# rule for Go build output ignores `pkg/`, which hides this tree from `git
+# add` and from rg; re-include it here so the repo does not depend on the
+# operator's global excludes.
+!pkg/
 node_modules/
 __pycache__/
 result-moxins
-result-go-pkgs
-result-go-pkgs-test
+result-go-pkgs*
 result-lint-py
 zz-pocs/pandoc-docs-poc/result-gws

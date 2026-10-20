@@ -3,7 +3,7 @@ package proxy
 import (
 	"testing"
 
-	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 )
 
@@ -13,7 +13,7 @@ func TestAnnotationFilter_ORSemantics_ReadOnlyOnly(t *testing.T) {
 	// A tool with only readOnlyHint=true should match a filter that
 	// includes readOnlyHint=true, even if the filter also includes
 	// idempotentHint=true and the tool doesn't set idempotentHint.
-	filter := &config.AnnotationFilter{
+	filter := &moxyfile.AnnotationFilter{
 		ReadOnlyHint:   boolPtr(true),
 		IdempotentHint: boolPtr(true),
 	}
@@ -30,7 +30,7 @@ func TestAnnotationFilter_ORSemantics_ReadOnlyOnly(t *testing.T) {
 func TestAnnotationFilter_ORSemantics_IdempotentOnly(t *testing.T) {
 	// A tool with only idempotentHint=true should match a filter that
 	// includes readOnlyHint=true OR idempotentHint=true.
-	filter := &config.AnnotationFilter{
+	filter := &moxyfile.AnnotationFilter{
 		ReadOnlyHint:   boolPtr(true),
 		IdempotentHint: boolPtr(true),
 	}
@@ -46,7 +46,7 @@ func TestAnnotationFilter_ORSemantics_IdempotentOnly(t *testing.T) {
 
 func TestAnnotationFilter_ORSemantics_NilAnnotations(t *testing.T) {
 	// A tool with no annotations at all should NOT match any filter.
-	filter := &config.AnnotationFilter{
+	filter := &moxyfile.AnnotationFilter{
 		ReadOnlyHint: boolPtr(true),
 	}
 
@@ -58,7 +58,7 @@ func TestAnnotationFilter_ORSemantics_NilAnnotations(t *testing.T) {
 func TestAnnotationFilter_ORSemantics_NoMatchingHints(t *testing.T) {
 	// A tool whose annotations don't match ANY of the filter's hints
 	// should be rejected.
-	filter := &config.AnnotationFilter{
+	filter := &moxyfile.AnnotationFilter{
 		ReadOnlyHint: boolPtr(true),
 	}
 	annotations := &protocol.ToolAnnotations{
@@ -86,7 +86,7 @@ func TestAnnotationFilter_NilFilter(t *testing.T) {
 
 func TestAnnotationFilter_ORSemantics_SingleHint(t *testing.T) {
 	// Single-hint filter should work like before — exact match required.
-	filter := &config.AnnotationFilter{
+	filter := &moxyfile.AnnotationFilter{
 		ReadOnlyHint: boolPtr(true),
 	}
 	annotations := &protocol.ToolAnnotations{

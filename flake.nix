@@ -1530,7 +1530,7 @@
           # module tree, failing on any diff from the committed source.
           # Backend-independent. `just verify-tommy-codegen` builds this.
           tommy-codegen = moxy.passthru.codegenCheck {
-            command = "go generate ./internal/config/...";
+            command = "go generate ./pkg/moxyfile/...";
             nativeBuildInputs = [ tommy.packages.${system}.default ];
           };
         }

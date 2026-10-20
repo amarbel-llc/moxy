@@ -8,13 +8,13 @@ import (
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
-	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/naming"
 	"code.linenisgreat.com/moxy/internal/toolfilter"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
-func allowSet(entries []string) config.AllowToolSet {
-	return config.Config{AllowTools: entries}.BuildAllowToolSet()
+func allowSet(entries []string) moxyfile.AllowToolSet {
+	return moxyfile.Config{AllowTools: entries}.BuildAllowToolSet()
 }
 
 func keptNames(tools []protocol.ToolV1) []string {
@@ -142,7 +142,7 @@ func TestCallToolAllowGateUnderACustomTemplate(t *testing.T) {
 // the serve surface is built from allow-tools alone, so it is neither listed
 // nor callable.
 func TestPassToolsAreNeitherListedNorCallable(t *testing.T) {
-	cfg, err := config.ParseLiteral([]byte(
+	cfg, err := moxyfile.ParseLiteral([]byte(
 		"allow-tools = [\"folio.read\", \"grit.status\"]\npass-tools = [\"folio.write\", \"grit\", \"restart\"]\n",
 	))
 	if err != nil {

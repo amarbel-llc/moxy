@@ -2,39 +2,22 @@ package native
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"code.linenisgreat.com/moxy/internal/diaglog"
 )
 
-var moxinLogger *log.Logger
-
-func init() {
-	logHome := os.Getenv("XDG_LOG_HOME")
-	if logHome == "" {
-		home, _ := os.UserHomeDir()
-		logHome = filepath.Join(home, ".local", "log")
-	}
-	logDir := filepath.Join(logHome, "moxy")
-	os.MkdirAll(logDir, 0o755)
-	logFile := filepath.Join(logDir, fmt.Sprintf("moxin.%d.log", os.Getpid()))
-	f, err := os.OpenFile(
-		logFile,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o644,
-	)
-	if err == nil {
-		moxinLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-	}
-}
+// moxinLogName is the per-process moxin diagnostic log (moxin.<pid>.log, so
+// concurrent moxy processes do not interleave). Written only once the process
+// has enabled diagnostics (diaglog.Enable).
+var moxinLogName = diaglog.PerProcess("moxin")
 
 func debugMoxin(format string, args ...any) {
-	if moxinLogger != nil {
-		moxinLogger.Printf(format, args...)
-	}
+	diaglog.Printf(moxinLogName, format, args...)
 }
 
 // defaultSystemMoxinDir is set at build time via -ldflags:

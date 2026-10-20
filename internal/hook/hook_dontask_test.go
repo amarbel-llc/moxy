@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"code.linenisgreat.com/moxy/internal/diaglog"
 )
 
 type permissionRequestOutput struct {
@@ -19,14 +21,15 @@ type permissionRequestOutput struct {
 	} `json:"hookSpecificOutput"`
 }
 
-// useTempHooksLogDir points the per-session hook log at a temp dir for the
-// test and returns that dir.
+// useTempHooksLogDir enables the diagnostic logs under a temp log home for
+// the test and returns the per-session hook log directory beneath it. A
+// later Enable repoints the JSONL fire-hose, which resolves its directory on
+// every write, so tests do not leak into each other's dirs.
 func useTempHooksLogDir(t *testing.T) string {
 	t.Helper()
-	prev := hooksLogDir
-	hooksLogDir = t.TempDir()
-	t.Cleanup(func() { hooksLogDir = prev })
-	return hooksLogDir
+	logHome := t.TempDir()
+	diaglog.Enable(logHome)
+	return filepath.Join(logHome, "moxy", "hooks")
 }
 
 func runHook(t *testing.T, input map[string]any) []byte {

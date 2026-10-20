@@ -101,22 +101,20 @@ type Server struct {
 // NewServer constructs a Server from a parsed NativeConfig. The madder
 // backend may be nil for tests that don't exercise large-output
 // caching; tools that produce >tokenThreshold output will then return
-// inline content without a cache URI.
+// inline content without a cache URI. The session identifier starts as
+// "no-session": the caller that knows the session (the binary's
+// CLAUDE_SESSION_ID / SPINCLASS_SESSION_ID chain, an embedder's own id) sets
+// it with SetSession; the library never reads the environment for it.
 func NewServer(cfg *NativeConfig) *Server {
 	idx := make(map[string]*ToolSpec, len(cfg.Tools))
 	for i := range cfg.Tools {
 		idx[cfg.Tools[i].Name] = &cfg.Tools[i]
 	}
 
-	session := os.Getenv("CLAUDE_SESSION_ID")
-	if session == "" {
-		session = "no-session"
-	}
-
 	return &Server{
 		config:  cfg,
 		toolIdx: idx,
-		session: session,
+		session: "no-session",
 	}
 }
 

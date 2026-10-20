@@ -15,13 +15,9 @@ import (
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 
+	"code.linenisgreat.com/moxy/internal/diaglog"
 	"code.linenisgreat.com/moxy/internal/permcheck"
 	"code.linenisgreat.com/moxy/internal/stderrlog"
-)
-
-var (
-	hookLog     *log.Logger
-	hooksLogDir string
 )
 
 var (
@@ -50,33 +46,20 @@ func getResolver() (*permcheck.Resolver, error) {
 	return permResolver, permResolverErr
 }
 
-func init() {
-	logHome := os.Getenv("XDG_LOG_HOME")
-	if logHome == "" {
-		home, _ := os.UserHomeDir()
-		logHome = filepath.Join(home, ".local", "log")
-	}
-	logDir := filepath.Join(logHome, "moxy")
-	os.MkdirAll(logDir, 0o755)
-	f, err := os.OpenFile(
-		filepath.Join(logDir, "hook.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o644,
-	)
-	if err == nil {
-		hookLog = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-	}
-	hooksLogDir = filepath.Join(logDir, "hooks")
-}
-
 // logHookEvent appends the raw hook input (with a timestamp added) to
-// a per-session JSONL file at ~/.local/log/moxy/hooks/{session_id}.jsonl.
-// This is a fire-hose log of every hook invocation — downstream tools
-// like freud filter by hook_event_name as needed.
+// a per-session JSONL file at <log home>/moxy/hooks/{session_id}.jsonl,
+// beside the diagnostic logs diaglog owns (nothing is written while
+// diagnostics are off). This is a fire-hose log of every hook invocation —
+// downstream tools like freud filter by hook_event_name as needed.
 func logHookEvent(raw json.RawMessage, hi hookInput) {
 	if hi.SessionID == "" {
 		return
 	}
+	logDir := diaglog.Dir()
+	if logDir == "" {
+		return
+	}
+	hooksLogDir := filepath.Join(logDir, "hooks")
 
 	// Re-marshal with timestamp injected.
 	var obj map[string]any
@@ -110,9 +93,7 @@ func logHookEvent(raw json.RawMessage, hi hookInput) {
 }
 
 func debugHook(format string, args ...any) {
-	if hookLog != nil {
-		hookLog.Printf(format, args...)
-	}
+	diaglog.Printf("hook", format, args...)
 }
 
 // hookInput mirrors the unexported type in go-mcp/command.

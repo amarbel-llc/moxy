@@ -10,7 +10,7 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
-	"code.linenisgreat.com/moxy/internal/config"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 // probeBackend is a non-native ServerBackend whose Call fails, simulating a
@@ -47,11 +47,11 @@ func TestRestartServerProbesToolsListBeforeSuccess(t *testing.T) {
 	p := &Proxy{
 		children: []ChildEntry{{
 			Client:       oldClient,
-			Config:       config.ServerConfig{Name: "srv"},
+			Config:       moxyfile.ServerConfig{Name: "srv"},
 			Capabilities: protocol.ServerCapabilitiesV1{Tools: &protocol.ToolsCapability{}},
 		}},
-		configs: map[string]config.ServerConfig{"srv": {Name: "srv"}},
-		connectFunc: func(context.Context, config.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error) {
+		configs: map[string]moxyfile.ServerConfig{"srv": {Name: "srv"}},
+		connectFunc: func(context.Context, moxyfile.ServerConfig) (ServerBackend, *protocol.InitializeResultV1, error) {
 			return newClient, &protocol.InitializeResultV1{
 				Capabilities: protocol.ServerCapabilitiesV1{Tools: &protocol.ToolsCapability{}},
 			}, nil

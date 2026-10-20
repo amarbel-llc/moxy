@@ -24,8 +24,8 @@ import (
 
 	"code.linenisgreat.com/moxy/internal/add"
 	"code.linenisgreat.com/moxy/internal/asyncjob"
-	"code.linenisgreat.com/moxy/internal/config"
 	"code.linenisgreat.com/moxy/internal/credentials"
+	"code.linenisgreat.com/moxy/internal/diaglog"
 	"code.linenisgreat.com/moxy/internal/hook"
 	"code.linenisgreat.com/moxy/internal/mcpclient"
 	"code.linenisgreat.com/moxy/internal/naming"
@@ -37,6 +37,7 @@ import (
 	"code.linenisgreat.com/moxy/internal/stderrlog"
 	"code.linenisgreat.com/moxy/internal/streamhttp"
 	"code.linenisgreat.com/moxy/internal/toolfilter"
+	"code.linenisgreat.com/moxy/pkg/moxyfile"
 )
 
 // version and commit are set at build time via -ldflags.
@@ -452,6 +453,12 @@ func newApp() *command.App {
 }
 
 func main() {
+	// The binary keeps every diagnostic log it always had (debug, moxin.<pid>,
+	// lifecycle, hook, streamhttp under $XDG_LOG_HOME/moxy); the packages no
+	// longer open them at init, so an embedder of pkg/moxy writes none unless
+	// it enables them itself (FDR 0014).
+	diaglog.Enable(diaglog.DefaultLogHome())
+
 	app := newApp()
 
 	// install-mcp and generate-plugin use App methods directly.
@@ -555,7 +562,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	// process lifetime.
 	credStore := credentials.NewStore(cfgForCreds.Credentials)
 
-	connectServer := func(ctx context.Context, srvCfg config.ServerConfig) (proxy.ServerBackend, *protocol.InitializeResultV1, error) {
+	connectServer := func(ctx context.Context, srvCfg moxyfile.ServerConfig) (proxy.ServerBackend, *protocol.InitializeResultV1, error) {
 		if srvCfg.IsHTTP() {
 			return connectHTTPServer(ctx, srvCfg, credStore)
 		}
@@ -942,7 +949,7 @@ func closeChildrenWithDeadline(children []proxy.ChildEntry, deadline time.Durati
 	}
 }
 
-func connectHTTPServer(ctx context.Context, cfg config.ServerConfig, store credentials.Store) (*mcpclient.Client, *protocol.InitializeResultV1, error) {
+func connectHTTPServer(ctx context.Context, cfg moxyfile.ServerConfig, store credentials.Store) (*mcpclient.Client, *protocol.InitializeResultV1, error) {
 	var opts []mcpclient.HTTPTransportOption
 
 	// Static headers

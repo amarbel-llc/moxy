@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"path/filepath"
-	"sync"
 	"time"
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/jsonrpc"
+
+	"code.linenisgreat.com/moxy/internal/diaglog"
 )
 
 // heartbeatEnvVar selects the cadence at which handlePost emits keep-alive
@@ -41,32 +40,10 @@ func heartbeatInterval() time.Duration {
 	return d
 }
 
-var (
-	streamhttpLoggerOnce sync.Once
-	streamhttpLogger     *log.Logger
-)
-
+// streamhttpLog writes to the streamhttp diagnostic log, a no-op until the
+// process enables diagnostics (diaglog.Enable).
 func streamhttpLog(format string, args ...any) {
-	streamhttpLoggerOnce.Do(func() {
-		logHome := os.Getenv("XDG_LOG_HOME")
-		if logHome == "" {
-			home, _ := os.UserHomeDir()
-			logHome = filepath.Join(home, ".local", "log")
-		}
-		logDir := filepath.Join(logHome, "moxy")
-		_ = os.MkdirAll(logDir, 0o755)
-		f, err := os.OpenFile(
-			filepath.Join(logDir, "streamhttp.log"),
-			os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-			0o644,
-		)
-		if err == nil {
-			streamhttpLogger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-		}
-	})
-	if streamhttpLogger != nil {
-		streamhttpLogger.Printf(format, args...)
-	}
+	diaglog.Printf("streamhttp", format, args...)
 }
 
 // extractProgressToken returns the JSON-encoded progressToken from a
