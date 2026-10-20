@@ -144,7 +144,7 @@ sub-calls under a single permission prompt. Reach for it when an agent
 needs to invoke a known list of similar destructive operations (e.g.
 deleting 25 tags via `grit.tag`) — without `batch`, each sub-call burns a
 separate approval prompt. Each sub-call's permission is resolved through
-moxy's own `perms-request` machinery (in `internal/permcheck`); `deny` or
+moxy's own `perms-request` machinery (in `pkg/perms`); `deny` or
 unknown (any tool without an explicit moxin perm-request, including
 builtins and child MCP servers) aborts the whole batch with a single
 bailout record, so one wrong tool name nukes the batch — by design.

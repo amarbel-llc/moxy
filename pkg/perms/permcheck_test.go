@@ -1,4 +1,4 @@
-package permcheck
+package perms
 
 import (
 	"context"
@@ -128,6 +128,28 @@ func TestResolve_DynamicNilSpec(t *testing.T) {
 	dec, _ := r.Resolve(context.Background(), "bad.tool", nil, ".")
 	if dec != Unknown {
 		t.Fatalf("dec = %q, want %q (defensive nil-spec branch)", dec, Unknown)
+	}
+}
+
+func TestNewResolverFromConfigs_IndexesDeclaredTiersOnly(t *testing.T) {
+	configs := []*native.NativeConfig{{
+		Name: "fix",
+		Tools: []native.ToolSpec{
+			{Name: "open", PermsRequest: native.PermsAlwaysAllow},
+			{Name: "ask", PermsRequest: native.PermsEachUse},
+			{Name: "plain"},
+		},
+	}}
+	r := NewResolverFromConfigs(configs)
+	ctx := context.Background()
+	if dec, _ := r.Resolve(ctx, "fix.open", nil, "."); dec != Allow {
+		t.Errorf("fix.open = %q, want %q", dec, Allow)
+	}
+	if dec, _ := r.Resolve(ctx, "fix.ask", nil, "."); dec != Ask {
+		t.Errorf("fix.ask = %q, want %q", dec, Ask)
+	}
+	if dec, _ := r.Resolve(ctx, "fix.plain", nil, "."); dec != Unknown {
+		t.Errorf("fix.plain = %q, want %q (no perms-request)", dec, Unknown)
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
-	"code.linenisgreat.com/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 // batchCall is one entry in the batch.calls array.
@@ -34,7 +34,7 @@ type batchParams struct {
 type batchRejection struct {
 	index  int
 	call   batchCall
-	dec    permcheck.Decision
+	dec    perms.Decision
 	reason string
 }
 
@@ -97,7 +97,7 @@ func (p *Proxy) HandleBatch(
 	var rejected []batchRejection
 	for i, c := range params.Calls {
 		dec, reason := p.resolver.Resolve(ctx, c.Tool, c.Args, ".")
-		if dec == permcheck.Allow || dec == permcheck.Ask {
+		if dec == perms.Allow || dec == perms.Ask {
 			continue
 		}
 		rejected = append(rejected, batchRejection{

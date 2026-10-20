@@ -16,17 +16,17 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 
 	"code.linenisgreat.com/moxy/internal/diaglog"
-	"code.linenisgreat.com/moxy/internal/permcheck"
 	"code.linenisgreat.com/moxy/internal/stderrlog"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 var (
-	permResolver     *permcheck.Resolver
+	permResolver     *perms.Resolver
 	permResolverOnce sync.Once
 	permResolverErr  error
 )
 
-// getResolver lazily constructs a shared permcheck.Resolver. Resolvers
+// getResolver lazily constructs a shared perms.Resolver. Resolvers
 // walk MOXIN_PATH at construction; doing it on first hook invocation
 // instead of package init means tests that need a different MOXIN_PATH
 // can set it via t.Setenv before the first call.
@@ -39,9 +39,9 @@ var (
 // purely so `go test`'s long-lived process doesn't leak a resolver between
 // test cases — it has no production counterpart because production never
 // needs one.
-func getResolver() (*permcheck.Resolver, error) {
+func getResolver() (*perms.Resolver, error) {
 	permResolverOnce.Do(func() {
-		permResolver, permResolverErr = permcheck.NewResolver()
+		permResolver, permResolverErr = perms.NewResolver()
 	})
 	return permResolver, permResolverErr
 }
@@ -295,7 +295,7 @@ func permissionRequestDecisionUnderDontAsk(hi hookInput, prefix string) (behavio
 		return "allow", "auto-allowed builtin tool"
 	}
 
-	var decision permcheck.Decision
+	var decision perms.Decision
 	resolved := "no moxin perm-request for " + suffix
 	if serverTool, ok := parseNativeToolName(hi.ToolName, prefix); ok {
 		if resolver, err := getResolver(); err != nil {
@@ -308,9 +308,9 @@ func permissionRequestDecisionUnderDontAsk(hi hookInput, prefix string) (behavio
 	}
 
 	switch decision {
-	case permcheck.Allow:
+	case perms.Allow:
 		return "allow", resolved
-	case permcheck.Deny:
+	case perms.Deny:
 		return "deny", resolved
 	default:
 		return "deny", dontAskDenyReason(hi, resolved)
@@ -482,10 +482,10 @@ func tryAsyncInnerDecision(toolName, prefix string, toolInput map[string]any, cw
 
 	var decStr, decReason string
 	switch decision {
-	case permcheck.Allow:
+	case perms.Allow:
 		decStr = "allow"
 		decReason = fmt.Sprintf("async: inner tool %s is always-allow (%s)", inner, reason)
-	case permcheck.Deny:
+	case perms.Deny:
 		decStr = "deny"
 		decReason = fmt.Sprintf("async: inner tool %s is denied (%s)", inner, reason)
 	default:
@@ -556,10 +556,10 @@ func tryBatchAsyncInnerDecision(toolName, prefix string, toolInput map[string]an
 		}
 		dec, _ := resolver.Resolve(context.Background(), inner, innerArgs, cwd)
 		names = append(names, inner)
-		if dec != permcheck.Allow {
+		if dec != perms.Allow {
 			allAllow = false
 		}
-		if dec == permcheck.Deny {
+		if dec == perms.Deny {
 			denyNames = append(denyNames, inner)
 		}
 	}
@@ -631,11 +631,11 @@ func tryPermsDecision(toolName, prefix string, toolInput map[string]any, cwd str
 
 	var decStr string
 	switch decision {
-	case permcheck.Allow:
+	case perms.Allow:
 		decStr = "allow"
-	case permcheck.Ask:
+	case perms.Ask:
 		decStr = "ask"
-	case permcheck.Deny:
+	case perms.Deny:
 		decStr = "deny"
 	default:
 		return false // Unknown → fall through to client

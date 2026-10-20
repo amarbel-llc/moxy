@@ -31,13 +31,13 @@ import (
 	"code.linenisgreat.com/moxy/internal/naming"
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/internal/oauth"
-	"code.linenisgreat.com/moxy/internal/permcheck"
 	"code.linenisgreat.com/moxy/internal/proxy"
 	"code.linenisgreat.com/moxy/internal/status"
 	"code.linenisgreat.com/moxy/internal/stderrlog"
 	"code.linenisgreat.com/moxy/internal/streamhttp"
 	"code.linenisgreat.com/moxy/internal/toolfilter"
 	"code.linenisgreat.com/moxy/pkg/moxyfile"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 // version and commit are set at build time via -ldflags.
@@ -636,7 +636,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		},
 		p.HandleRestart,
 	)
-	resolver, resolverErr := permcheck.NewResolver()
+	resolver, resolverErr := perms.NewResolver()
 	if resolverErr != nil {
 		fmt.Fprintf(os.Stderr, "moxy: building permission resolver: %v\n", resolverErr)
 	} else {

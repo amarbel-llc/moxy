@@ -12,7 +12,7 @@ import (
 
 	"code.linenisgreat.com/moxy/internal/asyncjob"
 	"code.linenisgreat.com/moxy/internal/native"
-	"code.linenisgreat.com/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 // newTestAsyncManager builds an asyncjob.Manager suitable for these
@@ -35,7 +35,7 @@ func newTestAsyncManager() *asyncjob.Manager {
 func newAsyncProxy(t *testing.T) *Proxy {
 	t.Helper()
 	p := &Proxy{}
-	p.SetResolver(permcheck.NewResolverWithPerms(map[string]permcheck.ToolPermInfo{
+	p.SetResolver(perms.NewResolverWithPerms(map[string]perms.ToolPermInfo{
 		"fake.tool": {Perm: native.PermsAlwaysAllow},
 	}))
 	p.SetAsyncManager(newTestAsyncManager())
@@ -109,7 +109,7 @@ func TestHandleAsyncDispatchesAllowedTool(t *testing.T) {
 // two cases; deny and permit-async=false remain hard rejects (see below).
 func TestHandleAsyncAdmitsUnknownAndAskTools(t *testing.T) {
 	p := &Proxy{}
-	p.SetResolver(permcheck.NewResolverWithPerms(map[string]permcheck.ToolPermInfo{
+	p.SetResolver(perms.NewResolverWithPerms(map[string]perms.ToolPermInfo{
 		"ask.tool": {Perm: native.PermsEachUse},
 		// unknown.tool is deliberately absent → Resolve returns Unknown.
 	}))
@@ -143,7 +143,7 @@ func TestHandleBatchAsyncRunsAsOneJob(t *testing.T) {
 	}
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -211,7 +211,7 @@ func TestHandleBatchAsyncAdmitsAskAndUnknownTiers(t *testing.T) {
 	}
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"ask.tool": {Perm: native.PermsEachUse},
 			// unknown.tool is deliberately absent → Resolve returns Unknown.
 		},
@@ -247,7 +247,7 @@ func TestHandleBatchAsyncAdmitsAskAndUnknownTiers(t *testing.T) {
 func TestHandleBatchAsyncRejectsDenyTier(t *testing.T) {
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"deny.tool": {Perm: native.PermsDynamic, DynamicPerms: &native.DynamicPermsSpec{
 				Command: "sh",
 				Args:    []string{"-c", "exit 2"},
@@ -276,7 +276,7 @@ func TestHandleBatchAsyncRejectsDenyTier(t *testing.T) {
 func TestHandleAsyncRejectsPermitAsyncFalse(t *testing.T) {
 	noAsync := false
 	p := &Proxy{}
-	p.SetResolver(permcheck.NewResolverWithPerms(map[string]permcheck.ToolPermInfo{
+	p.SetResolver(perms.NewResolverWithPerms(map[string]perms.ToolPermInfo{
 		"fake.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
 	}))
 	p.SetAsyncManager(newTestAsyncManager())
@@ -352,7 +352,7 @@ func TestHandleAsyncRejectsBuiltinTool(t *testing.T) {
 func TestHandleBatchAsyncRejectsBuiltinSubCall(t *testing.T) {
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -383,7 +383,7 @@ func TestHandleBatchAsyncRejectsBuiltinSubCall(t *testing.T) {
 // another.
 func TestAsyncEligible(t *testing.T) {
 	noAsync := false
-	p := newProxyWithResolverAndDispatch(t, map[string]permcheck.ToolPermInfo{
+	p := newProxyWithResolverAndDispatch(t, map[string]perms.ToolPermInfo{
 		"allow.tool":   {Perm: native.PermsAlwaysAllow},
 		"ask.tool":     {Perm: native.PermsEachUse},
 		"noasync.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
@@ -427,7 +427,7 @@ func TestAsyncEligible(t *testing.T) {
 // caught immediately instead of silently reintroducing that class of bug.
 func TestAsyncEligible_HandleAsyncAndHandleBatchAsyncAgree(t *testing.T) {
 	noAsync := false
-	perms := map[string]permcheck.ToolPermInfo{
+	tiers := map[string]perms.ToolPermInfo{
 		"allow.tool":   {Perm: native.PermsAlwaysAllow},
 		"ask.tool":     {Perm: native.PermsEachUse},
 		"noasync.tool": {Perm: native.PermsAlwaysAllow, PermitAsync: &noAsync},
@@ -453,11 +453,11 @@ func TestAsyncEligible_HandleAsyncAndHandleBatchAsyncAgree(t *testing.T) {
 		{"builtin", "restart", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			pSingle := newProxyWithResolverAndDispatch(t, perms,
+			pSingle := newProxyWithResolverAndDispatch(t, tiers,
 				func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 					return okResult, nil
 				})
-			pBatch := newProxyWithResolverAndDispatch(t, perms,
+			pBatch := newProxyWithResolverAndDispatch(t, tiers,
 				func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 					return okResult, nil
 				})

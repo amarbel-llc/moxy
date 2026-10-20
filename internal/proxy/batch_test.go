@@ -10,7 +10,7 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
 	"code.linenisgreat.com/moxy/internal/native"
-	"code.linenisgreat.com/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 // newProxyWithResolverAndDispatch builds a Proxy stub wired with a
@@ -19,12 +19,12 @@ import (
 // production bootstrap and the MOXIN_PATH walk.
 func newProxyWithResolverAndDispatch(
 	t *testing.T,
-	perms map[string]permcheck.ToolPermInfo,
+	tiers map[string]perms.ToolPermInfo,
 	dispatch func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error),
 ) *Proxy {
 	t.Helper()
 	p := &Proxy{}
-	p.SetResolver(permcheck.NewResolverWithPerms(perms))
+	p.SetResolver(perms.NewResolverWithPerms(tiers))
 	p.dispatchSubCall = dispatch
 	return p
 }
@@ -36,7 +36,7 @@ func TestBatch_AllAllow_Sequential(t *testing.T) {
 	var calls []string
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -82,7 +82,7 @@ func TestBatch_OnErrorStop_DefaultsToStop(t *testing.T) {
 	var calls []string
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -130,7 +130,7 @@ func TestBatch_OnErrorStop_MultipleSkipsCorrectIndex(t *testing.T) {
 	var calls []string
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -180,7 +180,7 @@ func TestBatch_OnErrorContinue(t *testing.T) {
 	var calls []string
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -216,7 +216,7 @@ func TestBatch_OnErrorContinue(t *testing.T) {
 func TestBatch_PreflightDeny(t *testing.T) {
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			// No tools registered → every sub-call resolves Unknown
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -265,7 +265,7 @@ func TestBatch_MalformedJSON(t *testing.T) {
 func TestBatch_TransportError(t *testing.T) {
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
@@ -297,7 +297,7 @@ func TestBatch_NonTextContent(t *testing.T) {
 	}
 	p := newProxyWithResolverAndDispatch(
 		t,
-		map[string]permcheck.ToolPermInfo{
+		map[string]perms.ToolPermInfo{
 			"fake.tool": {Perm: native.PermsAlwaysAllow},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {

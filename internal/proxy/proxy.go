@@ -18,11 +18,11 @@ import (
 	"code.linenisgreat.com/moxy/internal/naming"
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/internal/paginate"
-	"code.linenisgreat.com/moxy/internal/permcheck"
 	"code.linenisgreat.com/moxy/internal/statsd"
 	"code.linenisgreat.com/moxy/internal/toolexclude"
 	"code.linenisgreat.com/moxy/internal/toolfilter"
 	"code.linenisgreat.com/moxy/pkg/moxyfile"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 // MoxinReloader re-discovers a single moxin's config by name from the
@@ -103,7 +103,7 @@ type Proxy struct {
 	sessionID                   string
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
-	resolver                    *permcheck.Resolver
+	resolver                    *perms.Resolver
 	toolFilter                  toolfilter.Filter     // which tool categories to expose; default All()
 	toolExclude                 toolexclude.Set       // dynamic per-name/per-server deny-set; default excludes nothing
 	toolAllow                   moxyfile.AllowToolSet // moxyfile allow-tools allowlist; default unrestricted
@@ -237,12 +237,12 @@ func (p *Proxy) SetBootstrapper(b Bootstrapper) {
 	p.bootstrapper = b
 }
 
-// SetResolver wires the permcheck.Resolver used by the batch builtin
+// SetResolver wires the perms.Resolver used by the batch builtin
 // (and any other consumer that needs to resolve a moxin tool's perm
 // decision). Resolvers are constructed at startup in cmd/moxy and
 // passed in via this setter so the proxy can be tested without doing
 // a MOXIN_PATH walk.
-func (p *Proxy) SetResolver(r *permcheck.Resolver) {
+func (p *Proxy) SetResolver(r *perms.Resolver) {
 	p.resolver = r
 }
 

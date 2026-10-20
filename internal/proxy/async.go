@@ -11,7 +11,7 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
 
 	"code.linenisgreat.com/moxy/internal/asyncjob"
-	"code.linenisgreat.com/moxy/internal/permcheck"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 // SetAsyncManager wires the async job manager. Built in cmd/moxy with the
@@ -81,12 +81,12 @@ func (p *Proxy) asyncEligible(
 	ctx context.Context,
 	tool string,
 	args json.RawMessage,
-) (kind asyncRejectKind, dec permcheck.Decision, reason string) {
+) (kind asyncRejectKind, dec perms.Decision, reason string) {
 	if p.hasBuiltinTool(tool) {
-		return asyncRejectBuiltin, permcheck.Unknown, builtinAsyncRefusal(tool)
+		return asyncRejectBuiltin, perms.Unknown, builtinAsyncRefusal(tool)
 	}
 	dec, reason = p.resolver.Resolve(ctx, tool, args, ".")
-	if dec == permcheck.Deny {
+	if dec == perms.Deny {
 		return asyncRejectDeny, dec, reason
 	}
 	if !p.resolver.PermitsAsync(tool) {

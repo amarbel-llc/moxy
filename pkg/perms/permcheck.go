@@ -1,10 +1,15 @@
-// Package permcheck resolves moxin tool permission decisions.
+// Package perms resolves moxin tool permission decisions and carries the
+// serve-time permission policy (FDR 0014; formerly internal/permcheck).
 //
-// It mirrors the resolver previously embedded in internal/hook. The
-// PreToolUse hook adapter and the proxy's batch meta-tool both call
-// Resolver.Resolve to decide whether a given tool call is allowed,
-// asked, denied, or unknown (deny-by-default for non-moxin tools).
-package permcheck
+// The Resolver answers, for one "server.tool" call, whether its declared
+// tier allows it, asks, denies, or is unknown (no perms-request; the
+// default for every non-moxin tool). The Claude Code PreToolUse hook, the
+// proxy's batch and async meta tools, and — under an enforcing Policy
+// (moxy#486) — the call funnel itself all consult it. An embedder hands a
+// Policy to pkg/moxy to say who answers at serve time.
+//
+// Stability: pre-1.0, with pkg/moxy.
+package perms
 
 import (
 	"context"
@@ -118,6 +123,15 @@ func NewResolverWithPerms(perms map[string]ToolPermInfo) *Resolver {
 	return &Resolver{perms: perms}
 }
 
+// NewResolverFromConfigs constructs a resolver over moxin configs the
+// caller has already discovered, so an embedder (FDR 0014) resolves against
+// exactly the moxins it serves instead of re-walking the environment. The
+// hook keeps NewResolver: it has no discovery of its own and the env is its
+// contract.
+func NewResolverFromConfigs(configs []*native.NativeConfig) *Resolver {
+	return &Resolver{perms: permsFromConfigs(configs)}
+}
+
 // discoverPermissions walks MOXIN_PATH and the system moxin dir, then
 // returns a map of "server.tool" names to their perm info.
 func discoverPermissions() (map[string]ToolPermInfo, error) {
@@ -127,6 +141,12 @@ func discoverPermissions() (map[string]ToolPermInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	return permsFromConfigs(configs), nil
+}
+
+// permsFromConfigs indexes every tool with an explicit perms-request by its
+// "server.tool" name; tools without one are omitted and resolve Unknown.
+func permsFromConfigs(configs []*native.NativeConfig) map[string]ToolPermInfo {
 	perms := make(map[string]ToolPermInfo)
 	for _, cfg := range configs {
 		for _, tool := range cfg.Tools {
@@ -139,5 +159,5 @@ func discoverPermissions() (map[string]ToolPermInfo, error) {
 			}
 		}
 	}
-	return perms, nil
+	return perms
 }
