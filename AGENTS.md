@@ -89,9 +89,12 @@ config kept outside the `$HOME`→`$CWD` walk.
 C over P" but "C grants no more than P", for a spawner handing a child a
 toolset. `pkg/narrowing.Check` defines it; `moxy narrows` reports it;
 `MOXY_PARENT_MOXYFILE` makes a serving moxy enforce it on itself.
-`cmd/moxy/narrowing.go`'s `loadServingConfig` is the only way a moxyfile
-becomes running tools (startup, reload, single-moxin reload) --- load config
-through it, never `moxyfile.LoadHierarchy` directly, or a reload can widen.
+`pkg/moxy`'s `serving` (refuseUnlessNarrows, in `pkg/moxy/serving.go`) is
+the only way a moxyfile becomes running tools (startup, reload, single-moxin
+reload) --- load config through `moxy.Prepare` / `Open`, never
+`moxyfile.LoadHierarchy` directly, or a reload can widen. The binary reads
+`MOXY_PARENT_MOXYFILE` in `cmd/moxy/serve.go` and hands it to the library as
+`Options.Parent`; the library itself reads no environment.
 `allow-tools` (intersected across layers, enforced in the proxy at list and
 call) is the fail-closed allowlist; `pass-tools` (moxy#459) holds tools at a
 level below it, conferrable on a child but never served. The rules are in
@@ -330,9 +333,15 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
 
 ### Key Packages
 
-- `pkg/moxy` -- the embedding facade (FDR 0014, moxy#487): the one
-  implementation the serve entry points and an in-process embedder share;
-  filling in step by step, `Version()` first
+- `pkg/moxy` -- the embedding facade (FDR 0014, moxy#487): `Prepare` /
+  `Open` turn Options (a moxyfile source, the parent reference, MOXIN_PATH,
+  a `perms.Policy`, the blob store) into an `Instance` — bootstrap, child
+  spawn, meta tools, the funnel — that implements go-mcp's provider
+  interfaces; `Call` adds a caller and returns the decision and blob
+  references. `moxy serve mcp` / `serve-http` (`cmd/moxy/serve.go`) are
+  thin transports over it, so there is one implementation
+- `pkg/perms` -- the permission resolver (`Decision`, `Resolver`) and the
+  serve-time `Policy` (Delegate / Enforce, moxy#486)
 - `pkg/moxyfile` -- moxyfile parsing, hierarchy loading, merge semantics
 - `internal/mcpclient` -- JSON-RPC client that spawns and manages child
   processes. `stdioreader.go` is moxy's own `transport.Transport` for stdio

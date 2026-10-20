@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-	"sync"
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 
@@ -18,7 +16,9 @@ import (
 
 // parentMoxyfileEnv names the rendered effective moxyfile of whoever spawned
 // this moxy. When set, moxy serves only a config that narrows it — see
-// moxyfile(5) NARROWING and docs/features/0013-moxyfile-narrowing.md.
+// moxyfile(5) NARROWING and docs/features/0013-moxyfile-narrowing.md. The
+// serve entry points load it with moxy.LoadParentReference and hand it to
+// the library as Options.Parent (FDR 0014); the judging lives in pkg/moxy.
 const parentMoxyfileEnv = "MOXY_PARENT_MOXYFILE"
 
 // Exit codes of `moxy narrows`. A caller must be able to tell "this child
@@ -29,203 +29,6 @@ const (
 	exitUnreadable = 2
 )
 
-// wideningError is a refusal to serve: the effective moxyfile grants more than
-// the parent reference allows. Its message carries one line per violation so
-// the refusal is legible wherever it surfaces — moxy's stderr at startup, the
-// restart tool's result on reload.
-type wideningError struct {
-	parentPath string
-	violations []narrowing.Violation
-}
-
-func (e *wideningError) Error() string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "effective moxyfile does not narrow %s (%s):", parentMoxyfileEnv, e.parentPath)
-	for _, v := range e.violations {
-		b.WriteString("\n")
-		b.WriteString(v.String())
-	}
-	return b.String()
-}
-
-// servingConfig is an effective moxyfile on its way to being served: read
-// once, in its literal form, together with the parent reference it must
-// narrow. Every path that turns a moxyfile into running tools — startup, a
-// full reload, a single-moxin reload — loads one, calls refuseUnlessNarrows
-// with the moxins it is about to serve, and only then takes expanded(). So
-// editing the moxyfile and calling `restart` cannot widen a running moxy, and
-// what is served is exactly what was judged.
-type servingConfig struct {
-	literal    moxyfile.Config
-	parentPath string          // "" when MOXY_PARENT_MOXYFILE is unset
-	parent     moxyfile.Config // meaningful only when parentPath != ""
-}
-
-func loadServingConfig() (servingConfig, error) {
-	hierarchy, err := moxyfile.LoadDefaultHierarchyLiteral()
-	if err != nil {
-		return servingConfig{}, err
-	}
-	ref := pinnedParentReference()
-	if ref.err != nil {
-		return servingConfig{}, ref.err
-	}
-	return servingConfig{literal: hierarchy.Merged, parentPath: ref.path, parent: ref.cfg}, nil
-}
-
-type parentReference struct {
-	path string // "" when MOXY_PARENT_MOXYFILE is unset
-	cfg  moxyfile.Config
-	err  error
-}
-
-// pinnedParentReference reads MOXY_PARENT_MOXYFILE once per process and
-// returns that same reading ever after. The reference is what every reload is
-// judged against; were it re-read, whoever can write the file — possibly the
-// very agent being confined — could widen it and then call `restart`.
-var pinnedParentReference = sync.OnceValue(readParentReference)
-
-// startupAllowTools pins, once per process, the allow-tools set this process
-// was actually serving right after the first successful judging that decides
-// what is served — bootstrap()'s own first call, genuine startup, before any
-// `restart` has run (moxy#461); never loadJudgedConfigAtStartup's separate,
-// earlier preflight read, which exists only to unlock credential setup and
-// is not what ends up served (see refuseUnlessNarrows's pin parameter). A
-// later reload's refuseUnlessNarrows compares against the pinned set via
-// narrowing.CheckReload: a tool the parent reference holds at pass may reach
-// use only if it was already there at startup, so the operator's own choice
-// is what a reload can never exceed for such a tool. A plain sync.OnceValue
-// cannot express this: its zero-ish "not yet pinned" state would be
-// indistinguishable from the perfectly meaningful nil AllowToolSet
-// (unrestricted at startup), so pinned is tracked explicitly instead.
-var startupAllowTools struct {
-	mu     sync.Mutex
-	pinned bool
-	set    moxyfile.AllowToolSet
-}
-
-func pinStartupAllowTools(set moxyfile.AllowToolSet) {
-	startupAllowTools.mu.Lock()
-	defer startupAllowTools.mu.Unlock()
-	if startupAllowTools.pinned {
-		return
-	}
-	startupAllowTools.pinned, startupAllowTools.set = true, set
-}
-
-func readStartupAllowTools() (pinned bool, set moxyfile.AllowToolSet) {
-	startupAllowTools.mu.Lock()
-	defer startupAllowTools.mu.Unlock()
-	return startupAllowTools.pinned, startupAllowTools.set
-}
-
-func readParentReference() parentReference {
-	path := os.Getenv(parentMoxyfileEnv)
-	if path == "" {
-		return parentReference{}
-	}
-	fail := func(err error) parentReference {
-		return parentReference{path: path, err: fmt.Errorf("%s: %w", parentMoxyfileEnv, err)}
-	}
-	// An empty file parses as an empty config, which as a parent would
-	// constrain almost nothing. It is far more likely a render that failed
-	// than a reference anyone meant, so it is refused rather than obeyed.
-	// A relative path would name a different file from every working
-	// directory, the child's own included.
-	if !filepath.IsAbs(path) {
-		return fail(fmt.Errorf("%s is not an absolute path", path))
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fail(err)
-	}
-	if strings.TrimSpace(string(data)) == "" {
-		return fail(fmt.Errorf("%s is empty", path))
-	}
-	parent, err := moxyfile.LoadFileLiteral(path)
-	if err != nil {
-		return fail(err)
-	}
-	cfg := parent.Merged
-	// A reference with no moxin record says nothing about which moxins the
-	// parent had. For a process about to serve, "nothing" must not mean "any":
-	// the default MOXIN_PATH includes the working directory's own
-	// .moxy/moxins. So an absent record is read as an empty one, and a child
-	// that reaches any moxin under such a reference is refused.
-	if cfg.ResolvedMoxins == nil {
-		cfg.ResolvedMoxins = map[string]string{}
-	}
-	return parentReference{path: path, cfg: cfg}
-}
-
-// judgesMoxins reports whether the parent reference bounds which moxins may
-// be served, i.e. whether working out the moxin set is worth it before
-// refuseUnlessNarrows.
-func (sc servingConfig) judgesMoxins() bool {
-	return sc.parentPath != "" && sc.parent.ResolvedMoxins != nil
-}
-
-// refuseUnlessNarrows judges the config against the parent reference. moxins
-// is the name-to-directory set the caller is about to serve; it stands in for
-// whatever resolved-moxins record the moxyfile itself carries, which is never
-// trusted. A nil moxins skips the moxin rule and is only right when
-// judgesMoxins is false.
-//
-// This is the one choke point every path that turns a moxyfile into running
-// tools shares (see servingConfig's own doc comment), so it is also the one
-// place that checks the startup allow-tools snapshot (moxy#461). pin says
-// whether THIS call, if it succeeds, is the moment to record that snapshot
-// (the first time it hasn't been yet) — true from bootstrap() and
-// moxinReloaderImpl.ReloadMoxin, the calls that decide what is actually
-// served; false from loadJudgedConfigAtStartup, a preflight read for
-// credential setup alone, so its own earlier, separate read of the same
-// moxyfile never becomes the permanent baseline in bootstrap's place.
-func (sc servingConfig) refuseUnlessNarrows(moxins map[string]string, pin bool) error {
-	if sc.parentPath == "" {
-		return nil
-	}
-	judged := sc.literal
-	judged.ResolvedMoxins = moxins
-	pinned, startup := readStartupAllowTools()
-	if violations := narrowing.CheckReload(sc.parent, judged, pinned, startup); len(violations) > 0 {
-		return &wideningError{parentPath: sc.parentPath, violations: violations}
-	}
-	if pin && !pinned {
-		pinStartupAllowTools(judged.BuildAllowToolSet())
-	}
-	return nil
-}
-
-// expanded is the config to serve: the judged text with header $VARs expanded.
-func (sc servingConfig) expanded() moxyfile.Config {
-	return moxyfile.ExpandHeaders(sc.literal)
-}
-
-// loadJudgedConfigAtStartup loads and judges the moxyfile before anything is
-// started, against the moxins discovery finds in this environment. bootstrap
-// judges again against the moxins it actually loads; this earlier pass exists
-// so a refusal is the first thing a launcher sees.
-func loadJudgedConfigAtStartup() (moxyfile.Config, error) {
-	sc, err := loadServingConfig()
-	if err != nil {
-		return moxyfile.Config{}, err
-	}
-	var moxins map[string]string
-	if sc.judgesMoxins() {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return moxyfile.Config{}, err
-		}
-		if moxins, err = resolvedMoxinsFor(sc.literal, cwd); err != nil {
-			return moxyfile.Config{}, fmt.Errorf("discovering moxins: %w", err)
-		}
-	}
-	if err := sc.refuseUnlessNarrows(moxins, false); err != nil {
-		return moxyfile.Config{}, err
-	}
-	return sc.expanded(), nil
-}
-
 // resolvedMoxinsFor reports the moxins a moxy serving cfg from dir would
 // discover, by name and source directory: MOXIN_PATH (or the default
 // hierarchy under dir), then the system moxins unless cfg turns them off.
@@ -235,13 +38,6 @@ func resolvedMoxinsFor(cfg moxyfile.Config, dir string) (map[string]string, erro
 		dir,
 		native.SystemMoxinDirFor(cfg.BuiltinNative),
 	)
-}
-
-// logReloadRefused records a failed reload in moxy's own log. The error also
-// goes back to the MCP client as the restart tool's result; either way the
-// running configuration is left as it was.
-func logReloadRefused(err error) {
-	fmt.Fprintf(os.Stderr, "moxy: reload refused, keeping the running configuration: %v\n", err)
 }
 
 func addNarrowingCommands(app *command.App) {

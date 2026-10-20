@@ -1,19 +1,21 @@
 ---
-status: proposed
+status: experimental
 date: 2026-10-20
 issue: moxy#487
 related: moxy#485, moxy#486, FDR 0004 (async), FDR 0011 (dispatch-time consent),
   FDR 0013 (narrowing); clown FDR 0021 (headless agent loop), clown#249
   (godyn go.nix), clown#258 (juggler extraction)
 promotion-criteria: >
-  proposed → experimental when `pkg/moxy` exists with Open / Tools / Call /
-  Close, a Go test under `pkg/moxy` drives a fixture moxin through the public
-  surface with no CLI involved, `moxy serve mcp` and `moxy serve-http` are
-  thin wrappers over it with every existing Go and bats test green, and
-  `nix build .#go-pkgs` produces a consumable producer tree. experimental →
-  testing when clown (or the extracted juggler) links `code.linenisgreat.com/moxy/pkg/moxy`
-  through its go.nix bridge and a headless worker calls a moxin tool in
-  process under an enforce policy (moxy#486).
+  proposed → experimental — DONE (steps 1-6 merged): `pkg/moxy` has
+  Prepare / Open / Tools / Call / Servers / Restart / Reload / Close, the Go
+  tests under `pkg/moxy` drive a fixture moxin through the public surface
+  with no CLI, `moxy serve mcp` and `moxy serve-http` are thin transports
+  over an Instance (cmd/moxy/serve.go) with every Go and bats test green,
+  and `nix build .#go-pkgs` produces the producer tree. experimental →
+  testing when clown (or the extracted juggler) links
+  `code.linenisgreat.com/moxy/pkg/moxy` through its go.nix bridge and a
+  headless worker calls a moxin tool in process under an enforce policy
+  (moxy#486).
 ---
 
 # Moxy as an embeddable Go library (`pkg/moxy`)
