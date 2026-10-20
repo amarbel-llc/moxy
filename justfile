@@ -447,7 +447,7 @@ debug-sleep seconds="300":
 # run a focused Go test by name pattern in one package via godyn-test
 [group("debug")]
 debug-go-test dir pattern='':
-  MOXIN_PATH="" nix run --inputs-from . igloo#godyn-test -- -A packages.$(nix eval --impure --raw --expr builtins.currentSystem).moxy-native {{dir}} --{{ if pattern == '' { '' } else { quote('-test.run=' + pattern) } }} -test.v
+  MOXIN_PATH="" nix run --inputs-from . igloo#godyn-test -- -A packages.$(nix eval --impure --raw --expr builtins.currentSystem).moxy-native {{dir}} -- {{ if pattern == '' { '' } else { quote('-test.run=' + pattern) } }} -test.v
 
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
