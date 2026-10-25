@@ -12,13 +12,23 @@ raw=$(case "$src" in
 esac)
 # Extract a section by name from raw roff source.
 # Handles both mdoc(7) (.Sh/.Ss) and man(7) (.SH/.SS) macros at any heading level.
-result=$(awk -v target="$section_name" '
-BEGIN { found=0; IGNORECASE=1 }
+# The requested title travels via the environment, not `awk -v`: -v processes
+# backslash escapes, which mangles roff-escaped titles (moxy#446). Both the
+# requested title and each roff heading are normalised to one form (roff
+# escapes for hyphen/arrow/zero-width resolved, case folded) before comparing.
+result=$(SECTION_TARGET="$section_name" awk '
+function norm(s) {
+  gsub(/\\-/, "-", s)
+  gsub(/\\\(->/, "→", s)
+  gsub(/\\&/, "", s)
+  return tolower(s)
+}
+BEGIN { found=0; IGNORECASE=1; target = norm(ENVIRON["SECTION_TARGET"]) }
 /^\.(Sh|SH|Ss|SS) / {
   if (found) exit
   name = $0; sub(/^\.(Sh|SH|Ss|SS) /, "", name)
   gsub(/^"|"$/, "", name)
-  if (tolower(name) == tolower(target)) found=1
+  if (norm(name) == target) found=1
 }
 found { print }
 ' <<< "$raw") || true
