@@ -147,13 +147,6 @@ func rank(d Decision) int {
 	return 0
 }
 
-func stricter(a, b Decision) Decision {
-	if rank(b) > rank(a) {
-		return b
-	}
-	return a
-}
-
 // gateResult is what the gate said about one call's resources.
 type gateResult struct {
 	dec      Decision
