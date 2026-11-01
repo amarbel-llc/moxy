@@ -342,6 +342,18 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   thin transports over it, so there is one implementation
 - `pkg/perms` -- the permission resolver (`Decision`, `Resolver`) and the
   serve-time `Policy` (Delegate / Enforce, moxy#486)
+- `pkg/policybroker` -- the policy-broker client (RFC 0002, moxy#491): a
+  standing NDJSON connection to the broker `CLOWN_POLICY_BROKER` names (unix
+  path, or host:port when confined), hello both ways, a per-resource
+  `check {subject, op, resource}` with a deadline, verdicts allow/ask/deny,
+  reconnect with backoff. It implements `perms.Gate`; `moxy serve` builds it
+  from the environment (`policybroker.FromEnv`) and hands it to the library as
+  `Options.Gate`, and the PreToolUse hook is its second, per-process client
+  (`internal/hook/broker.go`). The static floor (a tool's `[dynamic-perms]`,
+  e.g. `folio-perms`) applies only when the broker gave no answer; unset
+  variable = no gate = behaviour exactly as before. Tools name their resource
+  inputs in `[resources.<input>]` (moxin(7) RESOURCES; folio's tools and
+  `rg.search`). `fakebroker` is the in-process test double
 - `pkg/moxyfile` -- moxyfile parsing, hierarchy loading, merge semantics
 - `internal/mcpclient` -- JSON-RPC client that spawns and manages child
   processes. `stdioreader.go` is moxy's own `transport.Transport` for stdio

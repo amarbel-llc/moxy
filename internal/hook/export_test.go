@@ -7,6 +7,10 @@ import "sync"
 // hook invocation. Lives in *_test.go so the production binary doesn't
 // ship a reset path that could race with concurrent hook calls.
 func resetResolverForTest() {
+	if permGate != nil {
+		permGate.close()
+		permGate = nil
+	}
 	permResolver = nil
 	permResolverErr = nil
 	permResolverOnce = sync.Once{}

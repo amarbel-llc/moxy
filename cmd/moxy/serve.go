@@ -19,6 +19,7 @@ import (
 	"code.linenisgreat.com/moxy/internal/streamhttp"
 	"code.linenisgreat.com/moxy/pkg/moxy"
 	"code.linenisgreat.com/moxy/pkg/perms"
+	"code.linenisgreat.com/moxy/pkg/policybroker"
 )
 
 type transportMode int
@@ -59,13 +60,28 @@ func serveOptions(app *command.App, expose, nameTemplate, permissions string) (m
 		o.Parent = parent
 		o.ParentLabel = fmt.Sprintf("%s (%s)", parentMoxyfileEnv, path)
 	}
+	// CLOWN_POLICY_BROKER (RFC 0002): unset leaves Gate nil, which is exactly
+	// the behaviour without a broker, standalone serve-http included.
+	if client := policybroker.FromEnv(os.Getenv, liveStderr{}, "moxy "+app.Version); client != nil {
+		o.Gate = client
+	}
 	return o, sessionSource, nil
 }
+
+// liveStderr writes to whatever os.Stderr is at the time of the write, so the
+// broker client's connection notices follow the per-session log redirect
+// stderrlog.Init installs after serveOptions has run.
+type liveStderr struct{}
+
+func (liveStderr) Write(p []byte) (int, error) { return os.Stderr.Write(p) }
 
 func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTemplate, permissions string) error {
 	opts, sessionSource, err := serveOptions(app, expose, nameTemplate, permissions)
 	if err != nil {
 		return err
+	}
+	if client, ok := opts.Gate.(*policybroker.Client); ok {
+		defer client.Close()
 	}
 
 	// Load and judge the moxyfile (MOXY_PARENT_MOXYFILE) before stderr is

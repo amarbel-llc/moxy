@@ -24,6 +24,7 @@ var (
 	permResolver     *perms.Resolver
 	permResolverOnce sync.Once
 	permResolverErr  error
+	permGate         *hookGate
 )
 
 // getResolver lazily constructs a shared perms.Resolver. Resolvers
@@ -42,6 +43,14 @@ var (
 func getResolver() (*perms.Resolver, error) {
 	permResolverOnce.Do(func() {
 		permResolver, permResolverErr = perms.NewResolver()
+		if permResolverErr == nil {
+			// The policy broker's second client (RFC 0002 section 9); nil
+			// without CLOWN_POLICY_BROKER, which leaves the floor alone.
+			if g := brokerGate(); g != nil {
+				permGate = g
+				permResolver.SetGate(g)
+			}
+		}
 	})
 	return permResolver, permResolverErr
 }
