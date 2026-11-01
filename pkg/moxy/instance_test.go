@@ -146,6 +146,26 @@ type = "object"
 command = "bash"
 args = ["-c", "exit 2"]
 `)
+	write("dynfile.toml", `schema = 3
+result-type = "text"
+content-type = "text/plain"
+perms-request = "dynamic"
+description = "dynamic tool taking a file resource; its predicate asks"
+command = "bash"
+args = ["-c", "printf 'ran dynfile'"]
+
+[input]
+type = "object"
+properties = { path = { type = "string" } }
+
+[resources.path]
+op = "read"
+
+[dynamic-perms]
+command = "bash"
+args = ["-c", "exit 1", "floor"]
+arg-order = ["path"]
+`)
 	return root
 }
 
@@ -237,12 +257,12 @@ func TestServersReportsTheFixtureRunning(t *testing.T) {
 	inst := openFixture(t, nil)
 	var seen bool
 	for _, s := range inst.Servers(context.Background()) {
-		if s.Name == "fix" && s.Status == "running" && s.Tools == 4 {
+		if s.Name == "fix" && s.Status == "running" && s.Tools == 5 {
 			seen = true
 		}
 	}
 	if !seen {
-		t.Fatalf("Servers = %+v, want fix running with 4 tools", inst.Servers(context.Background()))
+		t.Fatalf("Servers = %+v, want fix running with 5 tools", inst.Servers(context.Background()))
 	}
 }
 

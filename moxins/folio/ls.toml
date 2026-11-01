@@ -22,6 +22,9 @@ description = "Optional flags passed to ls (e.g. \"-la\", \"-lh\"). When provide
 read-only-hint = true
 idempotent-hint = true
 
+[resources.path]
+op = "read"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["read"]

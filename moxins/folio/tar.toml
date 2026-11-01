@@ -28,6 +28,9 @@ description = "Grep pattern to filter the listing (e.g. 'bin/' or '\\.toml$'). O
 read-only-hint = true
 idempotent-hint = true
 
+[resources.path]
+op = "read"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["read"]

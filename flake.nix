@@ -901,7 +901,11 @@
               ];
               pathMode = "suffix";
             };
-        rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] { };
+        # rg.search's static floor is folio's read rule (#490): one script, the
+        # folio moxin's wrapped copy, so the two cannot drift.
+        rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {
+          extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+        };
 
         # gws moxins: built, but unshipped (#391) — see the gws-bin block above
         # and unshippedMoxins below.

@@ -36,11 +36,15 @@ type ToolPermInfo struct {
 	// PermitAsync mirrors the tool's `permit-async` TOML key (#317).
 	// nil = omitted = async-eligible; only explicit false forbids.
 	PermitAsync *bool
+	// Resources are the inputs that name files or blobs (moxy#491). A gate,
+	// when installed, is asked about each; the tier below is the floor.
+	Resources []native.ResourceArg
 }
 
 // Resolver caches the moxin perms map and resolves decisions per call.
 type Resolver struct {
 	perms map[string]ToolPermInfo
+	gate  Gate // policy broker (RFC 0002); nil = the tier alone decides
 }
 
 // NewResolver walks MOXIN_PATH (and the system moxin dir) once and
@@ -67,6 +71,25 @@ func (r *Resolver) Resolve(
 	if !ok {
 		return Unknown, "no moxin perm-request for " + toolName
 	}
+	// A gate verdict on every resource is final: it may be looser or stricter
+	// than the tier's script, which is the static floor and applies only when
+	// the gate gave no answer (RFC 0002 section 6). A partial answer never
+	// widens the floor: the stricter of the two stands.
+	if g := r.consult(ctx, info, args, cwd); g.any {
+		if g.complete {
+			return g.dec, "policy broker: " + g.reason
+		}
+		floor, floorReason := r.resolveTier(ctx, info, args, cwd)
+		if rank(g.dec) > rank(floor) {
+			return g.dec, "policy broker: " + g.reason
+		}
+		return floor, floorReason
+	}
+	return r.resolveTier(ctx, info, args, cwd)
+}
+
+// resolveTier resolves the tool's declared tier: the floor.
+func (r *Resolver) resolveTier(ctx context.Context, info ToolPermInfo, args json.RawMessage, cwd string) (Decision, string) {
 	switch info.Perm {
 	case native.PermsAlwaysAllow:
 		return Allow, "always-allow by moxin config"
@@ -155,6 +178,7 @@ func permsFromConfigs(configs []*native.NativeConfig) map[string]ToolPermInfo {
 					Perm:         tool.PermsRequest,
 					DynamicPerms: tool.DynamicPerms,
 					PermitAsync:  tool.PermitAsync,
+					Resources:    tool.Resources,
 				}
 			}
 		}

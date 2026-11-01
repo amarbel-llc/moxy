@@ -109,7 +109,8 @@ type ToolSpec struct {
 	NoTruncate     bool
 	SubstituteArgs []string // inputs whose blob URIs become /dev/fd/N (#371)
 	Annotations    *ToolAnnotations
-	Kind           string // what the tool's result is; emitted as `_meta.kind` (#451)
+	Kind           string        // what the tool's result is; emitted as `_meta.kind` (#451)
+	Resources      []ResourceArg // inputs that name files or blobs; sorted by Param (#491)
 	Input          json.RawMessage
 	InputParsed    *InputSchema
 }
@@ -143,25 +144,74 @@ type MoxinMeta struct {
 // Struct tags use kebab-case (schema 3). For schema 1/2 backward
 // compatibility, legacyToolKeys handles the old snake_case spellings.
 type rawToolFile struct {
-	Schema               int               `toml:"schema"`
-	Name                 string            `toml:"name"`
-	Description          string            `toml:"description"`
-	Command              string            `toml:"command"`
-	Args                 []string          `toml:"args"`
-	ArgOrder             []string          `toml:"arg-order"`
-	StdinParam           string            `toml:"stdin-param"`
-	PermsRequest         PermsRequest      `toml:"perms-request"`
-	DynamicPerms         *DynamicPermsSpec `toml:"dynamic-perms"` // Added for moxy POC dynamic-perms
-	PermitAsync          *bool             `toml:"permit-async"`  // #317
-	CacheResults         string            `toml:"cache-results"` // #319
-	ContentType          string            `toml:"content-type"`
-	ResultType           string            `toml:"result-type"`
-	NoTruncate           bool              `toml:"no-truncate"`
-	SubstituteArgs       []string          `toml:"substitute-args"`        // #371
-	SubstituteResultURIs *bool             `toml:"substitute-result-uris"` // retired by #371
-	Annotations          *ToolAnnotations  `toml:"annotations"`
-	Kind                 string            `toml:"kind"` // #451
-	Input                *InputSchema      `toml:"input"`
+	Schema               int                    `toml:"schema"`
+	Name                 string                 `toml:"name"`
+	Description          string                 `toml:"description"`
+	Command              string                 `toml:"command"`
+	Args                 []string               `toml:"args"`
+	ArgOrder             []string               `toml:"arg-order"`
+	StdinParam           string                 `toml:"stdin-param"`
+	PermsRequest         PermsRequest           `toml:"perms-request"`
+	DynamicPerms         *DynamicPermsSpec      `toml:"dynamic-perms"` // Added for moxy POC dynamic-perms
+	PermitAsync          *bool                  `toml:"permit-async"`  // #317
+	CacheResults         string                 `toml:"cache-results"` // #319
+	ContentType          string                 `toml:"content-type"`
+	ResultType           string                 `toml:"result-type"`
+	NoTruncate           bool                   `toml:"no-truncate"`
+	SubstituteArgs       []string               `toml:"substitute-args"`        // #371
+	SubstituteResultURIs *bool                  `toml:"substitute-result-uris"` // retired by #371
+	Annotations          *ToolAnnotations       `toml:"annotations"`
+	Kind                 string                 `toml:"kind"`      // #451
+	Resources            map[string]rawResource `toml:"resources"` // #491
+	Input                *InputSchema           `toml:"input"`
+}
+
+// rawResource is one [resources.<input>] table.
+type rawResource struct {
+	Op    string `toml:"op"`
+	Split bool   `toml:"split"`
+}
+
+// ResourceArg declares that one string input (or each element of a string
+// array input) names a resource — a file path or a madder://blobs/<digest>
+// URI — and the operation the tool performs on it (moxy#491, RFC 0002). Split
+// marks a string holding a whitespace-separated list of resources.
+type ResourceArg struct {
+	Param string
+	Op    string // read, write or exec
+	Split bool
+}
+
+// resolveResources validates a tool's [resources.*] tables against its
+// inputs and returns them sorted by input name.
+func resolveResources(raw rawToolFile) ([]ResourceArg, error) {
+	if len(raw.Resources) == 0 {
+		return nil, nil
+	}
+	out := make([]ResourceArg, 0, len(raw.Resources))
+	for name, r := range raw.Resources {
+		var prop PropertySchema
+		isInput := false
+		if raw.Input != nil {
+			prop, isInput = raw.Input.Properties[name]
+		}
+		if !isInput {
+			return nil, fmt.Errorf("resources names %q, which is not one of the tool's inputs", name)
+		}
+		if !holdsStrings(prop) {
+			return nil, fmt.Errorf("resources names %q, a %s input; only string inputs and arrays of strings can name resources", name, prop.Type)
+		}
+		switch r.Op {
+		case "read", "write", "exec":
+		case "":
+			return nil, fmt.Errorf("resources.%s requires an op (read, write or exec)", name)
+		default:
+			return nil, fmt.Errorf("resources.%s has invalid op %q (want read, write or exec)", name, r.Op)
+		}
+		out = append(out, ResourceArg{Param: name, Op: r.Op, Split: r.Split})
+	}
+	slices.SortFunc(out, func(a, b ResourceArg) int { return strings.Compare(a.Param, b.Param) })
+	return out, nil
 }
 
 // legacyToolKeys captures the old snake_case key spellings from schema 1/2.
@@ -314,6 +364,10 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		if err := validateDynamicCache(cacheResults, resultType); err != nil {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
+		resources, err := resolveResources(raw)
+		if err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
+		}
 
 		ts := ToolSpec{
 			Name:           toolName,
@@ -332,6 +386,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			SubstituteArgs: substituteArgs,
 			Annotations:    raw.Annotations,
 			Kind:           raw.Kind,
+			Resources:      resources,
 		}
 
 		if raw.Input != nil {
@@ -573,7 +628,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 	for _, child := range doc.Root().Children {
 		if child.Kind == cst.NodeTable {
 			key := document.SubTableKey(child, "")
-			if strings.HasPrefix(key, "input") {
+			if strings.HasPrefix(key, "input") || strings.HasPrefix(key, "resources") { // #491
 				consumed[key] = true
 				markAllConsumed(child, key, consumed)
 			}

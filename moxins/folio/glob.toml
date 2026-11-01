@@ -23,6 +23,9 @@ description = "The directory to search in. Defaults to current working directory
 read-only-hint = true
 idempotent-hint = true
 
+[resources.path]
+op = "read"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["read"]

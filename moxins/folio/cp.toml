@@ -27,6 +27,12 @@ description = "Copy directories recursively. Default false."
 [annotations]
 destructive-hint = true
 
+[resources.source]
+op = "read"
+
+[resources.destination]
+op = "write"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["copy"]

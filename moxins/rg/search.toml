@@ -1,10 +1,11 @@
 schema = 3
 result-type = "text"
 no-truncate = true
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Search file contents using ripgrep. Returns file paths by default \
 (output_mode=files_with_matches). Use output_mode=content for matching lines with \
-context, or output_mode=count for match counts per file."""
+context, or output_mode=count for match counts per file. The searched path is read \
+under the same policy as folio read (#490)."""
 command = "@BIN@/search"
 arg-order = [
   "pattern",
@@ -66,3 +67,15 @@ description = "Max characters emitted per matching line in content mode (rg --ma
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+[resources.path]
+op = "read"
+
+# The static floor is folio's read rule, unchanged: rg_search reads exactly
+# what folio read may (#490).
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 5000

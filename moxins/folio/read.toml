@@ -39,6 +39,9 @@ description = "Inclusive last line to omit (1-indexed). Requires delete_start."
 read-only-hint = true
 idempotent-hint = true
 
+[resources.file_path]
+op = "read"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["read"]

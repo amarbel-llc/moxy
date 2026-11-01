@@ -26,6 +26,10 @@ description = "Remove directories and their contents recursively. Default false.
 [annotations]
 destructive-hint = true
 
+[resources.paths]
+op = "write"
+split = true
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["rm"]

@@ -18,6 +18,9 @@ description = "Path to the file to identify. Auto-allowed inside CWD, /nix/store
 read-only-hint = true
 idempotent-hint = true
 
+[resources.path]
+op = "read"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["read"]

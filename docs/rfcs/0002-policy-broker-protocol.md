@@ -57,9 +57,13 @@ configured: moxy MUST behave exactly as it does without this protocol (the
 floor decides, section 6). A value that is neither an absolute path nor a
 `host:port` is a configuration error: no answer, with a diagnostic on stderr.
 
-The launcher exports no session key to the agent's environment, so the client
-has no subject of its own to read. The subject is taken from the broker's
-hello (section 3).
+The launcher exports no session key to the agent's environment. The subject is
+taken from the broker's hello (section 3). One optional expectation exists:
+spinclass exports `SPINCLASS_SESSION_ID` into every session it launches; when
+it is set, the client lists it as its one subject and so refuses a broker whose
+session key differs, and when unset it adopts the broker's key. (That the two
+strings are the same key is spinclass's to confirm; if they ever differ the
+client fails closed to the floor.)
 
 ### 2. Framing
 
@@ -156,7 +160,13 @@ the unmatched case. Checks MAY be pipelined; verdicts MAY arrive in any order.
 
 A call naming several resources is checked per resource and the strictest
 verdict wins (`deny` over `ask` over `allow`); moxy MAY stop at the first
-`deny`.
+`deny`. A resource that is `/dev/fd/*` (the pipe a `madder://blobs/` argument
+is substituted with) or empty names nothing and is not checked.
+
+Which tools are checked is declared by the tool, not guessed: a moxin tool
+names its resource inputs and the operation on each in `[resources.<input>]`
+(moxin(7) RESOURCES). Only tools on the `dynamic` permission tier are
+consulted; a verdict never lifts `each-use` or `always-allow`.
 
 ### 5. Errors
 
@@ -180,7 +190,17 @@ together are **no answer**:
 4. the connection dropped or the verdict was an `error` or a protocol error.
 
 In every other case the broker's verdict is final, including when it is
-stricter or looser than the floor. A verdict never widens the floor's answer by
+stricter or looser than the floor. When a call names several resources and the
+broker answers some but not others, the floor decides the whole call and the
+stricter of the floor and the strictest answered verdict stands; a broker
+`deny` is always final.
+
+Where the call is judged follows moxy's permission mode. Under `enforce`
+(FDR 0015) the funnel resolves every call, so `allow` runs it, `ask` and `deny`
+refuse it (nobody can answer an `ask`). Under `delegate` a client-side hook may
+sit in front of moxy and may already have prompted a human for an `ask`, so the
+funnel acts on `deny` alone and leaves `ask` to the client; no answer changes
+nothing (moxy#485). A verdict never widens the floor's answer by
 being absent, and no absence, error, timeout or malformed message ever
 resolves to `allow` by itself: the floor is the only fallback, and the floor
 may itself say `ask` or `deny`. In particular a crashed or hung check MUST NOT
@@ -202,6 +222,21 @@ The per-check deadline default is a compile-time constant of the client.
 with a unix-socket round-trip benchmark and re-measured with the real
 evaluator. Until then the default is 100 ms; the value is carried in
 `deadline_ms` so the broker sees the budget.
+
+### 9. The PreToolUse hook is a second client
+
+Under Claude Code the prompt is decided in moxy's PreToolUse hook, a fresh
+short-lived process per tool event, before the call reaches the server; a
+verdict held only inside the server could not remove a prompt. The hook is
+therefore a second broker client on the same wire: it reads
+`CLOWN_POLICY_BROKER`, dials, completes the hello, sends its checks and exits.
+It dials lazily, only when a call names a declared resource, and waits at most
+250 ms for the hello; past that the check is no answer and the floor decides,
+like every other client. It caches nothing between events. The server still
+checks each call over its standing connection (section 6, where the funnel's
+treatment under `delegate` is described), and both fail closed on no answer.
+The per-call dial cost is **unmeasured**; if it proves to matter it is reported
+with numbers rather than hidden behind cached verdicts.
 
 ## Security Considerations
 

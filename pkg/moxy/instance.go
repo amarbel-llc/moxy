@@ -100,6 +100,14 @@ func effectivePolicy(o Options, cfg moxyfile.Config) perms.Policy {
 	return perms.Tighten(o.Permissions, fromFile)
 }
 
+// newResolver builds the permission resolver over the moxins being served,
+// with the policy-broker gate (nil for none) installed.
+func newResolver(moxins []*native.NativeConfig, gate perms.Gate) *perms.Resolver {
+	r := perms.NewResolverFromConfigs(moxins)
+	r.SetGate(gate)
+	return r
+}
+
 // Policy is the serve-time permission policy the Instance will run under.
 func (pr *Prepared) Policy() perms.Policy { return pr.policy }
 
@@ -196,7 +204,7 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 		p.SetSessionID(o.SessionID)
 	}
 	p.SetMoxinReloader(&moxinReloader{in: inputs})
-	p.SetResolver(perms.NewResolverFromConfigs(res.moxins))
+	p.SetResolver(newResolver(res.moxins, o.Gate))
 	p.SetPolicy(pr.policy)
 	p.SetBootstrapper(&bootstrapper{
 		in: inputs,
@@ -205,7 +213,7 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 		// funnel consult follows the moxins, and the policy follows the file
 		// (bounded by the pinned parent reference as every other key is).
 		onReload: func(r *bootstrapResult) {
-			p.SetResolver(perms.NewResolverFromConfigs(r.moxins))
+			p.SetResolver(newResolver(r.moxins, o.Gate))
 			p.SetPolicy(effectivePolicy(o, r.cfg))
 		},
 	})

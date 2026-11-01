@@ -18,6 +18,9 @@ description = "Directory path to create. Auto-allowed inside CWD and Claude writ
 [annotations]
 idempotent-hint = true
 
+[resources.path]
+op = "write"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["write"]

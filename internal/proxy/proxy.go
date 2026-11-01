@@ -1067,6 +1067,19 @@ func (p *Proxy) callToolV1(
 		if dec != perms.Allow {
 			return enforceRefusal(name, args, dec, reason), nil
 		}
+	} else if !isBuiltin && p.resolver != nil && p.resolver.HasGate() {
+		// Delegate (moxy#485): a hook in front of moxy may not exist, or may
+		// not see the policy broker, so the funnel still honours a broker
+		// deny. Ask is left to the client's prompt (a hook that already
+		// prompted must not be asked again) and no answer changes nothing.
+		canonical := name
+		if s, t, ok := p.resolveToolName(ctx, name); ok {
+			canonical = s + "." + t
+		}
+		if dec, reason, answered := p.resolver.ConsultGate(ctx, canonical, args, callCwd(ctx)); answered && dec == perms.Deny {
+			recordDecision(ctx, dec)
+			return enforceRefusal(name, args, dec, reason), nil
+		}
 	}
 
 	if isBuiltin {

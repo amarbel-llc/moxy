@@ -21,6 +21,12 @@ description = "Destination path. Auto-allowed inside CWD and Claude write-allow 
 [annotations]
 destructive-hint = true
 
+[resources.source]
+op = "read"
+
+[resources.destination]
+op = "write"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["move"]

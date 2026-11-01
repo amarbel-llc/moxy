@@ -23,6 +23,9 @@ description = "Octal mode (e.g. \"755\", \"0644\") or symbolic mode (e.g. \"+x\"
 destructive-hint = true
 idempotent-hint = true
 
+[resources.path]
+op = "write"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["write"]

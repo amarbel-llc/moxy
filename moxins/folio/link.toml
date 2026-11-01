@@ -30,6 +30,12 @@ description = "Replace target if it already exists (-f). Default false."
 [annotations]
 destructive-hint = true
 
+[resources.source]
+op = "read"
+
+[resources.target]
+op = "write"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["link"]

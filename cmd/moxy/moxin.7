@@ -445,6 +445,52 @@ grants the unannotated tool.
 An embedder of moxy's Go library sets the same policy through
 .Li pkg/moxy
 .Pq Li Options.Permissions .
+.Sh RESOURCES
+A tool declares which of its inputs name files or blobs, and what it does to
+them, in one
+.Sy [resources.<input>]
+table per input:
+.Bd -literal -offset indent
+[resources.destination]
+op = "write"
+.Ed
+.Pp
+.Sy op
+is
+.Sy read ,
+.Sy write
+or
+.Sy exec
+(required).
+.Sy split = true
+marks a string holding a whitespace-separated list.
+The input must be a string or an array of strings; a table naming any other
+input is a load error.
+Each value is a file path (made absolute against the caller's working
+directory, symlinks above the leaf resolved) or a
+.Sy madder://blobs/<digest>
+URI;
+.Pa /dev/fd/N
+and empty values name nothing.
+.Pp
+When a policy broker is configured (RFC 0002,
+.Ev CLOWN_POLICY_BROKER ) ,
+every call to a tool on the
+.Sy dynamic
+tier is checked per declared resource, and the broker's verdict
+.Pq allow, ask, deny
+is final.
+The tool's
+.Sy [dynamic-perms]
+command is the static floor: it decides when the broker gave no answer.
+When the broker answered only some of a call's resources, the floor judges the
+whole call and the stricter result stands.
+A broker verdict never lifts an
+.Sy each-use
+or
+.Sy always-allow
+tier.
+With no broker nothing changes: the tier alone decides.
 .Sh DISCOVERY
 Moxin configs are discovered from directories listed in the
 .Ev MOXIN_PATH

@@ -101,6 +101,15 @@ type Options struct {
 	// tool.
 	Permissions perms.Policy
 
+	// Gate is the policy-broker seat (moxy#491, RFC 0002): when set, every
+	// call to a tool that declares resources on the dynamic tier asks it
+	// about each resource. Its verdict is final when it answers; the tier's
+	// predicate (the static floor) applies only to what it does not answer.
+	// Under Delegate the funnel honours a deny and leaves ask to the client.
+	// Nil is today's behaviour. The binary builds it from CLOWN_POLICY_BROKER
+	// (policybroker.FromEnv); the library reads no environment.
+	Gate perms.Gate
+
 	// NameTemplate renders advertised tool and prompt names; empty is
 	// "{server}.{tool}". Expose is the tool-exposure selector (FDR 0006);
 	// empty exposes everything.

@@ -23,6 +23,9 @@ description = "The content to write to the file"
 destructive-hint = true
 idempotent-hint = true
 
+[resources.file_path]
+op = "write"
+
 [dynamic-perms]
 command = "@BIN@/folio-perms"
 args = ["write"]
