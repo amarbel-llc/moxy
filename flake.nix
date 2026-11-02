@@ -434,6 +434,9 @@
             );
 
         # Helper: build a moxin that has bun+zx compiled scripts in src/.
+        # tomlSubstitutions: like mkMoxin's extraSubstitutions, applied to the
+        # finished moxin tree (the tool TOMLs, e.g. a dynamic-perms command),
+        # not to the TS source below.
         # extraSubstitutions: attrset of {NAME = "/abs/path";} pairs.
         # Before bundling, each `@NAME@` placeholder in the moxin's TS source
         # is replaced with the literal value via `substitute`, so the bundler
@@ -445,6 +448,7 @@
             pathMode ? "set",
             extraWrapArgs ? [ ],
             extraSubstitutions ? { },
+            tomlSubstitutions ? { },
           }:
           let
             rawSrc = pkgs.lib.fileset.toSource {
@@ -544,7 +548,12 @@
               for f in $(grep -rl '@BIN@' $out); do
                 substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
               done
-            '';
+            ''
+          + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+            for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+              substitute "$f" "$f" --replace-fail "@${placeholder}@" "${tomlSubstitutions.${placeholder}}"
+            done
+          '') (builtins.attrNames tomlSubstitutions);
 
         # --- arboretum tree-sitter grammar wasm, built from source ----------
         #
@@ -754,6 +763,9 @@
               extraSubstitutions = {
                 WASM_DIR = "${arboretumWasmDir}";
               };
+              # outline/search/rewrite read (rewrite writes) the path they are
+              # given: folio's rule, one script (#490).
+              tomlSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
             };
         # chix uses pathMode = "suffix" so the user's nix binary wins (and
         # picks up the user's NIX_PATH / config), while manix + git + the
@@ -779,7 +791,11 @@
               "flake-update" = "moxins/chix/src/flake-update.ts";
               "store-ls" = "moxins/chix/src/store-ls.ts";
             }
-            { pathMode = "suffix"; };
+            {
+              pathMode = "suffix";
+              # nix-hash reads the path it is given: folio's read rule (#490).
+              tomlSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+            };
         env-moxin =
           mkMoxin "env"
             [
@@ -854,7 +870,10 @@
                 PANDOC = "${pkgs.pandoc}/bin/pandoc";
               };
             };
-        jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] { };
+        # jq reads the files it is given: folio's read rule, one script (#490).
+        jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {
+          extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+        };
         man-moxin =
           mkMoxin "man"
             [
@@ -947,6 +966,9 @@
               extraSubstitutions = {
                 PIERS_DOCS_WRITER = "${./moxins/piers/src/docs-requests.lua}";
               };
+              # create/update read content_path and base_dir from disk: folio's
+              # read rule, one script (#490).
+              tomlSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
             };
         car-moxin = mkBunMoxin "car" gwsDeps {
           "search" = "moxins/car/src/search.ts";

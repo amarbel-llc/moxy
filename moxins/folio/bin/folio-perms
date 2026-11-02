@@ -188,7 +188,18 @@ check_write() {
 case "$op" in
   read)
     for path in "$@"; do
-      [ -n "$path" ] && check_read "$path"
+      [ -z "$path" ] && continue
+      # A positional that is a JSON array of strings is an array input (jq's
+      # files): check each element. Anything else is one path.
+      if [ "${path:0:1}" = "[" ] \
+        && elems=$(jq -r 'if type == "array" and all(.[]; type == "string") then .[] else empty end' <<<"$path" 2>/dev/null) \
+        && [ -n "$elems" ]; then
+        while IFS= read -r elem; do
+          [ -n "$elem" ] && check_read "$elem"
+        done <<<"$elems"
+        continue
+      fi
+      check_read "$path"
     done
     echo "all paths inside read-allowed dirs — auto-allowed"
     exit 0

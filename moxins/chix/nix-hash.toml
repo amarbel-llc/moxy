@@ -1,6 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 permit-async = false
 description = """Compute the hash of a file or path. Returns the hash string \
 in the requested encoding."""
@@ -25,3 +25,14 @@ description = "Output encoding: base16 (default), base32, base64, sri."
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+# The hashed path is read under the same policy as folio read (#490).
+
+[resources.path]
+op = "read"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 5000

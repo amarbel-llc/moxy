@@ -1,7 +1,7 @@
 schema = 3
 result-type = "text"
 no-truncate = true
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Rewrite code by AST pattern via ast-grep. By default applies \
 matches in place (ast-grep -U). Set dry_run=true to preview the diff without \
 modifying any files. With `lang=go` and a call-shaped pattern, ast-grep's Go \
@@ -44,6 +44,18 @@ description = "Comma-separated include/exclude globs."
 [input.properties.dry_run]
 type = "boolean"
 description = "If true, returns the diff without modifying any files. Defaults to false (applies in place)."
+
+# Rewriting applies in place unless dry_run is set, so the path is checked as
+# a write, as folio write is (#490).
+
+[resources.path]
+op = "write"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["write"]
+arg-order = ["path"]
+timeout-ms = 5000
 
 [annotations]
 read-only-hint = false

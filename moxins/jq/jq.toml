@@ -1,5 +1,5 @@
 schema = 3
-perms-request = "always-allow"
+perms-request = "dynamic"
 permit-async = false
 cache-results = "always"
 description = "Execute a jq filter. Only jq is invoked — no shell evaluation. madder://blobs/<digest> URIs in files are rewritten to /dev/fd/N (streaming the cached blob), and one given as stdin is fed as the blob's bytes."
@@ -41,3 +41,18 @@ description = "Working directory"
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+# The files jq reads are read under the same policy as folio read (#490); a
+# madder://blobs URI is the cached result of an earlier call and passes.
+
+[resources.files]
+op = "read"
+
+[resources.cwd]
+op = "read"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["read"]
+arg-order = ["files", "cwd"]
+timeout-ms = 5000
