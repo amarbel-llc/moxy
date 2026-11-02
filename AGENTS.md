@@ -376,7 +376,11 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   sites: the `Proxy.CallToolV1` wrapper (all proxied tool dispatch),
   `Proxy.ReadResource` + `Proxy.GetPromptV1` (resource_read / prompt_get
   families, #312), and serve_moxin's instrumented adapter (#311) — all
-  sharing the `statsd.OutcomeFor` classifier
+  sharing the `statsd.OutcomeFor` classifier. Policy-broker timing (#493) is
+  `moxy.policy_broker.<hook|server>.check.duration` (fractional ms) plus
+  `.check.<allow|ask|deny|floor>`, and `moxy.policy_broker.hook.dial.duration`
+  plus `.dial.<connected|unconnected>`; `just debug-bench-hook-dial` measures
+  the hook's per-call dial
 
 ### CLI Subcommands
 

@@ -151,10 +151,10 @@ func emitBroker(path, phase string, d time.Duration, outcome string) {
 		return
 	}
 	base := "moxy.policy_broker." + sanitizeSegment(path) + "." + phase
-	_, _ = c.Write([]byte(fmt.Sprintf(
+	_, _ = fmt.Fprintf(c,
 		"%s.duration:%.3f|ms\n%s.%s:1|c",
 		base, float64(d)/float64(time.Millisecond), base, sanitizeSegment(outcome),
-	)))
+	)
 }
 
 // sanitizeSegment maps a server or tool name onto the metric-name alphabet:
