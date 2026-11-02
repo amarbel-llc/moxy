@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"code.linenisgreat.com/purse-first/libs/go-mcp/server"
 	"code.linenisgreat.com/purse-first/libs/go-mcp/transport"
 
+	"code.linenisgreat.com/moxy/internal/statsd"
 	"code.linenisgreat.com/moxy/internal/stderrlog"
 	"code.linenisgreat.com/moxy/internal/streamhttp"
 	"code.linenisgreat.com/moxy/pkg/moxy"
@@ -63,7 +65,7 @@ func serveOptions(app *command.App, expose, nameTemplate, permissions string) (m
 	// CLOWN_POLICY_BROKER (RFC 0002): unset leaves Gate nil, which is exactly
 	// the behaviour without a broker, standalone serve-http included.
 	if client := policybroker.FromEnv(os.Getenv, liveStderr{}, "moxy "+app.Version); client != nil {
-		o.Gate = client
+		o.Gate = statsd.TimedGate("server", client)
 	}
 	return o, sessionSource, nil
 }
@@ -80,7 +82,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	if err != nil {
 		return err
 	}
-	if client, ok := opts.Gate.(*policybroker.Client); ok {
+	if client, ok := opts.Gate.(io.Closer); ok {
 		defer client.Close()
 	}
 

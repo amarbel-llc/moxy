@@ -85,6 +85,38 @@ func TestEmitToolDispatchOverUDP(t *testing.T) {
 	}
 }
 
+func TestEmitBrokerCheckOverUDP(t *testing.T) {
+	pc := listenUDP(t)
+	ReinitFromEnv()
+
+	EmitBrokerCheck("server", 83*time.Microsecond, BrokerAllow)
+
+	got := readPacket(t, pc)
+	want := "moxy.policy_broker.server.check.duration:0.083|ms\nmoxy.policy_broker.server.check.allow:1|c"
+	if got != want {
+		t.Errorf("received packet %q, want %q", got, want)
+	}
+}
+
+func TestEmitBrokerDialOverUDP(t *testing.T) {
+	pc := listenUDP(t)
+	ReinitFromEnv()
+
+	EmitBrokerDial("hook", 250*time.Millisecond, false)
+	got := readPacket(t, pc)
+	want := "moxy.policy_broker.hook.dial.duration:250.000|ms\nmoxy.policy_broker.hook.dial.unconnected:1|c"
+	if got != want {
+		t.Errorf("received packet %q, want %q", got, want)
+	}
+
+	EmitBrokerDial("hook", 1500*time.Microsecond, true)
+	got = readPacket(t, pc)
+	want = "moxy.policy_broker.hook.dial.duration:1.500|ms\nmoxy.policy_broker.hook.dial.connected:1|c"
+	if got != want {
+		t.Errorf("received packet %q, want %q", got, want)
+	}
+}
+
 func TestKillSwitchDisablesEmission(t *testing.T) {
 	_ = listenUDP(t)
 	t.Setenv("MOXY_DISABLE_STATSD", "1")

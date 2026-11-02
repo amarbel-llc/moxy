@@ -110,6 +110,53 @@ func dispatchPacket(server, tool string, d time.Duration, outcome Outcome) strin
 	)
 }
 
+// Policy-broker check outcomes (moxy#493). BrokerFloor is no answer: the
+// static floor decides.
+const (
+	BrokerAllow = "allow"
+	BrokerAsk   = "ask"
+	BrokerDeny  = "deny"
+	BrokerFloor = "floor"
+)
+
+// EmitBrokerCheck reports one policy-broker check on path ("hook" for the
+// PreToolUse hook's per-call client, "server" for the standing connection):
+//
+//	moxy.policy_broker.<path>.check.duration:<ms>|ms
+//	moxy.policy_broker.<path>.check.<allow|ask|deny|floor>:1|c
+//
+// The timer carries fractional milliseconds: a unix-socket round trip is
+// tens of microseconds, below the integer-ms resolution tool dispatch uses.
+func EmitBrokerCheck(path string, d time.Duration, outcome string) {
+	emitBroker(path, "check", d, outcome)
+}
+
+// EmitBrokerDial reports the hook's dial plus hello wait:
+//
+//	moxy.policy_broker.hook.dial.duration:<ms>|ms
+//	moxy.policy_broker.hook.dial.<connected|unconnected>:1|c
+func EmitBrokerDial(path string, d time.Duration, connected bool) {
+	outcome := "unconnected"
+	if connected {
+		outcome = "connected"
+	}
+	emitBroker(path, "dial", d, outcome)
+}
+
+func emitBroker(path, phase string, d time.Duration, outcome string) {
+	mu.RLock()
+	c := conn
+	mu.RUnlock()
+	if c == nil {
+		return
+	}
+	base := "moxy.policy_broker." + sanitizeSegment(path) + "." + phase
+	_, _ = c.Write([]byte(fmt.Sprintf(
+		"%s.duration:%.3f|ms\n%s.%s:1|c",
+		base, float64(d)/float64(time.Millisecond), base, sanitizeSegment(outcome),
+	)))
+}
+
 // sanitizeSegment maps a server or tool name onto the metric-name alphabet:
 // [a-zA-Z0-9_-] pass through, everything else (dots, slashes, spaces, ...)
 // becomes '_' so it can't introduce extra name segments or break the line

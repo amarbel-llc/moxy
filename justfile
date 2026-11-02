@@ -529,6 +529,16 @@ debug-sleep seconds="300":
 debug-go-test dir pattern='':
   MOXIN_PATH="" nix run --inputs-from . igloo#godyn-test -- -A packages.$(nix eval --impure --raw --expr builtins.currentSystem).moxy-native {{dir}} -- {{ if pattern == '' { '' } else { quote('-test.run=' + pattern) } }} -test.v
 
+# Measure the PreToolUse hook's per-call policy-broker cost (new client, dial,
+# hello wait, one check) against a real unix socket: connected, no socket file,
+# connection refused, no hello, no answer. Prints p50-ms / p99-ms per case
+# (moxy#493). Process start and moxin discovery are not included.
+#
+# benchmark the hook's per-call broker dial
+[group("debug")]
+debug-bench-hook-dial count='40x':
+  MOXIN_PATH="" nix run --inputs-from . igloo#godyn-test -- -A packages.$(nix eval --impure --raw --expr builtins.currentSystem).moxy-native internal/hook -- -test.run='^$' -test.bench=HookGate -test.benchtime={{count}}
+
 # One-shot codemod for #318: insert `permit-async = false` after the
 # perms-request line in ordering-sensitive / trivially-fast moxin tools.
 # Idempotent (skips files that already declare permit-async). Keep for

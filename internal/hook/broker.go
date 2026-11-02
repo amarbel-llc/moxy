@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"code.linenisgreat.com/moxy/internal/statsd"
 	"code.linenisgreat.com/moxy/pkg/perms"
 	"code.linenisgreat.com/moxy/pkg/policybroker"
 )
@@ -15,6 +16,10 @@ import (
 // short-lived process (a fresh one per PreToolUse event), so it cannot afford
 // the standing client's second-long hello budget.
 const brokerDialWait = 250 * time.Millisecond
+
+// brokerMetricPath is the hook's segment in moxy.policy_broker.<path>.* (the
+// server's standing client reports as "server"), moxy#493.
+const brokerMetricPath = "hook"
 
 // hookGate is the hook's policy-broker client (RFC 0002 section 9): same wire
 // as the server's standing client, but dialled per process and only when a
@@ -36,15 +41,19 @@ func (g *hookGate) Check(ctx context.Context, op perms.Op, res perms.Resource) (
 		if c == nil {
 			return
 		}
+		// New dials in the background, so the dial cost is the wait for the
+		// hello: the whole brokerDialWait when nothing answers.
+		start := time.Now()
 		wait, cancel := context.WithTimeout(ctx, brokerDialWait)
 		defer cancel()
-		c.WaitConnected(wait)
+		connected := c.WaitConnected(wait)
+		statsd.EmitBrokerDial(brokerMetricPath, time.Since(start), connected)
 		g.client = c
 	})
 	if g.client == nil {
 		return perms.Unknown, "no policy broker configured", false
 	}
-	return g.client.Check(ctx, op, res)
+	return statsd.TimedGate(brokerMetricPath, g.client).Check(ctx, op, res)
 }
 
 func (g *hookGate) close() {
