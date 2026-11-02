@@ -492,68 +492,70 @@
             {
               nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
             }
-            ''
-              cp -r ${./moxins/${name}} $out
-              chmod -R u+w $out
-              rm -rf $out/src
-              mkdir -p $out/bin
-              for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
-              # Rewrite `#!/usr/bin/env <prog>` shebangs in cp'd source scripts to
-              # absolute /nix/store paths, same as mkMoxin. The bats sandbox lacks
-              # /usr/bin/env, so env-resolved shebangs would fail. The bun wrappers
-              # written below already use an absolute bash path; this catches the
-              # source scripts that came in via `cp -r`.
-              if [ -n "$(ls -A $out/bin 2>/dev/null)" ]; then
-                patchShebangs $out/bin
-              fi
-              # Create wrapper scripts that locate the bundled JS files.
-              # buildBunBinaries wrappers assume flat output, but bun >=9
-              # entrypoints may nest them. We extract the bundle store path
-              # and search for each JS file in both layouts.
-              bundle_dir=""
-              for f in ${bunBinaries}/bin/*; do
-                bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
-                [ -n "$bundle_dir" ] && break
-              done
-              for f in ${bunBinaries}/bin/*; do
-                binname=$(basename "$f")
-                jsfile="$binname.js"
-                if [ -f "$bundle_dir/$jsfile" ]; then
-                  js_path="$bundle_dir/$jsfile"
-                else
-                  js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
+            (
+              ''
+                cp -r ${./moxins/${name}} $out
+                chmod -R u+w $out
+                rm -rf $out/src
+                mkdir -p $out/bin
+                for f in $out/bin/*; do [ -e "$f" ] && chmod +x "$f"; done
+                # Rewrite `#!/usr/bin/env <prog>` shebangs in cp'd source scripts to
+                # absolute /nix/store paths, same as mkMoxin. The bats sandbox lacks
+                # /usr/bin/env, so env-resolved shebangs would fail. The bun wrappers
+                # written below already use an absolute bash path; this catches the
+                # source scripts that came in via `cp -r`.
+                if [ -n "$(ls -A $out/bin 2>/dev/null)" ]; then
+                  patchShebangs $out/bin
                 fi
-                if [ -z "$js_path" ]; then
-                  echo "ERROR: could not find $jsfile in $bundle_dir" >&2
-                  exit 1
-                fi
-                bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
-                cat > "$out/bin/$binname" <<WRAPPER
-              #!${pkgs.bash}/bin/bash
-              exec $bun_bin $js_path "\$@"
-              WRAPPER
-                chmod +x "$out/bin/$binname"
-              done
-              for f in $out/bin/*; do
-                wrapProgram "$f" \
-                  ${
-                    if pathMode != "inherit" then
-                      "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
-                    else
-                      ""
-                  } \
-                  --unset LD_LIBRARY_PATH \
-                  ${pkgs.lib.concatStringsSep " " extraWrapArgs}
-              done
-              for f in $(grep -rl '@BIN@' $out); do
-                substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
-              done
-            ''
-          + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
-            for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
-              substitute "$f" "$f" --replace-fail "@${placeholder}@" "${tomlSubstitutions.${placeholder}}"
-            done
-          '') (builtins.attrNames tomlSubstitutions);
+                # Create wrapper scripts that locate the bundled JS files.
+                # buildBunBinaries wrappers assume flat output, but bun >=9
+                # entrypoints may nest them. We extract the bundle store path
+                # and search for each JS file in both layouts.
+                bundle_dir=""
+                for f in ${bunBinaries}/bin/*; do
+                  bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
+                  [ -n "$bundle_dir" ] && break
+                done
+                for f in ${bunBinaries}/bin/*; do
+                  binname=$(basename "$f")
+                  jsfile="$binname.js"
+                  if [ -f "$bundle_dir/$jsfile" ]; then
+                    js_path="$bundle_dir/$jsfile"
+                  else
+                    js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
+                  fi
+                  if [ -z "$js_path" ]; then
+                    echo "ERROR: could not find $jsfile in $bundle_dir" >&2
+                    exit 1
+                  fi
+                  bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
+                  cat > "$out/bin/$binname" <<WRAPPER
+                #!${pkgs.bash}/bin/bash
+                exec $bun_bin $js_path "\$@"
+                WRAPPER
+                  chmod +x "$out/bin/$binname"
+                done
+                for f in $out/bin/*; do
+                  wrapProgram "$f" \
+                    ${
+                      if pathMode != "inherit" then
+                        "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                      else
+                        ""
+                    } \
+                    --unset LD_LIBRARY_PATH \
+                    ${pkgs.lib.concatStringsSep " " extraWrapArgs}
+                done
+                for f in $(grep -rl '@BIN@' $out); do
+                  substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+                done
+              ''
+              + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                  substitute "$f" "$f" --replace-fail "@${placeholder}@" "${tomlSubstitutions.${placeholder}}"
+                done
+              '') (builtins.attrNames tomlSubstitutions)
+            );
 
         # --- arboretum tree-sitter grammar wasm, built from source ----------
         #
