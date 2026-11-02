@@ -1,0 +1,13 @@
+schema = 3
+command = "echo"
+perms-request = "dynamic"
+
+[input.properties.path]
+type = "string"
+
+[resources.path]
+op = "read"
+
+[dynamic-perms]
+command = "sh"
+args = ["-c", "exit 0"]
