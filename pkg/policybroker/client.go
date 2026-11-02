@@ -107,6 +107,11 @@ type Client struct {
 	upCh          chan struct{} // closed while a session is up; replaced when it drops
 	subject       string
 	lastLogged    string
+	// failedFirst is closed once when the first connection attempt fails (any
+	// error: no socket, refused, a refused hello). WaitConnected stops waiting
+	// on it, since the one-shot caller has nothing to gain from the retries.
+	failedFirst  chan struct{}
+	firstFailure sync.Once
 }
 
 var _ perms.Gate = (*Client)(nil)
@@ -115,7 +120,7 @@ var _ perms.Gate = (*Client)(nil)
 // until the first hello completes every Check is no answer. A malformed Addr
 // yields a client that never connects.
 func New(o Options) *Client {
-	c := &Client{o: o, upCh: make(chan struct{})}
+	c := &Client{o: o, upCh: make(chan struct{}), failedFirst: make(chan struct{})}
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	network, addr, ok := ParseAddr(o.Addr)
 	if !ok {
@@ -135,8 +140,8 @@ func (c *Client) Connected() bool {
 	return c.sess != nil
 }
 
-// WaitConnected blocks until a hello has completed or ctx is done, and reports
-// which. It exists for the one-shot client of a short-lived process (the
+// WaitConnected blocks until a hello has completed, the first connection
+// attempt has failed, or ctx is done, and reports whether a session is up. It exists for the one-shot client of a short-lived process (the
 // PreToolUse hook): a standing client never needs it, since a Check made
 // before the hello is simply no answer.
 func (c *Client) WaitConnected(ctx context.Context) bool {
@@ -149,6 +154,13 @@ func (c *Client) WaitConnected(ctx context.Context) bool {
 		}
 		select {
 		case <-up:
+		case <-c.failedFirst:
+			// A late success still counts: the session may have come up in
+			// the same instant the channel closed.
+			c.mu.Lock()
+			ready = c.sess != nil
+			c.mu.Unlock()
+			return ready
 		case <-ctx.Done():
 			return false
 		case <-c.ctx.Done():
@@ -200,6 +212,7 @@ func (c *Client) run() {
 	for c.ctx.Err() == nil {
 		s, err := c.connect()
 		if err != nil {
+			c.firstFailure.Do(func() { close(c.failedFirst) })
 			c.logf("down:"+err.Error(), "unavailable (%v); the static floor decides until it answers", err)
 			c.sleep(jitter(backoff))
 			backoff = min(backoff*2, maxBackoff)

@@ -3,6 +3,7 @@ package policybroker_test
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -370,6 +371,24 @@ func TestWaitConnectedBlocksUntilTheHello(t *testing.T) {
 	defer cancel2()
 	if c2.WaitConnected(short) {
 		t.Error("WaitConnected = true with nothing listening")
+	}
+}
+
+// A dial that fails outright (nothing at the path, nothing listening) must end
+// WaitConnected at once: the hook would otherwise spend its whole hello wait
+// (250 ms) on every call to a dead broker (moxy#494).
+func TestWaitConnectedReturnsAtOnceWhenTheFirstDialFails(t *testing.T) {
+	absent := filepath.Join(t.TempDir(), "absent.sock")
+	c := policybroker.New(policybroker.Options{Addr: absent})
+	t.Cleanup(func() { _ = c.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	if c.WaitConnected(ctx) {
+		t.Fatal("WaitConnected = true with no socket")
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("WaitConnected took %s after a failed dial, want it to return at once", d)
 	}
 }
 
