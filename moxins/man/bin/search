@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-apropos "$1" 2>/dev/null || echo "No results for \"$1\""
+apropos -- "$1" 2>/dev/null || echo "No results for \"$1\""

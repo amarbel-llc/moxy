@@ -1,8 +1,25 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import sys
 from pathlib import Path
+
+_SESSION_ID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    r"|agent-[0-9A-Za-z]{1,64}"
+)
+
+
+def is_session_id(session_id: str) -> bool:
+    """A session UUID or a subagent id, nothing else: a path, '..' or a glob in a
+    session id would pick a file outside the transcripts (moxy#495)."""
+    return _SESSION_ID.fullmatch(session_id) is not None
+
+
+def inside(projects_dir: Path, p: Path) -> bool:
+    """True when p resolves, symlinks and '..' followed, under projects_dir."""
+    return p.resolve().is_relative_to(projects_dir.resolve())
 
 
 def main():
@@ -19,16 +36,17 @@ def main():
         print("No projects directory found")
         sys.exit(1)
 
-    for proj_dir in projects_dir.iterdir():
-        if not proj_dir.is_dir():
-            continue
-        f = proj_dir / f"{session_id}.jsonl"
-        if f.exists():
-            sys.stdout.write(f.read_text())
-            return
+    if is_session_id(session_id):
+        for proj_dir in projects_dir.iterdir():
+            if not proj_dir.is_dir():
+                continue
+            f = proj_dir / f"{session_id}.jsonl"
+            if f.exists() and inside(projects_dir, f):
+                sys.stdout.write(f.read_text())
+                return
 
     print(
-        f"Session {session_id} not found. Use the sessions tool to discover available session ids."
+        f"Session {session_id[:100]} not found. Use the sessions tool to discover available session ids."
     )
     sys.exit(1)
 

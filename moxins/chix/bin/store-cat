@@ -3,7 +3,7 @@ set -euo pipefail
 path="$1"
 
 # Resolve symlinks and validate under /nix/store/
-resolved=$(readlink -f "$path")
+resolved=$(readlink -f -- "$path")
 case "$resolved" in
   /nix/store/*) ;;
   *) echo "Error: path must be under /nix/store/, got: $resolved" >&2; exit 1 ;;

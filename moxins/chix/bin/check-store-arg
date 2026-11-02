@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Validate the one argument chix's always-allow store tools (log,
+# derivation-show, store-path-info) hand to `nix`, so they cannot be steered at
+# an arbitrary file (moxy#495). Prints the argument to use on stdout, or exits 2.
+#
+# Accepted, and nothing else:
+#   - a filesystem path that canonicalises (.., symlinks resolved) to a path
+#     under /nix/store, with an optional ^outputs suffix: /nix/store/x.drv^out,
+#     ./result
+#   - the cwd flake: "." or ".#attr"
+#   - a registry name or github:/gitlab:/sourcehut: reference, with an optional
+#     #attr: nixpkgs#hello, github:owner/repo/rev#attr
+# Never a path:, file: or git+file: reference, an absolute or relative path that
+# leaves the store, or anything starting with "-" (a nix option).
+set -euo pipefail
+
+arg="${1-}"
+fail() {
+  echo "chix: refusing '${arg:0:200}': $1" >&2
+  exit 2
+}
+
+[ -n "$arg" ] || fail "empty argument"
+[ "${#arg}" -le 4096 ] || fail "argument too long"
+case "$arg" in
+  -*) fail "starts with '-', which nix would read as an option" ;;
+  *[[:cntrl:]]*) fail "contains a control character" ;;
+  *..*) case "$arg" in
+    /*) ;; # a path: canonicalised below, so '..' is resolved, not trusted
+    *) fail "contains '..'" ;;
+  esac ;;
+esac
+
+store_path() {
+  local base="${arg%%^*}" suffix="" canon
+  if [ "$base" != "$arg" ]; then
+    suffix="^${arg#*^}"
+  fi
+  canon=$(realpath -m -- "$base")
+  case "$canon" in
+    /nix/store/?*) printf '%s%s\n' "$canon" "$suffix" ;;
+    *) fail "resolves to $canon, outside /nix/store" ;;
+  esac
+}
+
+attr_ok() {
+  local re='^[A-Za-z0-9._+"'"'"'^*,-]*$'
+  [[ $1 =~ $re ]] || fail "attribute path has characters nix attribute paths do not"
+}
+
+installable() {
+  local ref="${arg%%#*}" attr=""
+  if [ "$ref" != "$arg" ]; then
+    attr="${arg#*#}"
+    attr_ok "$attr"
+  fi
+  [[ $attr != *..* ]] || fail "contains '..'"
+  if [ "$ref" = "." ]; then
+    printf '%s\n' "$arg"
+    return
+  fi
+  local name_re='^[A-Za-z0-9][A-Za-z0-9._-]*$'
+  local forge_re='^(github|gitlab|sourcehut):[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)?([?][A-Za-z0-9=&._-]*)?$'
+  if [[ $ref =~ $name_re ]] || [[ $ref =~ $forge_re ]]; then
+    printf '%s\n' "$arg"
+    return
+  fi
+  fail "not a store path, the cwd flake, a registry name or a github:/gitlab:/sourcehut: reference"
+}
+
+case "$arg" in
+  /*) store_path ;;
+  .) installable ;;
+  .#*) installable ;;
+  ./* | ../* | "~"*) store_path ;;
+  *\#* | *:*) installable ;;
+  */*) store_path ;;
+  *)
+    # a bare word: an existing entry in the cwd (result -> /nix/store/...) is a
+    # path, anything else is read as a registry name.
+    if [ -e "$arg" ] || [ -L "$arg" ]; then
+      store_path
+    else
+      installable
+    fi
+    ;;
+esac

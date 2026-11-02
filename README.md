@@ -104,7 +104,6 @@ The following moxins ship with moxy. Each can be served individually via
 | gmail | 2 | Gmail: triage and read messages | bun, gws |
 | grit | 31 | Git operations (force-push/hard-reset blocked on main/master) | git, jq |
 | gws | 1 | Google Workspace: generic API passthrough | bun, gws |
-| hamster | 6 | Go package documentation via `go doc` | go, bun |
 | jq | 1 | Execute jq filters on JSON data | jq |
 | man | 4 | Unix man page reader with section-level progressive disclosure | pandoc, mandoc |
 | piers | 7 | Google Docs: read, create, edit, and comment on documents | bun, gws, pandoc, plantuml, librsvg |
@@ -112,7 +111,7 @@ The following moxins ship with moxy. Each can be served individually via
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
 
-`arboretum`, `hamster`, `slip` and the Google Workspace moxins (`calendar`,
+`arboretum`, `slip` and the Google Workspace moxins (`calendar`,
 `car`, `gmail`, `gws`, `piers`, `prison` — they need an authenticated `gws`
 CLI) are built but currently left out of the bundle baked into moxy
 (`moxy-moxins`); the full set is the `moxy-moxins-all` flake output. Put its

@@ -50,7 +50,7 @@ build-go: codemod-generate build-moxins
 
 # Builds moxy-moxins-all (every built moxin, including ones not shipped in
 # the bundle baked into moxy), so dev-loop recipes and smokes can still
-# reach arboretum/hamster/slip and the gws moxins.
+# reach arboretum/slip and the gws moxins.
 #
 # build every moxin nix output and link it at result-moxins
 [group("build")]
@@ -349,11 +349,6 @@ run-smoke-claude-p: build-nix
 run-migrated-tools: build-moxins
   nix run nixpkgs#bun -- x zx bin/test-migrated-tools.mjs
 
-# smoke-test the locally-built hamster moxin (doc, src, mod-read, go-mod)
-[group("post-build")]
-run-hamster-smoke: build-moxins
-  nix run nixpkgs#bun -- x zx bin/test-hamster.mjs
-
 # Go vet plus the -race test suite as the hermetic nix checks (the same
 # derivations the gate runs, so results are cached against the gate). There is
 # no ambient `go`: for one package's fast loop use `just debug-go-test`.
@@ -557,7 +552,6 @@ debug-codemod-permit-async:
     moxins/jq/jq.toml
     moxins/arboretum/{md-toc,md-section,md-anchor}.toml
     moxins/man/{list,toc,section}.toml
-    moxins/hamster/{mod-read,src}.toml
     moxins/chix/{which,nix-hash,store-ls,store-cat,store-path-info,derivation-show,flake-init}.toml
   )
   changed=0

@@ -2,12 +2,6 @@
   inputs = {
     igloo.url = "https://code.linenisgreat.com/igloo/archive/master.tar.gz";
     nixpkgs-master.url = "github:NixOS/nixpkgs/b4fd65b198c599cbe814fcb9f42d25d021595ec9";
-    # Pinned to the last upstream nixpkgs commit where pkgs.gomarkdoc still
-    # builds. A regression after 2026-03-23 (still present on master as of
-    # 2026-05-04) breaks gomarkdoc's checkPhase — used only as the source of
-    # `pkgs.gomarkdoc` for hamster-moxin's @GOMARKDOC@ substitution. Remove
-    # this input once NixOS/nixpkgs#516481 lands.
-    nixpkgs-gomarkdoc-pin.url = "github:NixOS/nixpkgs/4590696c8693fea477850fe379a01544293ca4e2";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
     purse-first = {
@@ -113,7 +107,6 @@
       self,
       igloo,
       nixpkgs-master,
-      nixpkgs-gomarkdoc-pin,
       utils,
       purse-first,
       tommy,
@@ -135,11 +128,6 @@
         pkgs = import igloo { inherit system; };
 
         pkgs-master = import nixpkgs-master {
-          inherit system;
-        };
-
-        # See nixpkgs-gomarkdoc-pin in inputs above.
-        pkgs-gomarkdoc-pin = import nixpkgs-gomarkdoc-pin {
           inherit system;
         };
 
@@ -737,7 +725,7 @@
         # Per-moxin derivations — each moxin is self-contained with its deps.
         # @WASM_DIR@ resolves at build time to the arboretum wasm dir (built
         # grammars overlaid on the vendored runtime/grammar set). Same
-        # convention as hamster's @GOMARKDOC@/@PANDOC@: pre-bundle substitution
+        # convention as piers' @PIERS_DOCS_WRITER@: pre-bundle substitution
         # bakes the absolute store path into outline.js so the bundled JS can
         # locate both web-tree-sitter's runtime wasm and the language grammars
         # without any PATH or env-var indirection.
@@ -840,38 +828,6 @@
         grit-moxin = mkBunMoxin "grit" [ ] {
           "push-stack" = "moxins/grit/src/push-stack.ts";
         } { pathMode = "inherit"; };
-        # @GOMARKDOC@ / @PANDOC@ are baked into the bundled JS at build time
-        # via mkBunMoxin's extraSubstitutions, so the markdown renderer path
-        # doesn't depend on the user's PATH or any runtime env var. doc.ts
-        # carries a PATH-fallback for non-nix builds (brew, devshell) where
-        # the placeholders survive into the bundle unmodified.
-        hamster-moxin =
-          mkBunMoxin "hamster"
-            [
-              pkgs.bash
-              pkgs.coreutils
-              pkgs.findutils
-              pkgs.gawk
-              pkgs.gnused
-              pkgs.jq
-              pkgs-master.go_1_26
-            ]
-            {
-              "doc" = "moxins/hamster/src/doc.ts";
-              "doc-outline" = "moxins/hamster/src/doc-outline.ts";
-              "src" = "moxins/hamster/src/src.ts";
-              "mod-read" = "moxins/hamster/src/mod-read.ts";
-            }
-            {
-              pathMode = "inherit";
-              extraSubstitutions = {
-                # gomarkdoc pulled from a pinned older nixpkgs (see the
-                # nixpkgs-gomarkdoc-pin input) because the version in
-                # current nixpkgs has a broken checkPhase.
-                GOMARKDOC = "${pkgs-gomarkdoc-pin.gomarkdoc}/bin/gomarkdoc";
-                PANDOC = "${pkgs.pandoc}/bin/pandoc";
-              };
-            };
         # jq reads the files it is given: folio's read rule, one script (#490).
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {
           extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
@@ -1008,7 +964,6 @@
           gmail = gmail-moxin;
           grit = grit-moxin;
           gws = gws-moxin;
-          hamster = hamster-moxin;
           jq = jq-moxin;
           man = man-moxin;
           piers = piers-moxin;
@@ -1024,7 +979,6 @@
         # stay opt-in pending a disabled-by-default mechanism (#391).
         unshippedMoxins = [
           "arboretum"
-          "hamster"
           "slip"
         ]
         ++ gwsMoxinNames;

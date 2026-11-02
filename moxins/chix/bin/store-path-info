@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-path="$1"
+# Only a store path, the cwd flake or a registry/forge installable reaches nix
+# (check-store-arg, moxy#495).
+path=$("$(dirname "$0")/check-store-arg" "$1")
 closure="${2:-false}"
 derivation="${3:-false}"
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-page="$1"
-src=$(man -w "$page" 2>/dev/null) || true
+page=$("$(dirname "$0")/check-page-name" "$1")
+src=$(man -w -- "$page" 2>/dev/null) || true
 src="${src%%$'\n'*}"
 
 [ -z "$src" ] && { echo "No manual entry for $page"; exit 1; }

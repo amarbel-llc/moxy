@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
-path="$1"
+# Only a store path, the cwd flake or a registry/forge installable reaches nix
+# (check-store-arg, moxy#495).
+path=$("$(dirname "$0")/check-store-arg" "$1")
 jq_filter="${2:-}"
 
 if [ -n "$jq_filter" ]; then
-  nix derivation show "$path" | jq "$jq_filter"
+  # The filter runs with an empty environment (jq's `env` and `$ENV` would
+  # otherwise hand this process's environment to the caller) and travels as a
+  # --from-file program, so a filter that looks like a jq option stays a filter.
+  jq_bin=$(command -v jq)
+  nix derivation show "$path" | env -i "$jq_bin" --from-file <(printf '%s\n' "$jq_filter")
 else
   nix derivation show "$path"
 fi

@@ -2,11 +2,30 @@
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
+_SESSION_ID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    r"|agent-[0-9A-Za-z]{1,64}"
+)
+
+
+def is_session_id(session_id: str) -> bool:
+    """A session UUID or a subagent id, nothing else: a path, '..' or a glob in a
+    session id would pick a file outside the transcripts (moxy#495)."""
+    return _SESSION_ID.fullmatch(session_id) is not None
+
+
+def inside(projects_dir: Path, p: Path) -> bool:
+    """True when p resolves, symlinks and '..' followed, under projects_dir."""
+    return p.resolve().is_relative_to(projects_dir.resolve())
+
 
 def find_session_dir(session_id: str) -> Path | None:
+    if not is_session_id(session_id):
+        return None
     projects_dir = Path(
         os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
     )
@@ -16,7 +35,7 @@ def find_session_dir(session_id: str) -> Path | None:
         if not proj_dir.is_dir():
             continue
         session_dir = proj_dir / session_id
-        if session_dir.is_dir():
+        if session_dir.is_dir() and inside(projects_dir, session_dir):
             return session_dir
         # Also check if bare JSONL exists (session without subagents dir)
         if (proj_dir / f"{session_id}.jsonl").exists():
@@ -78,6 +97,9 @@ def main():
         print("Usage: freud-subagents <session_id>", file=sys.stderr)
         sys.exit(1)
 
+    if not is_session_id(session_id):
+        return emit_mcp_result(f"No subagents found for session {session_id[:100]}")
+
     # Find the subagents directory
     projects_dir = Path(
         os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
@@ -90,7 +112,7 @@ def main():
         if not proj_dir.is_dir():
             continue
         candidate = proj_dir / session_id / "subagents"
-        if candidate.is_dir():
+        if candidate.is_dir() and inside(projects_dir, candidate):
             subagents_dir = candidate
             break
 

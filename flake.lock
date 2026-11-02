@@ -507,22 +507,6 @@
         "type": "github"
       }
     },
-    "nixpkgs-gomarkdoc-pin": {
-      "locked": {
-        "lastModified": 1774244481,
-        "narHash": "sha256-4XfMXU0DjN83o6HWZoKG9PegCvKvIhNUnRUI19vzTcQ=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "4590696c8693fea477850fe379a01544293ca4e2",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "4590696c8693fea477850fe379a01544293ca4e2",
-        "type": "github"
-      }
-    },
     "nixpkgs-llama": {
       "locked": {
         "lastModified": 1777542320,
@@ -712,7 +696,6 @@
         "conformist": "conformist",
         "igloo": "igloo",
         "madder": "madder",
-        "nixpkgs-gomarkdoc-pin": "nixpkgs-gomarkdoc-pin",
         "nixpkgs-master": "nixpkgs-master",
         "purse-first": "purse-first",
         "tommy": "tommy",

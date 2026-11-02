@@ -2,14 +2,33 @@
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
+
+_SESSION_ID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    r"|agent-[0-9A-Za-z]{1,64}"
+)
+
+
+def is_session_id(session_id: str) -> bool:
+    """A session UUID or a subagent id, nothing else: a path, '..' or a glob in a
+    session id would pick a file outside the transcripts (moxy#495)."""
+    return _SESSION_ID.fullmatch(session_id) is not None
+
+
+def inside(projects_dir: Path, p: Path) -> bool:
+    """True when p resolves, symlinks and '..' followed, under projects_dir."""
+    return p.resolve().is_relative_to(projects_dir.resolve())
 
 
 def find_session(session_id: str) -> Path | None:
     """Locate a session transcript. Accepts both top-level session UUIDs
     and subagent IDs (agent-XXX). For subagent IDs, searches every
     project's <session>/subagents/ directory."""
+    if not is_session_id(session_id):
+        return None
     projects_dir = Path(
         os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude" / "projects")
     )
@@ -19,7 +38,7 @@ def find_session(session_id: str) -> Path | None:
         if not proj_dir.is_dir():
             continue
         f = proj_dir / f"{session_id}.jsonl"
-        if f.exists():
+        if f.exists() and inside(projects_dir, f):
             return f
     if session_id.startswith("agent-"):
         for proj_dir in projects_dir.iterdir():
@@ -29,7 +48,7 @@ def find_session(session_id: str) -> Path | None:
                 if not session_dir.is_dir():
                     continue
                 candidate = session_dir / "subagents" / f"{session_id}.jsonl"
-                if candidate.exists():
+                if candidate.exists() and inside(projects_dir, candidate):
                     return candidate
     return None
 
