@@ -157,7 +157,7 @@ func (o RunOptions) start(ctx context.Context, p *Pipeline, stageFiles [][]*os.F
 	}
 	for i, st := range p.Stages {
 		var (
-			out    io.Writer = o.Stdout
+			out    = o.Stdout
 			pr, pw *os.File
 			err    error
 		)
