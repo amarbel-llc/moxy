@@ -7,26 +7,73 @@ cwd_val="${4:-}"
 
 [ -n "$cwd_val" ] && cd "$cwd_val"
 
+die() {
+  echo "jq: $1" >&2
+  exit 2
+}
+
+# Flags are an allowlist (moxy#495): the ones that read a file (-f, --rawfile,
+# --slurpfile, --argfile, -L) would reach past the files policy that gates
+# `files`, so they are refused; --arg and --argjson take data, not a path.
 jq_flags=()
 raw_output=false
 if [ -n "$flags_json" ] && [ "$flags_json" != "null" ]; then
+  flag_list=()
   while IFS= read -r f; do
-    jq_flags+=("$f")
-    case "$f" in -r|--raw-output|--raw-output0) raw_output=true ;; esac
+    flag_list+=("$f")
   done < <(printf '%s' "$flags_json" | jq -r '.[]')
+  n=${#flag_list[@]}
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    f="${flag_list[$i]}"
+    case "$f" in
+      -r | --raw-output | --raw-output0 | -j | --join-output) raw_output=true ;;
+      --compact-output | --slurp | --null-input | --exit-status | --sort-keys) ;;
+      --color-output | --monochrome-output | --ascii-output | --raw-input) ;;
+      --tab | --seq | --stream | --stream-errors) ;;
+      --indent)
+        i=$((i + 1))
+        [[ ${flag_list[$i]-} =~ ^[0-7]$ ]] || die "--indent takes a number from 0 to 7"
+        jq_flags+=("$f")
+        f="${flag_list[$i]}"
+        ;;
+      --arg | --argjson)
+        [[ ${flag_list[$((i + 1))]-} =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "$f takes a variable name and a value"
+        [ $((i + 2)) -lt "$n" ] || die "$f takes a variable name and a value"
+        jq_flags+=("$f" "${flag_list[$((i + 1))]}")
+        f="${flag_list[$((i + 2))]}"
+        i=$((i + 2))
+        ;;
+      -[cslnaeSCMRjr]*)
+        [[ $f =~ ^-[rjcsneSCMaR]+$ ]] || die "flag $f is not allowed"
+        [[ $f == *[rj]* ]] && raw_output=true
+        ;;
+      *) die "flag $f is not allowed (files are read through the files argument)" ;;
+    esac
+    jq_flags+=("$f")
+    i=$((i + 1))
+  done
 fi
 
 jq_files=()
 if [ -n "$files_json" ] && [ "$files_json" != "null" ]; then
   while IFS= read -r f; do
+    case "$f" in
+      -*) die "file $f starts with '-': write ./$f" ;;
+    esac
     jq_files+=("$f")
   done < <(printf '%s' "$files_json" | jq -r '.[]')
 fi
 
+# The program runs with an empty environment (jq's `env` and `$ENV` would
+# otherwise return this process's environment) and travels as a --from-file
+# program, so a filter that looks like an option stays a filter. Open file
+# descriptors (blob URIs become /dev/fd/N) survive env -i.
+jq_bin=$(command -v jq)
 if [ ${#jq_files[@]} -gt 0 ]; then
-  text=$(jq "${jq_flags[@]}" "$filter" "${jq_files[@]}")
+  text=$(env -i "$jq_bin" "${jq_flags[@]}" --from-file <(printf '%s\n' "$filter") "${jq_files[@]}")
 else
-  text=$(jq "${jq_flags[@]}" "$filter")
+  text=$(env -i "$jq_bin" "${jq_flags[@]}" --from-file <(printf '%s\n' "$filter"))
 fi
 
 if [ "$raw_output" = "true" ]; then

@@ -829,7 +829,7 @@
           "push-stack" = "moxins/grit/src/push-stack.ts";
         } { pathMode = "inherit"; };
         # jq reads the files it is given: folio's read rule, one script (#490).
-        jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.jq ] {
+        jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.coreutils pkgs.jq ] {
           extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
         };
         man-moxin =
