@@ -370,6 +370,10 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
 - `internal/add` -- interactive `huh` form for adding servers to a moxyfile
 - `pkg/narrowing` -- the "child grants no more than parent" relation
   over two effective configs (FDR 0013)
+- `pkg/toolbox` -- the toolbox moxin's command grammar and runner (FDR
+  0016): `ResourcesOf` parses a `grammar = "toolbox"` input with it, and
+  `cmd/toolbox` (a separate binary) runs pipelines of coreutils applets,
+  opening judged paths itself with no symlinks followed
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/statsd` -- fire-and-forget UDP statsd metrics
   (`STATSD_HOST`/`STATSD_PORT`, kill switch `MOXY_DISABLE_STATSD=1`); emit

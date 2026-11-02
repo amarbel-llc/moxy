@@ -464,6 +464,16 @@ or
 (required).
 .Sy split = true
 marks a string holding a whitespace-separated list.
+.Sy grammar = \(dqtoolbox\(dq
+marks a string holding a toolbox command
+.Pq toolbox(1) :
+its resources are the command's file operands as the toolbox parser finds
+them, and a command that does not parse names none (the tool's floor must
+then refuse it).
+.Sy grammar
+and
+.Sy split
+are exclusive.
 The input must be a string or an array of strings; a table naming any other
 input is a load error.
 Each value is a file path (made absolute against the caller's working

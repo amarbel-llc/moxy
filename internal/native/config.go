@@ -168,18 +168,25 @@ type rawToolFile struct {
 
 // rawResource is one [resources.<input>] table.
 type rawResource struct {
-	Op    string `toml:"op"`
-	Split bool   `toml:"split"`
+	Op      string `toml:"op"`
+	Split   bool   `toml:"split"`
+	Grammar string `toml:"grammar"`
 }
+
+// GrammarToolbox marks an input holding a toolbox command (pkg/toolbox, FDR
+// 0016): its resources are the command's file operands.
+const GrammarToolbox = "toolbox"
 
 // ResourceArg declares that one string input (or each element of a string
 // array input) names a resource — a file path or a madder://blobs/<digest>
 // URI — and the operation the tool performs on it (moxy#491, RFC 0002). Split
-// marks a string holding a whitespace-separated list of resources.
+// marks a string holding a whitespace-separated list of resources; Grammar
+// names a command language whose parse yields them (only "toolbox").
 type ResourceArg struct {
-	Param string
-	Op    string // read, write or exec
-	Split bool
+	Param   string
+	Op      string // read, write or exec
+	Split   bool
+	Grammar string
 }
 
 // resolveResources validates a tool's [resources.*] tables against its
@@ -208,7 +215,13 @@ func resolveResources(raw rawToolFile) ([]ResourceArg, error) {
 		default:
 			return nil, fmt.Errorf("resources.%s has invalid op %q (want read, write or exec)", name, r.Op)
 		}
-		out = append(out, ResourceArg{Param: name, Op: r.Op, Split: r.Split})
+		switch {
+		case r.Grammar != "" && r.Grammar != GrammarToolbox:
+			return nil, fmt.Errorf("resources.%s has unknown grammar %q (want %q)", name, r.Grammar, GrammarToolbox)
+		case r.Grammar != "" && r.Split:
+			return nil, fmt.Errorf("resources.%s sets both grammar and split", name)
+		}
+		out = append(out, ResourceArg{Param: name, Op: r.Op, Split: r.Split, Grammar: r.Grammar})
 	}
 	slices.SortFunc(out, func(a, b ResourceArg) int { return strings.Compare(a.Param, b.Param) })
 	return out, nil

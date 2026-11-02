@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/pkg/toolbox"
 )
 
 // Op is the operation a tool performs on a resource.
@@ -81,6 +82,17 @@ func ResourcesOf(specs []native.ResourceArg, args json.RawMessage, cwd string) [
 			values = many
 		}
 		for _, v := range values {
+			if spec.Grammar == native.GrammarToolbox {
+				// An unparseable command names nothing here; the tool refuses
+				// it, and so does its floor (`toolbox perms`), so the empty
+				// set never reaches an allow.
+				if p, err := toolbox.Parse(v); err == nil {
+					for _, f := range p.Files() {
+						out = appendResource(out, Op(spec.Op), f, cwd)
+					}
+				}
+				continue
+			}
 			if spec.Split {
 				for _, piece := range strings.Fields(v) {
 					out = appendResource(out, Op(spec.Op), piece, cwd)
@@ -104,14 +116,15 @@ func appendResource(out []OpResource, op Op, value, cwd string) []OpResource {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(cwd, path)
 	}
-	return append(out, OpResource{Op: op, Resource: Resource{Kind: KindFile, URI: "file://" + canonicalPath(path)}})
+	return append(out, OpResource{Op: op, Resource: Resource{Kind: KindFile, URI: "file://" + CanonicalPath(path)}})
 }
 
-// canonicalPath cleans path and resolves symlinks in everything above the
+// CanonicalPath cleans path and resolves symlinks in everything above the
 // leaf, like `realpath -m` on the parent: the leaf itself is not followed (a
 // `result -> /nix/store/...` link in the worktree is a worktree path), and a
-// parent that does not exist yet keeps its missing tail.
-func canonicalPath(path string) string {
+// parent that does not exist yet keeps its missing tail. It is the path the
+// gate judges; toolbox opens exactly this path (FDR 0016).
+func CanonicalPath(path string) string {
 	path = filepath.Clean(path)
 	dir, leaf := filepath.Split(path)
 	dir = filepath.Clean(dir)

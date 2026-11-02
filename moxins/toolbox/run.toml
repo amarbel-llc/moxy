@@ -1,0 +1,43 @@
+schema = 3
+result-type = "text"
+perms-request = "dynamic"
+permit-async = false
+description = """Run a pipeline of pure applets over files, madder://blobs/<digest> URIs or stdin, \
+e.g. `wc -c a.txt | sha256sum` or `digest -a blake2b256 madder://blobs/…`. \
+Applets: wc, sha256sum, b2sum, digest, tr, sort, uniq, cut, paste. \
+Not a shell: only applets, their flags, quoted words and `|`. See toolbox(1) and toolbox-<applet>(1)."""
+command = "@BIN@/toolbox"
+args = ["run", "--floor", "@FOLIO_PERMS@", "--"]
+arg-order = ["command"]
+stdin-param = "stdin"
+substitute-args = ["command", "stdin"]
+
+[input]
+type = "object"
+required = ["command"]
+
+[input.properties.command]
+type = "string"
+description = "The pipeline, e.g. `sort -n nums.txt | uniq -c`. File operands are read under the same policy as folio read."
+
+[input.properties.stdin]
+type = "string"
+description = "Text fed to the first applet's stdin, or a madder://blobs/<digest> URI whose bytes are fed."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+
+# Every file operand of the parsed command is a read resource (FDR 0016): the
+# broker, then `toolbox perms` (folio-perms read on exactly those operands;
+# an unparseable command is denied) as the floor.
+
+[resources.command]
+op = "read"
+grammar = "toolbox"
+
+[dynamic-perms]
+command = "@BIN@/toolbox"
+args = ["perms", "--floor", "@FOLIO_PERMS@", "--"]
+arg-order = ["command"]
+timeout-ms = 5000

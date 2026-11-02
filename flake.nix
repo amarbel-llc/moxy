@@ -220,6 +220,7 @@
             unions [
               ./go.nix
               ./cmd/moxy
+              ./cmd/toolbox
               ./internal
               # The public library surface (FDR 0014, moxy#487).
               ./pkg
@@ -357,6 +358,7 @@
               cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
               cp ${./cmd/moxy/moxy-restart.7} $out/share/man/man7/moxy-restart.7
               cp ${./cmd/moxy/moxy-batch.7} $out/share/man/man7/moxy-batch.7
+              cp ${toolbox-moxin}/share/man/man1/*.1 $out/share/man/man1/
               MANPATH=$out/share/man mandb --no-purge --create $out/share/man
             '';
 
@@ -883,6 +885,32 @@
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {
           extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
         };
+        # toolbox (FDR 0016): the Go binary (cmd/toolbox) parses and runs the
+        # command; its applets are coreutils, the only thing on its PATH.
+        # folio-perms is its static read floor (#490), as for jq and rg. The
+        # man pages land on the man path through moxy-man.
+        toolbox-moxin =
+          pkgs.runCommand "toolbox-moxin"
+            {
+              nativeBuildInputs = [
+                pkgs.makeWrapper
+                pkgs.scdoc
+              ];
+            }
+            ''
+              mkdir -p $out/bin $out/share/man/man1
+              cp ${./moxins/toolbox}/*.toml $out/
+              makeWrapper ${toolbox}/bin/toolbox $out/bin/toolbox \
+                --set PATH ${pkgs.coreutils}/bin
+              for f in $out/*.toml; do
+                substituteInPlace "$f" \
+                  --replace-quiet "@BIN@" "$out/bin" \
+                  --replace-quiet "@FOLIO_PERMS@" "${folio-moxin}/bin/folio-perms"
+              done
+              for s in ${./moxins/toolbox/man}/*.scd; do
+                scdoc <"$s" >"$out/share/man/man1/$(basename "$s" .scd)"
+              done
+            '';
 
         # gws moxins: built, but unshipped (#391) — see the gws-bin block above
         # and unshippedMoxins below.
@@ -970,6 +998,7 @@
           prison = prison-moxin;
           rg = rg-moxin;
           slip = slip-moxin;
+          toolbox = toolbox-moxin;
         };
 
         # Built and tested (moxy-moxins-all feeds the bats lanes and the
@@ -1160,6 +1189,26 @@
             // extra
           );
         moxy-native = mkMoxyNative { };
+
+        # The toolbox moxin's binary (FDR 0016), on the same backend choice as
+        # moxy itself: godyn on godynSystem, buildGoApplication elsewhere.
+        toolbox = pkgs.buildGoAuto {
+          pname = "toolbox";
+          src = moxySrc;
+          manifest = ./go.nix;
+          strategy = if godynSystem then "native" else "bga";
+          inherit inputs;
+          subPackages = [ "cmd/toolbox" ];
+          nativeArgs = {
+            commit = moxyCommit;
+            cc = pkgs.stdenv.cc; # cgo-only DataDog/zstd, via pkg/perms (see moxy-native)
+          };
+          bgaArgs = {
+            commit = moxyCommit;
+            go = pkgs-master.go_1_26;
+            GOTOOLCHAIN = "local";
+          };
+        };
         # The same build with -race (every compile and link, per-package test
         # runs under the race detector): backs checks.go-test-race on godynSystem.
         moxy-native-race = mkMoxyNative { race = true; };

@@ -52,6 +52,30 @@ func TestResourcesOf(t *testing.T) {
 	}
 }
 
+func TestResourcesOfToolboxCommand(t *testing.T) {
+	dir := t.TempDir()
+	specs := []native.ResourceArg{{Param: "command", Op: "read", Grammar: native.GrammarToolbox}}
+	args := json.RawMessage(`{"command": "wc -c 'a b.txt' - madder://blobs/blake2b256-abc | tr -d x | sort /abs/z"}`)
+	got := ResourcesOf(specs, args, dir)
+	want := []OpResource{
+		{Op: Read, Resource: Resource{Kind: KindFile, URI: "file://" + filepath.Join(dir, "a b.txt")}},
+		{Op: Read, Resource: Resource{Kind: KindBlob, URI: "madder://blobs/blake2b256-abc"}},
+		{Op: Read, Resource: Resource{Kind: KindFile, URI: "file:///abs/z"}},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("ResourcesOf = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ResourcesOf[%d] = %v, want %v", i, got[i], want[i])
+		}
+	}
+	// an unparseable command names nothing (its floor refuses it)
+	if got := ResourcesOf(specs, json.RawMessage(`{"command": "wc -c a > b"}`), dir); len(got) != 0 {
+		t.Errorf("unparseable command named %v", got)
+	}
+}
+
 func TestResourcesOfResolvesParentSymlinkNotLeaf(t *testing.T) {
 	root := t.TempDir()
 	real := filepath.Join(root, "real")

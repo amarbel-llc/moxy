@@ -82,6 +82,40 @@ split = true
 		}
 	})
 
+	t.Run("grammar marks a toolbox command", func(t *testing.T) {
+		result, err := parseResourceTool(t, `
+schema = 3
+command = "echo"
+[input.properties.command]
+type = "string"
+[resources.command]
+op = "read"
+grammar = "toolbox"
+`)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := result.Config.Tools[0].Resources; len(got) != 1 || got[0].Grammar != GrammarToolbox {
+			t.Errorf("Resources = %v, want one toolbox-grammar resource", got)
+		}
+	})
+
+	t.Run("an unknown grammar, or grammar with split, is an error", func(t *testing.T) {
+		for _, extra := range []string{`grammar = "sh"`, "grammar = \"toolbox\"\nsplit = true"} {
+			_, err := parseResourceTool(t, `
+schema = 3
+command = "echo"
+[input.properties.command]
+type = "string"
+[resources.command]
+op = "read"
+`+extra+"\n")
+			if err == nil || !strings.Contains(err.Error(), "grammar") {
+				t.Errorf("%s: err = %v, want a grammar error", extra, err)
+			}
+		}
+	})
+
 	t.Run("an unknown input is an error", func(t *testing.T) {
 		_, err := parseResourceTool(t, `
 schema = 3
