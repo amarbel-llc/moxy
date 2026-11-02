@@ -112,8 +112,13 @@ function control_characters_and_oversize_ids_read_nothing { # @test
       "$(printf 'a%.0s' $(seq 5000))" \
       "agent-$(printf 'a%.0s' $(seq 200))"; do
       run_tool "$t" "$id"
-      assert_failure
+      if [[ $t == subagents ]]; then
+        assert_output --partial "No subagents found"
+      else
+        assert_failure
+      fi
       refute_output --partial "outside-secret"
+      refute_output --partial "visible-in"
     done
   done
 }
