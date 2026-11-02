@@ -65,6 +65,56 @@ function the_other_path_reading_tools_follow_folio_read { # @test
   done
 }
 
+BLOB="madder://blobs/blake2b256-abc"
+
+jq_behavior() { # INPUT_JSON [ADDR]
+  hook_behavior mcp__plugin_moxy_moxy__jq_jq "$1" "${2:-}"
+}
+
+function jq_on_blob_uris_with_no_broker_is_not_asked { # @test
+  jq_behavior "$(jq -cn --arg b "$BLOB" '{filter: ".", files: [$b]}')"
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "files=[blob] got $HOOK_BEHAVIOR"
+  jq_behavior "$(jq -cn --arg b "$BLOB" '{filter: ".", stdin: $b}')"
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "stdin=blob got $HOOK_BEHAVIOR"
+  jq_behavior "$(jq -cn --arg b "$BLOB" --arg f "$PROJECT/j.json" '{filter: ".", files: [$b, $f]}')"
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "blob plus a worktree file got $HOOK_BEHAVIOR"
+}
+
+function jq_with_no_files_and_no_cwd_is_not_asked { # @test
+  jq_behavior '{"filter": ".", "stdin": "{\"a\":1}"}'
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "literal stdin got $HOOK_BEHAVIOR"
+  jq_behavior '{"filter": "range(3)", "flags": ["-n"]}'
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "filter only got $HOOK_BEHAVIOR"
+}
+
+function jq_still_asks_for_a_real_file_outside_the_worktree_among_blobs { # @test
+  jq_behavior "$(jq -cn --arg b "$BLOB" --arg f "$HOME/elsewhere/b.txt" '{filter: ".", files: [$b, $f]}')"
+  [[ $HOOK_BEHAVIOR == deny ]] || fail "blob plus an outside file got $HOOK_BEHAVIOR"
+}
+
+function jq_on_blob_uris_with_the_stand_in_broker { # @test
+  start_broker allow
+  jq_behavior "$(jq -cn --arg b "$BLOB" '{filter: ".", files: [$b], stdin: $b}')" "$BROKER_ADDR"
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "broker allow got $HOOK_BEHAVIOR"
+  run broker_checks
+  # the files entry is asked as a blob; stdin is not a resource and is not asked
+  [[ ${#lines[@]} -eq 1 ]] || fail "expected one check, got ${#lines[@]}"
+  jq -e '.resource.kind == "blob"' <<<"${lines[0]}"
+  # a hung broker leaves the floor, which passes blobs
+  stop_broker
+  start_broker hang
+  jq_behavior "$(jq -cn --arg b "$BLOB" '{filter: ".", files: [$b]}')" "$BROKER_ADDR"
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "hung broker, blob got $HOOK_BEHAVIOR"
+}
+
+function the_other_gated_tools_pass_a_blob_uri_with_no_broker { # @test
+  local t
+  for t in arboretum_search arboretum_outline chix_nix-hash piers_create piers_update; do
+    behavior "$t" "$BLOB"
+    [[ $HOOK_BEHAVIOR == allow ]] || fail "$t: blob got $HOOK_BEHAVIOR"
+  done
+}
+
 function without_a_broker_every_read_tool_has_the_floor_of_folio_read { # @test
   local t
   for t in $READ_TOOLS; do
