@@ -33,7 +33,6 @@ EXPECTED_UNGATED=(
   chix.store-path-info
   chix.store-realize
   env.get
-  env.resolve
   env.which
   folio.df
   freud.messages

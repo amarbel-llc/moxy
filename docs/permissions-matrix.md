@@ -4,7 +4,7 @@
 
 Verified columns come from the parsed tool TOML. `path inputs` is inferred from input names.
 
-98 tools: 66 always-allow, 30 dynamic, 0 each-use, 2 delegate-to-client.
+98 tools: 65 always-allow, 31 dynamic, 0 each-use, 2 delegate-to-client.
 
 ## Matrix
 
@@ -51,7 +51,7 @@ Verified columns come from the parsed tool TOML. `path inputs` is inferred from 
 | `env.get` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | `name` |
 | `env.loadavg` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
 | `env.meminfo` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
-| `env.resolve` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | `path` |
+| `env.resolve` | dynamic | broker+floor | `@FOLIO_PERMS@ read` | `path:read` | false | `read-only=true, idempotent=true` | `path` |
 | `env.uptime` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
 | `env.which` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | `name` |
 | `folio.chmod` | dynamic | broker+floor | `folio-perms write` | `path:write` | false | `destructive=true, idempotent=true` | `path` |
@@ -126,7 +126,6 @@ always-allow, no `[resources]` stanza, and an input whose name looks like a path
 - `chix.store-path-info`: path
 - `chix.store-realize`: path
 - `env.get`: name
-- `env.resolve`: path
 - `env.which`: name
 - `folio.df`: path
 - `freud.messages`: session_id

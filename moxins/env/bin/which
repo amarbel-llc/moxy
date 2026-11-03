@@ -1,2 +1,19 @@
 #!/usr/bin/env bash
-exec which "$@"
+# Locate a program on PATH by bare name. A name with a slash would make which
+# an existence oracle for any file, and a leading dash would be an option
+# (moxy#497).
+set -euo pipefail
+name="${1:-}"
+if [[ -z $name ]]; then
+  echo "ERROR: name is required" >&2
+  exit 2
+fi
+if [[ $name == */* ]]; then
+  echo "ERROR: name must not contain '/', got \"$name\"" >&2
+  exit 2
+fi
+if [[ $name == -* ]]; then
+  echo "ERROR: name must not start with '-', got \"$name\"" >&2
+  exit 2
+fi
+exec which -- "$name"

@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 perms-request = "always-allow"
 permit-async = false
-description = "Print environment variables: with a name, that variable's value (exit 1 if unset); without, every variable as NAME=value lines."
+description = "Print an environment variable from an allowlist (PATH, HOME, USER, PWD, SHELL, LANG, TZ, TMPDIR, CLAUDE_CODE_TMPDIR, SPINCLASS_SESSION_ID); exit 1 if unset. A name off the allowlist answers \"redacted: not on the env_get allowlist\", not \"unset\". Without a name, lists the allowlisted variables and says how many others were redacted."
 command = "@BIN@/get"
 arg-order = ["name"]
 
@@ -11,7 +11,7 @@ type = "object"
 
 [input.properties.name]
 type = "string"
-description = "Variable name to print (e.g. 'PATH', 'HOME', 'SSH_AUTH_SOCK'). Omit to list all variables."
+description = "Variable name to print (e.g. 'PATH', 'HOME'). Must not start with '-'. Omit to list the allowlisted variables."
 
 [annotations]
 read-only-hint = true

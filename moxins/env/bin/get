@@ -1,4 +1,44 @@
 #!/usr/bin/env bash
-# printenv with a name prints that variable (exit 1 if unset); with no
-# args it lists every variable — one script serves both subshapes (#326).
-exec printenv "$@"
+# Print an allowlisted environment variable (exit 1 if unset). A name off the
+# allowlist is answered "redacted", never "unset", so the caller can tell the
+# two apart; with no name only the allowlisted variables are listed, followed
+# by a count of how many others were withheld (moxy#497).
+set -euo pipefail
+
+allowlist=(PATH HOME USER PWD SHELL LANG TZ TMPDIR CLAUDE_CODE_TMPDIR SPINCLASS_SESSION_ID)
+
+allowed() {
+  local n
+  for n in "${allowlist[@]}"; do
+    [[ $n == "$1" ]] && return 0
+  done
+  return 1
+}
+
+if (($# > 1)); then
+  echo "ERROR: env_get takes at most one name, got $#" >&2
+  exit 2
+fi
+
+if (($# == 1)); then
+  name="$1"
+  if [[ $name == -* ]]; then
+    echo "ERROR: name must not start with '-', got \"$name\"" >&2
+    exit 2
+  fi
+  if ! allowed "$name"; then
+    echo "redacted: not on the env_get allowlist"
+    exit 0
+  fi
+  exec printenv -- "$name"
+fi
+
+redacted=0
+while IFS= read -r name; do
+  if allowed "$name"; then
+    printf '%s=%s\n' "$name" "${!name}"
+  else
+    redacted=$((redacted + 1))
+  fi
+done < <(compgen -e | sort)
+echo "$redacted other variables redacted (not on the env_get allowlist)"

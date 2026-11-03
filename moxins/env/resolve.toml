@@ -1,8 +1,8 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
+perms-request = "dynamic"
 permit-async = false
-description = "Resolve a path: mode \"canonical\" (default) prints the absolute canonical form with all symlinks and relative components resolved (realpath); mode \"target\" prints a symlink's immediate target only (readlink)."
+description = "Resolve a path: mode \"canonical\" (default) prints the absolute canonical form with all symlinks and relative components resolved (realpath); mode \"target\" prints a symlink's immediate target only (readlink). The path is read under the same policy as folio read; /proc, /sys and /dev are always refused."
 command = "@BIN@/resolve"
 arg-order = ["path", "mode"]
 
@@ -12,7 +12,7 @@ required = ["path"]
 
 [input.properties.path]
 type = "string"
-description = "Path to resolve (e.g. '/usr/bin/python3', './result', '~/.config')"
+description = "Path to resolve (e.g. '/usr/bin/python3', './result'). /proc, /sys and /dev are refused."
 
 [input.properties.mode]
 type = "string"
@@ -22,3 +22,14 @@ description = "canonical (default): full realpath resolution. target: immediate 
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+# The path is read under folio's policy (moxy#497), the same rule as folio read.
+
+[resources.path]
+op = "read"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 5000

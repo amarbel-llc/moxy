@@ -2,7 +2,7 @@ schema = 3
 result-type = "text"
 perms-request = "always-allow"
 permit-async = false
-description = "Locate a program on PATH. Returns the absolute path if found, exits nonzero if not."
+description = "Locate a program on PATH by bare name. Returns the absolute path if found, exits nonzero if not. Names containing '/' or starting with '-' are refused."
 command = "@BIN@/which"
 arg-order = ["name"]
 
@@ -12,7 +12,7 @@ required = ["name"]
 
 [input.properties.name]
 type = "string"
-description = "Binary name to locate (e.g. 'go', 'cargo', 'pivy-tool')"
+description = "Binary name to locate (e.g. 'go', 'cargo', 'pivy-tool'). No '/', no leading '-'."
 
 [annotations]
 read-only-hint = true

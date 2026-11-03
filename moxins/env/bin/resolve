@@ -2,9 +2,31 @@
 set -euo pipefail
 path="$1"
 mode="${2:-canonical}"
+
+# /proc, /sys and /dev expose other processes' cwd, exe and open files, so they
+# are refused whatever the broker says (moxy#497). Checked three ways: the
+# lexical form (catches /proc/self/cwd, which resolves elsewhere), the fully
+# resolved form (catches a symlink or ".." leading in) and the resolved parent
+# (catches a final component that is a symlink into one of them).
+refused() {
+  case "$1" in
+  /proc | /proc/* | /sys | /sys/* | /dev | /dev/*) return 0 ;;
+  esac
+  return 1
+}
+for candidate in \
+  "$(realpath -m -s -- "$path")" \
+  "$(realpath -m -- "$path")" \
+  "$(realpath -m -- "$(dirname -- "$(realpath -m -s -- "$path")")")"; do
+  if refused "$candidate"; then
+    echo "ERROR: refused: /proc, /sys and /dev are not resolved (\"$path\")" >&2
+    exit 2
+  fi
+done
+
 case "$mode" in
-canonical) exec realpath "$path" ;;
-target) exec readlink "$path" ;;
+canonical) exec realpath -- "$path" ;;
+target) exec readlink -- "$path" ;;
 *)
   echo "ERROR: mode must be \"canonical\" or \"target\", got \"$mode\"" >&2
   exit 2

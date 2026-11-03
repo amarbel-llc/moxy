@@ -805,6 +805,8 @@
                 "TZDIR"
                 "${pkgs.tzdata}/share/zoneinfo"
               ];
+              # resolve reads the path it is given: folio's read rule (#497).
+              extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
             };
         folio-moxin = mkMoxin "folio" [
           pkgs.bash
