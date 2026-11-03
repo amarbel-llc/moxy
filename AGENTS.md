@@ -395,6 +395,10 @@ Dispatched in `cmd/moxy/main.go`:
 - `add [path]` -- interactive form to add a server entry
 - `narrows --parent --child` / `show-effective-moxyfile` -- narrowing check and
   the canonical effective render (`cmd/moxy/narrowing.go`)
+- `perms-matrix [--moxins DIR]` -- the moxin tool permissions matrix as
+  markdown (moxy#496, `internal/permsmatrix`); `just debug-perms-matrix`
+  regenerates `docs/permissions-matrix.md`, and `zz-tests_bats/perms_matrix.bats`
+  pins the ungated path readers it flags
 - `install-mcp` / `generate-plugin` / `hook` -- purse-first integration
 
 ## Dependencies

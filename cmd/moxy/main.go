@@ -391,6 +391,7 @@ func newApp() *command.App {
 	})
 
 	addNarrowingCommands(app)
+	addPermsMatrixCommand(app)
 
 	app.AddCommand(&command.Command{
 		Name: "hook",

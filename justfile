@@ -938,6 +938,15 @@ debug-arboretum-wasi-clang-interp sdk:
 debug-lint-dead-jq *files:
   bash {{justfile_directory()}}/scripts/lint-dead-jq {{files}}
 
+# Regenerates docs/permissions-matrix.md from the moxin tool TOMLs through the
+# server's own parser (moxy#496). Agent dev-loop: run after adding or changing
+# a moxin tool or its perms, and commit the result with the change.
+#
+# regenerate docs/permissions-matrix.md from the moxin sources
+[group("debug")]
+debug-perms-matrix: build-go
+  {{justfile_directory()}}/build/moxy perms-matrix --moxins {{justfile_directory()}}/moxins > {{justfile_directory()}}/docs/permissions-matrix.md
+
 # smoke-test arboretum-moxin search against a small fixture
 [group("debug")]
 debug-arboretum-search-smoke:
