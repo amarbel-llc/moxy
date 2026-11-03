@@ -610,6 +610,38 @@ debug-dump-tool-entry tool="folio.read" protocol="2025-11-25": build-go
     | {{justfile_directory()}}/{{dir_build}}/moxy serve mcp 2>/dev/null \
     | jq -c 'if .id == 1 then {negotiated: .result.protocolVersion} elif .id == 2 then (.result.tools[] | select(.name == "{{tool}}")) else empty end'
 
+# Measures what each moxin costs a session's context: tools/list served from
+# every built moxin (moxy-moxins-all), grouped by server, with the tool count
+# and the compact-JSON byte size of the entries. Agent dev-loop for moxy#502.
+#
+# report per-server tool count and tools/list bytes for every built moxin
+[group("debug")]
+debug-tool-catalog-size server="": build-nix build-moxins
+  #!/usr/bin/env bash
+  set -euo pipefail
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  export HOME="$tmpdir/home"
+  mkdir -p "$HOME"
+  (cd "$HOME" && madder init .default >/dev/null 2>&1)
+  cd "$HOME"
+  init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"debug","version":"0"}}}'
+  initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  list='{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+  (echo "$init"; sleep 0.5; echo "$initialized"; echo "$list"; sleep 3) \
+    | {{justfile_directory()}}/result/bin/moxy serve mcp 2>/dev/null \
+    | jq -rs --arg server '{{server}}' '
+        [.[] | select(.id == 2) | .result.tools[]
+          | {server: (.name | split(".")[0]), tool: .name, bytes: (tojson | utf8bytelength)}]
+        | if $server != "" then
+            map(select(.server == $server)) | sort_by(-.bytes)[] | "\(.tool)\t\(.bytes)"
+          else (group_by(.server)
+           | map({server: .[0].server, tools: length, bytes: (map(.bytes) | add),
+                  largest: (max_by(.bytes) | "\(.tool) \(.bytes)")})
+           | sort_by(-.bytes)[]
+           | "\(.server)\t\(.tools)\t\(.bytes)\t\(.largest)"),
+          "TOTAL\t\(length)\t\(map(.bytes) | add)" end'
+
 # Bisect helper: build and validate MCP loading at current commit
 # Usage: git bisect start HEAD <known-good> -- && git bisect run just debug-bisect
 #
