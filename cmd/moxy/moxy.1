@@ -1,4 +1,4 @@
-.Dd October 7, 2026
+.Dd November 4, 2026
 .Dt MOXY 1
 .Os
 .Sh NAME
@@ -20,7 +20,7 @@
 .Cm show-effective-moxyfile
 .Op Fl -dir Ar dir
 .Nm
-.Cm validate
+.Cm status
 .Nm
 .Cm add
 .Op Ar path
@@ -272,12 +272,14 @@ The output is what a spawner hands a child
 .Nm
 as
 .Ev MOXY_PARENT_MOXYFILE .
-.It Cm validate
-Validate the moxyfile hierarchy and output results in TAP version 14
-format.
-Checks TOML syntax, validates server names and commands, and verifies
-executables exist on
-.Ev PATH .
+.It Cm status
+Load the moxyfile hierarchy and discover moxins from
+.Ev MOXIN_PATH ,
+then print each config level with its servers and moxins.
+Validates TOML syntax, server commands, and moxin configs, and exits 1
+when validation fails.
+See
+.Xr moxy-status 1 .
 .It Cm add Op Ar path
 Interactively add a server to a moxyfile using a terminal form.
 The optional
@@ -297,8 +299,8 @@ Resources and resource templates use a slash separator:
 .Ar server Ns Li / Ns Ar uri .
 .Sh META TOOLS
 .Nm
-injects two built-in tools into the unified server:
-.Bl -tag -width "exec-mcp"
+injects five built-in tools into the unified server:
+.Bl -tag -width "async-result"
 .It restart
 Restart a configured child server or moxin by name.
 For persistent servers, closes and re-spawns the process.
@@ -324,9 +326,20 @@ to the active conversation's system prompt \(em see
 .Xr moxy-restart 7
 for the workaround
 .Pq /mcp \(-> Reconnect .
-.It exec-mcp
-Invoke a tool on a named child server directly, bypassing the
-normal namespaced dispatch.
+.It batch
+Run a sequence of moxin sub-calls under a single permission prompt.
+A sub-call whose permission resolves to deny, or to nothing, aborts the
+whole batch.
+Output is TAP-NDJSON; see
+.Xr moxy-batch 7 .
+.It async
+Dispatch one tool call in the background and return its job id at once.
+The agent is woken through clown's job-wakeup channel when the job reaches
+a terminal state.
+.It async-result
+Fetch an async job's status, or its stored result once it is terminal.
+.It async-cancel
+Cancel a running async job.
 .El
 .Sh DISCOVERY RESOURCES
 .Nm
