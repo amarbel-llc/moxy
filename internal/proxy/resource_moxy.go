@@ -41,6 +41,7 @@ func (m *moxyResourceProvider) ReadResource(
 	if err != nil {
 		return nil, err
 	}
+	tools = m.proxy.allowedToolsOf(serverName, tools)
 
 	if len(parts) == 2 {
 		// moxy://tools/{server} — tool list summary

@@ -152,6 +152,27 @@ pass-tools = ["two", "restart"]'
     fail "pass meta tool was callable: $output"
 }
 
+# moxy#460: the moxy://tools discovery resources answer from the same allowlist
+# as tools/list, so a tool outside it (a pass tool included) is not discoverable
+# there either.
+function the_moxy_tools_resources_hide_what_allow_tools_does_not_name { # @test
+  write_two_servers "$HOME/repo/moxyfile" 'allow-tools = ["one.execute-command"]
+pass-tools = ["two"]'
+  cd "$HOME/repo"
+
+  run_moxy_mcp resources/read '{"uri":"moxy://tools/one"}'
+  assert_success
+  assert_equal "$(echo "$output" | jq -r '.contents[0].text' | jq -c '[.[].name]')" '["execute-command"]'
+
+  run_moxy_mcp resources/read '{"uri":"moxy://tools/two"}'
+  assert_success
+  assert_equal "$(echo "$output" | jq -r '.contents[0].text' | jq -c '[.[].name]')" '[]'
+
+  run_moxy_mcp resources/read '{"uri":"moxy://tools/two/execute-command"}'
+  assert_success
+  refute_output --partial "inputSchema"
+}
+
 function a_pass_tool_is_not_callable_through_batch { # @test
   # The sub-call must clear batch's permission preflight (a [[servers]] tool
   # has no perms-request and would bail out there), so the pass tool is a

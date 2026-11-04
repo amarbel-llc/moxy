@@ -839,6 +839,26 @@ func (p *Proxy) applyToolAllow(tools []protocol.ToolV1, reg naming.Registry) []p
 	return kept
 }
 
+// allowedToolsOf keeps the tools of server that the `allow-tools` allowlist
+// permits, so the moxy://tools discovery resources show what tools/list shows
+// (#460). tools may be an ephemeral server's cache, so the result is a new
+// slice rather than tools filtered in place.
+func (p *Proxy) allowedToolsOf(server string, tools []protocol.ToolV1) []protocol.ToolV1 {
+	p.mu.RLock()
+	allow := p.toolAllow
+	p.mu.RUnlock()
+	if !allow.Restricted() {
+		return tools
+	}
+	kept := make([]protocol.ToolV1, 0, len(tools))
+	for _, t := range tools {
+		if allow.Allows(server, t.Name) {
+			kept = append(kept, t)
+		}
+	}
+	return kept
+}
+
 // canonicalToolName resolves a rendered tool name to the (server, tool) pair
 // the moxyfile knows it by, whatever the name template. A meta tool has no
 // owning server and resolves to ("", name).

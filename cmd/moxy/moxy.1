@@ -355,6 +355,17 @@ Tool names and descriptions for a child server.
 Full JSON schema for a specific tool.
 .El
 .Pp
+The
+.Li moxy://tools
+resources apply the moxyfile's
+.Va allow-tools
+allowlist as
+.Li tools/list
+does
+.Pq see Xr moxyfile 5 :
+a tool it does not name, a pass tool included, is not listed and its
+schema cannot be read.
+.Pp
 Unknown resource reads return structured JSON hints pointing to
 .Li moxy://servers
 instead of raw error messages.
