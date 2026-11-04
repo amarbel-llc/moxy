@@ -341,6 +341,51 @@ func TestEnforceRefusesWhatNobodyCanApprove(t *testing.T) {
 	}
 }
 
+// moxy#455: restarting by name a moxin whose tool file no longer loads
+// reports the load error, not that it is missing from MOXIN_PATH.
+func TestRestartAMoxinThatNoLongerLoadsReportsItsLoadError(t *testing.T) {
+	var dir string
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inst := openFixture(t, func(o *Options) {
+		o.MetaTools = true
+		dir = filepath.Join(o.MoxinPath, "broken")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		write("_moxin.toml", "schema = 1\nname = \"broken\"\n")
+		write("tool.toml", "schema = 3\ncommand = \"echo\"\n")
+	})
+	write("tool.toml", "schema = 3\ncommand = \"echo\"\n[annotations]\nbogusHint = true\n")
+
+	res, err := inst.Call(context.Background(), Call{
+		Name: "restart",
+		Args: json.RawMessage(`{"server":"broken"}`),
+	})
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	var text string
+	for _, b := range res.Content {
+		text += b.Text
+	}
+	if !res.IsError {
+		t.Fatalf("restart broken succeeded: %q", text)
+	}
+	if strings.Contains(text, "not found") {
+		t.Errorf("restart broken = %q, want the load error, not \"not found\"", text)
+	}
+	for _, want := range []string{"tool.toml", "bogusHint"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("restart broken = %q, want it to name %q", text, want)
+		}
+	}
+}
+
 func TestEnforceAllowLiftsAnUnannotatedTool(t *testing.T) {
 	inst := openFixture(t, func(o *Options) {
 		o.Permissions = perms.Policy{Mode: perms.Enforce, Allow: []string{"fix.plain"}}

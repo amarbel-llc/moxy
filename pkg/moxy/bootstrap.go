@@ -256,10 +256,14 @@ func (r *moxinReloader) ReloadMoxin(name string) (*native.NativeConfig, error) {
 	if literal.BuiltinNative != nil && !*literal.BuiltinNative {
 		systemDir = ""
 	}
-	configs, err := native.DiscoverConfigs(r.in.moxinPath, systemDir)
+	discovered, err := native.DiscoverServing(r.in.moxinPath, systemDir)
 	if err != nil {
 		return nil, fmt.Errorf("discovering moxins: %w", err)
 	}
+	for _, loadErr := range discovered.Errors {
+		fmt.Fprintf(r.in.stderr, "moxy: skipping moxin %s: %v\n", loadErr.Dir, loadErr.Err)
+	}
+	configs := discovered.Configs
 
 	// Same gate as a full reload: the re-read moxyfile and the moxins found
 	// just now must still narrow the parent reference.
@@ -293,6 +297,11 @@ func (r *moxinReloader) ReloadMoxin(name string) (*native.NativeConfig, error) {
 		}
 		nc.Tools = filtered
 		return nc, nil
+	}
+	for _, refused := range discovered.Refused {
+		if refused.Name == name {
+			return nil, fmt.Errorf("moxin %q at %s failed to load: %w", name, refused.Dir, refused.Err)
+		}
 	}
 	return nil, fmt.Errorf("moxin %q not found on MOXIN_PATH or in the system moxin dir", name)
 }
