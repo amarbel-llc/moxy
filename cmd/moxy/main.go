@@ -23,6 +23,7 @@ import (
 	"code.linenisgreat.com/moxy/internal/naming"
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/internal/status"
+	"code.linenisgreat.com/moxy/internal/stderrlog"
 )
 
 // version and commit are set at build time via -ldflags.
@@ -471,7 +472,10 @@ func main() {
 	defer cancel()
 
 	if err := app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}); err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
+		// Not os.Stderr: under serve, fd 2 is a pipe whose copier goroutine
+		// os.Exit kills before it drains.
+		// TODO(#438): unwind instead of os.Exit, then drop this sidestep.
+		fmt.Fprintf(stderrlog.OriginalStderr(), "moxy: %v\n", err)
 		// `narrows` reserves exit 1 for "the child widens". An error that
 		// never reached the comparison — a flag with no value, say — must
 		// not be mistaken for that verdict by a caller reading exit codes.

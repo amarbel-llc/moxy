@@ -38,7 +38,24 @@ var (
 	activePath    string
 	completedPath string
 	pidSidecar    string
+	// original is the process's stderr from before Init teed fd 2 into a
+	// pipe; nil until Init has done so.
+	original *os.File
 )
+
+// OriginalStderr returns the stderr moxy started with, bypassing the tee
+// Init installs on fd 2 (os.Stderr until then). A write to it reaches the
+// terminal synchronously, so a final error printed just before os.Exit is not
+// lost in the pipe the copier goroutine never gets to drain (moxy#438). Such
+// a write does not reach the per-session log file.
+func OriginalStderr() *os.File {
+	mu.Lock()
+	defer mu.Unlock()
+	if original == nil {
+		return os.Stderr
+	}
+	return original
+}
 
 // Init opens the per-session stderr log and dup2's fd 2 onto it so os.Stderr,
 // the log package, and Go runtime panic traces all land in the file. Creates
@@ -109,6 +126,7 @@ func Init(version string) error {
 		return fmt.Errorf("dup2 pipe onto stderr: %w", err)
 	}
 	pw.Close() // fd 2 now holds the write end; the Go *File is unneeded.
+	original = origStderr
 
 	go func() {
 		defer pr.Close()
