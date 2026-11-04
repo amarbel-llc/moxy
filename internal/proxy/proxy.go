@@ -2224,12 +2224,17 @@ func readOnlyAnnotations() *protocol.ToolAnnotations {
 	}
 }
 
+// prefixToolTitle prefixes the server name onto tool's titles. Annotations is
+// a pointer that a replayed ephemeral cache shares with the caller's copy, so
+// it is copied before the write rather than prefixed in place.
 func prefixToolTitle(tool *protocol.ToolV1, serverName string) {
 	if tool.Title != "" {
 		tool.Title = serverName + ": " + tool.Title
 	}
 	if tool.Annotations != nil && tool.Annotations.Title != "" {
-		tool.Annotations.Title = serverName + ": " + tool.Annotations.Title
+		annotations := *tool.Annotations
+		annotations.Title = serverName + ": " + annotations.Title
+		tool.Annotations = &annotations
 	}
 }
 

@@ -145,6 +145,47 @@ func TestListToolsV1PassesEphemeralChildMetaThrough(t *testing.T) {
 	assertJSONEqual(t, got, childMeta)
 }
 
+// #454: listing replays the ephemeral cache, and prefixing the server name onto
+// a replayed tool's titles must not write through to the cached annotations.
+func TestListToolsV1EphemeralTitlePrefixDoesNotStack(t *testing.T) {
+	tools, err := decodeToolsList(json.RawMessage(
+		`{"tools":[{"name":"find","title":"Find","inputSchema":{"type":"object"},` +
+			`"annotations":{"title":"Find things"}}]}`,
+	))
+	if err != nil {
+		t.Fatalf("decodeToolsList: %v", err)
+	}
+	p := &Proxy{ephemeral: map[string]*EphemeralMeta{
+		"eph": {Capabilities: toolsCapable(), Tools: tools},
+	}}
+
+	for i := range 2 {
+		result, err := p.ListToolsV1(context.Background(), "")
+		if err != nil {
+			t.Fatalf("listing %d: ListToolsV1: %v", i+1, err)
+		}
+		var found bool
+		for _, tool := range result.Tools {
+			if tool.Name != "eph.find" {
+				continue
+			}
+			found = true
+			if tool.Title != "eph: Find" {
+				t.Errorf("listing %d: Title = %q, want %q", i+1, tool.Title, "eph: Find")
+			}
+			if tool.Annotations == nil || tool.Annotations.Title != "eph: Find things" {
+				t.Errorf("listing %d: Annotations = %+v, want title %q", i+1, tool.Annotations, "eph: Find things")
+			}
+		}
+		if !found {
+			t.Fatalf("listing %d: eph.find not listed", i+1)
+		}
+	}
+	if got := tools[0].Annotations.Title; got != "Find things" {
+		t.Errorf("cached annotations title = %q, want it untouched", got)
+	}
+}
+
 // The tools moxy makes up itself (a failed server's status tool, the resource
 // bridge) declare nothing, so they carry no `_meta`.
 func TestListToolsV1SyntheticToolsCarryNoMeta(t *testing.T) {
