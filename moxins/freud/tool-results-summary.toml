@@ -1,7 +1,7 @@
 schema = 3
 perms-request = "always-allow"
 description = """Summarize tool results across sessions: total calls, successes, errors, empty results, \
-and rejections per tool. Shows error rates and example error previews. Useful for understanding tool \
+rejections and overflows (results too large to return inline, cached or refused) per tool. Shows error rates and example error previews. Useful for understanding tool \
 reliability and identifying flaky tools or misconfigured servers."""
 command = "@BIN@/tool-results-summary"
 arg-order = ["project", "days", "tool_name", "limit", "scope", "error_pattern"]

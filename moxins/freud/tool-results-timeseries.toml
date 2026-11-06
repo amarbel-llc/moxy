@@ -1,6 +1,6 @@
 schema = 3
 perms-request = "always-allow"
-description = """Tool result outcomes (success, error, empty, rejected) bucketed by day or week. \
+description = """Tool result outcomes (success, error, empty, rejected, overflow) bucketed by day or week. \
 Returns a table with per-bucket totals and error rates, plus ASCII sparklines for errors and volume. \
 Use to spot regressions and trends that tool-results-summary's aggregate view hides."""
 command = "@BIN@/tool-results-timeseries"

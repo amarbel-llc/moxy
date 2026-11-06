@@ -43,6 +43,19 @@ def normalize_preview(s: str) -> str:
     return s.strip()
 
 
+# A result too large to return inline (moxy#139): moxy's cached result
+# leads with its truncation banner (internal/native/cache.go); Claude Code
+# refuses its own oversized results with "exceeds maximum allowed tokens".
+OVERFLOW_PREFIXES = ("⚠ TRUNCATED",)
+OVERFLOW_MARKERS = ("exceeds maximum allowed tokens",)
+
+
+def is_overflow(text: str) -> bool:
+    return text.startswith(OVERFLOW_PREFIXES) or any(
+        m in text for m in OVERFLOW_MARKERS
+    )
+
+
 def collect_results(path: Path, tool_name_filter: str) -> list[dict]:
     """Extract all tool results with their outcome classification."""
     tool_names: dict[str, str] = {}
@@ -103,15 +116,17 @@ def collect_results(path: Path, tool_name_filter: str) -> list[dict]:
                     ):
                         continue
 
-                    is_success = not is_error and not is_empty
+                    overflow = not is_rejected and is_overflow(text)
+                    is_success = not is_error and not is_empty and not overflow
 
                     results.append(
                         {
                             "tool": name,
                             "is_success": is_success,
-                            "is_error": is_error and not is_rejected,
+                            "is_error": is_error and not is_rejected and not overflow,
                             "is_empty": is_empty,
                             "is_rejected": is_rejected,
+                            "is_overflow": overflow,
                             "preview": normalize_preview(text)
                             if (text and not is_success)
                             else "",
@@ -213,6 +228,7 @@ def main():
     error_counter: Counter = Counter()
     empty_counter: Counter = Counter()
     rejected_counter: Counter = Counter()
+    overflow_counter: Counter = Counter()
     example_previews: dict[str, str] = {}
 
     for r in all_results:
@@ -222,6 +238,8 @@ def main():
             success_counter[tool] += 1
         if r.get("is_rejected"):
             rejected_counter[tool] += 1
+        elif r["is_overflow"]:
+            overflow_counter[tool] += 1
         elif r["is_error"]:
             error_counter[tool] += 1
         if r["is_empty"]:
@@ -251,9 +269,11 @@ def main():
     total_errs = sum(error_counter.values())
     total_empty = sum(empty_counter.values())
     total_rejected = sum(rejected_counter.values())
+    total_overflow = sum(overflow_counter.values())
     lines.append(
         f"Total: {grand_total} calls "
-        f"({total_success} ok, {total_errs} errors, {total_empty} empty, {total_rejected} rejected)"
+        f"({total_success} ok, {total_errs} errors, {total_empty} empty, "
+        f"{total_rejected} rejected, {total_overflow} overflow)"
     )
 
     max_name = max(4, max(len(t) for t in ranked))
@@ -261,7 +281,7 @@ def main():
     lines.append("")
     lines.append(
         f"  {'#':>3}  {'Tool':<{max_name}}  {'Total':>5}  {'OK':>5}"
-        f"  {'Err':>5}  {'Empty':>5}  {'Rej':>5}  {'Err%':>5}  Example"
+        f"  {'Err':>5}  {'Empty':>5}  {'Rej':>5}  {'Ovfl':>5}  {'Err%':>5}  Example"
     )
     for i, tool in enumerate(ranked, start=1):
         total = total_counter[tool]
@@ -269,11 +289,12 @@ def main():
         errs = error_counter[tool]
         empties = empty_counter[tool]
         rejects = rejected_counter[tool]
+        overflows = overflow_counter[tool]
         err_pct = 100.0 * errs / total if total > 0 else 0.0
         preview = example_previews.get(tool, "")
         lines.append(
             f"  {i:>3}  {tool:<{max_name}}  {total:>5}  {ok:>5}"
-            f"  {errs:>5}  {empties:>5}  {rejects:>5}  {err_pct:4.1f}%  {preview}"
+            f"  {errs:>5}  {empties:>5}  {rejects:>5}  {overflows:>5}  {err_pct:4.1f}%  {preview}"
         )
 
     # Date range

@@ -58,7 +58,7 @@ def collect_results(
     isolate a specific error signature in the timeseries.
     """
     tool_names: dict[str, str] = {}
-    counts = {"ok": 0, "err": 0, "empty": 0, "rej": 0}
+    counts = dict.fromkeys(OUTCOMES, 0)
 
     with open(path) as f:
         for line in f:
@@ -117,12 +117,15 @@ def collect_results(
                     # For error_pattern, preview is the error/empty/rejected
                     # body. Successes have no preview so a non-trivial regex
                     # skips them.
-                    preview = text if (is_error or is_empty) else ""
+                    overflow = not is_rejected and is_overflow(text)
+                    preview = text if (is_error or is_empty or overflow) else ""
                     if error_re is not None and not error_re.search(preview):
                         continue
 
                     if is_rejected:
                         counts["rej"] += 1
+                    elif overflow:
+                        counts["ovfl"] += 1
                     elif is_error:
                         counts["err"] += 1
                     elif is_empty:
@@ -131,6 +134,21 @@ def collect_results(
                         counts["ok"] += 1
 
     return counts
+
+
+# The outcome of a result; "ovfl" is one too large to return inline
+# (moxy#139): moxy's cached result leads with its truncation banner
+# (internal/native/cache.go); Claude Code refuses its own oversized results
+# with "exceeds maximum allowed tokens".
+OUTCOMES = ("ok", "err", "empty", "rej", "ovfl")
+OVERFLOW_PREFIXES = ("⚠ TRUNCATED",)
+OVERFLOW_MARKERS = ("exceeds maximum allowed tokens",)
+
+
+def is_overflow(text: str) -> bool:
+    return text.startswith(OVERFLOW_PREFIXES) or any(
+        m in text for m in OVERFLOW_MARKERS
+    )
 
 
 def subagent_paths(session_path: Path) -> list[Path]:
@@ -223,27 +241,23 @@ def main():
         )
 
     # Phase 3: collect results per time bucket
-    buckets: dict[str, dict] = defaultdict(
-        lambda: {"ok": 0, "err": 0, "empty": 0, "rej": 0}
-    )
+    buckets: dict[str, dict] = defaultdict(lambda: dict.fromkeys(OUTCOMES, 0))
 
     for path, bucket in session_files:
         if scope in ("both", "main"):
             counts = collect_results(path, tool_name_filter, error_re)
-            for key in ("ok", "err", "empty", "rej"):
+            for key in OUTCOMES:
                 buckets[bucket][key] += counts[key]
         if scope in ("both", "subagents"):
             for sub in subagent_paths(path):
                 sub_counts = collect_results(sub, tool_name_filter, error_re)
-                for key in ("ok", "err", "empty", "rej"):
+                for key in OUTCOMES:
                     buckets[bucket][key] += sub_counts[key]
 
     sorted_buckets = sorted(buckets.keys())
 
     # Check if any data
-    grand_total = sum(
-        b["ok"] + b["err"] + b["empty"] + b["rej"] for b in buckets.values()
-    )
+    grand_total = sum(sum(b.values()) for b in buckets.values())
     if grand_total == 0:
         filter_desc = f", tool={tool_name_filter}" if tool_name_filter else ""
         return emit_mcp_result(
@@ -267,27 +281,25 @@ def main():
     date_width = max(len(date_label), max(len(b) for b in sorted_buckets))
     lines.append(
         f"  {date_label:<{date_width}}  {'Total':>6}  {'OK':>6}"
-        f"  {'Err':>5}  {'Empty':>5}  {'Rej':>5}  {'Err%':>5}"
+        f"  {'Err':>5}  {'Empty':>5}  {'Rej':>5}  {'Ovfl':>5}  {'Err%':>5}"
     )
 
     for bucket in sorted_buckets:
         d = buckets[bucket]
-        total = d["ok"] + d["err"] + d["empty"] + d["rej"]
+        total = sum(d.values())
         err_pct = 100.0 * d["err"] / total if total > 0 else 0.0
         lines.append(
             f"  {bucket:<{date_width}}  {total:>6}  {d['ok']:>6}"
-            f"  {d['err']:>5}  {d['empty']:>5}  {d['rej']:>5}  {err_pct:4.1f}%"
+            f"  {d['err']:>5}  {d['empty']:>5}  {d['rej']:>5}  {d['ovfl']:>5}  {err_pct:4.1f}%"
         )
 
     # Totals row
-    total_ok = sum(b["ok"] for b in buckets.values())
-    total_err = sum(b["err"] for b in buckets.values())
-    total_empty = sum(b["empty"] for b in buckets.values())
-    total_rej = sum(b["rej"] for b in buckets.values())
-    total_err_pct = 100.0 * total_err / grand_total if grand_total > 0 else 0.0
+    totals = {k: sum(b[k] for b in buckets.values()) for k in OUTCOMES}
+    total_err_pct = 100.0 * totals["err"] / grand_total if grand_total > 0 else 0.0
     lines.append(
-        f"  {'TOTAL':<{date_width}}  {grand_total:>6}  {total_ok:>6}"
-        f"  {total_err:>5}  {total_empty:>5}  {total_rej:>5}  {total_err_pct:4.1f}%"
+        f"  {'TOTAL':<{date_width}}  {grand_total:>6}  {totals['ok']:>6}"
+        f"  {totals['err']:>5}  {totals['empty']:>5}  {totals['rej']:>5}"
+        f"  {totals['ovfl']:>5}  {total_err_pct:4.1f}%"
     )
 
     # Sparklines
@@ -297,10 +309,7 @@ def main():
         spark_labels = [b[-2:] for b in sorted_buckets]  # day of month
 
     err_values = [buckets[b]["err"] for b in sorted_buckets]
-    vol_values = [
-        buckets[b]["ok"] + buckets[b]["err"] + buckets[b]["empty"] + buckets[b]["rej"]
-        for b in sorted_buckets
-    ]
+    vol_values = [sum(buckets[b].values()) for b in sorted_buckets]
 
     lines.append("")
     lines.extend(render_sparkline(err_values, spark_labels, "Errors"))
