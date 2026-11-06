@@ -74,6 +74,49 @@ function push_stack_dry_run_rejects_when_remote_has_diverged { # @test
     }
 }
 
+# moxy#218: every dry-run passes, then the real push of B is refused, so the
+# result is phase "push" with A ok, B rejected and C never attempted. A
+# pre-receive hook on the bare remote refuses B: `git push --dry-run` runs
+# no remote hooks, so it only trips on the real push.
+function push_stack_reports_a_real_push_failing_mid_stack { # @test
+  cd "$STACK_WORK"
+  for b in "$STACK_BRANCH_A" "$STACK_BRANCH_B" "$STACK_BRANCH_C"; do
+    git checkout -q "$b"
+    git commit --amend --allow-empty -m "${b}-amended" -q
+  done
+
+  cat >"$STACK_REMOTE/hooks/pre-receive" <<EOF
+#!/bin/sh
+while read -r old new ref; do
+  if [ "\$ref" = "refs/heads/$STACK_BRANCH_B" ]; then
+    echo "synthetic mid-stack failure" >&2
+    exit 1
+  fi
+done
+EOF
+  chmod +x "$STACK_REMOTE/hooks/pre-receive"
+  remote_c_before=$(cd "$STACK_REMOTE" && git rev-parse "refs/heads/$STACK_BRANCH_C")
+
+  branches_json=$(jq -cn --arg a "$STACK_BRANCH_A" --arg b "$STACK_BRANCH_B" --arg c "$STACK_BRANCH_C" \
+    '[$a, $b, $c]')
+  run bash -c '"$1" "$2" "$3" "$4" 2>/dev/null' -- \
+    "$BIN/push-stack" "$branches_json" origin "$STACK_WORK"
+  assert_failure
+  echo "$output" | jq -e '.phase == "push"' >/dev/null || fail "expected .phase == push; got: $output"
+  echo "$output" | jq -e --arg a "$STACK_BRANCH_A" '.results[] | select(.branch == $a and .status == "ok")' >/dev/null ||
+    fail "expected $STACK_BRANCH_A ok; got: $output"
+  echo "$output" | jq -e --arg b "$STACK_BRANCH_B" '.results[] | select(.branch == $b and .status == "rejected")' >/dev/null ||
+    fail "expected $STACK_BRANCH_B rejected; got: $output"
+  echo "$output" | jq -e --arg c "$STACK_BRANCH_C" '.results[] | select(.branch == $c and .status == "skipped")' >/dev/null ||
+    fail "expected $STACK_BRANCH_C skipped; got: $output"
+
+  # A really was pushed; C was not touched.
+  remote_a=$(cd "$STACK_REMOTE" && git rev-parse "refs/heads/$STACK_BRANCH_A")
+  remote_c=$(cd "$STACK_REMOTE" && git rev-parse "refs/heads/$STACK_BRANCH_C")
+  [ "$remote_a" = "$(git rev-parse "$STACK_BRANCH_A")" ] || fail "A was not pushed"
+  [ "$remote_c" = "$remote_c_before" ] || fail "C was pushed after B failed"
+}
+
 function push_stack_rejects_main_master_in_branches_list { # @test
   cd "$STACK_WORK"
   branches_json=$(jq -cn --arg a "$STACK_BRANCH_A" '[$a, "main"]')
