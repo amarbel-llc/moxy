@@ -6,7 +6,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 
@@ -41,7 +41,7 @@ def matches_project(resolved_cwd: str, dir_name: str, filter_str: str) -> bool:
 
 def session_bucket(path: Path, group_by: str) -> str:
     """Return the time bucket label for a session based on its mtime."""
-    dt = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    dt = datetime.fromtimestamp(path.stat().st_mtime).astimezone()
     if group_by == "week":
         return dt.strftime("%G-W%V")
     return dt.strftime("%m-%d")
@@ -310,8 +310,8 @@ def main():
 
     # Date range
     mtimes = [p.stat().st_mtime for p, _ in session_files]
-    earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    earliest = datetime.fromtimestamp(min(mtimes)).astimezone().strftime("%Y-%m-%d")
+    latest = datetime.fromtimestamp(max(mtimes)).astimezone().strftime("%Y-%m-%d")
     lines.append(
         f"\n{len(session_files)} sessions analyzed ({earliest} \u2192 {latest})"
     )

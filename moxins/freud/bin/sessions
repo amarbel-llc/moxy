@@ -3,7 +3,7 @@
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 
@@ -86,9 +86,9 @@ def main():
                 (
                     st.st_mtime,
                     f.stem,
-                    datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime(
-                        "%Y-%m-%d %H:%M"
-                    ),
+                    datetime.fromtimestamp(st.st_mtime)
+                    .astimezone()
+                    .strftime("%Y-%m-%d %H:%M %z"),
                     count_lines(f),
                     human_size(st.st_size),
                     project,
@@ -99,10 +99,10 @@ def main():
 
     lines = []
     lines.append(
-        f"{'SESSION':<36}  {'LAST ACTIVITY':<16}  {'MSGS':>5}  {'SIZE':>5}  PROJECT"
+        f"{'SESSION':<36}  {'LAST ACTIVITY':<22}  {'MSGS':>5}  {'SIZE':>5}  PROJECT"
     )
     for _, session, activity, msgs, size, project in rows:
-        lines.append(f"{session:<36}  {activity:<16}  {msgs:>5}  {size:>5}  {project}")
+        lines.append(f"{session:<36}  {activity:<22}  {msgs:>5}  {size:>5}  {project}")
 
     emit_mcp_result("\n".join(lines))
 

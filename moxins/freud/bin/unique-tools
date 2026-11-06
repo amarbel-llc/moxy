@@ -6,7 +6,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 
@@ -236,8 +236,8 @@ def main():
 
     # Date range
     mtimes = [p.stat().st_mtime for p in session_paths]
-    earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
-    latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime("%Y-%m-%d")
+    earliest = datetime.fromtimestamp(min(mtimes)).astimezone().strftime("%Y-%m-%d")
+    latest = datetime.fromtimestamp(max(mtimes)).astimezone().strftime("%Y-%m-%d")
     lines.append(
         f"\n{len(session_paths)} sessions analyzed ({earliest} \u2192 {latest})"
     )

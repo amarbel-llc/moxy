@@ -5,7 +5,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 RESULT_TRUNCATE = 200
@@ -321,12 +321,8 @@ def main():
 
         proj_desc = f", project: {project_filter}" if project_filter else ""
         mtimes = [p.stat().st_mtime for p in session_paths]
-        earliest = datetime.fromtimestamp(min(mtimes), tz=timezone.utc).strftime(
-            "%Y-%m-%d"
-        )
-        latest = datetime.fromtimestamp(max(mtimes), tz=timezone.utc).strftime(
-            "%Y-%m-%d"
-        )
+        earliest = datetime.fromtimestamp(min(mtimes)).astimezone().strftime("%Y-%m-%d")
+        latest = datetime.fromtimestamp(max(mtimes)).astimezone().strftime("%Y-%m-%d")
         lines.append(
             f"\n{len(all_calls)} tool call(s) across {len(session_paths)} sessions ({earliest} \u2192 {latest}{proj_desc})"
         )
