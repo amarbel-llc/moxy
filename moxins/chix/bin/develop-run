@@ -6,21 +6,42 @@ flake_dir="${3:-.}"
 
 cd "$flake_dir"
 
-stderr_file=$(mktemp)
-trap 'rm -f "$stderr_file"' EXIT
+# The command's stderr and nix's own (evaluation warnings, "Git tree is
+# dirty") go to separate files: the command runs under a bash in the
+# devshell that redirects only its own stderr, so the two never mix.
+cmd_stderr=$(mktemp)
+nix_stderr=$(mktemp)
+trap 'rm -f "$cmd_stderr" "$nix_stderr"' EXIT
+bash_bin=$(command -v bash)
+run_with_own_stderr='f=$1; shift; exec "$@" 2>"$f"'
+
+print_block() {
+  local label=$1 file=$2
+  if [[ -s $file ]]; then
+    printf '\n[%s]\n' "$label"
+    cat "$file"
+  fi
+}
 
 count=$(printf '%s' "$commands_json" | jq 'length')
-for ((i=0; i<count; i++)); do
+for ((i = 0; i < count; i++)); do
   cmd=$(printf '%s' "$commands_json" | jq -r ".[$i].command")
-  mapfile -t cmd_args < <(printf '%s' "$commands_json" | jq -r ".[$i].args // [] | .[]")
+  # NUL-delimited, so an argument holding newlines (a multi-line script)
+  # stays one argument.
+  cmd_args=()
+  while IFS= read -r -d '' arg; do
+    cmd_args+=("$arg")
+  done < <(printf '%s' "$commands_json" | jq -j ".[$i].args // [] | .[] | tostring, \"\\u0000\"")
 
-  nix_args=(develop "$flake_ref" -c "$cmd")
-  if [ ${#cmd_args[@]} -gt 0 ]; then
-    nix_args+=("${cmd_args[@]}")
-  fi
+  : >"$cmd_stderr"
+  : >"$nix_stderr"
+  status=0
+  nix develop "$flake_ref" -c "$bash_bin" -c "$run_with_own_stderr" chix-develop-run \
+    "$cmd_stderr" "$cmd" ${cmd_args[@]+"${cmd_args[@]}"} 2>"$nix_stderr" || status=$?
 
-  if ! nix "${nix_args[@]}" 2>"$stderr_file"; then
-    cat "$stderr_file"
+  print_block "stderr of $cmd" "$cmd_stderr"
+  if ((status != 0)); then
+    print_block "nix develop" "$nix_stderr"
     exit 1
   fi
 done
