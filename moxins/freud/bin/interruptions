@@ -181,6 +181,17 @@ def scan_hook_logs(cutoff: float, session_ids: set[str], event_name: str) -> Cou
     return counter
 
 
+def approved_count(prompted: int, rejected: int) -> int:
+    return max(0, prompted - rejected)
+
+
+def row_total(prompted: int, rejected: int, interrupted: int) -> int:
+    """Approved + Rejected + Interrupted: a rejection is either a refused
+    prompt (already inside Prompted) or, past the prompts, one that never
+    prompted (a hook deny), which still counts once."""
+    return approved_count(prompted, rejected) + rejected + interrupted
+
+
 def collect_session_ids(session_paths: list[Path]) -> set[str]:
     """Extract session IDs from session file paths (the stem is the UUID)."""
     return {p.stem for p in session_paths}
@@ -253,7 +264,11 @@ def main():
     total_i = sum(total_interrupts.values())
     total_r = sum(total_rejects.values())
     total_p = sum(total_prompted.values())
-    total_a = max(0, total_p - total_r)
+    # A rejection of a tool that was never prompted (a hook deny) is not a
+    # refused prompt, so approvals are counted per tool, not as p - r.
+    total_a = sum(
+        approved_count(total_prompted[t], total_rejects[t]) for t in total_prompted
+    )
 
     if total_i == 0 and total_r == 0 and total_p == 0:
         proj_desc = f", project={project_filter}" if project_filter else ""
@@ -269,7 +284,9 @@ def main():
     )
     ranked = sorted(
         all_tools,
-        key=lambda t: total_prompted[t] + total_interrupts[t],
+        key=lambda t: row_total(
+            total_prompted[t], total_rejects[t], total_interrupts[t]
+        ),
         reverse=True,
     )
 
@@ -301,13 +318,13 @@ def main():
         pc = total_prompted[tool]
         rc = total_rejects[tool]
         ic = total_interrupts[tool]
-        total = pc + ic
+        total = row_total(pc, rc, ic)
         if pc == 0:
             pc_cell = "—"
             ac_cell = "—"
         else:
             pc_cell = str(pc)
-            ac_cell = str(max(0, pc - rc))
+            ac_cell = str(approved_count(pc, rc))
         lines.append(
             f"  {i:>3}  {display_names[tool]:<{max_name}}"
             f"  {pc_cell:>8}  {ac_cell:>8}  {rc:>8}  {ic:>11}  {total:>5}"
