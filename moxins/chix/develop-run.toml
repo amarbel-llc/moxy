@@ -3,7 +3,7 @@ result-type = "text"
 description = """Run commands inside a flake's devShell. Each command runs as a separate \
 nix develop invocation. Execution stops on the first failure."""
 command = "@BIN@/develop-run"
-arg-order = ["commands", "flake_ref", "flake_dir"]
+arg-order = ["commands", "flake_ref", "flake_dir", "impure"]
 
 [input]
 required = ["commands"]
@@ -20,6 +20,10 @@ description = "Flake reference. Defaults to '.'."
 [input.properties.flake_dir]
 type = "string"
 description = "Directory containing the flake. Defaults to current directory."
+
+[input.properties.impure]
+type = "boolean"
+description = "Evaluate the flake with --impure, for one that reads the environment (e.g. builtins.getEnv \"HOME\") at eval time. Defaults to false."
 
 [annotations]
 open-world-hint = true

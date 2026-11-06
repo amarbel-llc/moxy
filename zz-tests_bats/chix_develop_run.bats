@@ -28,6 +28,12 @@ setup() {
   write_nix_stub <<'EOF'
 [ "$1" = develop ] || exit 99
 shift 2
+if [ "$1" = --impure ]; then
+  echo impure >"$HOME/nix-eval-mode"
+  shift
+else
+  echo pure >"$HOME/nix-eval-mode"
+fi
 [ "$1" = -c ] || exit 98
 shift
 echo "warning: Git tree is dirty" >&2
@@ -118,6 +124,19 @@ function chix_develop_run_passes_a_multi_line_argument_whole { # @test
   assert_success
   assert_line "marker-one"
   assert_line "argc=2 first=f1"
+}
+
+# moxy#389: a flake that reads the environment at eval time needs --impure.
+function chix_develop_run_passes_impure_only_when_asked { # @test
+  run "$BIN/develop-run" '[{"command":"true"}]' "." "." "true"
+  assert_success
+  run cat "$HOME/nix-eval-mode"
+  assert_output "impure"
+
+  run "$BIN/develop-run" '[{"command":"true"}]'
+  assert_success
+  run cat "$HOME/nix-eval-mode"
+  assert_output "pure"
 }
 
 function chix_develop_run_labels_a_failure_of_nix_itself { # @test
