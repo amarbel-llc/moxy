@@ -10,12 +10,15 @@ const [fileId, mimeType] = process.argv.slice(2);
 
 const mime = mimeType || "text/markdown";
 const dir = await mkdtemp(join(tmpdir(), "gws-export-"));
-const tmp = join(dir, "export");
+const outputName = "export";
 
 try {
   const params = JSON.stringify({ fileId, mimeType: mime });
-  await $`gws drive files export --params ${params} --output ${tmp}`;
-  const content = await readFile(tmp, "utf-8");
+  // gws refuses an --output path outside its cwd (#447), so it runs in the
+  // scratch dir and writes a name relative to it.
+  $.cwd = dir;
+  await $`gws drive files export --params ${params} --output ${outputName}`;
+  const content = await readFile(join(dir, outputName), "utf-8");
 
   process.stdout.write(
     JSON.stringify({
