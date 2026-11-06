@@ -91,6 +91,43 @@ cached resource blocks).
 - #386: moxins in the OCI image.
 - #22: deny-tools, or close it.
 
+## Close list (waits for the operator's confirmation)
+
+These are the FIXED issues with nothing left over. Each cited commit was
+checked to be on master (`git log origin/master`). The evidence that the
+commit fixes the issue is the per-issue entry below. The comment column is
+the close comment to post. Issues FIXED with something left over (#1, #216,
+#387, #493, #501) are not on this list; they are retitle proposals above.
+
+| # | commit(s) | close comment |
+|---|---|---|
+| 23 | d02b1f6 | HTTP MCP children (with OAuth) landed in d02b1f6; `url` in the server schema. |
+| 82 | 00e4c6f, 9d5f3dc | `restart <moxin>` re-reads the moxin from disk (00e4c6f); `restart` re-reads MOXIN_PATH (9d5f3dc). |
+| 129 | 8196dff, 0a0dadb | Cached results live in madder (8196dff), called in-process since 0a0dadb. |
+| 140 | 57bd5ba | Dynamic perms shipped as `[dynamic-perms]` (57bd5ba), now used by folio, toolbox and others. |
+| 162 | f946bcb | The toolbox moxin (FDR 0016, f946bcb) is the no-shell pipe over files and blob URIs. |
+| 169 | 8196dff | Spilled results are madder blobs that folio.read reads, with start/end ranges. |
+| 178 | 00e4c6f, fe47926, 4b3956a | Restart works for moxins (00e4c6f, fe47926); the reconnect test is 4b3956a. |
+| 182 | 5d68484, 44495db | `async` takes a per-call `timeout` (5d68484, 44495db). |
+| 186 | 0d11bd3 | Anchor extraction landed in 0d11bd3; it is `arboretum.md-anchor` today. |
+| 211 | e72e5a6 | Unknown and missing-required arguments are rejected since e72e5a6. |
+| 224 | efe1fb1 | Code outline is `arboretum.outline` (efe1fb1). |
+| 225 | 43be0a1 | Structured find/replace is `arboretum.search` / `rewrite` (43be0a1). |
+| 247 | 255845c | 255845c reverted 6ca4ab7; folio.read and folio.write are back. |
+| 275 | d8f9bf7, 9ec501a | Child stdout is bounded and an oversize line self-heals (d8f9bf7, 9ec501a); auto-respawn is #409. |
+| 323 | d6e2808 | The wake summary skips the truncation banner (d6e2808). |
+| 330 | 120ca85, ae4a2d4 | grit's families are consolidated (120ca85, ae4a2d4); grit is 9 tools. |
+| 375 | a004553 | `serve-http --name-template` gives dot-free names (a004553); resource→tool projection is #377. |
+| 382 | 5d7a476 | The man moxin keeps an empty MANPATH entry so derived pages resolve (5d7a476). |
+| 408 | c47532f | Persistent-child respawn is detached from the request context (c47532f). |
+| 444 | 3300e22 | The godyn cutover (3300e22) pins tommy from the flake; the path in the issue is gone. |
+| 485 | 2037822, cc57a76 | Serve-time enforcement for hookless clients (FDR 0015, 2037822). |
+| 491 | 39f9341, cc57a76, d8e47ea | RFC 0002 and the policy-broker client landed (39f9341, cc57a76, d8e47ea). |
+| 492 | 3cf92f1 | The policy-broker bats lane against a real socket landed in 3cf92f1. |
+| 495 | 3a3a420, 6a7c4df, 7edf873 | hamster removed and always-allow reads constrained (3a3a420, 6a7c4df, 7edf873). |
+| 497 | 5df5e35 | env inputs allowlisted, env_resolve gated and fenced (5df5e35). |
+| 490 | cc57a76, 5ac99b4 | rg.search reads through folio's read rule (cc57a76, 5ac99b4). **Confirm with moxy/sunny-sumac, whose lane it is, before closing.** |
+
 ## Rulings the READY work is waiting on
 
 These READY issues can start once someone answers a small question:
