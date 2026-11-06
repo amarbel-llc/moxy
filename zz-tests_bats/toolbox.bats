@@ -168,6 +168,39 @@ function the_broker_judges_each_file_operand { # @test
   jq -e '.resource.kind == "file"' <<<"${lines[-1]}" >/dev/null || fail "${lines[-1]}"
 }
 
+# moxy#502 (#498 folded in): fish-style string operations as one applet.
+function string_subcommands_chain_in_a_pipeline { # @test
+  toolbox "string length 'toolbox-wc - count lines, words, characters and bytes'"
+  assert_ok
+  [[ $(result_text) == 53 ]] || fail "$output"
+  toolbox "string split , | string trim | string upper | string join +" $'a, b ,c\n'
+  assert_ok
+  [[ $(result_text) == "A+B+C" ]] || fail "$output"
+  toolbox "string match -r -g '(\\w+)@' | sort" $'me@host\nnone\nyou@there\n'
+  assert_ok
+  [[ $(result_text) == $'me\nyou' ]] || fail "$output"
+  local id
+  id=$(seed_blob $'b\na\n')
+  toolbox "string upper | sort" "madder://blobs/$id"
+  assert_ok
+  [[ $(result_text) == $'A\nB' ]] || fail "blob stdin: $output"
+}
+
+function string_refuses_bad_input_and_never_opens_its_operands { # @test
+  local cmd
+  for cmd in "string" "string escape x" "string match -r '('" "string sub -s 0 x"; do
+    toolbox "$cmd"
+    assert_error
+  done
+  # an operand that names a file outside the policy is a string, not a read:
+  # nothing to judge, and its contents never appear
+  behavior "$(jq -cn --arg p "$HOME/elsewhere/b.txt" '{command: ("string length " + $p)}')"
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "string operand got $HOOK_BEHAVIOR"
+  toolbox "string upper $HOME/elsewhere/b.txt"
+  assert_ok
+  [[ $output != *OUTSIDE-SECRET* && $output != *outside-secret* ]] || fail "leaked: $output"
+}
+
 function every_applet_has_a_manpage { # @test
   local applets a
   applets=$("$TOOLBOX_MOXIN/bin/toolbox" applets)

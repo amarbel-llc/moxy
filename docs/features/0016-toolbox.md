@@ -50,6 +50,14 @@ Round-one applets: `wc`, `sha256sum`, `b2sum`, `digest`, `tr`, `sort`,
 `digest` runs in-process and prints markl ids (`sha256`, `blake2b256`), so a
 blob's `blake2b256` id equals the digest in its URI. Byte size is `wc -c`.
 
+`string` (moxy#502, which folded in #498) is fish's `string` builtin as one
+in-process applet: `string <subcommand> ...`, an applet whose first word
+names a subcommand parsed with its own flag table. The policy grammar uses the
+same parse. Its operands are strings, not files (as `tr`'s sets are), so it
+reads nothing the gate would judge. It inherits `toolbox.run`'s tier; it is
+not always-allow. RE2 only, 16 MiB in and out per stage; escape/unescape
+and JSON output are not done yet. See toolbox-string(1).
+
 ## The grammar
 
 `pkg/toolbox` parses the command; nothing hands it to a shell.

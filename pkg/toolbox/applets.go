@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"unicode/utf8"
 )
 
 // Flag is one option an applet accepts. Value flags take exactly one argument
@@ -41,6 +42,51 @@ type Applet struct {
 	FileOperands bool
 	MinOperands  int
 	MaxOperands  int // -1: unbounded
+	// Subcommands, when set, make the first word after the applet's name a
+	// subcommand, parsed as an applet of its own (fish's `string trim ...`).
+	// The policy grammar parses with this same code, so it judges exactly
+	// the operands the runner sees.
+	Subcommands []*Applet
+	// Page names the toolbox-<page>(1) that usage errors point to; the
+	// applet's own name when "".
+	Page string
+	// Positional is how many leading operands are arguments, not inputs
+	// (string split's separator).
+	Positional int
+	// Check validates a parsed stage beyond its flag table, such as a
+	// regular expression that must compile.
+	Check func(Stage) error
+}
+
+func (a *Applet) page() string {
+	if a.Page != "" {
+		return a.Page
+	}
+	return a.Name
+}
+
+func (a *Applet) subcommand(name string) (*Applet, bool) {
+	for _, s := range a.Subcommands {
+		if s.Name == a.Name+" "+name {
+			return s, true
+		}
+	}
+	return nil, false
+}
+
+func signedNonZero(v string) error {
+	n, err := strconv.ParseInt(v, 10, 32)
+	if err != nil || n == 0 {
+		return fmt.Errorf("want a non-zero integer, got %q", v)
+	}
+	return nil
+}
+
+func oneRune(v string) error {
+	if utf8.RuneCountInString(v) != 1 {
+		return fmt.Errorf("want exactly one character, got %q", v)
+	}
+	return nil
 }
 
 func digits(v string) error {
@@ -159,6 +205,7 @@ var applets = []*Applet{
 		FileOperands: true,
 		MaxOperands:  -1,
 	},
+	stringApplet,
 	{
 		Name:    "tr",
 		Summary: "translate, squeeze or delete characters",

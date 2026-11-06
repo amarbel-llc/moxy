@@ -110,7 +110,7 @@ The following moxins ship with moxy. Each can be served individually via
 | prison | 1 | Google Sheets: read spreadsheet data | bun, gws |
 | rg | 1 | Ripgrep code search with structured output modes | ripgrep |
 | slip | 0 | Google Slides: read and edit presentations | bun, gws |
-| toolbox | 1 | Pure applets (wc, sha256sum, b2sum, digest, tr, sort, uniq, cut, paste) piped over policy-blessed files and blobs, no shell; see toolbox(1) | coreutils |
+| toolbox | 1 | Pure applets (wc, sha256sum, b2sum, digest, tr, sort, uniq, cut, paste, and fish-style string) piped over policy-blessed files and blobs, no shell; see toolbox(1) | coreutils |
 
 `arboretum`, `slip` and the Google Workspace moxins (`calendar`,
 `car`, `gmail`, `gws`, `piers`, `prison` — they need an authenticated `gws`

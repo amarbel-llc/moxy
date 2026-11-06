@@ -70,6 +70,20 @@ func parseStage(words []string) (Stage, error) {
 	if !ok {
 		return Stage{}, fmt.Errorf("%q is not a toolbox applet (have: %s)", words[0], strings.Join(names(), ", "))
 	}
+	if len(a.Subcommands) > 0 {
+		var subs []string
+		for _, s := range a.Subcommands {
+			subs = append(subs, strings.TrimPrefix(s.Name, a.Name+" "))
+		}
+		if len(words) < 2 {
+			return Stage{}, fmt.Errorf("%s: needs a subcommand (have: %s; see toolbox-%s(1))", a.Name, strings.Join(subs, ", "), a.page())
+		}
+		sub, ok := a.subcommand(words[1])
+		if !ok {
+			return Stage{}, fmt.Errorf("%s: %q is not a subcommand (have: %s; see toolbox-%s(1))", a.Name, words[1], strings.Join(subs, ", "), a.page())
+		}
+		a, words = sub, words[1:]
+	}
 	st := Stage{Applet: a, Flags: map[string]string{}}
 	add := func(f Flag, value string) error {
 		if f.Value && f.Valid != nil {
@@ -100,7 +114,7 @@ func parseStage(words []string) (Stage, error) {
 			name, value, hasValue := strings.Cut(w[2:], "=")
 			f, ok := a.long(name)
 			if !ok {
-				return Stage{}, fmt.Errorf("%s: unknown flag --%s (see toolbox-%s(1))", a.Name, name, a.Name)
+				return Stage{}, fmt.Errorf("%s: unknown flag --%s (see toolbox-%s(1))", a.Name, name, a.page())
 			}
 			switch {
 			case !f.Value && hasValue:
@@ -120,7 +134,7 @@ func parseStage(words []string) (Stage, error) {
 			for j := 0; j < len(cluster); j++ {
 				f, ok := a.short(cluster[j])
 				if !ok {
-					return Stage{}, fmt.Errorf("%s: unknown flag -%c (see toolbox-%s(1))", a.Name, cluster[j], a.Name)
+					return Stage{}, fmt.Errorf("%s: unknown flag -%c (see toolbox-%s(1))", a.Name, cluster[j], a.page())
 				}
 				if !f.Value {
 					if err := add(f, ""); err != nil {
@@ -146,6 +160,11 @@ func parseStage(words []string) (Stage, error) {
 	n := len(st.Operands)
 	if n < a.MinOperands || (a.MaxOperands >= 0 && n > a.MaxOperands) {
 		return Stage{}, fmt.Errorf("%s: %d operands given, want %s", a.Name, n, operandRange(a))
+	}
+	if a.Check != nil {
+		if err := a.Check(st); err != nil {
+			return Stage{}, fmt.Errorf("%s: %w", a.Name, err)
+		}
 	}
 	return st, nil
 }

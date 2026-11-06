@@ -229,6 +229,9 @@ func (o RunOptions) start(ctx context.Context, p *Pipeline, stageFiles [][]*os.F
 }
 
 func runInProcess(st Stage, in io.Reader, out io.Writer, files []*os.File) error {
+	if strings.HasPrefix(st.Applet.Name, stringApplet.Name+" ") {
+		return runString(st, in, out)
+	}
 	var inputs []namedReader
 	j := 0
 	for _, operand := range st.Operands {
