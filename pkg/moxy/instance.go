@@ -200,6 +200,7 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 		fmt.Fprintf(stderr, "moxy: name template active (--name-template): %s\n", pr.tmpl)
 	}
 	p.SetMadderClient(blobs)
+	p.SetManPageDirs(manPageDirs(res))
 	if o.SessionID != "" {
 		p.SetSessionID(o.SessionID)
 	}
@@ -215,6 +216,7 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 		onReload: func(r *bootstrapResult) {
 			p.SetResolver(newResolver(r.moxins, o.Gate))
 			p.SetPolicy(effectivePolicy(o, r.cfg))
+			p.SetManPageDirs(manPageDirs(r))
 		},
 	})
 	if o.Notify != nil {

@@ -890,17 +890,20 @@
         # toolbox (FDR 0016): the Go binary (cmd/toolbox) parses and runs the
         # command; its applets are coreutils, the only thing on its PATH.
         # folio-perms is its static read floor (#490), as for jq and rg. The
-        # man pages land on the man path through moxy-man.
+        # man pages land on the man path through moxy-man, and as plain text in
+        # share/moxy/man for the man://<page> resources (#501).
         toolbox-moxin =
           pkgs.runCommand "toolbox-moxin"
             {
               nativeBuildInputs = [
                 pkgs.makeWrapper
                 pkgs.scdoc
+                pkgs.mandoc
+                pkgs.util-linux # col
               ];
             }
             ''
-              mkdir -p $out/bin $out/share/man/man1
+              mkdir -p $out/bin $out/share/man/man1 $out/share/moxy/man
               cp ${./moxins/toolbox}/*.toml $out/
               makeWrapper ${toolbox}/bin/toolbox $out/bin/toolbox \
                 --set PATH ${pkgs.coreutils}/bin
@@ -910,7 +913,10 @@
                   --replace-quiet "@FOLIO_PERMS@" "${folio-moxin}/bin/folio-perms"
               done
               for s in ${./moxins/toolbox/man}/*.scd; do
-                scdoc <"$s" >"$out/share/man/man1/$(basename "$s" .scd)"
+                page=$(basename "$s" .scd)
+                scdoc <"$s" >"$out/share/man/man1/$page"
+                # -T markdown takes mdoc(7) only; scdoc writes man(7)
+                mandoc -T utf8 -O width=80 "$out/share/man/man1/$page" | col -bx >"$out/share/moxy/man/$page.txt"
               done
             '';
 

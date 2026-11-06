@@ -207,6 +207,9 @@ Moxy provides built-in `moxy://` resources for agent discovery:
 - `moxy://servers/{server}` --- single server details
 - `moxy://tools/{server}` --- tool names and descriptions for a child server
 - `moxy://tools/{server}/{tool}` --- full JSON schema for a specific tool
+- `man://{page}` --- a page a served moxin ships in `share/moxy/man/`
+  (`internal/proxy/resource_man.go`, moxy#501): an index lookup, never a path
+  join; serving all of MANPATH needs an operator ruling first
 
 The `Instructions` field in the initialize response is dynamic, built from child
 server capability counts at startup. It lists each server with tool/resource

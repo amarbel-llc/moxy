@@ -353,7 +353,20 @@ Details for a single child server.
 Tool names and descriptions for a child server.
 .It Li moxy://tools/{server}/{tool}
 Full JSON schema for a specific tool.
+.It Li man://{page}
+A manual page a served moxin ships, as plain text, for example
+.Li man://toolbox-wc.1 .
 .El
+.Pp
+A moxin ships its pages as
+.Pa share/moxy/man/<name>.<section>.txt
+in its directory.
+They are indexed when the moxins are served, and again on every reload,
+for each moxin that is served and keeps at least one tool under
+.Va allow-tools .
+A read looks the page name up in that index and never opens a path built
+from the URI, so a name outside it gets a JSON hint listing the indexed
+pages.
 .Pp
 The
 .Li moxy://tools

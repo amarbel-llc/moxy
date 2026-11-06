@@ -103,6 +103,7 @@ type Proxy struct {
 	sessionID                   string
 	moxinReloader               MoxinReloader
 	bootstrapper                Bootstrapper
+	manPages                    *manPageProvider
 	resolver                    *perms.Resolver
 	policy                      perms.Policy          // serve-time permission posture (moxy#486); zero = Delegate
 	toolFilter                  toolfilter.Filter     // which tool categories to expose; default All()
@@ -306,10 +307,19 @@ func New(
 	}
 	moxy := &moxyResourceProvider{proxy: p}
 	p.moxyProvider = moxy
+	p.manPages = newManPageProvider(nil)
 	p.resourceProviders = []resourceProviderEntry{
 		{prefix: "moxy://", provider: moxy},
+		{prefix: manURIPrefix, provider: p.manPages},
 	}
 	return p
+}
+
+// SetManPageDirs replaces the directories man://<page> is served from: the
+// ManPageSubdir of each served moxin (moxy#501). Startup and every reload
+// pass the moxins actually served then.
+func (p *Proxy) SetManPageDirs(dirs []string) {
+	p.manPages.setDirs(dirs)
 }
 
 func (p *Proxy) ProbeEphemeral(ctx context.Context) {

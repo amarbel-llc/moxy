@@ -175,5 +175,47 @@ function every_applet_has_a_manpage { # @test
   [[ -s $TOOLBOX_MOXIN/share/man/man1/toolbox.1 ]] || fail "toolbox(1) missing"
   for a in $applets; do
     [[ -s $TOOLBOX_MOXIN/share/man/man1/toolbox-$a.1 ]] || fail "toolbox-$a(1) missing"
+    [[ -s $TOOLBOX_MOXIN/share/moxy/man/toolbox-$a.1.txt ]] || fail "rendered toolbox-$a(1) missing"
   done
+}
+
+# moxy#501: a served moxin's pages are man://<name>.<section> resources, so a
+# session with only toolbox can read its manpages without the man moxin.
+man_uris() {
+  cd "$PROJECT"
+  run_moxy_mcp_v1 "resources/list" '{}'
+  assert_success
+  jq -r '.resources[].uri | select(startswith("man://"))' <<<"$output"
+}
+
+function a_served_moxins_pages_are_man_resources { # @test
+  run man_uris
+  assert_success
+  assert_line "man://toolbox.1"
+  assert_line "man://toolbox-wc.1"
+
+  cd "$PROJECT"
+  run_moxy_mcp_v1 "resources/read" '{"uri": "man://toolbox-wc.1"}'
+  assert_success
+  jq -e '.contents[0] | .uri == "man://toolbox-wc.1" and .mimeType == "text/plain"' <<<"$output" >/dev/null ||
+    fail "$output"
+  jq -r '.contents[0].text' <<<"$output" | grep -q 'toolbox-wc - count lines' || fail "not the toolbox-wc page: $output"
+  # rendered text, not roff: no overstrike backspaces, no macros
+  jq -r '.contents[0].text' <<<"$output" | grep -qE $'\b|^\\.TH' && fail "page is not plain text: $output"
+  true
+}
+
+function pages_of_a_moxin_not_served_are_not_resources { # @test
+  printf 'disable-moxins = ["toolbox"]\n' >"$PROJECT/moxyfile"
+  run man_uris
+  assert_success
+  refute_output --partial "man://toolbox"
+
+  printf 'allow-tools = ["restart"]\n' >"$PROJECT/moxyfile"
+  run man_uris
+  assert_success
+  refute_output --partial "man://toolbox"
+  cd "$PROJECT"
+  run_moxy_mcp_v1 "resources/read" '{"uri": "man://toolbox-wc.1"}'
+  [[ $output != *"count lines, words"* ]] || fail "read a page of a moxin allow-tools hides: $output"
 }

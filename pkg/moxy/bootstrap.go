@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/internal/proxy"
@@ -21,6 +22,26 @@ type bootstrapResult struct {
 	failed        []proxy.FailedServer
 	moxins        []*native.NativeConfig
 	systemDir     string
+}
+
+// manPageDirs names the page directories of the served moxins that keep at
+// least one tool under allow-tools, so man:// shows the pages of exactly the
+// moxins a session can use (moxy#501).
+func manPageDirs(res *bootstrapResult) []string {
+	allow := res.cfg.BuildAllowToolSet()
+	var dirs []string
+	for _, nc := range res.moxins {
+		if nc.SourceDir == "" {
+			continue
+		}
+		for _, t := range nc.Tools {
+			if allow.Allows(nc.Name, t.Name) {
+				dirs = append(dirs, filepath.Join(nc.SourceDir, proxy.ManPageSubdir))
+				break
+			}
+		}
+	}
+	return dirs
 }
 
 // bootstrapInputs are the dependencies every bootstrap — startup, a full

@@ -107,6 +107,11 @@ Count distinct words, most frequent first:
 
 	tr -s ' ' '\\n' | sort | uniq -c | sort -rn   (with stdin set)
 
+# READING THESE PAGES
+
+Through moxy, each page is also a read-only resource, *man://toolbox.1* and
+*man://toolbox-<applet>.1*, so a session without the man tool can read them.
+
 # SEE ALSO
 
 *toolbox-b2sum*(1), *toolbox-cut*(1), *toolbox-digest*(1),
