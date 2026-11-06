@@ -93,6 +93,13 @@ A request held longer than 90 seconds receives a
 .Li 503
 with
 .Li Retry-After .
+When startup completes and held requests are released, moxy sends
+.Li READY=1
+to
+.Ev NOTIFY_SOCKET
+when that is set, so a systemd unit with
+.Li Type=notify
+becomes active only once moxy is actually serving.
 The ephemeral-port mode binds after startup, since its handshake line announces
 a ready server.
 .Pp

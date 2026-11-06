@@ -237,6 +237,11 @@ func (e *earlyHTTP) close() { e.srv.Close() }
 // stays in memory).
 func (e *earlyHTTP) serve(inst *moxy.Instance) error {
 	e.gate.Ready(newStreamHTTP(inst, streamhttp.DefaultSessionIDPath()))
+	// Ready only now, with the real handler in place: the listener has been
+	// up since before the children started, holding requests at the gate.
+	if err := notifyReady(); err != nil {
+		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
+	}
 	return finishHTTPServe(inst, <-e.done)
 }
 
