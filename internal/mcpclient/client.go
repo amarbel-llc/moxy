@@ -55,7 +55,11 @@ func (c *Client) SetOnNotification(fn func(*jsonrpc.Message)) {
 
 func SpawnAndInitialize(ctx context.Context, name, command string, args []string) (*Client, *protocol.InitializeResultV1, error) {
 	cmd := exec.CommandContext(ctx, command, args...)
-	cmd.Stderr = os.Stderr
+	// The child's stderr still reaches moxy's own; the tail is kept so a
+	// child that dies before initialize answers says why in the error.
+	stderrTail := newStderrTail(childStderrTailBytes)
+	cmd.Stderr = io.MultiWriter(os.Stderr, stderrTail)
+	cmd.WaitDelay = childStderrDrainDelay
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -97,8 +101,10 @@ func SpawnAndInitialize(ctx context.Context, name, command string, args []string
 	result, err := c.initialize(ctx)
 	if err != nil {
 		logLifecycle("initialize FAIL %s: %v", name, err)
+		// Close reaps the child, and Wait returns only once its stderr has
+		// been copied (or the drain delay ran out), so the tail is complete.
 		c.Close()
-		return nil, nil, fmt.Errorf("initializing %s: %w", name, err)
+		return nil, nil, fmt.Errorf("initializing %s: %w%s", name, err, stderrTail.errorSuffix())
 	}
 	logLifecycle("initialize OK %s server=%s version=%s", name, result.ServerInfo.Name, result.ServerInfo.Version)
 
