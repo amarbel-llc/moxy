@@ -39,6 +39,9 @@ edits, new
 entries, removed entries, and a changed
 .Li allow-tools
 list.
+When the directory moxy was started in has been deleted under it, moxy first
+moves to the nearest ancestor of it that exists, so the children it re-spawns
+do not inherit a working directory that is gone.
 .El
 .Pp
 When

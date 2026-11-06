@@ -242,6 +242,9 @@ type bootstrapper struct {
 }
 
 func (b *bootstrapper) Bootstrap(ctx context.Context) (*proxy.BootstrapResult, error) {
+	// A full restart is the in-session way out of a deleted working
+	// directory: the children it spawns must not inherit one.
+	recoverWorkingDirectory(b.in.serving.src.dir, b.in.stderr)
 	res, err := bootstrap(ctx, b.in)
 	if err != nil {
 		fmt.Fprintf(b.in.stderr, "moxy: reload refused, keeping the running configuration: %v\n", err)
