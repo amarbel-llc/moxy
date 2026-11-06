@@ -55,11 +55,37 @@ func getResolver() (*perms.Resolver, error) {
 	return permResolver, permResolverErr
 }
 
-// logHookEvent appends the raw hook input (with a timestamp added) to
-// a per-session JSONL file at <log home>/moxy/hooks/{session_id}.jsonl,
+// hookLogFields are what the per-session hook log keeps of an event by
+// default (moxy#504): what happened, to which tool, when and with what
+// decision, never the inputs. Every session can read every other session's
+// log, so tool_input, tool_response, permission_suggestions, a decision's
+// reason (which quotes the arguments) and anything else Claude Code sends
+// are dropped unless MOXY_HOOK_LOG_INPUTS=1.
+var hookLogFields = map[string]bool{
+	"hook_event_name": true,
+	"session_id":      true,
+	"tool_name":       true,
+	"tool_use_id":     true,
+	"cwd":             true,
+	"permission_mode": true,
+	"agent_id":        true,
+	"agent_type":      true,
+	"for_event":       true,
+	"decision":        true,
+}
+
+// hookLogInputsEnv is the opt-in that keeps the whole event in the hook log,
+// inputs included, for debugging a hook.
+const hookLogInputsEnv = "MOXY_HOOK_LOG_INPUTS"
+
+func hookLogKeepsInputs() bool { return os.Getenv(hookLogInputsEnv) == "1" }
+
+// logHookEvent appends a hook event (with a timestamp added) to a
+// per-session JSONL file at <log home>/moxy/hooks/{session_id}.jsonl,
 // beside the diagnostic logs diaglog owns (nothing is written while
-// diagnostics are off). This is a fire-hose log of every hook invocation —
-// downstream tools like freud filter by hook_event_name as needed.
+// diagnostics are off). Every hook invocation is logged, reduced to
+// hookLogFields; downstream tools like freud filter by hook_event_name.
+// The file and its directory are the owner's alone.
 func logHookEvent(raw json.RawMessage, hi hookInput) {
 	if hi.SessionID == "" {
 		return
@@ -76,6 +102,13 @@ func logHookEvent(raw json.RawMessage, hi hookInput) {
 		debugHook("logHookEvent: unmarshal error: %v", err)
 		return
 	}
+	if !hookLogKeepsInputs() {
+		for k := range obj {
+			if !hookLogFields[k] {
+				delete(obj, k)
+			}
+		}
+	}
 	obj["ts"] = time.Now().UTC().Format(time.RFC3339)
 
 	data, err := json.Marshal(obj)
@@ -84,13 +117,13 @@ func logHookEvent(raw json.RawMessage, hi hookInput) {
 		return
 	}
 
-	if err := os.MkdirAll(hooksLogDir, 0o755); err != nil {
+	if err := os.MkdirAll(hooksLogDir, 0o700); err != nil {
 		debugHook("logHookEvent: mkdir error: %v", err)
 		return
 	}
 
 	logPath := filepath.Join(hooksLogDir, hi.SessionID+".jsonl")
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		debugHook("logHookEvent: open error: %v", err)
 		return

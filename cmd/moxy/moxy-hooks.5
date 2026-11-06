@@ -17,10 +17,28 @@ Each file is named
 where
 .Ar session_id
 is the Claude Code session UUID.
-Each line is the raw JSON object sent by Claude Code on the hook's
-stdin, with a
+Each line is the JSON object sent by Claude Code on the hook's stdin,
+reduced to the fields under
+.Sx COMMON FIELDS ,
+with a
 .Cm ts
 field injected containing the UTC timestamp in RFC 3339 format.
+.Pp
+The log records what a call was, not what it carried: by default every
+other field is dropped, including
+.Cm tool_input ,
+.Cm tool_response ,
+.Cm permission_suggestions
+and a decision's
+.Cm reason
+(which quotes the arguments).
+The logs of every session are readable to every session of the same
+user, so an input kept here would give one session's file contents and
+message bodies to another.
+Setting
+.Ev MOXY_HOOK_LOG_INPUTS=1
+in the hook's environment keeps the whole event, for debugging a hook.
+The files are created readable by their owner only.
 .Sh HOOK EVENT TYPES
 Claude Code sends several hook event types.
 The
@@ -30,10 +48,6 @@ Events currently logged:
 .Bl -tag -width "PermissionRequest"
 .It Cm PreToolUse
 Fired before a tool executes.
-Contains
-.Cm tool_name
-and
-.Cm tool_input .
 .Nm moxy
 uses this to auto-allow moxin tools; the event is still logged
 regardless of the permission decision.
@@ -43,11 +57,6 @@ dialog to the user.
 This indicates an
 .Em agent pause :
 the agent is blocked waiting for user input.
-Contains
-.Cm tool_name ,
-.Cm tool_input ,
-and
-.Cm permission_suggestions .
 When
 .Cm permission_mode
 is
@@ -70,10 +79,12 @@ event.
 Contains
 .Cm for_event ,
 .Cm tool_name ,
-.Cm permission_mode ,
+.Cm permission_mode
+and
 .Cm decision
 .Pq Dq allow , Dq ask , or Dq deny ,
-and
+and, only with
+.Ev MOXY_HOOK_LOG_INPUTS=1 ,
 .Cm reason .
 .El
 .Pp
@@ -83,7 +94,7 @@ are logged if the hook is registered for them but are not currently
 used by
 .Nm moxy .
 .Sh COMMON FIELDS
-Every event contains at least:
+These are the fields the log keeps, when the event has them:
 .Bl -tag -width "permission_mode"
 .It Cm ts
 UTC timestamp in RFC 3339 format
@@ -95,8 +106,8 @@ Claude Code session UUID.
 .It Cm tool_name
 Tool that triggered the event
 .Pq e.g. Dq Bash , Dq mcp__moxy__folio_read .
-.It Cm tool_input
-Object with the tool's input parameters.
+.It Cm tool_use_id
+The call's id, to join it with the session transcript.
 .It Cm cwd
 Working directory at the time of the event.
 .It Cm permission_mode
@@ -117,7 +128,7 @@ A typical
 .Cm PermissionRequest
 entry:
 .Bd -literal -offset indent
-{"ts":"2026-04-11T18:25:15Z","session_id":"5d444361-...","hook_event_name":"PermissionRequest","tool_name":"mcp__moxy__folio_ls","tool_input":{"path":"/home/user/repos"},"cwd":"/home/user/project","permission_mode":"default"}
+{"ts":"2026-04-11T18:25:15Z","session_id":"5d444361-...","hook_event_name":"PermissionRequest","tool_name":"mcp__moxy__folio_ls","cwd":"/home/user/project","permission_mode":"default"}
 .Ed
 .Pp
 List all permission prompts from a session:
@@ -134,6 +145,14 @@ Defaults to
 when
 .Ev XDG_LOG_HOME
 is unset.
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width "MOXY_HOOK_LOG_INPUTS"
+.It Ev MOXY_HOOK_LOG_INPUTS
+When
+.Li 1 ,
+log each event whole, inputs and decision reasons included.
+Unset by default.
 .El
 .Sh SEE ALSO
 .Xr moxy 1 ,
