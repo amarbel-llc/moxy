@@ -337,9 +337,9 @@ async function sendChunk(
 // before it. Splitting trades away the API's whole-request atomicity for
 // plans big enough to span chunks — a failure partway through a multi-chunk
 // plan leaves the earlier chunks applied, where a single-call plan is still
-// all-or-nothing (linenisgreat/moxy#472 tracks this). A failure in a later
-// chunk says so, so the caller can tell "nothing changed" from "partially
-// rewritten" instead of seeing the same message either way.
+// all-or-nothing. A failure in a later chunk says so, so the caller can tell
+// "nothing changed" from "partially rewritten" instead of seeing the same
+// message either way; the update and create tool descriptions say it too.
 async function sendBatch(
   workDir: string,
   documentId: string,
