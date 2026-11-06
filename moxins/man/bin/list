@@ -2,4 +2,46 @@
 set -euo pipefail
 
 # List all available man pages: name and short description, one per line.
-man -k . 2>/dev/null | awk -F' +\\(' '{name=$1} /-/{sub(/.*- /,""); print name" - "$0}' | sort || echo "No man pages found"
+#
+# `man -k` only sees directories a man-db index covers. A MANPATH entry
+# without one (a nix profile, a store path) is scanned instead, and each
+# page's NAME line is read with lexgrog, so its pages are listed too.
+
+declare -A seen=()
+listing=()
+
+while IFS= read -r line; do
+  seen[${line%% - *}]=1
+  listing+=("$line")
+done < <(man -k . 2>/dev/null | awk -F' +\\(' '{name=$1} /-/{sub(/.*- /,""); print name" - "$0}' || true)
+
+IFS=: read -r -a dirs <<<"$(manpath -q 2>/dev/null || true)"
+for dir in "${dirs[@]}"; do
+  [[ -n $dir && -d $dir ]] || continue
+  for page in "$dir"/man*/*; do
+    [[ -f $page ]] || continue
+    name=${page##*/}
+    for ext in .gz .bz2 .xz .zst; do
+      name=${name%"$ext"}
+    done
+    name=${name%.*}
+    [[ -n $name && -z ${seen[$name]+x} ]] || continue
+    seen[$name]=1
+
+    # lexgrog prints `<file>: "<name> - <description>"`.
+    whatis=$(lexgrog "$page" 2>/dev/null | head -n 1 || true)
+    whatis=${whatis#*: \"}
+    whatis=${whatis%\"}
+    if [[ $whatis == *" - "* ]]; then
+      listing+=("$name - ${whatis#* - }")
+    else
+      listing+=("$name")
+    fi
+  done
+done
+
+if ((${#listing[@]} == 0)); then
+  echo "No man pages found"
+  exit 0
+fi
+printf '%s\n' "${listing[@]}" | sort -u
