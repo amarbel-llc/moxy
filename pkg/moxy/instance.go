@@ -200,23 +200,26 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 		fmt.Fprintf(stderr, "moxy: name template active (--name-template): %s\n", pr.tmpl)
 	}
 	p.SetMadderClient(blobs)
-	p.SetManPageDirs(manPageDirs(res))
 	if o.SessionID != "" {
 		p.SetSessionID(o.SessionID)
 	}
-	p.SetMoxinReloader(&moxinReloader{in: inputs})
-	p.SetResolver(newResolver(res.moxins, o.Gate))
+	// The resolver the batch/async preflights and an enforcing funnel
+	// consult, and the man:// index, follow the served moxins.
+	served := newServedMoxins(res, func(r *bootstrapResult) {
+		p.SetResolver(newResolver(r.moxins, o.Gate))
+		p.SetManPageDirs(manPageDirs(r))
+	})
+	p.SetMoxinReloader(&moxinReloader{in: inputs, served: served})
 	p.SetPolicy(pr.policy)
 	p.SetBootstrapper(&bootstrapper{
 		in: inputs,
 		// A reload serves a possibly different moxin set and a re-read
-		// moxyfile; the resolver the batch/async preflights and an enforcing
-		// funnel consult follows the moxins, and the policy follows the file
-		// (bounded by the pinned parent reference as every other key is).
+		// moxyfile; what derives from the moxins follows them, and the policy
+		// follows the file (bounded by the pinned parent reference as every
+		// other key is).
 		onReload: func(r *bootstrapResult) {
-			p.SetResolver(newResolver(r.moxins, o.Gate))
+			served.replaceAll(r)
 			p.SetPolicy(effectivePolicy(o, r.cfg))
-			p.SetManPageDirs(manPageDirs(r))
 		},
 	})
 	if o.Notify != nil {

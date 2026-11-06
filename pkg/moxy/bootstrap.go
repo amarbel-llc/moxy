@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
+	"sync"
 
 	"code.linenisgreat.com/moxy/internal/native"
 	"code.linenisgreat.com/moxy/internal/proxy"
@@ -257,15 +259,68 @@ func (b *bootstrapper) Bootstrap(ctx context.Context) (*proxy.BootstrapResult, e
 	}, nil
 }
 
+// servedMoxins is the moxin set the proxy serves, with the config it was
+// judged under. What is derived from the moxins' files (the permission
+// resolver, the man:// index) is re-derived whenever the set changes: by a
+// full reload or by `restart <moxin>` (moxy#264).
+type servedMoxins struct {
+	mu     sync.Mutex
+	cfg    moxyfile.Config
+	moxins []*native.NativeConfig
+	derive func(*bootstrapResult)
+}
+
+func newServedMoxins(res *bootstrapResult, derive func(*bootstrapResult)) *servedMoxins {
+	s := &servedMoxins{derive: derive}
+	s.replaceAll(res)
+	return s
+}
+
+// replaceAll takes the set a full bootstrap serves.
+func (s *servedMoxins) replaceAll(res *bootstrapResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cfg = res.cfg
+	s.moxins = slices.Clone(res.moxins)
+	s.derive(&bootstrapResult{cfg: s.cfg, moxins: s.moxins})
+}
+
+// replace swaps in one restarted moxin, or adds it when it was not served
+// (one that failed to load at startup).
+func (s *servedMoxins) replace(nc *native.NativeConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	moxins := slices.Clone(s.moxins)
+	i := slices.IndexFunc(moxins, func(m *native.NativeConfig) bool { return m.Name == nc.Name })
+	if i >= 0 {
+		moxins[i] = nc
+	} else {
+		moxins = append(moxins, nc)
+	}
+	s.moxins = moxins
+	s.derive(&bootstrapResult{cfg: s.cfg, moxins: s.moxins})
+}
+
 // moxinReloader is the proxy.MoxinReloader behind `restart <moxin>`: it
 // re-reads the moxyfile so manual disable-moxins edits and [[servers]]
 // collisions made since boot are honoured, re-discovers the moxin, and
 // judges the pair against the pinned parent reference like a full reload.
+// The moxin it returns replaces its old self in served.
 type moxinReloader struct {
-	in bootstrapInputs
+	in     bootstrapInputs
+	served *servedMoxins
 }
 
 func (r *moxinReloader) ReloadMoxin(name string) (*native.NativeConfig, error) {
+	nc, err := r.reloadMoxin(name)
+	if err != nil {
+		return nil, err
+	}
+	r.served.replace(nc)
+	return nc, nil
+}
+
+func (r *moxinReloader) reloadMoxin(name string) (*native.NativeConfig, error) {
 	literal, err := r.in.serving.src.load()
 	if err != nil {
 		return nil, fmt.Errorf("re-loading moxyfile hierarchy: %w", err)
