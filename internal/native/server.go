@@ -69,6 +69,22 @@ func resolveBinPlaceholder(command, sourceDir string) string {
 	return strings.ReplaceAll(command, "@BIN@", filepath.Join(sourceDir, "bin"))
 }
 
+// moxinDirEnv is the tool process's environment: moxy's own, with
+// MOXIN_DIR naming the directory of the moxin the tool belongs to (#231).
+// An inherited MOXIN_DIR is dropped so a tool never sees another moxin's.
+func moxinDirEnv(sourceDir string) []string {
+	env := make([]string, 0, len(os.Environ())+1)
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "MOXIN_DIR=") {
+			env = append(env, kv)
+		}
+	}
+	if sourceDir != "" {
+		env = append(env, "MOXIN_DIR="+sourceDir)
+	}
+	return env
+}
+
 // MadderBackend is the subset of *MadderClient that the proxy and
 // native Server depend on. Defined as an interface so tests can stub
 // the blob store without touching a real `madder` binary or
@@ -491,6 +507,7 @@ func (s *Server) runMoxinProcess(
 		command = filepath.Join(s.config.SourceDir, command)
 	}
 	cmd := exec.CommandContext(ctx, command, allArgs...)
+	cmd.Env = moxinDirEnv(s.config.SourceDir)
 	// Kill the whole process group (not just the direct child) on ctx
 	// cancel/deadline, and bound the wait so a pipe-holding grandchild
 	// can't wedge the dispatch (#344/#345).

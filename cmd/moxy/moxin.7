@@ -875,6 +875,25 @@ from pathlib import Path
 This keeps scripts self-contained and reproducible without requiring
 dependencies to be on the ambient
 .Ev PATH .
+.Pp
+Every tool process gets
+.Ev MOXIN_DIR ,
+the directory of the moxin the tool belongs to (the one holding its
+.Pa _moxin.toml ) .
+A script shipped beside the TOML is reachable from it without an
+absolute path:
+.Bd -literal -offset indent
+command = "bash"
+args = ["-c", "exec \(dq$MOXIN_DIR/scripts/wrap.sh\(dq \(dq$@\(dq", "_"]
+.Ed
+.Pp
+A moxin with no directory (one built in code) leaves it unset, and an
+inherited
+.Ev MOXIN_DIR
+never reaches a tool.
+The
+.Sy [dynamic-perms]
+command does not get it.
 .Ss Choosing Between Patterns
 Shell one-liners work well for simple pipelines
 (rendering, formatting, wrapping a single binary).
