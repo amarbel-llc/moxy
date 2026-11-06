@@ -449,4 +449,7 @@ flake input pair, whose disagreement broke the codegen merge gate.
   `pkgs.testers.batsLane`; per-tag flake outputs (`bats-folio`, `bats-grit`,
   `bats-default`, …) are auto-discovered from `# bats file_tags=` directives
   in each `.bats` file. See `flake.nix`'s `mkBatsLane`.
+- Adding, renaming or removing a bundled moxin tool means updating
+  `zz-tests_bats/test-fixtures/bundled-moxin-tools.txt`
+  (`bundled_tool_inventory.bats`, moxy#116), or the gate fails
 - The justfile sets `output-format = "tap"` for TAP output from just itself
