@@ -248,6 +248,8 @@ func runInProcess(st Stage, in io.Reader, out io.Writer, files []*os.File) error
 	switch st.Applet.Name {
 	case "digest":
 		return digest(st.Flags["algorithm"], inputs, out)
+	case stringsApplet.Name:
+		return runStrings(st, inputs, out)
 	}
 	return fmt.Errorf("%s: no in-process implementation", st.Applet.Name)
 }

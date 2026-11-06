@@ -44,6 +44,9 @@ the output of the one before, and the last one's output is the result.
 	fish-style string operations (length, sub, upper, lower, trim, split,
 	join, replace, match, pad, repeat, collapse); see *toolbox-string*(1).
 
+*strings*
+	printable character runs in binary inputs; see *toolbox-strings*(1).
+
 *tr*
 	translate, squeeze or delete characters; see *toolbox-tr*(1).
 
@@ -120,5 +123,5 @@ Through moxy, each page is also a read-only resource, *man://toolbox.1* and
 
 *toolbox-b2sum*(1), *toolbox-cut*(1), *toolbox-digest*(1),
 *toolbox-paste*(1), *toolbox-sha256sum*(1), *toolbox-sort*(1),
-*toolbox-string*(1), *toolbox-tr*(1), *toolbox-uniq*(1), *toolbox-wc*(1), *moxin*(7),
+*toolbox-string*(1), *toolbox-strings*(1), *toolbox-tr*(1), *toolbox-uniq*(1), *toolbox-wc*(1), *moxin*(7),
 *markl-id*(7)

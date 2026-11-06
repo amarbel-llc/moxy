@@ -4,7 +4,7 @@ perms-request = "dynamic"
 permit-async = false
 description = """Run a pipeline of pure applets over files, madder://blobs/<digest> URIs or stdin, \
 e.g. `wc -c a.txt | sha256sum` or `digest -a blake2b256 madder://blobs/…`. \
-Applets: wc, sha256sum, b2sum, digest, tr, sort, uniq, cut, paste, string (fish-style). \
+Applets: wc, sha256sum, b2sum, digest, tr, sort, uniq, cut, paste, string (fish-style), strings. \
 Not a shell: only applets, their flags, quoted words and `|`. See toolbox(1) and toolbox-<applet>(1)."""
 command = "@BIN@/toolbox"
 args = ["run", "--floor", "@FOLIO_PERMS@", "--"]

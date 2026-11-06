@@ -58,6 +58,10 @@ reads nothing the gate would judge. It inherits `toolbox.run`'s tier; it is
 not always-allow. RE2 only, 16 MiB in and out per stage; escape/unescape
 and JSON output are not done yet. See toolbox-string(1).
 
+`strings` (moxy#184) is in-process too: the printable runs of an input, one
+per line, so `strings bin | string match -re PATTERN` checks a build for a
+string with no shell. See toolbox-strings(1).
+
 ## The grammar
 
 `pkg/toolbox` parses the command; nothing hands it to a shell.

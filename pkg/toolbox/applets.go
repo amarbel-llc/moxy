@@ -34,7 +34,7 @@ type Applet struct {
 	Name    string
 	Summary string
 	// Program is the coreutils program run for this applet; "" means the
-	// applet runs in-process (digest).
+	// applet runs in-process (digest, string, strings).
 	Program string
 	Flags   []Flag
 	// FileOperands is true when operands name inputs (files, blob URIs, or
@@ -206,6 +206,7 @@ var applets = []*Applet{
 		MaxOperands:  -1,
 	},
 	stringApplet,
+	stringsApplet,
 	{
 		Name:    "tr",
 		Summary: "translate, squeeze or delete characters",
