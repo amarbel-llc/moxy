@@ -128,6 +128,39 @@ the close comment to post. Issues FIXED with something left over (#1, #216,
 | 497 | 5df5e35 | env inputs allowlisted, env_resolve gated and fenced (5df5e35). |
 | 490 | cc57a76, 5ac99b4 | rg.search reads through folio's read rule (cc57a76, 5ac99b4). **Confirm with moxy/sunny-sumac, whose lane it is, before closing.** |
 
+## READY items worked on 2026-11-06
+
+Each landed item closed its issue on merge (`Closes #N`).
+
+**Landed:**
+
+- #136 (2e2de72), #339 (9323e3d).
+- #231 (f8c2c71), #101 (75ad1e3), #176 (c7fa7e4).
+- #394 (ae588b3), #389 (febb891), #195 (7f0e93f).
+- #218 (a26351e), #468 (39e1b90).
+- #412 (0980a2b). Switching krone's unit to `Type=notify` is circus's
+  deploy.
+- #264 (6adc2c6), #472 (cce107a).
+- #447 (2ee7a8b). Not run against the live gws: it needs a Google login.
+- #37 (c467b73), #439 (032e166), #116 (70d3341), #184 (bc88fff).
+
+**Turned out not to be READY.** Each needs a ruling or work outside moxy:
+
+- #431: the Go test lane has no madder store or binary. It needs madder's
+  in-process init API (madder's lane) or a madder binary in the godyn
+  test lane.
+- #462: piers reads only GFM (`pandoc -f gfm`), which never produces cell
+  spans, so merge code would be unreachable until piers takes another
+  input format.
+- #488: no verified PlantUML directive hides the gantt start/end/duration
+  columns yet. Find the option first.
+- #328, #329: folding the tools removes tool names that `allow-tools`
+  lists and profiles may reference. Rule on the renames first.
+- #438: the structural fix is moving the command layer onto dewey's
+  `ActiveContext`, which the issue itself says needs a design pass.
+- #469: rg.search's resources are #490's lane (moxy/sunny-sumac).
+- #194: step 2 needs a bun/nixpkgs pin bump, which is a lock change.
+
 ## Rulings the READY work is waiting on
 
 These READY issues can start once someone answers a small question:
