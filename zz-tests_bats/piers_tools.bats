@@ -34,6 +34,38 @@ function piers_comment_list_asks_for_comments_with_replies { # @test
   assert_equal "$(stub_json comments-params.json '.fields | contains("replies(")')" "true"
 }
 
+# moxy#468: page_size caps the comments returned; pages are followed up to
+# it, and a nextPageToken says more exist.
+listed() { jq -r ".content[0].text | fromjson | $1" <<<"$output"; }
+
+function piers_comment_list_returns_the_token_when_more_comments_exist { # @test
+  export GWS_STUB_COMMENT_PAGES=3
+  run "$BIN/comment" list "file-1"
+  assert_success
+  assert_equal "$(listed '.comments | length')" "100"
+  assert_equal "$(listed '.nextPageToken')" "p2"
+  assert_equal "$(stub_json comments-params.json '.fields | startswith("nextPageToken,")')" "true"
+}
+
+function piers_comment_list_follows_pages_up_to_page_size { # @test
+  export GWS_STUB_COMMENT_PAGES=3
+  run "$BIN/comment" list "file-1" "" "" "250"
+  assert_success
+  assert_equal "$(listed '.comments | length')" "250"
+  assert_equal "$(listed '.comments[-1].id')" "c3-50"
+  assert_equal "$(listed 'has("nextPageToken")')" "false"
+  assert_equal "$(jq -r .pageSize "$GWS_STUB_DIR/comments-params.log" | paste -sd' ')" "100 100 50"
+}
+
+function piers_comment_list_resumes_from_a_page_token { # @test
+  export GWS_STUB_COMMENT_PAGES=3
+  run "$BIN/comment" list "file-1" "" "" "" "p3"
+  assert_success
+  assert_equal "$(stub_json comments-params.json '.pageToken')" "p3"
+  assert_equal "$(listed '.comments[0].id')" "c3-1"
+  assert_equal "$(listed 'has("nextPageToken")')" "false"
+}
+
 function piers_comment_reply_posts_content_without_an_action { # @test
   run "$BIN/comment" reply "file-1" "c1" "thanks"
   assert_success

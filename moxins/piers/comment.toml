@@ -2,7 +2,7 @@ schema = 3
 perms-request = "always-allow"
 description = "Work with comments on a Google Doc. Subcommands: list (comment text, author, quoted content, resolved status, replies), reply (respond to a comment, e.g. one anchored in the Docs UI), resolve and reopen (optionally with a reply message)."
 command = "@BIN@/comment"
-arg-order = ["subcommand", "file_id", "comment_id", "content", "page_size"]
+arg-order = ["subcommand", "file_id", "comment_id", "content", "page_size", "page_token"]
 
 [annotations]
 open-world-hint = true
@@ -30,4 +30,8 @@ description = "Reply text. Required by reply; optional for resolve and reopen."
 
 [input.properties.page_size]
 type = "string"
-description = "list only: max comments to return (default: 100)"
+description = "list only: max comments to return (default: 100). When more exist, the result carries nextPageToken."
+
+[input.properties.page_token]
+type = "string"
+description = "list only: the nextPageToken of an earlier list, to continue from there."

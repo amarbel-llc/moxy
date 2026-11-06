@@ -5,7 +5,8 @@
 #   doc-create.json        the new Doc's metadata (drive files create, no upload)
 #   images/<n>             each uploaded image (answered as stub-image-<n>)
 #   batch-update-<n>.json  the body of the n-th batchUpdate
-#   comments-params.json   the params of a comments list
+#   comments-params.json   the params of a comments list (the last one)
+#   comments-params.log    the params of every comments list, one per line
 #   reply-params.json, reply.json   the params and body of a replies create
 #
 # `documents get` answers with $GWS_STUB_DIR/document.json when a test wrote
@@ -112,7 +113,17 @@ case "$1 $2 $3" in
   ;;
 "drive comments list")
   printf '%s' "$params" >"$GWS_STUB_DIR/comments-params.json"
-  echo '{"comments":[{"id":"c1","content":"looks good"}]}'
+  printf '%s\n' "$params" >>"$GWS_STUB_DIR/comments-params.log"
+  if [ -n "${GWS_STUB_COMMENT_PAGES:-}" ]; then
+    # Page n (pageToken "p<n>", page 1 without one) holds pageSize comments
+    # c<n>-<i>, and names page n+1 until the last of GWS_STUB_COMMENT_PAGES.
+    "$GWS_STUB_JQ" -c --argjson pages "$GWS_STUB_COMMENT_PAGES" '
+      (.pageToken // "p1" | ltrimstr("p") | tonumber) as $p
+      | {comments: [range(1; .pageSize + 1) | {id: "c\($p)-\(.)"}]}
+      + (if $p < $pages then {nextPageToken: "p\($p + 1)"} else {} end)' <<<"$params"
+  else
+    echo '{"comments":[{"id":"c1","content":"looks good"}]}'
+  fi
   ;;
 "drive replies create")
   printf '%s' "$params" >"$GWS_STUB_DIR/reply-params.json"
