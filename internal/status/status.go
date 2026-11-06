@@ -217,7 +217,7 @@ func Run(w io.Writer, home, dir string) int {
 	// Validate moxin configs (uses the same dirs the discovery scanned)
 	var moxinCount int
 	for _, moxinDir := range discovered.Dirs {
-		entries, err := os.ReadDir(moxinDir)
+		moxinDirs, err := native.MoxinDirsIn(moxinDir)
 		if os.IsNotExist(err) {
 			continue
 		}
@@ -227,16 +227,7 @@ func Run(w io.Writer, home, dir string) int {
 			continue
 		}
 
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			dirPath := filepath.Join(moxinDir, e.Name())
-			metaPath := filepath.Join(dirPath, "_moxin.toml")
-			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
-				continue
-			}
-
+		for _, dirPath := range moxinDirs {
 			moxinResult, parseErr := native.ParseMoxinDirFull(dirPath)
 			if parseErr != nil {
 				printFail(w, "%s valid: %v", dirPath, parseErr)

@@ -506,9 +506,16 @@ Moxin configs are discovered from directories listed in the
 .Ev MOXIN_PATH
 environment variable (colon-separated, like
 .Ev MANPATH ) .
-Within each path entry, subdirectories containing a
+A path entry that itself contains a
+.Pa _moxin.toml
+file is one moxin, and nothing beneath it is scanned.
+Any other entry is a parent: its subdirectories containing a
 .Pa _moxin.toml
 file are recognized as moxins.
+So
+.Ev MOXIN_PATH
+may name individual moxins from different places, parents of several,
+or both.
 When
 .Ev MOXIN_PATH
 is unset or empty, the legacy hierarchy is used instead:

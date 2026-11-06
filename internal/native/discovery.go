@@ -207,7 +207,7 @@ func discover(dirs []string, skipUnreadableDirs bool) (DiscoverResult, error) {
 	for i := len(dirs) - 1; i >= 0; i-- {
 		moxyDir := dirs[i]
 		debugMoxin("discover: scanning dir %s", moxyDir)
-		entries, err := os.ReadDir(moxyDir)
+		moxinDirs, err := MoxinDirsIn(moxyDir)
 		if os.IsNotExist(err) {
 			debugMoxin("discover: dir %s does not exist, skipping", moxyDir)
 			continue
@@ -221,16 +221,7 @@ func discover(dirs []string, skipUnreadableDirs bool) (DiscoverResult, error) {
 			continue
 		}
 
-		for _, e := range entries {
-			dirPath := filepath.Join(moxyDir, e.Name())
-			if !dirExists(dirPath) {
-				continue
-			}
-			metaPath := filepath.Join(dirPath, "_moxin.toml")
-			if _, statErr := os.Stat(metaPath); os.IsNotExist(statErr) {
-				debugMoxin("discover: no _moxin.toml in %s, skipping", dirPath)
-				continue
-			}
+		for _, dirPath := range moxinDirs {
 			debugMoxin("discover: parsing %s", dirPath)
 			cfg, err := ParseMoxinDir(dirPath)
 
@@ -253,7 +244,7 @@ func discover(dirs []string, skipUnreadableDirs bool) (DiscoverResult, error) {
 			}
 			cfg.SourceDir = dirPath
 			byName[name] = cfg
-			debugMoxin("discover: loaded %s (name=%s, %d tools)", e.Name(), name, len(cfg.Tools))
+			debugMoxin("discover: loaded %s (name=%s, %d tools)", dirPath, name, len(cfg.Tools))
 		}
 	}
 
@@ -277,6 +268,35 @@ func discover(dirs []string, skipUnreadableDirs bool) (DiscoverResult, error) {
 	return DiscoverResult{
 		Configs: result, Errors: loadErrors, Dirs: dirs, Shadowed: shadowed, Refused: refused,
 	}, nil
+}
+
+// MoxinDirsIn is the moxin directories one MOXIN_PATH entry names (#101):
+// the entry itself when it holds a _moxin.toml, else each of its
+// subdirectories that does, in directory order. The error is the entry's
+// ReadDir error, so os.IsNotExist tells a missing entry apart.
+func MoxinDirsIn(entry string) ([]string, error) {
+	if dirExists(entry) && hasMoxinMeta(entry) {
+		return []string{entry}, nil
+	}
+	entries, err := os.ReadDir(entry)
+	if err != nil {
+		return nil, err
+	}
+	var dirs []string
+	for _, e := range entries {
+		dirPath := filepath.Join(entry, e.Name())
+		if dirExists(dirPath) && hasMoxinMeta(dirPath) {
+			dirs = append(dirs, dirPath)
+		}
+	}
+	return dirs, nil
+}
+
+// hasMoxinMeta reports a _moxin.toml that exists, readable or not: one moxy
+// cannot read is a moxin that fails to load, not a directory to step over.
+func hasMoxinMeta(dirPath string) bool {
+	_, err := os.Stat(filepath.Join(dirPath, "_moxin.toml"))
+	return !os.IsNotExist(err)
 }
 
 // claimedMoxinName is the name a moxin directory claims when the directory as
