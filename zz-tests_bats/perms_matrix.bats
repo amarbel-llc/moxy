@@ -18,7 +18,9 @@ teardown() {
 }
 
 # docs/plans/2026-11-03-permissions-audit.md says what the smallest change is
-# for each of these.
+# for each of these. grit.diff, grit.log and grit.status (moxy#510) are listed
+# on purpose: their `paths` are pathspecs inside the session's own repository
+# (no repo_path, and git refuses a pathspec outside it), not file reads.
 EXPECTED_UNGATED=(
   chix.build
   chix.derivation-show
@@ -42,7 +44,10 @@ EXPECTED_UNGATED=(
   freud.transcript
   freud.unique-tools
   grit.commit
+  grit.diff
+  grit.log
   grit.merge
+  grit.status
   man.section
   man.toc
 )
