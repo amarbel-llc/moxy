@@ -5,6 +5,7 @@ permit-async = false
 description = """Identify file type using magic bytes. Returns a human-readable \
 description (e.g. 'ELF 64-bit executable', 'Bash script, ASCII text')."""
 command = "@BIN@/file-type"
+substitute-args = ["path"]
 arg-order = ["path"]
 
 [input]

@@ -6,6 +6,7 @@ description = """Inspect a tarball (.tar.gz, .tar.bz2, .tar, etc): with member, 
 single file to stdout; without, list entries (optionally filtered by a grep pattern). \
 List first to discover member paths."""
 command = "@BIN@/tar"
+substitute-args = ["path"]
 arg-order = ["path", "member", "pattern"]
 
 [input]

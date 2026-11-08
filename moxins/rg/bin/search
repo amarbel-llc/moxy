@@ -88,8 +88,18 @@ fi
 # empty "no matches" success. See #296. On a clean run rg writes nothing to
 # stderr, so the combined capture holds only matches.
 set +e
-output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1)
-rc=$?
+# A cached blob arrives as /dev/fd/N, a pipe that rg skips as a path (#469):
+# search its content on stdin instead.
+case "$path" in
+  /dev/fd/*)
+    output=$(rg "${rg_args[@]}" -- "$pattern" <"$path" 2>&1)
+    rc=$?
+    ;;
+  *)
+    output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1)
+    rc=$?
+    ;;
+esac
 set -e
 
 case "$rc" in

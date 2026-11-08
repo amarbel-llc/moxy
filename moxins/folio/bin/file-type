@@ -7,4 +7,13 @@ if [ ! -e "$path" ]; then
   exit 1
 fi
 
-file "$path"
+# A cached blob arrives as /dev/fd/N, a pipe: `file` would report the pipe,
+# not the content (#469). Read the content from stdin instead.
+case "$path" in
+  /dev/fd/*)
+    file -b - <"$path"
+    ;;
+  *)
+    file "$path"
+    ;;
+esac

@@ -6,6 +6,17 @@ path="$1"
 member="${2:-}"
 pattern="${3:-}"
 
+# A cached blob arrives as /dev/fd/N, a pipe that tar cannot seek in to detect
+# a compressed archive (#469): copy it to a temporary file and read that.
+case "$path" in
+  /dev/fd/*)
+    tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
+    cat "$path" >"$tmp"
+    path="$tmp"
+    ;;
+esac
+
 if [ ! -f "$path" ]; then
   echo "Error: not a file: $path" >&2
   exit 1
@@ -16,7 +27,8 @@ if [ -n "$member" ]; then
     echo "ERROR: pattern only applies when listing (omit member)" >&2
     exit 2
   fi
-  exec tar -xf "$path" -O "$member"
+  tar -xf "$path" -O "$member"
+  exit
 fi
 
 if [ -n "$pattern" ]; then

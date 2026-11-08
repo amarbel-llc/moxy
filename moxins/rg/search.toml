@@ -7,6 +7,7 @@ description = """Search file contents using ripgrep. Returns file paths by defau
 context, or output_mode=count for match counts per file. The searched path is read \
 under the same policy as folio read (#490)."""
 command = "@BIN@/search"
+substitute-args = ["path"]
 arg-order = [
   "pattern",
   "path",
