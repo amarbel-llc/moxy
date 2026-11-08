@@ -51,6 +51,12 @@ const defaultStoreID = ".default"
 type MadderClient struct {
 	// parent is the base context every per-call errors.Context derives from.
 	parent context.Context
+
+	// requireBlob, when set, replaces the store lookup OpenBlob does before it
+	// creates a pipe: it returns nil when the blob exists. Nil means the real
+	// lookup. A test seam: madder's store-init is internal to madder, so a Go
+	// test here cannot build a real store to miss in (moxy#431).
+	requireBlob func(ctx context.Context, digest string, id markl.Id) error
 }
 
 // NewMadderClient returns a library-backed client. No binary resolution — the
@@ -199,12 +205,7 @@ func (c *MadderClient) OpenBlob(ctx context.Context, digest string) (*os.File, B
 	// Fail fast on a missing blob: check existence (recovered via withStoreEnv)
 	// before creating a pipe/child, so a missing digest errors immediately
 	// instead of leaving a reader blocked on a pipe that never fills (moxy#11).
-	if err := c.withStoreEnv(ctx, func(env blob_store_env.BlobStoreEnv) error {
-		if !env.HasBlobInAnyStore(id) {
-			return fmt.Errorf("blob not found in any store: %s", digest)
-		}
-		return nil
-	}); err != nil {
+	if err := c.requireBlobInAnyStore(ctx, digest, id); err != nil {
 		return nil, nil, err
 	}
 
@@ -213,6 +214,19 @@ func (c *MadderClient) OpenBlob(ctx context.Context, digest string) (*os.File, B
 		return nil, nil, fmt.Errorf("creating pipe for %s: %w", digest, err)
 	}
 	return pr, &libBlobWriter{client: c, ctx: ctx, id: id, digest: digest, pw: pw}, nil
+}
+
+// requireBlobInAnyStore errors unless the blob exists in some store.
+func (c *MadderClient) requireBlobInAnyStore(ctx context.Context, digest string, id markl.Id) error {
+	if c.requireBlob != nil {
+		return c.requireBlob(ctx, digest, id)
+	}
+	return c.withStoreEnv(ctx, func(env blob_store_env.BlobStoreEnv) error {
+		if !env.HasBlobInAnyStore(id) {
+			return fmt.Errorf("blob not found in any store: %s", digest)
+		}
+		return nil
+	})
 }
 
 // libBlobWriter fills a pipe with a blob's bytes via the madder library. It
