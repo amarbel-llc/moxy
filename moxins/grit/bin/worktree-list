@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# grit.worktree-list: read-only `git worktree list --porcelain` (moxy#510).
+source "@BIN@/../lib/readonly.bash"
+
+git worktree list --porcelain

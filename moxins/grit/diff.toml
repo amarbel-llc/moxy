@@ -1,0 +1,44 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+cache-results = "always"
+content-type = "text/x-diff"
+description = """Read-only `git diff` for the session's repository, with external diff and textconv drivers off. \
+With no `ref` it is the working tree against the index (`staged`: the index against HEAD); with a `ref` it is \
+the working tree against that ref, or `ref` as a range such as `a..b`. Has no write verb and no way to reach \
+one, so a profile that must stay read-only can keep it. The mixed `grit.stage` and `grit.branch` tools (each \
+with a diff beside write verbs) are unchanged."""
+command = "@BIN@/diff-read"
+arg-order = ["ref", "paths", "staged", "stat_only", "context_lines"]
+
+[input]
+type = "object"
+
+[input.properties.ref]
+type = "string"
+description = "Ref, commit or range to diff against (must not start with '-'). Omit for the index/working-tree diff."
+
+[input.properties.paths]
+type = "array"
+description = "Limit the diff to these paths (relative to the repo root)."
+
+[input.properties.paths.items]
+type = "string"
+
+[input.properties.staged]
+type = "boolean"
+description = "Diff the staged changes (git diff --cached)."
+
+[input.properties.stat_only]
+type = "boolean"
+description = "Show only a diffstat summary."
+
+[input.properties.context_lines]
+type = "integer"
+description = "Context lines around each change, git --unified=N (default 3)."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = false

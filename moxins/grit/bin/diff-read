@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# grit.diff: read-only `git diff` (moxy#510). One tool for both forms the
+# mixed tools split: no ref = index/working tree (staged picks --cached), a
+# ref = that ref against the working tree.
+# arg-order: ref paths staged stat_only context_lines
+source "@BIN@/../lib/readonly.bash"
+
+ref="${1:-}"
+paths_json="${2:-}"
+staged="${3:-}"
+stat_only="${4:-}"
+context="${5:-}"
+
+# --no-ext-diff and --no-textconv: a diff driver named in the repository's
+# config is a program; a read-only tool must not run one.
+git_args=(diff --no-ext-diff --no-textconv)
+[ -n "$context" ] && {
+  refuse_non_number context_lines "$context"
+  git_args+=("--unified=$context")
+}
+[ "$stat_only" = "true" ] && git_args+=(--stat)
+[ "$staged" = "true" ] && git_args+=(--cached)
+if [ -n "$ref" ]; then
+  refuse_option ref "$ref"
+  git_args+=("$ref")
+fi
+
+read_paths "$paths_json"
+[ "${#files[@]}" -gt 0 ] && git_args+=(-- "${files[@]}")
+
+git "${git_args[@]}"

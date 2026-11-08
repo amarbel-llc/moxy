@@ -1,0 +1,33 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = """Read-only `git tag --list`, newest first by default. Has no write verb and no way to reach one, \
+so a profile that must stay read-only can keep it. The mixed `grit.tag` tool (list beside create, delete and \
+push) is unchanged."""
+command = "@BIN@/tag-list"
+arg-order = ["pattern", "sort", "max_count", "contains"]
+
+[input]
+type = "object"
+
+[input.properties.pattern]
+type = "string"
+description = "Glob to filter tag names (e.g. \"v*\", \"go/v0.*\"; must not start with '-')."
+
+[input.properties.sort]
+type = "string"
+description = "Sort key passed to `git tag --sort` (default `-creatordate`)."
+
+[input.properties.max_count]
+type = "integer"
+description = "Cap the number of tags returned (0 means no cap)."
+
+[input.properties.contains]
+type = "string"
+description = "Only show tags reachable from this commit/ref."
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = false

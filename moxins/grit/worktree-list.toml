@@ -1,0 +1,16 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = """Read-only `git worktree list --porcelain`: every worktree of the session's repository with its \
+path, HEAD, branch and lock state. Has no write verb and no way to reach one, so a profile that must stay \
+read-only can keep it. The mixed `grit.worktree` tool (list beside remove) is unchanged."""
+command = "@BIN@/worktree-list"
+
+[input]
+type = "object"
+
+[annotations]
+read-only-hint = true
+idempotent-hint = true
+open-world-hint = false

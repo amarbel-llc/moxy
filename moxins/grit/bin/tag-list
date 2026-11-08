@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# grit.tag-list: read-only `git tag --list` (moxy#510).
+# arg-order: pattern sort max_count contains
+source "@BIN@/../lib/readonly.bash"
+
+pattern="${1:-}"
+sort="${2:-}"
+max_count="${3:-}"
+contains="${4:-}"
+
+git_args=(tag --list)
+if [ -n "$sort" ]; then
+  refuse_option sort_key "${sort#-}"
+  git_args+=(--sort "$sort")
+else
+  git_args+=(--sort "-creatordate")
+fi
+if [ -n "$contains" ]; then
+  refuse_option contains "$contains"
+  git_args+=(--contains "$contains")
+fi
+if [ -n "$pattern" ]; then
+  refuse_option pattern "$pattern"
+  git_args+=("$pattern")
+fi
+
+if [ -n "$max_count" ] && [ "$max_count" != "0" ]; then
+  refuse_non_number max_count "$max_count"
+  git "${git_args[@]}" | head -n "$max_count"
+else
+  git "${git_args[@]}"
+fi

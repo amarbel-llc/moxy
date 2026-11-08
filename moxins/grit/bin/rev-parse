@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# grit.rev-parse: read-only `git rev-parse --verify` (moxy#510).
+# arg-order: ref
+source "@BIN@/../lib/readonly.bash"
+
+ref="${1:-}"
+if [ -z "$ref" ]; then
+  echo "rev-parse: ref is required" >&2
+  exit 2
+fi
+refuse_option ref "$ref"
+
+git rev-parse --verify "$ref"

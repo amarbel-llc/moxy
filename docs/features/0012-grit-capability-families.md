@@ -131,6 +131,42 @@ the premature-abstraction failure this design is meant to avoid:
   does not fold cleanly into `grit.remote`.
 - **`tag`** — already the union-`subcommand` prototype this whole design follows.
 
+### Read-only tools (moxy#510)
+
+A profile keeps or drops whole tools, and every family above mixes read and
+write verbs, so a read-only session (clown's `engineer-debug` profile) could
+keep none of them. Six standalone tools carry just the read verbs, each
+`perms-request = "always-allow"` and annotated `read-only-hint`:
+
+| Tool | Runs | Mixed tool it mirrors |
+|---|---|---|
+| `grit.status` | `git status --short --branch` | `grit.stage status` |
+| `grit.diff` | `git diff` (no `ref`: index/working tree, `staged` for `--cached`; a `ref`: against that ref) | `grit.stage diff`, `grit.branch diff` |
+| `grit.log` | `git log` | `grit.branch log` |
+| `grit.rev-parse` | `git rev-parse --verify` | `grit.branch rev-parse` |
+| `grit.tag-list` | `git tag --list` | `grit.tag list` |
+| `grit.worktree-list` | `git worktree list --porcelain` | `grit.worktree list` |
+
+Separate tools, not one tool with a verb allowlist, because tool names are what
+a profile selects. The mixed tools are unchanged. (`grit.tag verify` is not
+mirrored: it runs `gpg`, which is more than a read of git state.)
+
+Read-only by construction, not by convention (`moxins/grit/lib/readonly.bash`):
+no tool takes a `subcommand`, so no caller string picks the verb; every caller
+string that reaches git is a value and refuses a leading `-`, so none can become
+`--output=FILE` (which makes `git diff` and `git log` write); `grit.diff` and
+`grit.log` run with `--no-ext-diff --no-textconv`, so a driver named in the
+repository's config is not executed; git runs with `GIT_OPTIONAL_LOCKS=0`
+(a plain `git status` rewrites `.git/index`) and `core.fsmonitor=false`.
+There is no `repo_path`: the tools read the session's own repository, and are
+not a way to read others. `zz-tests_bats/grit_readonly.bats` pins each of these.
+
+Keeping them in a profile: include `grit.status`, `grit.diff`, `grit.log`,
+`grit.rev-parse`, `grit.tag-list` and `grit.worktree-list`, and leave out
+`grit.stage`, `grit.branch`, `grit.tag`, `grit.worktree` and the rest. In a
+moxyfile that is `allow-tools` (moxyfile(5) NARROWING), in the form its other
+entries take.
+
 ### Dissolved tools
 
 `reset` and `hard-reset` **cease to exist as tools**; their behavior is split by

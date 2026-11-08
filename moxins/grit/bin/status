@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# grit.status: read-only `git status --short --branch` (moxy#510).
+# arg-order: untracked ignored paths
+source "@BIN@/../lib/readonly.bash"
+
+untracked="${1:-}"
+ignored="${2:-}"
+paths_json="${3:-}"
+
+git_args=(status --short --branch)
+case "$untracked" in
+  no | normal | all) git_args+=(--untracked-files="$untracked") ;;
+  "") : ;;
+  *)
+    echo "untracked must be no|normal|all" >&2
+    exit 2
+    ;;
+esac
+[ "$ignored" = "true" ] && git_args+=(--ignored)
+
+read_paths "$paths_json"
+[ "${#files[@]}" -gt 0 ] && git_args+=(-- "${files[@]}")
+
+git "${git_args[@]}"

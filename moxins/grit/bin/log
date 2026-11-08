@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# grit.log: read-only `git log` (moxy#510).
+# arg-order: ref paths max_count oneline
+source "@BIN@/../lib/readonly.bash"
+
+ref="${1:-}"
+paths_json="${2:-}"
+max_count="${3:-}"
+oneline="${4:-}"
+
+git_args=(log --no-ext-diff --no-textconv)
+if [ -n "$max_count" ]; then
+  refuse_non_number max_count "$max_count"
+  git_args+=(-n "$max_count")
+fi
+[ "$oneline" = "true" ] && git_args+=(--oneline)
+if [ -n "$ref" ]; then
+  refuse_option ref "$ref"
+  git_args+=("$ref")
+fi
+
+read_paths "$paths_json"
+[ "${#files[@]}" -gt 0 ] && git_args+=(-- "${files[@]}")
+
+git "${git_args[@]}"

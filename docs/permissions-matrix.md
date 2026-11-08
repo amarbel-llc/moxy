@@ -4,7 +4,7 @@
 
 Verified columns come from the parsed tool TOML. `path inputs` is inferred from input names.
 
-98 tools: 65 always-allow, 31 dynamic, 0 each-use, 2 delegate-to-client.
+104 tools: 71 always-allow, 31 dynamic, 0 each-use, 2 delegate-to-client.
 
 ## Matrix
 
@@ -87,12 +87,18 @@ Verified columns come from the parsed tool TOML. `path inputs` is inferred from 
 | `grit.branch` | dynamic | floor | `branch-perms` | – | false | `destructive=true, idempotent=false, open-world=true` | `name, paths, repo_path, root` |
 | `grit.clone` | dynamic | floor | `clone-perms` | – | true | `idempotent=false, open-world=true` | `destination, source` |
 | `grit.commit` | always-allow | none | – | – | false | `idempotent=false` | `repo_path` |
+| `grit.diff` | always-allow | none | – | – | false | `read-only=true, idempotent=true, open-world=false` | `paths` |
+| `grit.log` | always-allow | none | – | – | false | `read-only=true, idempotent=true, open-world=false` | `paths` |
 | `grit.merge` | always-allow | none | – | – | false | `idempotent=false` | `repo_path` |
 | `grit.remote` | dynamic | floor | `remote-perms` | – | true | `idempotent=false, open-world=true` | `repo_path` |
+| `grit.rev-parse` | always-allow | none | – | – | false | `read-only=true, idempotent=true, open-world=false` | – |
 | `grit.stage` | dynamic | floor | `stage-perms` | – | false | `destructive=true, idempotent=false, open-world=true` | `destination, paths, repo_path, source` |
 | `grit.stash` | dynamic | floor | `stash-perms` | – | false | `destructive=true, idempotent=false, open-world=true` | `paths, repo_path` |
+| `grit.status` | always-allow | none | – | – | false | `read-only=true, idempotent=true, open-world=false` | `paths` |
 | `grit.tag` | dynamic | floor | `tag-perms` | – | false | `destructive=true, idempotent=false, open-world=true` | `name, repo_path` |
+| `grit.tag-list` | always-allow | none | – | – | false | `read-only=true, idempotent=true, open-world=false` | – |
 | `grit.worktree` | dynamic | floor | `worktree-perms` | – | false | `destructive=true, idempotent=false, open-world=true` | `path, repo_path` |
+| `grit.worktree-list` | always-allow | none | – | – | false | `read-only=true, idempotent=true, open-world=false` | – |
 | `gws.api` | always-allow | none | – | – | true | `open-world=true` | – |
 | `jq.jq` | dynamic | broker+floor | `@FOLIO_PERMS@ read` | `cwd:read, files:read` | false | `read-only=true, idempotent=true` | `cwd, files` |
 | `man.list` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | – |
@@ -135,6 +141,9 @@ always-allow, no `[resources]` stanza, and an input whose name looks like a path
 - `freud.transcript`: session_id
 - `freud.unique-tools`: session_ids
 - `grit.commit`: repo_path
+- `grit.diff`: paths
+- `grit.log`: paths
 - `grit.merge`: repo_path
+- `grit.status`: paths
 - `man.section`: page
 - `man.toc`: page
