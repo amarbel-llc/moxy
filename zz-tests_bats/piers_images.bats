@@ -152,6 +152,35 @@ function piers_create_renders_local_puml_file { # @test
   [[ $(png_width "$GWS_STUB_DIR/images/1") -gt 100 ]]
 }
 
+# A gantt's Start/End/Duration table implies dates a plan of only order and
+# dependencies does not have, so it is hidden unless the block asks for it
+# with PlantUML's own `show column …` (#488). The table is the difference in
+# rendered width.
+render_gantt() { # EXTRA-LINES -> sets GANTT_WIDTH, the n-th image's width in px
+  local content n
+  content=$'```plantuml\n@startgantt\n'"$1"$'[Design] lasts 3 days\n[Build] lasts 4 days\n[Build] starts at [Design]\'s end\n@endgantt\n```\n'
+  run "$BIN/create" "Title" "$content"
+  assert_success
+  n=$(ls "$GWS_STUB_DIR/images" | wc -l)
+  GANTT_WIDTH=$(png_width "$GWS_STUB_DIR/images/$n")
+}
+
+function piers_create_hides_gantt_columns_by_default { # @test
+  render_gantt ""
+  hidden=$GANTT_WIDTH
+  render_gantt $'show column start\nshow column end\nshow column duration\n'
+  shown=$GANTT_WIDTH
+  [[ $hidden -lt $shown ]] || fail "hidden=$hidden shown=$shown"
+}
+
+function piers_create_keeps_a_gantt_column_the_block_shows { # @test
+  render_gantt ""
+  hidden=$GANTT_WIDTH
+  render_gantt $'show column duration\n'
+  shown=$GANTT_WIDTH
+  [[ $hidden -lt $shown ]] || fail "hidden=$hidden shown=$shown"
+}
+
 function piers_create_shows_wide_plantuml_at_page_width { # @test
   content=$'```plantuml\nparticipant "A participant with a deliberately long name number one" as A\nparticipant "A participant with a deliberately long name number two" as B\nparticipant "A participant with a deliberately long name number three" as C\nA -> B: a message that is itself long enough to push things apart\nB -> C: a message that is itself long enough to push things apart\n```\n'
   run "$BIN/create" "Title" "$content"

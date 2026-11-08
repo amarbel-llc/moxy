@@ -91,6 +91,15 @@ gws runs from a scratch directory: it only uploads files under its cwd, and it
 saves any non-JSON reply (a Drive delete's empty body) there as
 `download.<ext>` (#458).
 
+A `@startgantt` block that has no `hide column …` or `show column …` line is
+rendered with its Start, End and Duration columns hidden (piers inserts the
+three `hide column` lines after `@startgantt`), since a plan of only order and
+dependencies has no dates to show. To keep a column, add PlantUML's own
+`show column start`, `show column end` or `show column duration` line; any
+`show column` or `hide column` line leaves the block exactly as written. These
+keywords need a PlantUML from mid-2026 (1.2026.x); an older one fails the
+render with a syntax error.
+
 PlantUML runs with `PLANTUML_SECURITY_PROFILE=SANDBOX`: the markdown being
 published is often not the caller's own, so `!include` of local files or URLs
 is disabled rather than letting a diagram draw a file's contents into a shared

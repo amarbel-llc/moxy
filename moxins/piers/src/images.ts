@@ -178,7 +178,25 @@ function renderSharp(render: (scale: number) => Buffer): PreparedImage {
 // by one, since `-pipe` concatenates the PNGs of several diagrams (#453).
 function plantumlDiagrams(source: string): string[] {
   const blocks = source.match(/^\s*@start(\w+)[\s\S]*?^\s*@end\1\b.*$/gm);
-  return blocks ?? [`@startuml\n${source}\n@enduml\n`];
+  return (blocks ?? [`@startuml\n${source}\n@enduml\n`]).map(hideGanttColumns);
+}
+
+// A gantt draws a Start/End/Duration table left of the bars, which implies
+// dates and durations a plan with only order and dependencies does not have
+// (#488). A gantt that says nothing about its columns gets them hidden; any
+// `show column …` or `hide column …` line is the author's own choice and the
+// block is left alone, so PlantUML's `show column start|end|duration` is the
+// opt-in. These keywords need a PlantUML from mid-2026 (1.2026.x).
+const ganttColumnLine = /^\s*(show|hide)\s+column\b/im;
+const ganttStartLine = /^\s*@startgantt\b.*$/m;
+
+function hideGanttColumns(diagram: string): string {
+  if (ganttColumnLine.test(diagram)) return diagram;
+  return diagram.replace(
+    ganttStartLine,
+    (start) =>
+      `${start}\nhide column start\nhide column end\nhide column duration`,
+  );
 }
 
 export function renderPlantuml(
