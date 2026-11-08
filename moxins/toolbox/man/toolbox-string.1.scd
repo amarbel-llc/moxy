@@ -47,10 +47,12 @@ character toolbox refuses unquoted (see *toolbox*(1) GRAMMAR).
 	strip whitespace, or the characters in _chars_, from both ends. *-l*
 	strips the left end only and *-r* the right end only.
 
-*split* [*-m* _max_] [*-r*] [*-n*] _separator_
+*split* [*-m* _max_] [*-r*] [*-n*] [*--json*] _separator_
 	split each string at a literal _separator_, one piece per line. An empty
 	_separator_ splits into characters. *-m* makes at most _max_ splits,
-	counted from the right with *-r*. *-n* drops empty pieces.
+	counted from the right with *-r*. *-n* drops empty pieces. *--json*
+	prints one JSON array of the pieces per string instead, empty pieces
+	included (see JSON OUTPUT).
 
 *join* _separator_
 	join all the strings into one line.
@@ -61,13 +63,15 @@ character toolbox refuses unquoted (see *toolbox*(1) GRAMMAR).
 	name groups as *$1* or *${name}* (quoted, since *$* is refused
 	unquoted). *-f* prints only the strings that changed.
 
-*match* [*-r*] [*-a*] [*-e*] [*-v*] [*-g*] _pattern_
+*match* [*-r*] [*-a*] [*-e*] [*-v*] [*-g*] [*--json*] _pattern_
 	print the strings matching _pattern_. Without *-r*, _pattern_ is a glob
 	over the whole string, where *\** is any run of characters and *?* is
 	one character. With *-r*, it prints each match followed by its capture
 	groups, one per line. *-a* prints every match, *-e* prints the whole
 	string instead, *-g* prints the groups without the match, and *-v*
-	prints the strings that do not match.
+	prints the strings that do not match. *--json* prints, for every
+	string, one JSON array of its matches with their positions and groups
+	(see JSON OUTPUT); it does not combine with *-e*, *-g* or *-v*.
 
 *pad* [*-w* _width_] [*-c* _char_] [*-r*]
 	pad each string on the left to _width_ characters with _char_ (default a
@@ -120,9 +124,28 @@ Hosts from user@host addresses:
 
 	string replace -r '(\\w+)@(\\w+)' '$2' alice@example
 
-# NOT YET
+# JSON OUTPUT
 
-JSON output (moxy#506) is not implemented.
+*split --json* and *match --json* print one line of compact JSON per input
+string, in order, so a stage's output still has one line per input. Keys come
+in a fixed order, so the output is the same every time. Input that is not
+valid UTF-8 is an error, since JSON cannot hold it. *length* needs no flag: its
+output is already one JSON number per line.
+
+*split --json* prints an array of the pieces, empty ones included unless *-n*:
+
+	string split --json ,   (stdin a,b,,c)
+	=> ["a","b","","c"]
+
+*match --json* prints an array of matches, empty when nothing matched. Each
+match has *start* and *end* (code points from 0, the end exclusive), the
+*match* text and its capture *groups*, in order. A group that did not take
+part is *null*. Without *-r*, the pattern is a glob over the whole string, so
+a match is the whole string and has no groups. *-a* lists every match, else
+only the first:
+
+	string match --json -r 'b(.)'   (stdin abc)
+	=> [{"start":1,"end":3,"match":"bc","groups":[{"start":2,"end":3,"value":"c"}]}]
 
 # SEE ALSO
 

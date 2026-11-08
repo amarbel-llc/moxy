@@ -188,6 +188,13 @@ function string_subcommands_chain_in_a_pipeline { # @test
   [[ $(result_text) == $'tab\there "q"' ]] || fail "$output"
   toolbox "string unescape --style=url" $'%zz\n'
   assert_error
+  # moxy#506: one JSON value per input line
+  toolbox "string split --json , | string length" $'a,b,,c\n'
+  assert_ok
+  [[ $(result_text) == 16 ]] || fail "$output" # the line ["a","b","","c"]
+  toolbox "string match --json -r 'b(.)'" $'abc\nxyz\n'
+  assert_ok
+  [[ $(result_text) == '[{"start":1,"end":3,"match":"bc","groups":[{"start":2,"end":3,"value":"c"}]}]'$'\n[]' ]] || fail "$output"
   local id
   id=$(seed_blob $'b\na\n')
   toolbox "string upper | sort" "madder://blobs/$id"

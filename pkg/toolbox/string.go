@@ -49,6 +49,7 @@ var stringApplet = &Applet{
 			{Short: 'm', Long: "max", Value: true, Valid: digits},
 			{Short: 'r', Long: "right"},
 			{Short: 'n', Long: "no-empty"},
+			{Long: "json"},
 		}, 1, nil),
 		stringSub("join", nil, 1, nil),
 		stringSub("replace", []Flag{
@@ -62,7 +63,8 @@ var stringApplet = &Applet{
 			{Short: 'r', Long: "regex"},
 			{Short: 'v', Long: "invert"},
 			{Short: 'g', Long: "groups-only"},
-		}, 1, compilesIfRegex),
+			{Long: "json"},
+		}, 1, checkMatch),
 		stringSub("pad", []Flag{
 			{Short: 'w', Long: "width", Value: true, Valid: digits},
 			{Short: 'c', Long: "char", Value: true, Valid: oneRune},
@@ -217,6 +219,9 @@ func stringOp(st Stage, inputs []string, w *cappedWriter) error {
 			}
 		}
 	case "split":
+		if flag("json") {
+			return splitJSON(st, args[0], inputs, w)
+		}
 		maxSplits, limited := intFlag(st, "max")
 		for _, s := range inputs {
 			for _, part := range split(s, args[0], maxSplits, limited, flag("right")) {
@@ -345,6 +350,9 @@ func globRegexp(glob string) *regexp.Regexp {
 
 func match(st Stage, pattern string, inputs []string, w *cappedWriter) error {
 	flag := func(name string) bool { _, ok := st.Flags[name]; return ok }
+	if flag("json") {
+		return matchJSON(st, pattern, inputs, w)
+	}
 	if !flag("regex") {
 		re := globRegexp(pattern)
 		for _, s := range inputs {
