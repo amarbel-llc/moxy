@@ -179,6 +179,15 @@ function string_subcommands_chain_in_a_pipeline { # @test
   toolbox "string match -r -g '(\\w+)@' | sort" $'me@host\nnone\nyou@there\n'
   assert_ok
   [[ $(result_text) == $'me\nyou' ]] || fail "$output"
+  # moxy#505: escape and unescape round-trip in each style
+  toolbox "string escape --style=url | string upper" $'a b/c\n'
+  assert_ok
+  [[ $(result_text) == "A%20B%2FC" ]] || fail "$output"
+  toolbox "string escape --style=json | string unescape --style=json" $'tab\there "q"\n'
+  assert_ok
+  [[ $(result_text) == $'tab\there "q"' ]] || fail "$output"
+  toolbox "string unescape --style=url" $'%zz\n'
+  assert_error
   local id
   id=$(seed_blob $'b\na\n')
   toolbox "string upper | sort" "madder://blobs/$id"
@@ -188,7 +197,7 @@ function string_subcommands_chain_in_a_pipeline { # @test
 
 function string_refuses_bad_input_and_never_opens_its_operands { # @test
   local cmd
-  for cmd in "string" "string escape x" "string match -r '('" "string sub -s 0 x"; do
+  for cmd in "string" "string escape --style=bogus x" "string match -r '('" "string sub -s 0 x"; do
     toolbox "$cmd"
     assert_error
   done

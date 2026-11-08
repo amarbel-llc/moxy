@@ -81,6 +81,31 @@ character toolbox refuses unquoted (see *toolbox*(1) GRAMMAR).
 *collapse*
 	replace each run of whitespace with one space.
 
+*escape*, *unescape* [*--style* _shell_|_url_|_json_] [*--quotes*]
+	quote each string for a context, or undo it. The style is *shell* by
+	default.
+
+	*shell* escape single-quotes the string so that it is one sh word (a
+	quote inside is closed, escaped and reopened: *it'\\''s*). Unescape
+	reads one sh word back: single quotes, double quotes (with *\\"*,
+	*\\\\*, *\\$* and *\\`* escaped) and backslashes, and nothing is
+	evaluated. Unquoted whitespace would make two words and is an error.
+
+	*url* escape percent-encodes every byte except the unreserved ones
+	(letters, digits, and the four characters hyphen, period, underscore
+	and tilde), as upper-case *%XX*, so any bytes
+	encode, UTF-8 or not. Unescape decodes *%XX* (either case) and leaves
+	*+* alone; a *%* not followed by two hex digits is an error. The
+	decoded bytes are whatever was encoded, a newline included.
+
+	*json* escape writes a JSON string literal's body (*\\t*, *\\u0000*,
+	*\\"*), or the literal with its quotes under *--quotes*. Input that is
+	not valid UTF-8 is an error, since a JSON string cannot hold it.
+	Unescape reads a body back, or a quoted literal under *--quotes*; an
+	invalid escape is an error.
+
+	*--quotes* applies to *--style=json* only.
+
 # EXAMPLES
 
 The length of a manpage NAME line:
@@ -97,7 +122,7 @@ Hosts from user@host addresses:
 
 # NOT YET
 
-escape/unescape and JSON output are not implemented.
+JSON output (moxy#506) is not implemented.
 
 # SEE ALSO
 

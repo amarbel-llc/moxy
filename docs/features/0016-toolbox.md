@@ -55,8 +55,9 @@ in-process applet: `string <subcommand> ...`, an applet whose first word
 names a subcommand parsed with its own flag table. The policy grammar uses the
 same parse. Its operands are strings, not files (as `tr`'s sets are), so it
 reads nothing the gate would judge. It inherits `toolbox.run`'s tier; it is
-not always-allow. RE2 only, 16 MiB in and out per stage; escape/unescape
-and JSON output are not done yet. See toolbox-string(1).
+not always-allow. RE2 only, 16 MiB in and out per stage. `escape` and
+`unescape` (moxy#505) quote for a context: `--style` shell (the default), url
+or json. JSON output is not done yet. See toolbox-string(1).
 
 `strings` (moxy#184) is in-process too: the printable runs of an input, one
 per line, so `strings bin | string match -re PATTERN` checks a build for a

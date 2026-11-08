@@ -23,7 +23,7 @@ const MaxStringBytes = 16 << 20
 // input's lines.
 var stringApplet = &Applet{
 	Name:    "string",
-	Summary: "length, sub, upper, lower, trim, split, join, replace, match, pad, repeat, collapse",
+	Summary: "length, sub, upper, lower, trim, split, join, replace, match, pad, repeat, collapse, escape, unescape",
 	Subcommands: []*Applet{
 		stringSub("length", nil, 0, nil),
 		stringSub("sub", []Flag{
@@ -81,6 +81,8 @@ var stringApplet = &Applet{
 			return nil
 		}),
 		stringSub("collapse", nil, 0, nil),
+		stringSub("escape", escapeFlags(), 0, checkEscapeFlags),
+		stringSub("unescape", escapeFlags(), 0, checkEscapeFlags),
 	},
 }
 
@@ -244,6 +246,8 @@ func stringOp(st Stage, inputs []string, w *cappedWriter) error {
 				return err
 			}
 		}
+	case "escape", "unescape":
+		return escapeLines(st, st.Applet.Name == "string unescape", inputs, w)
 	default:
 		return errors.New("no implementation")
 	}

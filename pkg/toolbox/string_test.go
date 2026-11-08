@@ -69,7 +69,6 @@ func TestStringParseErrors(t *testing.T) {
 	for _, cmd := range []string{
 		"string",
 		"string nope",
-		"string escape x",
 		"string split",
 		"string join",
 		"string replace a",

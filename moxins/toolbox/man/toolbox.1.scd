@@ -42,7 +42,8 @@ the output of the one before, and the last one's output is the result.
 
 *string*
 	fish-style string operations (length, sub, upper, lower, trim, split,
-	join, replace, match, pad, repeat, collapse); see *toolbox-string*(1).
+	join, replace, match, pad, repeat, collapse, escape, unescape); see
+	*toolbox-string*(1).
 
 *strings*
 	printable character runs in binary inputs; see *toolbox-strings*(1).
