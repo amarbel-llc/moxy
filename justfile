@@ -133,6 +133,23 @@ debug-git-grep pattern path='.':
 debug-load:
   @cat /proc/loadavg; nproc
 
+# Run the folio glob script (source, not the nix wrapper) against a throwaway
+# tree. Agent dev-loop for moxy#514; the gating coverage is folio_glob.bats.
+#
+# smoke-test folio glob brace expansion and the vendor/* case
+[group("debug")]
+debug-folio-glob-smoke:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  t=$(mktemp -d)
+  mkdir -p "$t/src" "$t/vendor/pivy/src"
+  : >"$t/src/a.go"; : >"$t/src/b.rs"; : >"$t/src/c.txt"; : >"$t/vendor/top.txt"
+  g='{{justfile_directory()}}/moxins/folio/bin/glob'
+  for p in '**/*.{go,rs}' 'src/{a,b}.{go,rs}' 'vendor/*' 'vendor/*/' '**/*.nope' '**/*.{go,rs'; do
+    echo "--- $p"; bash "$g" "$p" "$t" || echo "(exit $?)"
+  done
+  rm -rf "$t"
+
 # print the go-pkgs producer's passthru.goFlakeInputs as JSON
 [group("debug")]
 debug-go-pkgs-flake-inputs:

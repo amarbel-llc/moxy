@@ -1,19 +1,84 @@
 #!/usr/bin/env bash
+# Files-only glob with bash globstar semantics plus brace expansion (#514).
+# Bash performs brace expansion before parameter expansion, so a bare
+# `for f in $pattern` never expanded `{go,rs}`; expand_braces does it here.
+# Directories are excluded by design; when only directories matched, the
+# "No files found" answer says so instead of being indistinguishable from
+# a pattern that matched nothing.
 set -euo pipefail
 pattern="$1"
 dir="${2:-.}"
 
+expanded=()
+
+# expand_braces PATTERN: append each brace-expanded alternative to `expanded`.
+# `{a}` and `{}` (no top-level comma) stay literal, as in bash; an unclosed
+# `{` is an error rather than a silent no-match.
+expand_braces() {
+  local s=$1 n=${#1} i c depth=0 start=-1 end=-1
+  local -a commas=()
+  for ((i = 0; i < n; i++)); do
+    c=${s:i:1}
+    if [ "$c" = "{" ]; then
+      if ((depth == 0)); then
+        start=$i
+        commas=()
+      fi
+      depth=$((depth + 1))
+    elif [ "$c" = "}" ] && ((depth > 0)); then
+      depth=$((depth - 1))
+      if ((depth == 0)) && ((${#commas[@]} > 0)); then
+        end=$i
+        break
+      fi
+    elif [ "$c" = "," ] && ((depth == 1)); then
+      commas+=("$i")
+    fi
+  done
+  if ((end < 0)); then
+    if ((depth > 0)); then
+      echo "ERROR: unsupported glob pattern: unclosed '{' in brace expression: $pattern" >&2
+      exit 2
+    fi
+    expanded+=("$s")
+    return
+  fi
+  local pre=${s:0:start} post=${s:end+1} from=$((start + 1)) b
+  for b in "${commas[@]}" "$end"; do
+    expand_braces "$pre${s:from:b-from}$post"
+    from=$((b + 1))
+  done
+}
+
+expand_braces "$pattern"
+
 cd "$dir"
 shopt -s globstar nullglob dotglob
+# Newline-only word splitting so a pattern containing spaces stays whole.
+IFS=$'\n'
 
+declare -A seen=()
 files=()
-for f in $pattern; do
-
-  [ -f "$f" ] && files+=("$f")
+dirs=0
+for p in "${expanded[@]}"; do
+  # shellcheck disable=SC2086
+  for f in $p; do
+    [ -n "${seen[$f]+x}" ] && continue
+    seen[$f]=1
+    if [ -f "$f" ]; then
+      files+=("$f")
+    elif [ -d "$f" ]; then
+      dirs=$((dirs + 1))
+    fi
+  done
 done
 
 if [ ${#files[@]} -eq 0 ]; then
-  echo "No files found"
+  if ((dirs > 0)); then
+    echo "No files found ($dirs directories matched; glob returns files only)"
+  else
+    echo "No files found"
+  fi
   exit 0
 fi
 

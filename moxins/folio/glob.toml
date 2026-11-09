@@ -2,8 +2,12 @@ schema = 3
 result-type = "text"
 perms-request = "dynamic"
 description = """Fast file pattern matching tool that works with any codebase size. \
-Supports glob patterns like "**/*.js" or "src/**/*.ts". \
-Returns matching file paths sorted by modification time (newest first)."""
+Supports glob patterns like "**/*.js" or "src/**/*.ts", including brace \
+alternatives like "**/*.{go,rs}". Returns matching FILE paths only (directories \
+are never listed, so "vendor/*" lists the files directly under vendor/, not its \
+subdirectories), sorted by modification time (newest first). An empty answer \
+says "No files found", and notes when directories matched. A malformed pattern \
+(for example an unclosed "{") is an error."""
 command = "@BIN@/glob"
 arg-order = ["pattern", "path"]
 
