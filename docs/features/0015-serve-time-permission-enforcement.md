@@ -217,6 +217,22 @@ types, never values (`pkg/shadow`).
 
 ### Open items
 
+**Operator decisions (nothing is built until both are made):**
+
+- **Flake inputs.** Linking `pkgs/ajour` (the evaluator, for moxy#489) and
+  `pkgs/catalogcontract` (the field kinds, `LockDigest`) means cutting-garden
+  and clown become inputs of moxy: lock changes, which the operator has to
+  approve. Until then `pkg/shadow` carries a local mirror of the `Call` shape
+  and a copy of `catalog.json`.
+- **Unconfined posture softness.** `MOXY_POSTURE` and `MOXY_PROFILE_LAYERS` are
+  unforgeable only for confined sessions (clown). For an unconfined session, as I
+  read it (not verified), an agent with shell access could start its own moxy
+  with different values.
+  How much that matters, and what an unconfined session is allowed to be
+  enforced as, is the operator's call.
+
+**Owners' items, with the recommended shape:**
+
 - **Posture and the escalation channel.** Not defined in moxy yet. The
   recommendation from cutting-garden/swift-plum (2026-11-10; a recommendation
   to the owning lanes, not a ruling): posture is session state the launcher
@@ -245,8 +261,8 @@ types, never values (`pkg/shadow`).
   (writes the layers), moxy (reads them; the moxyfile key is moxy's to define
   once the owners agree). The earlier suggestion here of an `Options` field is
   superseded.
-  Proposed spellings (moxy's, 2026-11-10, after spinclass and clown answered;
-  not agreed): two environment variables read in `cmd/moxy` only and handed to
+  Spellings (moxy's; agreed 2026-11-10 by spinclass and clown, as relayed by
+  cutting-garden/swift-plum): two environment variables read in `cmd/moxy` only and handed to
   the library as options, exactly as `MOXY_PARENT_MOXYFILE` is. Not moxyfile
   keys: a moxyfile hierarchy includes the working directory's own `./moxyfile`,
   which the agent can write, so a policy key there is forgeable; an environment
@@ -256,10 +272,8 @@ types, never values (`pkg/shadow`).
   layers file spinclass writes, named by clown; its format is spinclass's: ordered entries
   of `{path, role: stencil | patch, digest, act}`, where `role` matches
   `piggy-act-verdict-v1`'s `layers[].role` and `act` is the piggy act digest the
-  layer came from (provenance back to the signed chain). spinclass accepted
-  the two variables with this entry shape; clown's accept was pending when this
-  was written (cutting-garden/swift-plum treats the shape as final unless
-  clown objects within the hour). moxy reads `path`, `role` and `digest`, and
+  layer came from (provenance back to the signed chain). spinclass and clown
+  both accepted the two variables, and spinclass the entry shape. moxy reads `path`, `role` and `digest`, and
   carries `act` into its refusal and shadow-log text unchanged, never
   interpreting it. Fail closed:
   layers set but posture unset, the file unreadable or unparseable, or a layer
