@@ -160,6 +160,73 @@ res, _ := inst.Call(ctx, moxy.Call{Name: "folio.read", Args: args, Caller: moxy.
 | meta tools under enforce | status/async-result/async-cancel/async/batch allow, restart ask | mirrors the hook's builtinAutoAllow and inner-tool treatment | a headless brief needs restart; then `enforce-allow = ["restart"]` could lift it |
 | refusal shape | "moxy denied …" text prefix + `Result.Decision` | the hook's dontAsk denial already trained clients on the prefix | a client wants a structured `_meta` marker on the wire |
 
+## Amendment (proposed, 2026-11-10): enforcement under a profile
+
+Status: proposed text, no code. It describes what the funnel does when a
+blessed capability profile is in effect (cutting-garden FDR 0028 `ajour`,
+clown RFC 0018/0019, circus D2). Nothing here runs today: linking
+`pkgs/ajour` needs cutting-garden as a flake input (a lock change the operator
+has to approve), and shadow mode (moxy#489) only logs the verdict. The rulings
+below are the operator's of 2026-11-10 as relayed by the coordinator and by
+cutting-garden/swift-plum (not verified by me against a primary record); the
+ajour side landed on cutting-garden master `8295848`. The reasoning is in
+`docs/plans/2026-11-10-permissions-unification-research.md`.
+
+### Rulings this amendment records
+
+1. **Option B for `ask`.** A profile's `perm=allow` on the matched node
+   pre-approves a human-prompt tier for that call. A profile's `perm=ask`
+   admits the call subject to a human. A node with no `perm` leaves the
+   manifest tier as it is today.
+2. **Option A for `dynamic`.** A `dynamic` tool's predicate (`folio-perms` and
+   the grit `*-perms` predicates) stays a *floor* under any profile until
+   `fs-path-v1` covers it. A predicate deny binds even when the profile says
+   allow; a predicate ask yields to an explicit profile `perm=allow`. That
+   extends the "both must admit" rule, with one exception: an explicit allow
+   pre-approves a human-prompt tier and never overrides a deny.
+3. **Kind source.** Derived from annotations and `[resources]` where possible;
+   author override only where the hints cannot say (`exec`). Not decided here
+   beyond that (see the research note and `docs/plans/2026-11-10-derive-tiers-result.md`).
+
+### The order (closed by default)
+
+1. Shape gates: `--expose`, the exclude set, `allow-tools` (unchanged).
+2. The ajour Verdict, when a profile is in effect: absent or Refused refuses;
+   Ask is resolved per posture; Admitted continues. moxy does not re-derive
+   the mapping: ajour's `Verdict.Resolve(posture, canEscalate)` returns
+   `Run | Prompt | Escalate | Refuse`, and moxy and the clown hook both use it.
+3. The tier and floor, as a further restriction only: `each-use` and
+   `delegate-to-client` are skipped for a call the profile allowed (ruling 1);
+   a `dynamic` predicate still runs and a deny from it refuses (ruling 2);
+   with no profile in effect the tier decides exactly as in "The mapping"
+   above.
+4. The policy broker, per resource (unchanged).
+
+`Evaluate` is posture-free. moxy supplies the posture (attended or
+unattended, from the session) and whether it has an escalation channel. Under
+`Resolve`, an unattended `Ask` is `Escalate` when moxy has a channel and
+`Refuse` when it does not, so the refusal text for it is the existing "moxy
+denied ..." shape with a reason saying nobody can answer.
+
+### Shadow mode
+
+Shadow mode is unaffected: it evaluates and logs and enforces nothing. The
+log's `verdict` field is the Verdict's string, so an `ask` verdict is logged
+as such with no format change; it still records the tool, field names and
+types, never values (`pkg/shadow`).
+
+### Open items
+
+- The posture source (how a moxy knows attended from unattended) and the
+  escalation channel are not defined in moxy yet. Without them `Resolve` can
+  only be called with `canEscalate = false`.
+- Which profile applies to a call (the grant chain, `_base` cascade, digest
+  pin) is the consumer's input to ajour, not moxy's: moxy needs a way to be
+  handed the stack (an `Options` field), not to build it.
+- The 13 `always-allow` tools that are not read-only by their hints would be
+  `ask` under a derived default; whether to derive at all is the open kind
+  question, not part of this amendment.
+
 ## More Information
 
 - moxy#486 (this record), moxy#485 (the gap), moxy#484 (the dontAsk shape
