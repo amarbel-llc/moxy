@@ -996,6 +996,18 @@ debug-lint-dead-jq *files:
 debug-perms-matrix: build-go
   {{justfile_directory()}}/build/moxy perms-matrix --moxins {{justfile_directory()}}/moxins > {{justfile_directory()}}/docs/permissions-matrix.md
 
+# Read-only measurement for docs/plans/2026-11-10-permissions-unification-research.md
+# (d)3: derive a kind and a tier for every moxin tool from its annotation hints and
+# [resources] (read-only=true -> read, else write; any [resources] -> dynamic;
+# read with none -> always-allow; write with none -> delegate-to-client) and
+# diff the derived tier against the declared one. Reads the committed
+# docs/permissions-matrix.md, changes nothing. exec cannot be derived (no hint).
+#
+# derive a kind and tier for each moxin tool and diff against the declared tier
+[group("debug")]
+debug-derive-tiers:
+  awk -F'|' -f {{justfile_directory()}}/tools/derive-tiers.awk {{justfile_directory()}}/docs/permissions-matrix.md
+
 # smoke-test arboretum-moxin search against a small fixture
 [group("debug")]
 debug-arboretum-search-smoke:

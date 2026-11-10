@@ -187,6 +187,23 @@ the mechanism below is my design, not a ruling.]
    `_meta`, a moxyfile overlay, or a moxy-side table (what the catalog copy is
    today).
 
+### Rulings (operator, 2026-11-10, relayed by the coordinator; not verified by me)
+
+1. **Authority: option B.** A blessed profile's `perm` overrides the manifest
+   tier within the grant's `kind` rights for `ask`. The tier stays a floor for
+   `dynamic` tools until `fs-path-v1` covers `folio-perms`.
+2. **Dependency on ajour (cutting-garden, routed by the coordinator to
+   swift-plum / rare-sycamore):** a small change so ajour treats `ask` and
+   escalation differently for attended and unattended sessions: ask for
+   attended; escalate or deny for unattended. moxy's enforcement of option B
+   depends on it; until it lands, moxy cannot map an ajour `ask` onto the
+   funnel's behaviour for an unattended worker.
+3. **Kind source:** derive from annotations and resources where possible;
+   author overrides only where the hints cannot say (`exec`). First
+   measurement: `2026-11-10-derive-tiers-result.md`.
+4. **Order of work:** the measurement, then the `_meta` change (moxy#517:
+   `moxy/server`, `moxy/tool`, `moxy/perms-request` only).
+
 ### Smallest steps, none of them a commitment
 
 - moxy#517: the three factual `_meta` keys (approved).
