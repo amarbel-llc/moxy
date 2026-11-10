@@ -265,12 +265,20 @@ types, never values (`pkg/shadow`).
   sets for moxy from its own launch flags (spinclass/slim-myrtle, 2026-11-10).
   The layer files are written by spinclass from the piggy verdict's `layers[]`
   to a per-session file out of a confined unit's reach, and clown names it to
-  moxy. Verifying a layer's digest is *not decided*: `pkgs/ajour` exposes no
-  digest helper today, and the chain's digest is over the canonical tree. Once
-  piggy/green-larch (RFC 0013 owner) says what the chain hashes, cutting-garden
-  plans `Stencil.Digest()` and `Patch.Digest()` so moxy's check is "parse,
-  `Digest()`, compare" with no hashing of its own. Until then this amendment
-  states no verification rule.
+  moxy. Verifying a layer's digest (agreed 2026-11-10 per cutting-garden/swift-plum,
+  relaying piggy/green-larch; relayed, not read by me in RFC 0013): a stencil's
+  digest is a blake2b256 markl id over the canonical `Write` bytes, and the
+  verifier needs only the layer bytes and the verdict's edge. cutting-garden
+  adds `Stencil.Digest()` (and a patch equivalent) to `pkgs/ajour`, so moxy's
+  check is: `ParseStencil`, `Digest()`, compare to the edge. moxy does no
+  hashing of its own. Until ajour ships it there is no code to write.
+  The variables are read from the spawn environment once at start. moxy has no
+  way to tell its spawner from an inherited environment, so what it can do is
+  narrow: it takes posture and layers from these variables only, never from a
+  moxyfile, a tool argument or a reload, and ignores them after start. That the
+  variables really came from the launcher is the launcher's guarantee
+  (unforgeable only for confined sessions; the unconfined-posture softness is
+  an open operator item).
 - The 13 `always-allow` tools that are not read-only by their hints would be
   `ask` under a derived default; whether to derive at all is the open kind
   question, not part of this amendment.
