@@ -631,6 +631,7 @@ func (p *Proxy) ListToolsV1(
 		}
 		seen[rendered] = true
 		tool.Name = rendered
+		tool.Meta = canonicalMeta(tool.Meta, server, original)
 		allTools = append(allTools, tool)
 	}
 
@@ -685,6 +686,9 @@ func (p *Proxy) ListToolsV1(
 			}
 			original := tool.Name
 			prefixToolTitle(&tool, child.Client.Name())
+			if _, isMoxin := child.Client.(*native.Server); !isMoxin {
+				tool.Meta = withoutKey(tool.Meta, native.MetaPermsRequest)
+			}
 			addTool(child.Client.Name(), original, naming.CategoryChild, tool)
 		}
 	}
@@ -717,6 +721,7 @@ func (p *Proxy) ListToolsV1(
 				}
 				original := tool.Name
 				prefixToolTitle(&tool, serverName)
+				tool.Meta = withoutKey(tool.Meta, native.MetaPermsRequest)
 				addTool(serverName, original, naming.CategoryChild, tool)
 			}
 			if meta.Capabilities.Resources != nil {
@@ -747,7 +752,10 @@ func (p *Proxy) ListToolsV1(
 	if p.builtinTools != nil {
 		builtinResult, _ := p.builtinTools.ListToolsV1(ctx, "")
 		if builtinResult != nil {
-			allTools = append(allTools, builtinResult.Tools...)
+			for _, bt := range builtinResult.Tools {
+				bt.Meta = canonicalMeta(withoutKey(bt.Meta, native.MetaPermsRequest), metaServerMoxy, bt.Name)
+				allTools = append(allTools, bt)
+			}
 		}
 	}
 
@@ -767,6 +775,43 @@ func (p *Proxy) ListToolsV1(
 
 	debugLog("ListToolsV1: returning %d total tools", len(allTools))
 	return &protocol.ToolsListResultV1{Tools: allTools}, nil
+}
+
+// The canonical `_meta` keys moxy puts on every tool it advertises (moxy#517),
+// so a client reads the child server and tool as the manifest spells them
+// instead of splitting an advertised name that depends on --name-template.
+// moxy/perms-request is set by a native moxin and only by one.
+const (
+	metaServer     = "moxy/server"
+	metaTool       = "moxy/tool"
+	metaServerMoxy = "moxy" // the server value of moxy's own meta tools
+)
+
+// canonicalMeta returns a copy of meta with moxy's canonical server and tool
+// set over whatever the child claimed. It copies: the input may be a cached
+// ephemeral tool's map, which listing must not write through to.
+func canonicalMeta(meta map[string]any, server, tool string) map[string]any {
+	out := make(map[string]any, len(meta)+2)
+	for k, v := range meta {
+		out[k] = v
+	}
+	out[metaServer] = server
+	out[metaTool] = tool
+	return out
+}
+
+// withoutKey returns meta without key, copying only when it has to.
+func withoutKey(meta map[string]any, key string) map[string]any {
+	if _, ok := meta[key]; !ok {
+		return meta
+	}
+	out := make(map[string]any, len(meta))
+	for k, v := range meta {
+		if k != key {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // addSyntheticResourceTools appends the resource-read / resource-templates bridge

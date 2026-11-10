@@ -57,20 +57,41 @@ func listedToolMeta(t *testing.T, p *Proxy) map[string]json.RawMessage {
 	return metas
 }
 
-func assertJSONEqual(t *testing.T, got json.RawMessage, want string) {
+// assertMetaHas checks every key of want is in got with an equal value. moxy
+// adds its own moxy/ keys to every tool (moxy#517), so a tool's whole _meta is
+// no longer only what the moxin or child declared.
+func assertMetaHas(t *testing.T, got json.RawMessage, want string) {
 	t.Helper()
-	var g, w any
+	var g, w map[string]any
 	if err := json.Unmarshal(got, &g); err != nil {
-		t.Fatalf("got is not JSON (%q): %v", got, err)
+		t.Fatalf("got is not a JSON object (%q): %v", got, err)
 	}
 	if err := json.Unmarshal([]byte(want), &w); err != nil {
-		t.Fatalf("want is not JSON (%q): %v", want, err)
+		t.Fatalf("want is not a JSON object (%q): %v", want, err)
 	}
-	gb, _ := json.Marshal(g)
-	wb, _ := json.Marshal(w)
-	if string(gb) != string(wb) {
-		t.Errorf("_meta = %s, want %s", gb, wb)
+	for k, wv := range w {
+		gb, _ := json.Marshal(g[k])
+		wb, _ := json.Marshal(wv)
+		if string(gb) != string(wb) {
+			t.Errorf("_meta[%q] = %s, want %s (whole _meta %s)", k, gb, wb, got)
+		}
 	}
+}
+
+// metaDeclares reports whether a tool's _meta carries any key other than
+// moxy's own canonical ones, that is, something the moxin or child declared.
+func metaDeclares(t *testing.T, raw json.RawMessage) bool {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("_meta %q: %v", raw, err)
+	}
+	for k := range m {
+		if k != "moxy/server" && k != "moxy/tool" && k != "moxy/perms-request" {
+			return true
+		}
+	}
+	return false
 }
 
 func toolsCapable() protocol.ServerCapabilitiesV1 {
@@ -94,8 +115,8 @@ func TestListToolsV1EmitsMoxinKindAsMeta(t *testing.T) {
 	if !ok {
 		t.Fatalf("fixture.list-things has no _meta; metas: %v", metas)
 	}
-	assertJSONEqual(t, got, `{"kind":"list"}`)
-	if raw, ok := metas["fixture.plain"]; ok {
+	assertMetaHas(t, got, `{"kind":"list"}`)
+	if raw, ok := metas["fixture.plain"]; ok && metaDeclares(t, raw) {
 		t.Errorf("fixture.plain declared no kind but carries _meta %s", raw)
 	}
 }
@@ -117,8 +138,8 @@ func TestListToolsV1PassesChildMetaThrough(t *testing.T) {
 	if !ok {
 		t.Fatalf("srv.create has no _meta; metas: %v", metas)
 	}
-	assertJSONEqual(t, got, childMeta)
-	if raw, ok := metas["srv.bare"]; ok {
+	assertMetaHas(t, got, childMeta)
+	if raw, ok := metas["srv.bare"]; ok && metaDeclares(t, raw) {
 		t.Errorf("srv.bare sent no _meta but carries %s", raw)
 	}
 }
@@ -142,7 +163,7 @@ func TestListToolsV1PassesEphemeralChildMetaThrough(t *testing.T) {
 	if !ok {
 		t.Fatalf("eph.find has no _meta; metas: %v", metas)
 	}
-	assertJSONEqual(t, got, childMeta)
+	assertMetaHas(t, got, childMeta)
 }
 
 // #454: listing replays the ephemeral cache, and prefixing the server name onto
@@ -187,8 +208,10 @@ func TestListToolsV1EphemeralTitlePrefixDoesNotStack(t *testing.T) {
 }
 
 // The tools moxy makes up itself (a failed server's status tool, the resource
-// bridge) declare nothing, so they carry no `_meta`.
-func TestListToolsV1SyntheticToolsCarryNoMeta(t *testing.T) {
+// bridge) declare nothing of their own, so their `_meta` holds only the
+// canonical server and tool moxy adds to every tool (moxy#517); no kind, no
+// perms-request.
+func TestListToolsV1SyntheticToolsCarryOnlyCanonicalMeta(t *testing.T) {
 	child := &toolsListBackend{name: "srv", toolsList: `{"tools":[]}`}
 	caps := toolsCapable()
 	caps.Resources = &protocol.ResourcesCapability{}
@@ -211,8 +234,15 @@ func TestListToolsV1SyntheticToolsCarryNoMeta(t *testing.T) {
 		}
 	}
 
-	metas := listedToolMeta(t, p)
-	if len(metas) != 0 {
-		t.Errorf("synthetic tools carry _meta: %v", metas)
+	for name, raw := range listedToolMeta(t, p) {
+		var m map[string]any
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("_meta of %s: %v", name, err)
+		}
+		for k := range m {
+			if k != "moxy/server" && k != "moxy/tool" {
+				t.Errorf("synthetic tool %s carries _meta key %q: %v", name, k, m)
+			}
+		}
 	}
 }

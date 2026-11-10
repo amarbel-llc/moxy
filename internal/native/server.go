@@ -191,6 +191,11 @@ func (s *Server) InitializeResult() *protocol.InitializeResultV1 {
 	return result
 }
 
+// MetaPermsRequest is the tools/list `_meta` key carrying a moxin tool's
+// declared perms-request (moxy#517). Only a native moxin may set it: the
+// proxy strips it from every other child.
+const MetaPermsRequest = "moxy/perms-request"
+
 func (s *Server) handleToolsList() (json.RawMessage, error) {
 	debugMoxin("handleToolsList: server=%q numTools=%d", s.config.Name, len(s.config.Tools))
 	tools := make([]protocol.ToolV1, len(s.config.Tools))
@@ -220,6 +225,14 @@ func (s *Server) handleToolsList() (json.RawMessage, error) {
 		}
 		if spec.Kind != "" {
 			tool.Meta = map[string]any{"kind": spec.Kind}
+		}
+		// The declared tier, so a client need not parse the description
+		// suffix (moxy#517). Absent when the tool declares none.
+		if spec.PermsRequest != "" {
+			if tool.Meta == nil {
+				tool.Meta = map[string]any{}
+			}
+			tool.Meta[MetaPermsRequest] = string(spec.PermsRequest)
 		}
 		tools[i] = tool
 	}

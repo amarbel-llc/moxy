@@ -270,7 +270,12 @@ nothing. A child server's own `_meta` passes through the proxy whole — that
 works because the proxy round-trips tools through go-mcp's `ToolV1`, so any
 tool field `ToolV1` lacks is dropped (the field has to exist upstream in
 purse-first first). `[annotations]` holds exactly its five keys; any other
-key there is a load error for the whole moxin.
+key there is a load error for the whole moxin. Beside it, every advertised tool
+carries `_meta["moxy/server"]` and `_meta["moxy/tool"]` (the canonical child
+server and tool, whatever `--name-template` renders; moxy#517), and a moxin
+tool that declares a `perms-request` carries `_meta["moxy/perms-request"]`
+(only a native moxin may: the proxy strips it from every other child). `kind`
+stays moxin(7)'s result label; its access-class meaning is not decided.
 
 A moxin that fails to load still claims its name (`native.discover`, the one
 discovery implementation behind `DiscoverAll`/`DiscoverConfigs`/
