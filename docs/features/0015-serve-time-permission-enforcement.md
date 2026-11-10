@@ -245,6 +245,21 @@ types, never values (`pkg/shadow`).
   (writes the layers), moxy (reads them; the moxyfile key is moxy's to define
   once the owners agree). The earlier suggestion here of an `Options` field is
   superseded.
+  Proposed spellings (moxy's, 2026-11-10, after spinclass and clown answered;
+  not agreed): two environment variables read in `cmd/moxy` only and handed to
+  the library as options, exactly as `MOXY_PARENT_MOXYFILE` is. Not moxyfile
+  keys: a moxyfile hierarchy includes the working directory's own `./moxyfile`,
+  which the agent can write, so a policy key there is forgeable; an environment
+  variable set by the launcher at spawn is not (clown: unforgeable only for
+  confined sessions). `MOXY_POSTURE = attended | unattended`, set by clown from
+  its own launch flags. `MOXY_PROFILE_LAYERS = <absolute path>`, the per-session
+  layers file spinclass writes, named by clown; its format (ordered entries of
+  path, stencil or patch, and digest) is spinclass's to define. Fail closed:
+  layers set but posture unset, the file unreadable or unparseable, or a layer
+  that does not parse with ajour or whose digest does not match (once the check
+  exists), all refuse to start, as an unreadable parent reference does. No
+  layers set means no profile: the tier decides as today. The examples of a
+  `[permissions]` moxyfile key above are superseded by these.
   Two refinements, both pending their owners. Posture is not read from an
   inherited environment variable (the agent can export one); it is what clown
   sets for moxy from its own launch flags (spinclass/slim-myrtle, 2026-11-10).
