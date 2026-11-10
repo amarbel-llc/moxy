@@ -45,10 +45,12 @@ function serve_http_lists_a_moxin_kind_and_a_child_meta { # @test
   http_post_mcp tools/list "" "$MOXY_SESSION_ID"
   assert_equal "$HTTP_STATUS" "200"
 
+  # moxy's own `moxy/` keys (#517) are asserted in tool_kind.bats; here only
+  # what the moxin and the child declared.
   assert_equal \
-    "$(echo "$output" | jq -c '.result.tools[] | select(.name == "ring.list-issues") | ._meta')" \
+    "$(echo "$output" | jq -c '.result.tools[] | select(.name == "ring.list-issues") | ._meta | with_entries(select(.key | startswith("moxy/") | not))')" \
     '{"kind":"list"}'
   assert_equal \
-    "$(echo "$output" | jq -cS '.result.tools[] | select(.name == "srv.create-issue") | ._meta')" \
+    "$(echo "$output" | jq -cS '.result.tools[] | select(.name == "srv.create-issue") | ._meta | with_entries(select(.key | startswith("moxy/") | not))')" \
     '{"flag":true,"kind":"issue","vendor/extra":{"n":1,"tags":["a","b"]}}'
 }

@@ -35,9 +35,20 @@ $2
 EOF
 }
 
-# The `_meta` of one listed tool, or the JSON literal null when it has none.
+# The `_meta` of one listed tool minus moxy's own `moxy/` keys (#517; see
+# tool_meta_moxy), or the JSON literal null when nothing else is left.
 tool_meta() {
-  echo "$output" | jq -c --arg n "$1" '.tools[] | select(.name == $n) | ._meta // null'
+  echo "$output" | jq -c --arg n "$1" '
+    .tools[] | select(.name == $n) | (._meta // {})
+    | with_entries(select(.key | startswith("moxy/") | not))
+    | if . == {} then null else . end'
+}
+
+# Only the `moxy/` keys of one listed tool's `_meta`, sorted.
+tool_meta_moxy() {
+  echo "$output" | jq -cS --arg n "$1" '
+    .tools[] | select(.name == $n) | (._meta // {})
+    | with_entries(select(.key | startswith("moxy/")))'
 }
 
 ring_tool_names() {
@@ -54,6 +65,26 @@ function a_moxin_kind_is_listed_as_meta_kind { # @test
   assert_equal "$(tool_meta ring.list-issues)" '{"kind":"list"}'
   assert_equal "$(tool_meta ring.create-issue)" '{"kind":"issue"}'
   assert_equal "$(tool_meta ring.plain)" 'null'
+}
+
+# moxy#517: the canonical child server and tool ride on every tool, and a
+# moxin's declared tier on its own tools only; `kind` is untouched.
+function every_tool_carries_the_canonical_server_and_tool_and_a_moxin_its_tier { # @test
+  write_ring_tool tiered 'perms-request = "always-allow"'
+  write_ring_tool plain ''
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/meta-tool-server.bash"]
+EOF
+
+  run_moxy_mcp_v1 tools/list
+  assert_success
+  assert_equal "$(tool_meta_moxy ring.tiered)" \
+    '{"moxy/perms-request":"always-allow","moxy/server":"ring","moxy/tool":"tiered"}'
+  assert_equal "$(tool_meta_moxy ring.plain)" '{"moxy/server":"ring","moxy/tool":"plain"}'
+  # A child server gets server and tool, never a tier.
+  assert_equal "$(tool_meta_moxy srv.create-issue)" '{"moxy/server":"srv","moxy/tool":"create-issue"}'
 }
 
 function a_kind_is_carried_as_written_not_checked_against_a_vocabulary { # @test
