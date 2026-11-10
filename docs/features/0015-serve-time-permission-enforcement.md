@@ -245,6 +245,17 @@ types, never values (`pkg/shadow`).
   (writes the layers), moxy (reads them; the moxyfile key is moxy's to define
   once the owners agree). The earlier suggestion here of an `Options` field is
   superseded.
+  Two refinements, both pending their owners. Posture is not read from an
+  inherited environment variable (the agent can export one); it is what clown
+  sets for moxy from its own launch flags (spinclass/slim-myrtle, 2026-11-10).
+  The layer files are written by spinclass from the piggy verdict's `layers[]`
+  to a per-session file out of a confined unit's reach, and clown names it to
+  moxy. Verifying a layer's digest is *not decided*: `pkgs/ajour` exposes no
+  digest helper today, and the chain's digest is over the canonical tree. Once
+  piggy/green-larch (RFC 0013 owner) says what the chain hashes, cutting-garden
+  plans `Stencil.Digest()` and `Patch.Digest()` so moxy's check is "parse,
+  `Digest()`, compare" with no hashing of its own. Until then this amendment
+  states no verification rule.
 - The 13 `always-allow` tools that are not read-only by their hints would be
   `ask` under a derived default; whether to derive at all is the open kind
   question, not part of this amendment.
