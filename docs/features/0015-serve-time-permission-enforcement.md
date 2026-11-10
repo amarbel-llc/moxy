@@ -253,8 +253,15 @@ types, never values (`pkg/shadow`).
   variable set by the launcher at spawn is not (clown: unforgeable only for
   confined sessions). `MOXY_POSTURE = attended | unattended`, set by clown from
   its own launch flags. `MOXY_PROFILE_LAYERS = <absolute path>`, the per-session
-  layers file spinclass writes, named by clown; its format (ordered entries of
-  path, stencil or patch, and digest) is spinclass's to define. Fail closed:
+  layers file spinclass writes, named by clown; its format is spinclass's: ordered entries
+  of `{path, role: stencil | patch, digest, act}`, where `role` matches
+  `piggy-act-verdict-v1`'s `layers[].role` and `act` is the piggy act digest the
+  layer came from (provenance back to the signed chain). spinclass accepted
+  the two variables with this entry shape; clown's accept was pending when this
+  was written (cutting-garden/swift-plum treats the shape as final unless
+  clown objects within the hour). moxy reads `path`, `role` and `digest`, and
+  carries `act` into its refusal and shadow-log text unchanged, never
+  interpreting it. Fail closed:
   layers set but posture unset, the file unreadable or unparseable, or a layer
   that does not parse with ajour or whose digest does not match (once the check
   exists), all refuse to start, as an unreadable parent reference does. No
