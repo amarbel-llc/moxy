@@ -91,9 +91,34 @@ file into moxin manifests, against the ruling that moxy copies the file. I am
 not proposing it as the plan, only recording that the choice exists. It needs
 an operator or coordinator ruling before anyone builds it.
 
+## Checked against catalog.json (clown master 59954b9411d4)
+
+The file landed after the table above was drafted; I read it. It agrees with
+every row, and settles several gaps:
+
+- rg.search `path`, folio.read `file_path`, folio.glob `path`: kind `path`;
+  `path` carries `resolve: cwd` for rg.search and folio.glob, so a CWD default
+  is presented resolved. Matches.
+- folio.glob `pattern`: stays input, but the enforcer refuses an absolute
+  pattern or one with a `..` segment (RFC 0018 section 7). Gap 3 is settled:
+  the `Call` builder must apply that refusal, not type the pattern as a path.
+- smith.issue-get / pr-get: `repo` and `host` are kind `input` with
+  `resolve: cwd-remote`. Settles the smith rows and the "present resolved or
+  refuse" question; `Call` needs the cwd's git remote.
+- async / batch: every field is kind `route` and `presents: wrapped-call`, as
+  expected.
+- moxy's own `grit` server IS listed (`status`, `diff`, `log`, `branch`,
+  `stage`, ...), with `paths` relative to repo root or `repo_path`. Gap 1 is
+  half settled: the D2 samples' `grit_stage`/`grit_branch` are the spinclass
+  plugin's (also listed, `resolve: session-worktree`); moxy's are separate
+  rows. How `subcommand` maps to `tool-arg-v1` is still not in the file.
+- man.list/toc/section: not listed, so all fields are `tool-input-v1`, as drafted.
+- Not in the file and still open: `man://` resources (gap 4), and the 9.4
+  manifest-key idea (the file's `resolve`, `relative_to` and `split` keys are
+  more than `[resources.<field>]` carries today, which strengthens the case
+  that a manifest key would need to grow to replace the copy).
+
 ## Not done
 
-- No code, no manifest changes, no `catalog.json` copy (the file is not on
-  master).
-- Rows are expectations from the manifests, not checked against `catalog.json`.
-- smith, grit (moxy's) and the `async`/`batch` rows are the least certain.
+- No code, no manifest changes, no `catalog.json` copy (to be done when #489
+  is dispatched and `Evaluate` exists).
