@@ -35,6 +35,9 @@ type ResultStore interface {
 // url); the proxy also calls it to restart or re-probe a child.
 type ConnectFunc = proxy.ConnectFunc
 
+// CallObserver is the shadow-mode seat (see Options.Shadow).
+type CallObserver = proxy.CallObserver
+
 // ServerSummary describes one child server as Servers reports it: running
 // (with capability counts) or failed (with the error).
 type ServerSummary = proxy.ServerSummary
@@ -109,6 +112,12 @@ type Options struct {
 	// Nil is today's behaviour. The binary builds it from CLOWN_POLICY_BROKER
 	// (policybroker.FromEnv); the library reads no environment.
 	Gate perms.Gate
+
+	// Shadow, when set, is told about every tool dispatch before it runs
+	// (ajour shadow mode, moxy#489): it evaluates and logs and cannot change
+	// a call's outcome. Nil is off, and off is the default. The binary builds
+	// it from MOXY_SHADOW; the library reads no environment.
+	Shadow CallObserver
 
 	// NameTemplate renders advertised tool and prompt names; empty is
 	// "{server}.{tool}". Expose is the tool-exposure selector (FDR 0006);

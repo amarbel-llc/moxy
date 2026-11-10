@@ -115,7 +115,35 @@ type Proxy struct {
 	toolCollision               error                 // last tool-name collision under a custom template (nil if none)
 	promptCollision             error                 // last prompt-name collision under a custom template (nil if none)
 	dispatchSubCall             subCallDispatcher     // test seam; nil → use CallToolV1
+	callObserver                CallObserver          // shadow mode (moxy#489); nil = off
 	mu                          sync.RWMutex
+}
+
+// CallObserver is told about every tool dispatch before it runs (shadow mode,
+// moxy#489). It must not block; whatever it does, it cannot change the call:
+// the proxy ignores its panics and does not wait on it.
+type CallObserver interface {
+	Observe(name string, args json.RawMessage)
+}
+
+// SetCallObserver installs (or, with nil, removes) the shadow-mode observer.
+func (p *Proxy) SetCallObserver(o CallObserver) {
+	p.mu.Lock()
+	p.callObserver = o
+	p.mu.Unlock()
+}
+
+// observeCall tells the observer about a dispatch. It recovers every panic so
+// an observer can never change a call's outcome.
+func (p *Proxy) observeCall(name string, args json.RawMessage) {
+	p.mu.RLock()
+	o := p.callObserver
+	p.mu.RUnlock()
+	if o == nil {
+		return
+	}
+	defer func() { _ = recover() }()
+	o.Observe(name, args)
 }
 
 type resourceProviderEntry struct {
@@ -989,6 +1017,7 @@ func (p *Proxy) CallToolV1(
 	name string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
+	p.observeCall(name, args)
 	start := time.Now()
 	result, err := p.callToolV1(ctx, name, args)
 	serverName, toolName := p.metricSegments(name)

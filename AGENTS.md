@@ -357,6 +357,14 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   variable = no gate = behaviour exactly as before. Tools name their resource
   inputs in `[resources.<input>]` (moxin(7) RESOURCES; folio's tools and
   `rg.search`). `fakebroker` is the in-process test double
+- `pkg/shadow` -- ajour shadow mode (moxy#489): a Call builder over a
+  verbatim copy of clown's `catalog.json` (RFC 0018) and an async Observer.
+  Off unless `MOXY_SHADOW=1` (read in `cmd/moxy/shadow.go`); logs
+  `{tool, field names and types, verdict}`, never values, to
+  `~/.local/log/moxy/shadow/<session>.jsonl` (0600); enforces nothing and
+  cannot change a call (`Proxy.SetCallObserver`, `Options.Shadow`). No
+  evaluator is linked yet (needs cutting-garden as a flake input), so verdicts
+  read "unevaluated". Design note: `docs/plans/2026-11-10-489-field-typing-table.md`
 - `pkg/moxyfile` -- moxyfile parsing, hierarchy loading, merge semantics
 - `internal/mcpclient` -- JSON-RPC client that spawns and manages child
   processes. `stdioreader.go` is moxy's own `transport.Transport` for stdio

@@ -211,6 +211,9 @@ func (pr *Prepared) Open(ctx context.Context) (*Instance, error) {
 	})
 	p.SetMoxinReloader(&moxinReloader{in: inputs, served: served})
 	p.SetPolicy(pr.policy)
+	if o.Shadow != nil {
+		p.SetCallObserver(o.Shadow)
+	}
 	p.SetBootstrapper(&bootstrapper{
 		in: inputs,
 		// A reload serves a possibly different moxin set and a re-read

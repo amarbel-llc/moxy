@@ -85,6 +85,12 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	if client, ok := opts.Gate.(io.Closer); ok {
 		defer client.Close()
 	}
+	if home, herr := os.UserHomeDir(); herr == nil {
+		cwd, _ := os.Getwd()
+		var closeShadow func()
+		opts.Shadow, closeShadow = shadowFromEnv(os.Getenv, home, cwd, opts.SessionID, os.Stderr)
+		defer closeShadow()
+	}
 
 	// Load and judge the moxyfile (MOXY_PARENT_MOXYFILE) before stderr is
 	// redirected below: a refusal to serve has to reach the launcher's stderr
