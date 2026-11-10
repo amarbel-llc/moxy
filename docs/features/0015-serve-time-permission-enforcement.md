@@ -217,12 +217,34 @@ types, never values (`pkg/shadow`).
 
 ### Open items
 
-- The posture source (how a moxy knows attended from unattended) and the
-  escalation channel are not defined in moxy yet. Without them `Resolve` can
-  only be called with `canEscalate = false`.
-- Which profile applies to a call (the grant chain, `_base` cascade, digest
-  pin) is the consumer's input to ajour, not moxy's: moxy needs a way to be
-  handed the stack (an `Options` field), not to build it.
+- **Posture and the escalation channel.** Not defined in moxy yet. The
+  recommendation from cutting-garden/swift-plum (2026-11-10; a recommendation
+  to the owning lanes, not a ruling): posture is session state the launcher
+  knows (spinclass launches a session attended or unattended and clown
+  inherits it), so moxy should be *told* it at start, by an environment
+  variable or a moxyfile key the launcher writes (for example
+  `[permissions] posture = "attended" | "unattended"`), and never infer it or
+  read it from the profile head's `mode`, which is a declaration to cross-check
+  (a mismatch refuses at launch). The escalation channel belongs to clown (a
+  troupe message to the operator or coordinator); moxy has no messaging. So in
+  moxy's funnel `canEscalate` is always false: an unattended `Ask` is
+  `Refuse` there, and the layer that can escalate is the clown PreToolUse hook,
+  which sees the same Verdict through `Resolve` and owns the message. The two
+  enforcers must not both try to escalate. Owners: spinclass (posture),
+  clown (channel and hook); routed by cutting-garden/swift-plum to
+  circus/eager-holly.
+- **Handing moxy the profile stack.** Recommendation from the same source: not
+  an in-process `Options` field built by moxy. The stack is the signed act
+  chain (piggy RFC 0013) that spinclass resolves at launch (FDR 0034); the
+  launcher writes the layer documents to disk in stack order and names them to
+  moxy (for example `[permissions] profile-layers = [".../0-stencil.espalier",
+  ".../1-patch.espalier"]`), each pinned by the chain's digest. moxy parses
+  them with ajour's `ParseStencil` and `ParsePatch` and never constructs a
+  layer. That keeps moxy decoupled from the chain walk and lets
+  `cutting-garden-ajour` replay the exact stack for a refusal. Owners: spinclass
+  (writes the layers), moxy (reads them; the moxyfile key is moxy's to define
+  once the owners agree). The earlier suggestion here of an `Options` field is
+  superseded.
 - The 13 `always-allow` tools that are not read-only by their hints would be
   `ask` under a derived default; whether to derive at all is the open kind
   question, not part of this amendment.
