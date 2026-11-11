@@ -390,6 +390,13 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   0016): `ResourcesOf` parses a `grammar = "toolbox"` input with it, and
   `cmd/toolbox` (a separate binary) runs pipelines of coreutils applets,
   opening judged paths itself with no symlinks followed
+- `internal/readguard` + `cmd/readguard` -- the read tools' open guard
+  (moxy#490): `folio.read`, `jq.jq` and `rg.search` run their script through
+  `readguard exec`, which re-asks the gate, opens the path with
+  `openat2(RESOLVE_NO_SYMLINKS)` and hands the script `/dev/fd/N`. A symlink
+  leaf is followed only if its resolved target is allowed by the policy
+  (else refused naming the path); `rg.search` is verified, not fd-passed. See
+  `docs/plans/2026-11-11-490-read-symlink-leaves.md`
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/statsd` -- fire-and-forget UDP statsd metrics
   (`STATSD_HOST`/`STATSD_PORT`, kill switch `MOXY_DISABLE_STATSD=1`); emit

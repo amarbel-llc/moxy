@@ -173,7 +173,10 @@ asks), so step 1 adds nothing there and the protection is step 2. A parent
 directory renamed between the hook's verdict and the open to point the same
 canonical name at another directory is judged by name, as everywhere else in
 the policy. On non-Linux builds `O_NOFOLLOW` covers only the leaf.
-`folio.read` has the symlink-leaf case today; that is #490's lane.
+`folio.read`, `jq.jq` and `rg.search` close the same gap through `readguard`
+(docs/plans/2026-11-11-490-read-symlink-leaves.md), which differs on one point:
+it follows a symlink leaf whose resolved target the policy itself allows,
+where toolbox still refuses every symlink.
 
 ## Confined sessions
 
