@@ -32,7 +32,9 @@ fi
 [ "$json"            = "true" ] && args+=("-J")
 args+=("-I" "$exclude")
 
-text=$(tree "${args[@]}" -- "$path")
+# readguard (#490) enters the directory and passes "."; map the root back to
+# the name the caller gave
+text=$(tree "${args[@]}" -- "$path" | { if [ -n "${READGUARD_MAP:-}" ]; then "$READGUARD_MAP" map; else cat; fi; })
 if [ "$json" = "true" ]; then
   mime="application/json"
 else

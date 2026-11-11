@@ -9,7 +9,9 @@ if [ ! -d "$dir" ]; then
 fi
 
 if [ -n "$flags" ]; then
-  text=$(ls $flags -- "$dir")
+  # readguard (#490) enters the directory and passes "."; map the headers
+  # back to the name the caller gave
+  text=$(ls $flags -- "$dir" | { if [ -n "${READGUARD_MAP:-}" ]; then "$READGUARD_MAP" map; else cat; fi; })
   mime="text/plain"
 else
   first=true

@@ -7,7 +7,7 @@ Pass flags to customize output (e.g. \"-la\" for long format with hidden files).
 # readguard enters the directory by a RESOLVE_NO_SYMLINKS descriptor (#490)
 # and maps the "." the script lists back to the name the caller gave.
 command = "@READGUARD@"
-args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--map-output", "--", "@BIN@/ls"]
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--", "@BIN@/ls"]
 arg-order = ["path", "flags"]
 
 [input]

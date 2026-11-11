@@ -7,7 +7,7 @@ description (e.g. 'ELF 64-bit executable', 'Bash script, ASCII text')."""
 # readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490); output is
 # mapped back to the name the caller gave.
 command = "@READGUARD@"
-args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--map-output", "--", "@BIN@/file-type"]
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--", "@BIN@/file-type"]
 substitute-args = ["path"]
 arg-order = ["path"]
 

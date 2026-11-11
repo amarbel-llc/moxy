@@ -14,12 +14,12 @@ case "$path" in
     if [ "${READGUARD_REPL:-}" = "$path" ]; then
       # opened by readguard (#490): a regular file; its output is mapped back
       # to the name the caller gave
-      file -L "$path"
+      file -L "$path" | "$READGUARD_MAP" map
     else
       file -b - <"$path"
     fi
     ;;
   *)
-    file "$path"
+    file "$path" | { if [ -n "${READGUARD_MAP:-}" ]; then "$READGUARD_MAP" map; else cat; fi; }
     ;;
 esac

@@ -10,11 +10,12 @@ fi
 
 # readguard (#490) may have opened the path for us: a directory arrives as "."
 # and a file as /dev/fd/N (a link to the file, hence -D); READGUARD_ORIG is the
-# name the caller gave, and readguard maps du's own output back to it.
+# name the caller gave, and `$READGUARD_MAP map` maps du's own output back to it.
 shown="${READGUARD_ORIG:-$path}"
+mapback() { if [ -n "${READGUARD_MAP:-}" ]; then "$READGUARD_MAP" map; else cat; fi; }
 
 if [ -n "$flags" ]; then
-  text=$(du -D $flags -- "$path")
+  text=$(du -D $flags -- "$path" | mapback)
   mime="text/plain"
 else
   bytes=$(du -sx -D --bytes -- "$path" | awk 'END {print $1}')

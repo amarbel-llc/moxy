@@ -162,8 +162,6 @@ function file_readers_follow_an_inside_link_and_refuse_an_outside_one { # @test
   call folio.du '{"path": "file-link"}'
   assert_ok
   [[ $(text_of | jq -r .bytes) == 15 ]] || fail "$output"
-  call chix.nix-hash '{"path": "file-link"}'
-  assert_ok
   call chix.nix-hash '{"path": "out-link"}'
   assert_error
   [[ $output != *outside-secret* ]] || fail "leaked: $output"

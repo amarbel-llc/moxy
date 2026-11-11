@@ -6,7 +6,7 @@ does not cross filesystem boundaries. Returns JSON {path, bytes, human}; pass fl
 # is entered and measured as ".", a file arrives as /dev/fd/N; output is mapped
 # back to the name the caller gave.
 command = "@READGUARD@"
-args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--map-output", "--", "@BIN@/du"]
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--", "@BIN@/du"]
 arg-order = ["path", "flags"]
 
 [input]
