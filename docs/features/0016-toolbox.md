@@ -161,6 +161,12 @@ receives descriptors:
 2. Open exactly that path with `openat2(RESOLVE_NO_SYMLINKS)`: any symlink,
    the leaf or a directory above it swapped in after the verdict, fails the
    open. The file opened is the path judged. Non-regular files are refused.
+   If the open met a symlink, its fully resolved target is judged the same
+   way and must be **allowed** (an ask is outside the policy and refuses,
+   naming the path); the target is then opened with `RESOLVE_NO_SYMLINKS` too.
+   So an ordinary link inside a worktree works, and one pointing out does
+   not. Steps 1-2 are `internal/readguard`, shared with the other read tools
+   (docs/plans/2026-11-11-490-read-symlink-leaves.md).
 3. Pass the open files to the applet as inherited descriptors
    (`/dev/fd/3`…); an operand of `/dev/fd/N` is accepted only for N ≥ 3
    (the pipes moxy substitutes for blob URIs).
@@ -173,10 +179,9 @@ asks), so step 1 adds nothing there and the protection is step 2. A parent
 directory renamed between the hook's verdict and the open to point the same
 canonical name at another directory is judged by name, as everywhere else in
 the policy. On non-Linux builds `O_NOFOLLOW` covers only the leaf.
-`folio.read`, `jq.jq` and `rg.search` close the same gap through `readguard`
-(docs/plans/2026-11-11-490-read-symlink-leaves.md), which differs on one point:
-it follows a symlink leaf whose resolved target the policy itself allows,
-where toolbox still refuses every symlink.
+`pkg/toolbox` keeps its own Check-and-`openNoSymlinks` path for embedders
+that pass `RunOptions.Check`; `cmd/toolbox` passes `RunOptions.Open`
+(readguard's) instead.
 
 ## Confined sessions
 

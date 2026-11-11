@@ -28,6 +28,12 @@ type RunOptions struct {
 	// opened, so a refused path is never opened, not even to learn whether
 	// it exists. A non-nil error refuses the whole command. Required.
 	Check func(ctx context.Context, path string) error
+	// Open, when set, replaces Canonical, Check and the built-in open: it
+	// receives the operand as written and returns the regular file to read
+	// (cmd/toolbox supplies internal/readguard's, which also follows a
+	// symlink leaf whose resolved target the policy allows). Either Open or
+	// Check is required.
+	Open func(ctx context.Context, operand string) (*os.File, error)
 	// LookPath resolves an applet's program; exec.LookPath when nil.
 	LookPath func(string) (string, error)
 }
@@ -37,7 +43,7 @@ type RunOptions struct {
 // applet's program only as inherited descriptors (/dev/fd/N); programs run
 // with an environment of LC_ALL=C.UTF-8 alone.
 func Run(ctx context.Context, p *Pipeline, o RunOptions) error {
-	if o.Check == nil {
+	if o.Check == nil && o.Open == nil {
 		return errors.New("toolbox: no permission check configured")
 	}
 	var opened []*os.File
@@ -72,6 +78,13 @@ func (o RunOptions) openOperand(ctx context.Context, operand string) (*os.File, 
 	}
 	if strings.HasPrefix(operand, "madder://") {
 		return nil, fmt.Errorf("%s: blob URI was not substituted; call toolbox through moxy", operand)
+	}
+	if o.Open != nil {
+		f, err := o.Open(ctx, operand)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
 	}
 	path := operand
 	if !filepath.IsAbs(path) {

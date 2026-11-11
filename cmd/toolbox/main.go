@@ -14,17 +14,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
-	"sync"
-	"time"
 
-	"code.linenisgreat.com/moxy/pkg/perms"
-	"code.linenisgreat.com/moxy/pkg/policybroker"
+	"code.linenisgreat.com/moxy/internal/readguard"
 	"code.linenisgreat.com/moxy/pkg/toolbox"
 )
-
-// brokerDialWait bounds the wait for the broker's hello, as the hook's.
-const brokerDialWait = 250 * time.Millisecond
 
 func main() {
 	if len(os.Args) < 2 {
@@ -100,67 +93,21 @@ func run(floor, command string) int {
 		fmt.Fprintf(os.Stderr, "toolbox: %v\n", err)
 		return 2
 	}
-	g := &gate{floor: floor}
-	defer g.close()
+	// readguard re-asks the gate at open time (the broker when one answers,
+	// else the floor), opens without following a symlink the policy did not
+	// allow, and follows one whose resolved target it does (moxy#490).
+	g := &readguard.Gate{Floor: floor}
+	defer g.Close()
 	err = toolbox.Run(context.Background(), p, toolbox.RunOptions{
-		Stdin:     os.Stdin,
-		Stdout:    os.Stdout,
-		Stderr:    os.Stderr,
-		Cwd:       cwd,
-		Canonical: perms.CanonicalPath,
-		Check:     g.check,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Cwd:    cwd,
+		Open:   readguard.Opener{Gate: g, Cwd: cwd}.Open,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "toolbox: %v\n", err)
 		return 1
 	}
 	return 0
-}
-
-// gate re-asks, at open time, the question the PreToolUse hook asked: the
-// policy broker when one answers, else the static floor. A broker that is
-// down or hangs is no answer and falls to the floor, never to allow. Only a
-// deny refuses here: an ask was the hook's to put (to the user, or refused
-// under dontAsk) before the call reached toolbox, and nothing here can ask.
-type gate struct {
-	floor  string
-	once   sync.Once
-	client *policybroker.Client
-}
-
-func (g *gate) check(ctx context.Context, path string) error {
-	g.once.Do(func() {
-		c := policybroker.FromEnv(os.Getenv, nil, "moxy-toolbox")
-		if c == nil {
-			return
-		}
-		wait, cancel := context.WithTimeout(ctx, brokerDialWait)
-		defer cancel()
-		c.WaitConnected(wait)
-		g.client = c
-	})
-	if g.client != nil {
-		dec, reason, answered := g.client.Check(ctx, perms.Read, perms.Resource{Kind: perms.KindFile, URI: "file://" + path})
-		if answered {
-			if dec == perms.Deny {
-				return fmt.Errorf("policy broker denies: %s", reason)
-			}
-			return nil
-		}
-	}
-	out, err := exec.Command(g.floor, "read", path).CombinedOutput()
-	var exit *exec.ExitError
-	switch {
-	case err == nil:
-		return nil
-	case errors.As(err, &exit) && exit.ExitCode() == 1:
-		return nil // ask: the hook's to put, already put
-	}
-	return fmt.Errorf("denied: %s", strings.TrimSpace(string(out)))
-}
-
-func (g *gate) close() {
-	if g.client != nil {
-		g.client.Close()
-	}
 }

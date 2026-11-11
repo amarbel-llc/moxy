@@ -151,14 +151,23 @@ function shell_syntax_and_unlisted_flags_are_refused_and_nothing_is_written { # 
   [[ -e $PROJECT/hello.txt ]] || fail "a refused command removed a file"
 }
 
-function a_symlink_leaf_is_not_followed { # @test
+function a_symlink_leaf_out_of_the_policy_is_not_followed { # @test
   # the gate judges the link by its own name (inside the worktree); the
-  # runner refuses to follow it, so the outside file is never read
+  # runner judges its resolved target too, which is outside, so the outside
+  # file is never read and the error names the path
   toolbox "wc -c link"
   assert_error
   [[ $output != *outside-secret* ]] || fail "leaked: $output"
+  [[ $output == *link* && $output == *"outside the read policy"* ]] || fail "unclear error: $output"
   toolbox "sha256sum link"
   assert_error
+}
+
+function a_symlink_leaf_inside_the_policy_is_followed { # @test
+  ln -s hello.txt "$PROJECT/in-link"
+  toolbox "wc -c in-link"
+  assert_ok
+  [[ $(result_text) == *12* ]] || fail "$output"
 }
 
 function file_operands_follow_folio_read_under_dont_ask { # @test

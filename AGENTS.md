@@ -389,7 +389,7 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
 - `pkg/toolbox` -- the toolbox moxin's command grammar and runner (FDR
   0016): `ResourcesOf` parses a `grammar = "toolbox"` input with it, and
   `cmd/toolbox` (a separate binary) runs pipelines of coreutils applets,
-  opening judged paths itself with no symlinks followed
+  opening judged paths itself through `internal/readguard` (below)
 - `internal/readguard` + `cmd/readguard` -- the read tools' open guard
   (moxy#490): `folio.read`, `jq.jq` and `rg.search` run their script through
   `readguard exec`, which re-asks the gate, opens the path with
