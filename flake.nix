@@ -759,6 +759,7 @@
               # outline/search/rewrite read (rewrite writes) the path they are
               # given: folio's rule, one script (#490).
               tomlSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+              tomlSubstitutions.READGUARD = "${readguard}/bin/readguard";
             };
         # chix uses pathMode = "suffix" so the user's nix binary wins (and
         # picks up the user's NIX_PATH / config), while manix + git + the
@@ -788,6 +789,7 @@
               pathMode = "suffix";
               # nix-hash reads the path it is given: folio's read rule (#490).
               tomlSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+              tomlSubstitutions.READGUARD = "${readguard}/bin/readguard";
             };
         env-moxin =
           mkMoxin "env"

@@ -112,6 +112,87 @@ function a_directory_swapped_for_a_link_out_is_refused_at_open { # @test
   [[ $output != *dir/outside* ]] || fail "leaked: $output"
 }
 
+text_of() { jq -r '.content[0].text' <<<"$output"; }
+
+# The directory readers enter the directory by descriptor and report it under
+# the name the caller gave.
+function directory_readers_follow_an_inside_link_and_keep_the_callers_name { # @test
+  mkdir -p "$PROJECT/sub"
+  echo hello >"$PROJECT/sub/f.txt"
+  ln -s sub "$PROJECT/sub-link"
+  call folio.ls '{"path": "sub-link"}'
+  assert_ok
+  [[ $(text_of | jq -r '.[0].name') == f.txt ]] || fail "$output"
+  call folio.ls '{"path": "sub-link", "flags": "-R"}'
+  assert_ok
+  [[ $(text_of | head -n1) == "sub-link:" ]] || fail "$output"
+  call folio.tree '{"path": "sub-link"}'
+  assert_ok
+  [[ $(text_of | head -n1) == sub-link ]] || fail "$output"
+  call folio.tree '{"path": "sub-link", "json": true}'
+  assert_ok
+  [[ $(text_of | jq -r '.[0].name') == sub-link ]] || fail "$output"
+  call folio.du '{"path": "sub-link"}'
+  assert_ok
+  [[ $(text_of | jq -r .path) == sub-link ]] || fail "$output"
+  call folio.du '{"path": "sub-link", "flags": "-a"}'
+  assert_ok
+  [[ $(text_of) == *$'\tsub-link/f.txt'* && $(text_of) == *$'\tsub-link' ]] || fail "$output"
+  call folio.file-type '{"path": "sub-link"}'
+  assert_ok
+  [[ $(text_of) == "sub-link: directory" ]] || fail "$output"
+}
+
+function directory_readers_refuse_a_link_out_of_the_policy { # @test
+  mkdir -p "$HOME/elsewhere/dir"
+  echo outside-secret >"$HOME/elsewhere/dir/s.txt"
+  ln -s "$HOME/elsewhere/dir" "$PROJECT/dir-out"
+  for call_args in 'folio.ls {"path":"dir-out"}' 'folio.tree {"path":"dir-out"}' 'folio.du {"path":"dir-out"}' 'folio.file-type {"path":"dir-out"}'; do
+    call "${call_args%% *}" "${call_args#* }"
+    assert_error
+    [[ $output == *dir-out* && $output != *s.txt* ]] || fail "$call_args: $output"
+  done
+}
+
+function file_readers_follow_an_inside_link_and_refuse_an_outside_one { # @test
+  ln -s real.txt "$PROJECT/file-link"
+  call folio.file-type '{"path": "file-link"}'
+  assert_ok
+  [[ $(text_of) == "file-link: ASCII text" ]] || fail "$output"
+  call folio.du '{"path": "file-link"}'
+  assert_ok
+  [[ $(text_of | jq -r .bytes) == 15 ]] || fail "$output"
+  call chix.nix-hash '{"path": "file-link"}'
+  assert_ok
+  call chix.nix-hash '{"path": "out-link"}'
+  assert_error
+  [[ $output != *outside-secret* ]] || fail "leaked: $output"
+  call folio.file-type '{"path": "out-link"}'
+  assert_error
+  call folio.du '{"path": "out-link"}'
+  assert_error
+}
+
+function tar_follows_an_inside_link_and_refuses_an_outside_one { # @test
+  (cd "$PROJECT" && tar -cf ball.tar real.txt)
+  cp "$PROJECT/ball.tar" "$HOME/elsewhere/ball.tar"
+  ln -s ball.tar "$PROJECT/ball-link"
+  ln -s "$HOME/elsewhere/ball.tar" "$PROJECT/ball-out"
+  call folio.tar '{"path": "ball-link"}'
+  assert_ok
+  [[ $(text_of) == real.txt ]] || fail "$output"
+  call folio.tar '{"path": "ball-out"}'
+  assert_error
+}
+
+function arboretum_outline_refuses_a_link_out_of_the_policy { # @test
+  printf 'package x\n\nfunc F() {}\n' >"$HOME/elsewhere/x.go"
+  ln -s "$HOME/elsewhere/x.go" "$PROJECT/x.go"
+  call arboretum.outline "$(jq -cn --arg p "$PROJECT/x.go" '{path: $p}')"
+  assert_error
+  [[ $output == *x.go* ]] || fail "$output"
+}
+
 # A path the gate judged fine by name that is a link out of the policy by the
 # time it is opened (the swap) is refused: the guard judges the target. The
 # fake floor stands for the policy: everything under elsewhere/ asks.

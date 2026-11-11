@@ -63,7 +63,11 @@ through untouched, as they do today.
 | `folio.read` | opens `file_path`, passes `/dev/fd/N` to the script |
 | `jq.jq` | opens each element of `files` (JSON array rewritten to `/dev/fd/N`s); `cwd` is verified, relative files resolve against it |
 | `rg.search` | `path` is opened with `--any-args`: a directory is entered by `fchdir` on the opened descriptor and searched as `.` (rg still finds the parents' ignore files), a file arrives as `/dev/fd/N`; the script maps rg's `./` or `/dev/fd/N` prefix back to the caller's name (`READGUARD_ORIG`/`READGUARD_REPL`) |
-| other `[resources.*]` readers | out of this change; same wrapper is the template (listed as open below) |
+| `folio.ls`, `tree`, `du`, `file-type` | `--any-args 1 --map-output`: a directory is entered (`fchdir`) and listed as `.`, a file arrives as `/dev/fd/N`; `readguard` runs the script as a child and maps its stdout back to the caller's name (`internal/readguard.MapOutput`: `.`, `.:`, `./x`, du's `\t.`, tree's `"name":"."`, or the `/dev/fd/N` token). `du` gets `-D`, `file-type` gets `-L` for the fd form |
+| `folio.tar`, `chix.nix-hash` | `--file-args 1`: the file arrives as `/dev/fd/N` (the tar script already copies a `/dev/fd` tarball to a temp file); no name is printed |
+| `arboretum.outline`, `arboretum.search` | **verified only** (`--verify-args`): the language is detected from the file extension, which a `/dev/fd/N` stand-in loses, so the tool opens the name itself and the check-to-open gap stays |
+| `env.resolve` | **not wrapped, deliberately**: it exists to report a symlink's target (`readlink`) and its canonical form, so refusing or following links would change what it is for. It reads no file content; the existing `/proc`, `/sys`, `/dev` refusal stays. Operator may overrule |
+| `arboretum.rewrite` | a write op; not part of this change |
 
 The descriptors are opened in readguard after the inherited ones, cleared of
 close-on-exec, and the script is `exec`ed (no extra process; moxy's

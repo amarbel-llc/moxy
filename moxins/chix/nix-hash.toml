@@ -4,7 +4,9 @@ perms-request = "dynamic"
 permit-async = false
 description = """Compute the hash of a file or path. Returns the hash string \
 in the requested encoding."""
-command = "@BIN@/nix-hash"
+# readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490).
+command = "@READGUARD@"
+args = ["exec", "--floor", "@FOLIO_PERMS@", "--file-args", "1", "--", "@BIN@/nix-hash"]
 arg-order = ["path", "hash_type", "encoding"]
 
 [input]

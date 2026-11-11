@@ -5,7 +5,10 @@ permit-async = false
 description = """Inspect a tarball (.tar.gz, .tar.bz2, .tar, etc): with member, extract that \
 single file to stdout; without, list entries (optionally filtered by a grep pattern). \
 List first to discover member paths."""
-command = "@BIN@/tar"
+# readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490); the script
+# already reads a /dev/fd/N tarball through a temporary copy.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@BIN@/folio-perms", "--file-args", "1", "--", "@BIN@/tar"]
 substitute-args = ["path"]
 arg-order = ["path", "member", "pattern"]
 

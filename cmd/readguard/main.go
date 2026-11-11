@@ -14,6 +14,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -38,6 +39,7 @@ func main() {
 	verifyArgs := fs.String("verify-args", "", "1-based positions of paths to check but leave to the program")
 	anyArgs := fs.String("any-args", "", "1-based positions of paths that may be directories: a file becomes /dev/fd/D, a directory is entered (fchdir) and the argument becomes \".\"")
 	cwdArg := fs.Int("cwd-arg", 0, "1-based position of the working directory argument")
+	mapOutput := fs.Bool("map-output", false, "run PROGRAM as a child and map its stdout back to the operand's own name (any-args only)")
 	_ = fs.Parse(os.Args[2:])
 	if *floor == "" || fs.NArg() < 1 {
 		fmt.Fprintln(os.Stderr, "readguard: --floor and a program are required")
@@ -54,9 +56,40 @@ func main() {
 		fmt.Fprintf(os.Stderr, "readguard: %v\n", err)
 		os.Exit(2)
 	}
+	if repl := os.Getenv("READGUARD_REPL"); *mapOutput && repl != "" {
+		os.Exit(runMapped(path, prog, args, os.Getenv("READGUARD_ORIG"), repl))
+	}
 	err = syscall.Exec(path, append([]string{prog}, args...), os.Environ())
 	fmt.Fprintf(os.Stderr, "readguard: exec %s: %v\n", path, err)
 	os.Exit(2)
+}
+
+// runMapped runs the program as a child (it inherits the opened descriptors
+// and the entered directory) and writes its stdout with the stand-in for the
+// operand mapped back to the operand's own name.
+func runMapped(path, prog string, args []string, orig, repl string) int {
+	cmd := exec.Command(path, args...)
+	cmd.Args[0] = prog
+	cmd.Stdin, cmd.Stderr = os.Stdin, os.Stderr
+	out, err := cmd.StdoutPipe()
+	if err == nil {
+		err = cmd.Start()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "readguard: %v\n", err)
+		return 2
+	}
+	copyErr := readguard.MapOutput(os.Stdout, out, orig, repl)
+	waitErr := cmd.Wait()
+	var exit *exec.ExitError
+	switch {
+	case errors.As(waitErr, &exit):
+		return exit.ExitCode()
+	case waitErr != nil || copyErr != nil:
+		fmt.Fprintf(os.Stderr, "readguard: %v %v\n", waitErr, copyErr)
+		return 2
+	}
+	return 0
 }
 
 func positions(s string) []int {

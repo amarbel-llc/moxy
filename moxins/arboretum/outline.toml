@@ -2,7 +2,11 @@ schema = 3
 result-type = "text"
 perms-request = "dynamic"
 description = "Hierarchical source-code outline of a file or directory. Lists types, functions, methods, and fields with line ranges. Supports Go, TypeScript, JavaScript, Rust, Python, PHP, Bash. Use to navigate large files without reading their full content."
-command = "@BIN@/outline"
+# readguard only verifies path (#490): the language is detected from the file
+# extension, which a /dev/fd/N stand-in would lose, so outline opens the name
+# itself and the check-to-open gap stays.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@FOLIO_PERMS@", "--verify-args", "1", "--", "@BIN@/outline"]
 arg-order = ["path"]
 
 [input]

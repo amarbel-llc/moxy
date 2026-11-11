@@ -397,7 +397,9 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   leaf is followed only if its resolved target is allowed by the policy
   (else refused naming the path); a directory is entered by `fchdir` on the
   opened descriptor (`rg.search`, jq's `cwd`), the script mapping output back
-  via `READGUARD_ORIG`/`READGUARD_REPL`. See
+  via `READGUARD_ORIG`/`READGUARD_REPL`; `--map-output` makes readguard map
+  the child's stdout back to the caller's name (folio ls/tree/du/file-type);
+  `arboretum` is verify-only and `env.resolve` unwrapped (see the note). See
   `docs/plans/2026-11-11-490-read-symlink-leaves.md`
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/statsd` -- fire-and-forget UDP statsd metrics

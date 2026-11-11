@@ -8,7 +8,10 @@ perms-request = "dynamic"
 description = """Recursive directory listing in tree(1) format. Returns an ASCII tree (default) \
 or JSON. Depth-limited to keep output bounded; defaults exclude common noise dirs \
 (.git, node_modules, target, dist, .venv, build, .direnv, vendor)."""
-command = "@BIN@/tree"
+# readguard enters the directory by a RESOLVE_NO_SYMLINKS descriptor (#490)
+# and maps the "." root back to the name the caller gave.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--map-output", "--", "@BIN@/tree"]
 arg-order = ["path", "depth", "show_hidden", "dirs_only", "exclude", "follow_symlinks", "json"]
 
 [input]

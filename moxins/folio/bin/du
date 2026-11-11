@@ -8,13 +8,18 @@ if [ ! -e "$path" ] && [ ! -L "$path" ]; then
   exit 1
 fi
 
+# readguard (#490) may have opened the path for us: a directory arrives as "."
+# and a file as /dev/fd/N (a link to the file, hence -D); READGUARD_ORIG is the
+# name the caller gave, and readguard maps du's own output back to it.
+shown="${READGUARD_ORIG:-$path}"
+
 if [ -n "$flags" ]; then
-  text=$(du $flags -- "$path")
+  text=$(du -D $flags -- "$path")
   mime="text/plain"
 else
-  bytes=$(du -sx --bytes -- "$path" | awk 'END {print $1}')
-  human=$(du -shx -- "$path" | awk 'END {print $1}')
-  text=$(jq -cn --arg path "$path" --argjson bytes "$bytes" --arg human "$human" \
+  bytes=$(du -sx -D --bytes -- "$path" | awk 'END {print $1}')
+  human=$(du -shx -D -- "$path" | awk 'END {print $1}')
+  text=$(jq -cn --arg path "$shown" --argjson bytes "$bytes" --arg human "$human" \
     '{path: $path, bytes: $bytes, human: $human}')
   mime="application/json"
 fi

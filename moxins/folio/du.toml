@@ -2,7 +2,11 @@ schema = 3
 perms-request = "dynamic"
 description = """Disk usage of a file or directory. Defaults to summary mode (one row per argument) and \
 does not cross filesystem boundaries. Returns JSON {path, bytes, human}; pass flags for raw du output."""
-command = "@BIN@/du"
+# readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490): a directory
+# is entered and measured as ".", a file arrives as /dev/fd/N; output is mapped
+# back to the name the caller gave.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--map-output", "--", "@BIN@/du"]
 arg-order = ["path", "flags"]
 
 [input]

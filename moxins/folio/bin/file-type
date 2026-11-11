@@ -11,7 +11,13 @@ fi
 # not the content (#469). Read the content from stdin instead.
 case "$path" in
   /dev/fd/*)
-    file -b - <"$path"
+    if [ "${READGUARD_REPL:-}" = "$path" ]; then
+      # opened by readguard (#490): a regular file; its output is mapped back
+      # to the name the caller gave
+      file -L "$path"
+    else
+      file -b - <"$path"
+    fi
     ;;
   *)
     file "$path"
