@@ -36,7 +36,6 @@ EXPECTED_UNGATED=(
   chix.store-realize
   env.get
   env.which
-  folio.df
   freud.messages
   freud.subagents
   freud.summary
@@ -63,6 +62,7 @@ function the_matrix_lists_the_gated_readers_with_their_stanza { # @test
   [ "$status" -eq 0 ]
   [[ $output == *'| `folio.read` | dynamic | broker+floor |'* ]]
   [[ $output == *'| `jq.jq` | dynamic | broker+floor |'* ]]
+  [[ $output == *'| `folio.df` | dynamic | broker+floor |'* ]]
   [[ $output == *'| `toolbox.run` | dynamic | broker+floor |'* ]]
   [[ $output == *'| `env.clock` | always-allow | none |'* ]]
 }

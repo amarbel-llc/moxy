@@ -29,6 +29,19 @@ function folio_df_returns_json_fields { # @test
   echo "$entry" | jq -e '.use_percent | type == "number"' || fail '.use_percent not a number: '"$entry"
 }
 
+# folio.df is gated like folio.du (#490): a path outside the read policy asks,
+# which under dontAsk is refused; the cwd and paths inside it pass.
+function folio_df_follows_the_read_policy { # @test
+  load "$BATS_TEST_DIRNAME/policy_broker.bash"
+  mkdir -p "$HOME/project" "$HOME/elsewhere"
+  hook_behavior mcp__plugin_moxy_moxy__folio_df '{}'
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "no path got $HOOK_BEHAVIOR"
+  hook_behavior mcp__plugin_moxy_moxy__folio_df "$(jq -cn --arg p "$HOME/project" '{path: $p}')"
+  [[ $HOOK_BEHAVIOR == allow ]] || fail "inside got $HOOK_BEHAVIOR"
+  hook_behavior mcp__plugin_moxy_moxy__folio_df "$(jq -cn --arg p "$HOME/elsewhere" '{path: $p}')"
+  [[ $HOOK_BEHAVIOR == deny ]] || fail "outside got $HOOK_BEHAVIOR"
+}
+
 function folio_df_explicit_path { # @test
   mkdir -p "$HOME/other"
   cd "$HOME"

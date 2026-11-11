@@ -4,7 +4,7 @@
 
 Verified columns come from the parsed tool TOML. `path inputs` is inferred from input names.
 
-104 tools: 71 always-allow, 31 dynamic, 0 each-use, 2 delegate-to-client.
+104 tools: 70 always-allow, 32 dynamic, 0 each-use, 2 delegate-to-client.
 
 ## Matrix
 
@@ -56,7 +56,7 @@ Verified columns come from the parsed tool TOML. `path inputs` is inferred from 
 | `env.which` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | `name` |
 | `folio.chmod` | dynamic | broker+floor | `folio-perms write` | `path:write` | false | `destructive=true, idempotent=true` | `path` |
 | `folio.cp` | dynamic | broker+floor | `folio-perms copy` | `destination:write, source:read` | false | `destructive=true` | `destination, source` |
-| `folio.df` | always-allow | none | – | – | true | `read-only=true, idempotent=true` | `path` |
+| `folio.df` | dynamic | broker+floor | `folio-perms read` | `path:read` | true | `read-only=true, idempotent=true` | `path` |
 | `folio.du` | dynamic | broker+floor | `folio-perms read` | `path:read` | true | `read-only=true, idempotent=true` | `path` |
 | `folio.file-type` | dynamic | broker+floor | `folio-perms read` | `path:read` | false | `read-only=true, idempotent=true` | `path` |
 | `folio.glob` | dynamic | broker+floor | `folio-perms read` | `path:read` | true | `read-only=true, idempotent=true` | `path` |
@@ -133,7 +133,6 @@ always-allow, no `[resources]` stanza, and an input whose name looks like a path
 - `chix.store-realize`: path
 - `env.get`: name
 - `env.which`: name
-- `folio.df`: path
 - `freud.messages`: session_id
 - `freud.subagents`: session_id
 - `freud.summary`: session_id

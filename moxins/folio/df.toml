@@ -1,5 +1,5 @@
 schema = 3
-perms-request = "always-allow"
+perms-request = "dynamic"
 description = """Filesystem free space (df) for the filesystem holding a path. Defaults to the current \
 working directory. Returns JSON {filesystem, size_bytes, used_bytes, avail_bytes, use_percent, \
 mount_point, human}, the free-space counterpart to folio.du. Read-only."""
@@ -11,8 +11,21 @@ type = "object"
 
 [input.properties.path]
 type = "string"
-description = "File or directory whose containing filesystem is reported. Defaults to the current working directory."
+description = "File or directory whose containing filesystem is reported. Defaults to the current working directory. Gated like folio.du: auto-allowed inside CWD, /nix/store, sibling repo checkouts and Claude-native dirs; prompts elsewhere."
 
 [annotations]
 read-only-hint = true
 idempotent-hint = true
+
+# The path is read under the same policy as folio read (#490): df reports on
+# the filesystem a path lives on, so which path it names is the policy's to
+# judge, as for folio.du. An omitted path is the cwd and is not asked about.
+
+[resources.path]
+op = "read"
+
+[dynamic-perms]
+command = "@BIN@/folio-perms"
+args = ["read"]
+arg-order = ["path"]
+timeout-ms = 5000
