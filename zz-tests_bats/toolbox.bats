@@ -57,6 +57,46 @@ behavior() { # INPUT_JSON [ADDR]
   hook_behavior mcp__plugin_moxy_moxy__toolbox_run "$1" "${2:-}"
 }
 
+# pretool_decision INPUT_JSON: the PreToolUse permissionDecision (allow, ask,
+# deny, or none) in an interactive (default-mode) session whose cwd is the
+# absolute project dir, as Claude Code sends it. Interactive sessions are the
+# ones that prompt (moxy#518).
+pretool_decision() {
+  local input
+  input=$(jq -cn --argjson ti "$1" --arg cwd "$PROJECT" '{
+    hook_event_name: "PreToolUse",
+    session_id: "toolbox-518",
+    tool_name: "mcp__plugin_moxy_moxy__toolbox_run",
+    tool_input: $ti,
+    cwd: $cwd,
+    permission_mode: "default"
+  }')
+  run env -C "$PROJECT" CLOWN_POLICY_BROKER="" SPINCLASS_SESSION_ID="" \
+    timeout --preserve-status 5s bash -c \
+    'echo "$1" | "${MOXY_BIN:-moxy}" hook' -- "$input"
+  assert_success
+  PRETOOL_DECISION=$(jq -r '.hookSpecificOutput.permissionDecision // "none"' <<<"$output")
+}
+
+# moxy#518: a pure pipeline over stdin, a blob URI or a file inside the
+# project must not prompt in an interactive session; only an operand outside
+# the read policy may.
+function pure_pipelines_over_blessed_inputs_do_not_prompt { # @test
+  local c
+  for c in \
+    '{"command": "tr a-z A-Z | sort", "stdin": "text"}' \
+    '{"command": "wc -c"}' \
+    '{"command": "digest madder://blobs/blake2b256-abc"}' \
+    '{"command": "wc -c hello.txt"}' \
+    '{"command": "sort -n nums.txt | uniq -c"}' \
+    '{"command": "wc -l '"'"'a b.txt'"'"'"}'; do
+    pretool_decision "$c"
+    [[ $PRETOOL_DECISION == allow ]] || fail "'$c' got $PRETOOL_DECISION: $output"
+  done
+  pretool_decision "$(jq -cn --arg p "$HOME/elsewhere/b.txt" '{command: ("wc -c " + $p)}')"
+  [[ $PRETOOL_DECISION == ask ]] || fail "outside got $PRETOOL_DECISION"
+}
+
 function byte_size_and_sha256_of_a_file { # @test
   toolbox "wc -c hello.txt"
   assert_ok
