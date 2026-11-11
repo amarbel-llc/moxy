@@ -236,6 +236,40 @@ TOML
 }
 
 # ===========================================================================
+# serve-moxin (moxy#507): a V0 client of the standalone adapter gets the same
+# flattening the proxy does, not an empty-text "resource" block.
+# ===========================================================================
+
+function v0_serve_moxin_flattens_cached_resource_blocks { # @test
+  local moxin_dir="$BATS_TEST_TMPDIR/moxins"
+  mkdir -p "$moxin_dir/s2"
+  cat >"$moxin_dir/s2/_moxin.toml" <<'EOF'
+schema = 1
+name = "s2"
+EOF
+  cat >"$moxin_dir/s2/api.toml" <<'EOF'
+schema = 2
+command = "echo"
+args = ["-n", "{\"content\":[{\"type\":\"text\",\"text\":\"hello from serve-moxin\",\"mimeType\":\"text/plain\"}]}"]
+cache-results = "always"
+EOF
+
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+  _ensure_madder_default_store
+  local init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+  local initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  local call='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"api"}}'
+  run env MOXIN_PATH="$moxin_dir" timeout --preserve-status 10s bash -c \
+    '(echo "$1"; echo "$2"; echo "$3"; sleep 2) | "${MOXY_BIN:-moxy}" serve-moxin --name s2 2>/dev/null | jq -c "select(.id == 2) | .result" | head -1' \
+    -- "$init" "$initialized" "$call"
+  assert_success
+
+  assert_valid_v0_content
+  echo "$output" | jq -e '.content[0].text == "hello from serve-moxin"' || fail "$output"
+}
+
+# ===========================================================================
 # V1 path: ensure resource blocks are well-formed for V1 clients too
 # ===========================================================================
 

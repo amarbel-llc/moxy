@@ -596,7 +596,7 @@ func (p *Proxy) CallTool(
 		debugLog("  content block: type=%q mimeType=%q resource=%v", b.Type, b.MimeType, b.Resource != nil)
 	}
 	return &protocol.ToolCallResult{
-		Content: downgradeContentBlocks(v1.Content),
+		Content: native.DowngradeContentBlocks(v1.Content),
 		IsError: v1.IsError,
 	}, nil
 }
@@ -2513,33 +2513,6 @@ func decodeResourceTemplatesList(
 	}
 
 	return nil, fmt.Errorf("unable to decode resource templates list response")
-}
-
-func downgradeContentBlocks(
-	blocks []protocol.ContentBlockV1,
-) []protocol.ContentBlock {
-	out := make([]protocol.ContentBlock, len(blocks))
-	for i, b := range blocks {
-		// V1 resource blocks have no V0 equivalent — flatten to text.
-		if b.Type == "resource" && b.Resource != nil {
-			text := ""
-			if b.Resource.Text != nil {
-				text = *b.Resource.Text
-			}
-			out[i] = protocol.ContentBlock{
-				Type: "text",
-				Text: text,
-			}
-			continue
-		}
-		out[i] = protocol.ContentBlock{
-			Type:     b.Type,
-			Text:     b.Text,
-			MimeType: b.MimeType,
-			Data:     b.Data,
-		}
-	}
-	return out
 }
 
 func upgradeContentBlocks(

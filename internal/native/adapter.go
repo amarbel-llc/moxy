@@ -65,15 +65,33 @@ func (a *ToolAdapter) CallTool(ctx context.Context, name string, args json.RawMe
 	if err != nil {
 		return nil, err
 	}
-	blocks := make([]protocol.ContentBlock, len(v1.Content))
-	for i, b := range v1.Content {
-		blocks[i] = protocol.ContentBlock{
-			Type: b.Type,
-			Text: b.Text,
-		}
-	}
 	return &protocol.ToolCallResult{
-		Content: blocks,
+		Content: DowngradeContentBlocks(v1.Content),
 		IsError: v1.IsError,
 	}, nil
+}
+
+// DowngradeContentBlocks maps V1 content blocks to V0 ones. V1 resource
+// blocks (what moxy's result caching produces) have no V0 equivalent, so they
+// are flattened to text blocks carrying the resource's text. The proxy and the
+// standalone serve-moxin adapter share it (moxy#507).
+func DowngradeContentBlocks(blocks []protocol.ContentBlockV1) []protocol.ContentBlock {
+	out := make([]protocol.ContentBlock, len(blocks))
+	for i, b := range blocks {
+		if b.Type == "resource" && b.Resource != nil {
+			text := ""
+			if b.Resource.Text != nil {
+				text = *b.Resource.Text
+			}
+			out[i] = protocol.ContentBlock{Type: "text", Text: text}
+			continue
+		}
+		out[i] = protocol.ContentBlock{
+			Type:     b.Type,
+			Text:     b.Text,
+			MimeType: b.MimeType,
+			Data:     b.Data,
+		}
+	}
+	return out
 }
