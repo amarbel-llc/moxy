@@ -888,7 +888,7 @@
             };
         # rg.search's static floor is folio's read rule (#490): one script, the
         # folio moxin's wrapped copy, so the two cannot drift.
-        rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {
+        rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs.gawk pkgs-master.ripgrep ] {
           extraSubstitutions = {
             FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
             READGUARD = "${readguard}/bin/readguard";

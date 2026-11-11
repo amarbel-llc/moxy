@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -80,12 +81,19 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 	if err != nil {
 		return err
 	}
-	if cwdArg > 0 && cwdArg <= len(args) && args[cwdArg-1] != "" {
-		cwd = args[cwdArg-1]
-	}
 	g := &readguard.Gate{Floor: floor}
 	defer g.Close()
 	o := readguard.Opener{Gate: g, Cwd: cwd}
+	// the program will run in --cwd-arg's directory, so that is what its
+	// relative file operands mean; the directory itself is named from here
+	fileOpener := o
+	if cwdArg > 0 && cwdArg <= len(args) && args[cwdArg-1] != "" {
+		d := args[cwdArg-1]
+		if !filepath.IsAbs(d) {
+			d = filepath.Join(cwd, d)
+		}
+		fileOpener.Cwd = d
+	}
 	ctx := context.Background()
 
 	at := func(n int) (string, bool) {
@@ -95,7 +103,7 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 		v := args[n-1]
 		return v, v != "" && v != "null" && !readguard.Passthrough(v)
 	}
-	openFd := func(operand string) (string, error) {
+	openFd := func(o readguard.Opener, operand string) (string, error) {
 		f, err := o.Open(ctx, operand)
 		if err != nil {
 			return "", err
@@ -142,7 +150,7 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 	}
 	for _, n := range files {
 		if v, ok := at(n); ok {
-			fd, err := openFd(v)
+			fd, err := openFd(o, v)
 			if err != nil {
 				return err
 			}
@@ -162,7 +170,7 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 			if readguard.Passthrough(operand) || strings.HasPrefix(operand, "-") {
 				continue
 			}
-			if list[i], err = openFd(operand); err != nil {
+			if list[i], err = openFd(fileOpener, operand); err != nil {
 				return err
 			}
 		}
