@@ -6,7 +6,10 @@ description = """Search file contents using ripgrep. Returns file paths by defau
 (output_mode=files_with_matches). Use output_mode=content for matching lines with \
 context, or output_mode=count for match counts per file. The searched path is read \
 under the same policy as folio read (#490)."""
-command = "@BIN@/search"
+# readguard verifies path (no symlink the read policy did not allow, #490);
+# rg opens it itself, since its output names the path it was given.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@FOLIO_PERMS@", "--verify-args", "2", "--", "@BIN@/search"]
 substitute-args = ["path"]
 arg-order = [
   "pattern",

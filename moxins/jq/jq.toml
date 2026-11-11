@@ -3,7 +3,10 @@ perms-request = "dynamic"
 permit-async = false
 cache-results = "always"
 description = "Execute a jq filter. Only jq is invoked — no shell evaluation. madder://blobs/<digest> URIs in files are rewritten to /dev/fd/N (streaming the cached blob), and one given as stdin is fed as the blob's bytes."
-command = "@BIN@/jq"
+# readguard opens each of files itself (no symlink the read policy did not
+# allow is followed, #490) and verifies cwd; jq gets /dev/fd/N.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@FOLIO_PERMS@", "--json-files-args", "3", "--verify-args", "4", "--cwd-arg", "4", "--", "@BIN@/jq"]
 arg-order = ["filter", "flags", "files", "cwd"]
 stdin-param = "stdin"
 substitute-args = ["files", "stdin"]

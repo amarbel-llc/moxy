@@ -221,6 +221,7 @@
               ./go.nix
               ./cmd/moxy
               ./cmd/toolbox
+              ./cmd/readguard
               ./internal
               # The public library surface (FDR 0014, moxy#487).
               ./pkg
@@ -820,7 +821,7 @@
           pkgs.gzip
           pkgs.jq
           pkgs.tree
-        ] { };
+        ] { extraSubstitutions.READGUARD = "${readguard}/bin/readguard"; };
         freud-moxin = mkMoxin "freud" [ pkgs.python3 ] { };
         # grit deliberately uses pathMode = "inherit" with no nix-pinned deps:
         # it must run the user's own git (matching the repo they're operating
@@ -834,7 +835,10 @@
         } { pathMode = "inherit"; };
         # jq reads the files it is given: folio's read rule, one script (#490).
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.coreutils pkgs.jq ] {
-          extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+          extraSubstitutions = {
+            FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+            READGUARD = "${readguard}/bin/readguard";
+          };
         };
         man-moxin =
           mkMoxin "man"
@@ -885,7 +889,10 @@
         # rg.search's static floor is folio's read rule (#490): one script, the
         # folio moxin's wrapped copy, so the two cannot drift.
         rg-moxin = mkMoxin "rg" [ pkgs.bash pkgs-master.ripgrep ] {
-          extraSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+          extraSubstitutions = {
+            FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+            READGUARD = "${readguard}/bin/readguard";
+          };
         };
         # toolbox (FDR 0016): the Go binary (cmd/toolbox) parses and runs the
         # command; its applets are coreutils, the only thing on its PATH.
@@ -1217,6 +1224,26 @@
             GOTOOLCHAIN = "local";
           };
         };
+        # The read tools' guard (moxy#490): opens a read tool's path without
+        # following a symlink the read policy did not allow, then execs the
+        # tool's script. Same backend choice as toolbox.
+        readguard = pkgs.buildGoAuto {
+          pname = "readguard";
+          src = moxySrc;
+          manifest = ./go.nix;
+          strategy = if godynSystem then "native" else "bga";
+          inherit inputs;
+          subPackages = [ "cmd/readguard" ];
+          nativeArgs = {
+            commit = moxyCommit;
+            cc = pkgs.stdenv.cc; # cgo-only DataDog/zstd, via pkg/perms (see moxy-native)
+          };
+          bgaArgs = {
+            commit = moxyCommit;
+            go = pkgs-master.go_1_26;
+            GOTOOLCHAIN = "local";
+          };
+        };
         # The same build with -race (every compile and link, per-package test
         # runs under the race detector): backs checks.go-test-race on godynSystem.
         moxy-native-race = mkMoxyNative { race = true; };
@@ -1399,6 +1426,8 @@
               # piers_*.bats invoke wrapped scripts via ${PIERS_BIN:-$BIN},
               # which doesn't exist inside the nix sandbox.
               PIERS_BIN = "${piers-moxin}/bin";
+              # read_symlinks.bats drives the guard directly for the swap case.
+              READGUARD_BIN = "${readguard}/bin/readguard";
             };
             nativeBuildInputs = [
               pkgs.bash

@@ -7,7 +7,10 @@ description = """Read a file with line numbers (`     N\\tcontent` per line). \
 Optional start/end print only that inclusive line range (replacing `head`/`tail` piping); \
 optional delete_start/delete_end omit that inclusive range instead (replacing `sed` deletion). \
 Accepts madder://blobs/<digest> result URIs as file paths."""
-command = "@BIN@/read"
+# readguard opens file_path itself (no symlink the read policy did not allow
+# is followed, #490) and hands the script /dev/fd/N.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@BIN@/folio-perms", "--file-args", "1", "--", "@BIN@/read"]
 arg-order = ["file_path", "start", "end", "delete_start", "delete_end"]
 substitute-args = ["file_path"]
 
@@ -17,7 +20,7 @@ required = ["file_path"]
 
 [input.properties.file_path]
 type = "string"
-description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, sibling repo checkouts (siblings of this repo's main worktree), and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. Also accepts madder://blobs/<digest> result URIs."
+description = "Path to the file to read. Auto-allowed inside CWD, /nix/store, sibling repo checkouts (siblings of this repo's main worktree), and Claude-native dirs (~/.claude, /tmp/claude-*); prompts elsewhere. A symlink is followed only if its target is also inside the read policy. Also accepts madder://blobs/<digest> result URIs."
 
 [input.properties.start]
 type = "integer"
