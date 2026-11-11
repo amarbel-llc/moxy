@@ -90,9 +90,18 @@ fi
 set +e
 # A cached blob arrives as /dev/fd/N, a pipe that rg skips as a path (#469):
 # search its content on stdin instead.
+#
+# readguard (#490) opens the path itself: a directory is entered and arrives
+# as ".", a file as a /dev/fd/N regular file. It says which through
+# READGUARD_ORIG (the caller's name) and READGUARD_REPL (what rg will print in
+# its place); rg's output is mapped back to the caller's name below.
 case "$path" in
   /dev/fd/*)
-    output=$(rg "${rg_args[@]}" -- "$pattern" <"$path" 2>&1)
+    if [ -n "${READGUARD_ORIG:-}" ] && [ "${READGUARD_REPL:-}" = "$path" ]; then
+      output=$(rg "${rg_args[@]}" -- "$pattern" "$path" 2>&1)
+    else
+      output=$(rg "${rg_args[@]}" -- "$pattern" <"$path" 2>&1)
+    fi
     rc=$?
     ;;
   *)
@@ -101,6 +110,17 @@ case "$path" in
     ;;
 esac
 set -e
+
+if [ -n "${READGUARD_ORIG:-}" ] && [ "${READGUARD_REPL:-}" != "$READGUARD_ORIG" ] && [ -n "$output" ]; then
+  orig="$READGUARD_ORIG"
+  if [ "$READGUARD_REPL" = "./" ]; then
+    # an entered directory: rg printed ./x for what the caller named dir/x
+    orig="${orig%/}/"
+  fi
+  output=$(printf '%s\n' "$output" | awk -v repl="$READGUARD_REPL" -v orig="$orig" '
+    index($0, repl) == 1 { $0 = orig substr($0, length(repl) + 1) }
+    { print }')
+fi
 
 case "$rc" in
   0|1)

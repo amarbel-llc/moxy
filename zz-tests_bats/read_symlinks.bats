@@ -67,6 +67,51 @@ function rg_follows_an_inside_link_and_refuses_an_outside_one { # @test
   [[ $output != *outside-secret* ]] || fail "leaked: $output"
 }
 
+function rg_directory_output_keeps_the_callers_name { # @test
+  mkdir -p "$PROJECT/sub" "$HOME/elsewhere/dir"
+  echo needle >"$PROJECT/sub/n.txt"
+  echo needle >"$HOME/elsewhere/dir/n.txt"
+  ln -s sub "$PROJECT/sub-link"
+  ln -s "$HOME/elsewhere/dir" "$PROJECT/dir-out"
+  call rg.search '{"pattern": "needle", "path": "sub"}'
+  assert_ok
+  [[ $(jq -r '.content[0].text' <<<"$output") == sub/n.txt ]] || fail "$output"
+  call rg.search '{"pattern": "needle", "path": "sub-link", "output_mode": "content"}'
+  assert_ok
+  [[ $(jq -r '.content[0].text' <<<"$output") == "sub-link/n.txt:1:needle" ]] || fail "$output"
+  call rg.search '{"pattern": "needle", "path": "dir-out"}'
+  assert_error
+}
+
+function jq_cwd_is_entered_by_descriptor_and_an_outside_cwd_refused { # @test
+  mkdir -p "$PROJECT/sub" "$HOME/elsewhere/dir"
+  echo '{"v": 7}' >"$PROJECT/sub/d.json"
+  ln -s "$HOME/elsewhere/dir" "$PROJECT/dir-out"
+  call jq.jq '{"filter": ".v", "files": ["d.json"], "cwd": "sub"}'
+  assert_ok
+  [[ $output == *7* ]] || fail "$output"
+  call jq.jq '{"filter": ".", "files": ["x.json"], "cwd": "dir-out"}'
+  assert_error
+}
+
+function a_directory_swapped_for_a_link_out_is_refused_at_open { # @test
+  floor="$BATS_TEST_TMPDIR/floor"
+  printf '#!/bin/sh\ncase "$2" in */elsewhere*) exit 1;; esac\nexit 0\n' >"$floor"
+  chmod +x "$floor"
+  guard="${READGUARD_BIN:-readguard}"
+  mkdir -p "$HOME/elsewhere/dir" "$PROJECT/d"
+  touch "$PROJECT/d/inside" "$HOME/elsewhere/dir/outside"
+  cd "$PROJECT"
+  run "$guard" exec --floor "$floor" --any-args 1 -- ls d
+  assert_success
+  [[ $output == inside ]] || fail "$output"
+  rm -r d
+  ln -s "$HOME/elsewhere/dir" d
+  run "$guard" exec --floor "$floor" --any-args 1 -- ls d
+  assert_failure
+  [[ $output != *dir/outside* ]] || fail "leaked: $output"
+}
+
 # A path the gate judged fine by name that is a link out of the policy by the
 # time it is opened (the swap) is refused: the guard judges the target. The
 # fake floor stands for the policy: everything under elsewhere/ asks.

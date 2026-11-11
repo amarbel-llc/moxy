@@ -96,9 +96,16 @@ func (o Opener) Open(ctx context.Context, operand string) (*os.File, error) {
 	return o.open(ctx, operand, true)
 }
 
-// Verify applies the same checks and opens nothing the caller keeps: for an
-// operand a tool must open itself (a directory, or a path its output names).
-// The window between the check and the tool's own open stays open.
+// OpenAny is Open for an operand that may be a directory (or any file type):
+// the caller fstat-s the result and, for a directory, fchdirs into it so the
+// tool works on the descriptor's directory, not the name.
+func (o Opener) OpenAny(ctx context.Context, operand string) (*os.File, error) {
+	return o.open(ctx, operand, false)
+}
+
+// Verify applies the same checks and opens nothing the caller keeps. It
+// leaves the window between the check and the tool's own open open; use
+// OpenAny where the tool can work from a descriptor.
 func (o Opener) Verify(ctx context.Context, operand string) error {
 	f, err := o.open(ctx, operand, false)
 	if err != nil {

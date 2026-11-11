@@ -62,7 +62,7 @@ through untouched, as they do today.
 | --- | --- |
 | `folio.read` | opens `file_path`, passes `/dev/fd/N` to the script |
 | `jq.jq` | opens each element of `files` (JSON array rewritten to `/dev/fd/N`s); `cwd` is verified, relative files resolve against it |
-| `rg.search` | `path` may be a directory and rg's output names it, so it is **verified** (steps 1-4, opened and closed) and the original name is passed on |
+| `rg.search` | `path` is opened with `--any-args`: a directory is entered by `fchdir` on the opened descriptor and searched as `.` (rg still finds the parents' ignore files), a file arrives as `/dev/fd/N`; the script maps rg's `./` or `/dev/fd/N` prefix back to the caller's name (`READGUARD_ORIG`/`READGUARD_REPL`) |
 | other `[resources.*]` readers | out of this change; same wrapper is the template (listed as open below) |
 
 The descriptors are opened in readguard after the inherited ones, cleared of
@@ -72,9 +72,9 @@ process-group kill and wait are unaffected). Numbers are taken from what
 
 ### Residuals (stated, not hidden)
 
-- `rg.search` and verified directories: the name is verified, then rg opens it
-  itself, so a swap in that gap is not closed. rg's walk below the root does
-  not follow symlinks. Closing it needs rg to take a descriptor.
+- (closed in the follow-up) `rg.search` and `jq`'s `cwd` first only verified
+  the name; they now work from the opened descriptor. rg's walk below the root
+  does not follow symlinks.
 - A parent directory swapped between verdict and open is judged by name, as
   everywhere in the policy; `RESOLVE_NO_SYMLINKS` does catch a parent swapped
   for a *symlink*.

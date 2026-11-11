@@ -395,7 +395,9 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   `readguard exec`, which re-asks the gate, opens the path with
   `openat2(RESOLVE_NO_SYMLINKS)` and hands the script `/dev/fd/N`. A symlink
   leaf is followed only if its resolved target is allowed by the policy
-  (else refused naming the path); `rg.search` is verified, not fd-passed. See
+  (else refused naming the path); a directory is entered by `fchdir` on the
+  opened descriptor (`rg.search`, jq's `cwd`), the script mapping output back
+  via `READGUARD_ORIG`/`READGUARD_REPL`. See
   `docs/plans/2026-11-11-490-read-symlink-leaves.md`
 - `internal/paginate` -- cursor-based pagination for resource lists
 - `internal/statsd` -- fire-and-forget UDP statsd metrics

@@ -35,6 +35,7 @@ func main() {
 	fileArgs := fs.String("file-args", "", "1-based positions of path arguments to open")
 	jsonArgs := fs.String("json-files-args", "", "1-based positions of JSON-array-of-paths arguments to open")
 	verifyArgs := fs.String("verify-args", "", "1-based positions of paths to check but leave to the program")
+	anyArgs := fs.String("any-args", "", "1-based positions of paths that may be directories: a file becomes /dev/fd/D, a directory is entered (fchdir) and the argument becomes \".\"")
 	cwdArg := fs.Int("cwd-arg", 0, "1-based position of the working directory argument")
 	_ = fs.Parse(os.Args[2:])
 	if *floor == "" || fs.NArg() < 1 {
@@ -43,7 +44,7 @@ func main() {
 	}
 	prog, args := fs.Arg(0), append([]string(nil), fs.Args()[1:]...)
 
-	if err := guard(*floor, positions(*fileArgs), positions(*jsonArgs), positions(*verifyArgs), *cwdArg, args); err != nil {
+	if err := guard(*floor, positions(*fileArgs), positions(*jsonArgs), positions(*verifyArgs), positions(*anyArgs), *cwdArg, args); err != nil {
 		fmt.Fprintf(os.Stderr, "readguard: %v\n", err)
 		os.Exit(2)
 	}
@@ -69,7 +70,12 @@ func positions(s string) []int {
 
 // guard rewrites args in place. Descriptors it opens stay open, with
 // close-on-exec cleared, for the exec that follows.
-func guard(floor string, files, jsonFiles, verify []int, cwdArg int, args []string) error {
+//
+// For an any-arg the program is told what happened through the environment:
+// READGUARD_ORIG is the operand as the caller named it and READGUARD_REPL the
+// text the program will see in its place, so it can map its output back
+// (READGUARD_REPL is "./" for an entered directory, "/dev/fd/D" for a file).
+func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, args []string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -107,6 +113,33 @@ func guard(floor string, files, jsonFiles, verify []int, cwdArg int, args []stri
 			}
 		}
 	}
+	var enter *os.File // the directory to fchdir into once everything is opened
+	for _, n := range anyPaths {
+		v, ok := at(n)
+		if !ok {
+			continue
+		}
+		f, err := o.OpenAny(ctx, v)
+		if err != nil {
+			return err
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		os.Setenv("READGUARD_ORIG", v)
+		if fi.IsDir() {
+			enter = f
+			args[n-1] = "."
+			os.Setenv("READGUARD_REPL", "./")
+			continue
+		}
+		if err := keepAcrossExec(f); err != nil {
+			return err
+		}
+		args[n-1] = fmt.Sprintf("/dev/fd/%d", f.Fd())
+		os.Setenv("READGUARD_REPL", args[n-1])
+	}
 	for _, n := range files {
 		if v, ok := at(n); ok {
 			fd, err := openFd(v)
@@ -135,6 +168,9 @@ func guard(floor string, files, jsonFiles, verify []int, cwdArg int, args []stri
 		}
 		rewritten, _ := json.Marshal(list)
 		args[n-1] = string(rewritten)
+	}
+	if enter != nil {
+		return syscall.Fchdir(int(enter.Fd()))
 	}
 	return nil
 }
