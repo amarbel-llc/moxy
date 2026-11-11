@@ -387,7 +387,6 @@
     "golang.org/x/crypto" = {
       go = "1.25.0";
       hash = "sha256-/R74sc1mcOaOuBeXRQzrXrHAgA5VhNWc6SfQJaxb17U=";
-      indirect = true;
       version = "v0.51.0";
     };
     "golang.org/x/exp" = {
@@ -397,10 +396,10 @@
       version = "v0.0.0-20260410095643-746e56fc9e2f";
     };
     "golang.org/x/sys" = {
-      go = "1.25.0";
-      hash = "sha256-JDlj+PKsG6I6kjv5JyOUNreY51u5An0oZ5OZMHZSk+A=";
+      go = "1.26.0";
+      hash = "sha256-/1S3yy3in72ygZT1CKymvOzJZqCMYiGSqZDfvSyB3LI=";
       indirect = true;
-      version = "v0.44.0";
+      version = "v0.49.0";
     };
     "golang.org/x/term" = {
       go = "1.25.0";
