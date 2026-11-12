@@ -1652,9 +1652,8 @@
             # Vanilla bats — we used to pull bats.packages.${system}.batman
             # (the sandcastle-wrapping wrapper), but #249 moved the suite
             # to batsLane (`just run-bats`). Devshell needs only the raw
-            # bats binary now, for the self-contained
-            # `explore-poc-test-dynamic-perms` recipe; the test suite itself
-            # runs through nix lanes.
+            # bats binary now, for ad-hoc runs; the test suite itself runs
+            # through nix lanes.
             pkgs.bats
             purse-first.packages.${system}.purse-first
             tommy.packages.${system}.default

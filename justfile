@@ -378,26 +378,6 @@ run-go-test:
   system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
   nix build --no-link --print-build-logs ".#checks.${system}.go-vet" ".#checks.${system}.go-test-race"
 
-# Per-function coverage report for a Go package.
-# Used during refactors to identify untested branches before moving code.
-# Example: just run-go-cover ./internal/hook/...
-#
-# NEEDS AMBIENT go: there is no go.mod in the checkout (igloo FDR 0008), so
-# this only works from a tree that has one rendered by hand. Rework onto
-# godyn's `cover` option when coverage is next needed.
-#
-# print a per-function coverage report for a Go package
-[group("post-build")]
-run-go-cover pkg=".":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  mkdir -p .tmp
-  out=.tmp/cover-$(echo "{{pkg}}" | tr '/.' '__').out
-  MOXIN_PATH="" go test "{{pkg}}" -coverprofile="$out" -covermode=atomic
-  echo
-  echo "--- per-function coverage ---"
-  go tool cover -func="$out"
-
 # Drive a freshly-built moxy from `claude -p`, exercising the `batch` builtin
 # end-to-end (MCP handshake, tool registration, dispatch, NDJSON output).
 # Why a recipe: clown's mkCircus pins moxy at build time, so the moxy
@@ -1271,22 +1251,6 @@ debug-py-typecheck:
 [group("explore")]
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
-
-# POC scope only — not wired into main test. NEEDS AMBIENT go: no go.mod in the
-# checkout under go.nix (igloo FDR 0008), and cmd/moxy-exporel-dynamic-perms is
-# not in the nix-built source set; revive via a godyn package if the POC is.
-#
-# build the dynamic-perms POC driver
-[group("explore")]
-explore-poc-build-dynamic-perms:
-  go build -o build/moxy-exporel-dynamic-perms ./cmd/moxy-exporel-dynamic-perms
-
-# Driver self-asserts.
-#
-# run the dynamic-perms POC bats wrapper
-[group("explore")]
-explore-poc-test-dynamic-perms: explore-poc-build-dynamic-perms
-  bats {{justfile_directory()}}/zz-bats_explore/dynamic_perms_poc.bats
 
 # POC for #456/#457/#453: a pandoc custom Lua writer emitting Docs API
 # batchUpdate requests. Offline phase checks the requests against the text
