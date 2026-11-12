@@ -959,6 +959,7 @@
               "comment" = "moxins/piers/src/comment.ts";
               "outline" = "moxins/piers/src/outline.ts";
               "tab" = "moxins/piers/src/tab.ts";
+              "rename" = "moxins/piers/src/rename.ts";
             }
             {
               extraWrapArgs = [

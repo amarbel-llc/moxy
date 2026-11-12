@@ -130,6 +130,16 @@ case "$1 $2 $3" in
   printf '%s' "$json" >"$GWS_STUB_DIR/reply.json"
   echo '{"id":"r1"}'
   ;;
+"drive files update")
+  printf '%s' "$params" >"$GWS_STUB_DIR/rename-params.json"
+  printf '%s' "$json" >"$GWS_STUB_DIR/rename.json"
+  if [ -n "${GWS_STUB_FAIL_RENAME:-}" ]; then
+    echo '{"error":{"message":"stub rename failure"}}'
+    exit 1
+  fi
+  # Drive reports the name it stored, trimmed here to show it is Drive's.
+  "$GWS_STUB_JQ" -c '{id: "stub-doc", name: (.name | gsub("^\\s+|\\s+$"; ""))}' <<<"$json"
+  ;;
 "drive files delete")
   if [ -n "${GWS_STUB_FAIL_DELETE:-}" ]; then
     echo '{"error":{"message":"stub delete failure"}}'

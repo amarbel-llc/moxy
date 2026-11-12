@@ -4,7 +4,7 @@
 
 Verified columns come from the parsed tool TOML. `path inputs` is inferred from input names.
 
-104 tools: 70 always-allow, 32 dynamic, 0 each-use, 2 delegate-to-client.
+105 tools: 71 always-allow, 32 dynamic, 0 each-use, 2 delegate-to-client.
 
 ## Matrix
 
@@ -109,6 +109,7 @@ Verified columns come from the parsed tool TOML. `path inputs` is inferred from 
 | `piers.create` | dynamic | broker+floor | `@FOLIO_PERMS@ read` | `base_dir:read, content_path:read` | true | `open-world=true` | `base_dir, content_path` |
 | `piers.get` | always-allow | none | – | – | true | `read-only=true, open-world=true` | – |
 | `piers.outline` | always-allow | none | – | – | true | `read-only=true, open-world=true` | – |
+| `piers.rename` | always-allow | none | – | – | true | `open-world=true` | – |
 | `piers.tab` | always-allow | none | – | – | true | `destructive=true, open-world=true` | – |
 | `piers.update` | dynamic | broker+floor | `@FOLIO_PERMS@ read` | `base_dir:read, content_path:read` | true | `open-world=true` | `base_dir, content_path` |
 | `prison.get` | always-allow | none | – | – | true | `read-only=true, open-world=true` | – |

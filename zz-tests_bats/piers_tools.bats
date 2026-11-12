@@ -26,6 +26,29 @@ teardown() {
 stub_json() { jq -r "$2" "$GWS_STUB_DIR/$1"; }
 reply_body() { jq -c . "$GWS_STUB_DIR/reply.json"; }
 
+function piers_rename_sets_only_the_drive_name_and_returns_drives_answer { # @test
+  run "$BIN/rename" "doc-1" "  One isomorphism: a new title "
+  assert_success
+  assert_equal "$(stub_json rename-params.json '"\(.fileId) \(.fields)"')" "doc-1 id,name"
+  assert_equal "$(jq -c . "$GWS_STUB_DIR/rename.json")" '{"name":"  One isomorphism: a new title "}'
+  assert_equal "$(jq -r '.content[0].text | fromjson | .name' <<<"$output")" "One isomorphism: a new title"
+  assert_equal "$(calls 'docs')" "0"
+}
+
+function piers_rename_refuses_an_empty_title_without_calling_gws { # @test
+  run "$BIN/rename" "doc-1" "   "
+  assert_failure
+  assert_output --partial "title must not be empty"
+  [[ ! -e $GWS_STUB_LOG ]] || fail "gws was called"
+}
+
+function piers_rename_reports_a_gws_failure { # @test
+  export GWS_STUB_FAIL_RENAME=1
+  run "$BIN/rename" "doc-1" "New"
+  assert_failure
+  assert_output --partial "stub rename failure"
+}
+
 function piers_comment_list_asks_for_comments_with_replies { # @test
   run "$BIN/comment" list "file-1"
   assert_success

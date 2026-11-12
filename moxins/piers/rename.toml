@@ -1,0 +1,20 @@
+schema = 3
+perms-request = "always-allow"
+description = "Rename a Google Doc: set its title (the Drive file name). Changes only the title; the content, comments and their anchors are untouched. Returns the id and the name as Drive reports it."
+command = "@BIN@/rename"
+arg-order = ["document_id", "title"]
+
+[annotations]
+open-world-hint = true
+
+[input]
+type = "object"
+required = ["document_id", "title"]
+
+[input.properties.document_id]
+type = "string"
+description = "The Google Docs document ID (the Drive file ID)"
+
+[input.properties.title]
+type = "string"
+description = "The new title"
