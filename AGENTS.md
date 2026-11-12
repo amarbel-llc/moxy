@@ -147,10 +147,14 @@ sub-calls under a single permission prompt. Reach for it when an agent
 needs to invoke a known list of similar destructive operations (e.g.
 deleting 25 tags via `grit.tag`) — without `batch`, each sub-call burns a
 separate approval prompt. Each sub-call's permission is resolved through
-moxy's own `perms-request` machinery (in `pkg/perms`); `deny` or
-unknown (any tool without an explicit moxin perm-request, including
-builtins and child MCP servers) aborts the whole batch with a single
-bailout record, so one wrong tool name nukes the batch — by design.
+moxy's own `perms-request` machinery (in `pkg/perms`); `deny`, a moxy
+meta tool, or (under `permission-mode = "enforce"`, unless an
+`enforce-allow` grant lifts it) a tool with no declared permission
+aborts the whole batch with a single bailout record, so one wrong tool
+name nukes the batch — by design. Otherwise a tool with no declared
+permission (a child MCP server's, or a moxin tool without a
+`perms-request`) runs, with informed consent: the PreToolUse hook asks
+and names those members (moxy#433, FDR 0011).
 Output is TAP-NDJSON mirroring the `amarbel-llc/tap` `pkgs/ndjson`
 schema, with one `test` record per sub-call plus a final `summary`.
 `on_error` controls whether mid-batch failure stops (default) or
