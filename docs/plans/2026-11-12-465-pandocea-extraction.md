@@ -31,6 +31,27 @@ name and the transfer wait for confirmation.
   builds `.#piers` there. **It builds**: the result has all eight tools, and no
   `@BIN@`, `@FOLIO_PERMS@` or `@PIERS_DOCS_WRITER@` placeholder is left.
   That is the extent of the check; see "Not verified".
+- **The bats lane is ported** (step 6, done in the rehearsal): the skeleton adds
+  a `bats` input, `checks.bats-piers` (a `batsLane` over `PIERS_BIN`) and
+  `zz-tests_bats/common.bash.draft` (five `bats_load_library` lines; the piers
+  tests need no `setup_test_home`). `just explore-pandocea-skeleton` now also
+  builds that check; **all 62 piers tests passed** in the scratch extraction,
+  including the `piers.rename` ones.
+- **The moxy side is prepared, unmerged** (step 7): `just
+  explore-pandocea-moxy-clone` makes a scratch clone on a local branch
+  `pandocea-input`; the edits listed in step 7 were made there by hand, and `just
+  explore-pandocea-moxy-check` builds `.#gws-moxins` in it with `--override-input
+  pandocea git+file://…/.tmp/pandocea-extract` and writes the staged diff to
+  `.tmp/moxy-pandocea.patch`. **That build succeeded**: the result has
+  calendar, car, gmail, gws, piers and prison, and piers has all eight tools.
+  The clone is not a branch of this checkout and was never pushed. The patch is
+  under `.tmp`, so it goes away with the worktree; re-making it is the clone
+  recipe plus the step 7 edits. What the check did **not** run: moxy's own gate
+  (`nix flake check`) and its bats lanes on the clone; `flake.lock` has no
+  `pandocea` node yet, so a plain `nix build` there fails until step 4 and
+  `nix flake lock --update-input pandocea`.
+- Issue-move texts for #452, #453, #462, #463 and #464 are drafted in
+  `2026-11-12-465-pandocea-issue-moves.md`, not filed.
 
 ## Layout kept
 
@@ -87,11 +108,9 @@ step 2 everything is local.
    remote, push `master`, commit `flake.lock`.
 5. Build `.#piers` from the pushed flake ref (not the scratch clone) on a clean
    machine; that is the first test of the skeleton outside the scratch clone.
-6. In pandocea, port the bats lane: the subset of moxy's
-   `zz-tests_bats/common.bash` the piers tests use (`setup_test_home`, the
-   JSON-RPC helpers), the `bats` libs input, and a `batsLane`. Until this is
-   done pandocea has no tests that run (see the skeleton's `justfile.draft`).
-7. One moxy merge: add the `pandocea` input; `piers-moxin` from `mkPiers`;
+6. The bats lane is part of the skeleton (see "Done in this repo"); check
+   `nix build .#checks.<system>.bats-piers` from the pushed flake ref.
+7. One moxy merge (prepared in the scratch clone, see above): add the `pandocea` input; `piers-moxin` from `mkPiers`;
    delete `moxins/piers`, `zz-tests_bats/piers_tools.bats`, `piers_markdown.bats`,
    `piers_images.bats`, `zz-pocs/pandoc-docs-poc`, the piers-only recipes in the
    justfile (`explore-pandoc-docs-poc-*`, `debug-piers-request-size`,
@@ -105,8 +124,32 @@ step 2 everything is local.
    has no cross-repository issue transfer that I verified, so the plan is to
    file each in pandocea with a link back and close the moxy one with a link
    forward. Keep #331, #363 and #445 (gws moxins generally) with a link each
-   way.
+   way. The texts are in `2026-11-12-465-pandocea-issue-moves.md`.
 9. **[forge]** Comment on and close #465 with the new repository's address.
+
+### The push, in order
+
+`<forge>` is the address the coordinator creates (private, empty, under
+`linenisgreat`); `<ssh-url>` is that repository's ssh clone URL. piggy-agent
+must be unlocked for the signed commit and the push. Run from this checkout:
+
+```
+just explore-pandocea-skeleton          # fresh extraction + skeleton + build + bats lane
+cd .tmp/pandocea-extract
+git -c commit.gpgsign=true commit -m "pandocea: flake, justfile, AGENTS.md, bats lane (moxy#465)"
+git remote add origin <ssh-url>
+git push origin HEAD:master
+nix flake lock && git add flake.lock && git commit -m "flake.lock" && git push origin HEAD:master
+nix build "git+<ssh-url>?ref=master#piers"   # first build from the pushed ref
+```
+
+then in the moxy checkout, with piers frozen (step 3) for the whole sequence:
+re-make the moxy-side clone (`just explore-pandocea-moxy-clone`, redo the edits
+or apply the saved patch), `nix flake lock --update-input pandocea` there, run
+moxy's gate, and merge once. Then step 8 and 9 on the forge. The input URL form
+for a private repository (an archive tarball needs auth the fetch does not have;
+`git+ssh://` may be the working form) is **not verified**: confirm it at the
+`nix flake lock` step above before the moxy merge.
 
 Reverting: before step 2 delete `.tmp/pandocea-extract`. After step 2 delete the
 repository; the moxy change in step 7 is one revertable merge.
@@ -114,10 +157,11 @@ repository; the moxy change in step 7 is one revertable merge.
 ## Not verified
 
 - The skeleton was built only in the scratch clone, only for the current
-  system, and only `.#piers`. `.#gws` and the devshell were not built; no other
-  system was tried.
-- Nothing ran piers against Google (no live call), and the extracted bats tests
-  do not run outside moxy yet (step 6).
+  system: `.#piers` and the `bats-piers` check. `.#gws` and the devshell were
+  not built; no other system was tried.
+- Nothing ran piers against Google (no live call); the bats suite runs against
+  a stub `gws`.
+- The pandocea input URL for a private repository (see "The push").
 - Issue transfer on this forge was not tried (step 8).
 - `bun.nix` and `bun.lock` are moxy-wide (they carry `web-tree-sitter` for
   arboretum); pandocea only needs `zx`, so a trimmed `bun2nix` regeneration is

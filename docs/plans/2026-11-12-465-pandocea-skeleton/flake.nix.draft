@@ -11,6 +11,15 @@
     nixpkgs-master.url = "github:NixOS/nixpkgs/b4fd65b198c599cbe814fcb9f42d25d021595ec9";
     utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
 
+    # bats-libs (bats-support, bats-assert, bats-island, ...) and batsLane, the
+    # builder that runs a suite in the nix sandbox.
+    bats = {
+      url = "https://code.linenisgreat.com/bats/archive/master.tar.gz";
+      inputs.igloo.follows = "igloo";
+      inputs.utils.follows = "utils";
+      inputs.nixpkgs-master.follows = "nixpkgs-master";
+    };
+
     igloo.inputs.nixpkgs-master.follows = "nixpkgs-master";
     utils.inputs.systems.follows = "igloo/systems";
   };
@@ -20,6 +29,7 @@
       self,
       igloo,
       utils,
+      bats,
       ...
     }:
     utils.lib.eachDefaultSystem (
@@ -231,15 +241,51 @@
           echo "pandocea standalone: no read policy"
           exit 0
         '';
+        piers = mkPiers standaloneFolioPerms;
+
+        # The piers bats suite against the stub gws (zz-tests_bats/piers_stub.bash),
+        # run in the nix sandbox. The tests reach the moxin's scripts through
+        # PIERS_BIN, a directory, so one script is named as the lane's binary.
+        batsSrc = pkgs.lib.fileset.toSource {
+          root = ./zz-tests_bats;
+          fileset = pkgs.lib.fileset.unions [
+            (pkgs.lib.fileset.fileFilter (f: f.hasExt "bash") ./zz-tests_bats)
+            (pkgs.lib.fileset.fileFilter (f: f.hasExt "bats") ./zz-tests_bats)
+          ];
+        };
+        batsPiers = bats.lib.${system}.batsLane {
+          inherit batsSrc;
+          name = "pandocea-bats-piers";
+          binaries.PIERS_GET_BIN = {
+            base = piers;
+            name = "get";
+          };
+          batsLibPath = [ bats.packages.${system}.bats-libs.batsLibPath ];
+          extraEnv = {
+            PIERS_BIN = "${piers}/bin";
+            BATS_TEST_TIMEOUT = "60";
+          };
+          nativeBuildInputs = [
+            pkgs.bash
+            pkgs.coreutils-full
+            pkgs.findutils
+            pkgs.git
+            pkgs.gnugrep
+            pkgs.gnused
+            pkgs.jq
+          ];
+        };
       in
       {
         lib.mkPiers = mkPiers;
 
         packages = {
-          piers = mkPiers standaloneFolioPerms;
+          inherit piers;
           gws = gws-bin;
           default = self.packages.${system}.piers;
         };
+
+        checks.bats-piers = batsPiers;
 
         devShells.default = pkgs.mkShell {
           packages = [

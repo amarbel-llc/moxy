@@ -1347,8 +1347,10 @@ explore-pandocea-skeleton: explore-pandocea-extract
   set -euo pipefail
   skel="{{justfile_directory()}}/docs/plans/2026-11-12-465-pandocea-skeleton"
   scratch="{{justfile_directory()}}/.tmp/pandocea-extract"
-  for f in "$skel"/*.draft; do
-    cp "$f" "$scratch/$(basename "$f" .draft)"
+  # every *.draft, at its own relative path, minus the suffix
+  (cd "$skel" && find . -name '*.draft' -type f) | while read -r f; do
+    mkdir -p "$scratch/$(dirname "$f")"
+    cp "$skel/$f" "$scratch/${f%.draft}"
   done
   printf 'result-*\n.tmp\n' >"$scratch/.gitignore"
   cd "$scratch"
@@ -1362,6 +1364,52 @@ explore-pandocea-skeleton: explore-pandocea-extract
     exit 1
   fi
   echo "placeholders: all substituted"
+  # and the piers bats suite against the stub gws, in the nix sandbox
+  system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
+  nix build --print-build-logs ".#checks.${system}.bats-piers" -o result-bats-piers
+  echo "bats-piers: passed"
+
+# A separate scratch clone of this checkout on a local branch `pandocea-input`,
+# where the moxy side of the pandocea split (add the pandocea input, remove
+# piers; docs/plans/2026-11-12-465-pandocea-extraction.md step 7) is prepared
+# and checked against the extracted scratch repo with --override-input. Never
+# pushed, never merged, and not a branch of this worktree.
+#
+# make the scratch clone where the moxy side of the pandocea split is prepared
+[group("explore")]
+explore-pandocea-moxy-clone:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  scratch="{{justfile_directory()}}/.tmp/moxy-pandocea"
+  # the clone holds hand-made edits, so never replace it silently
+  if [ -e "$scratch" ]; then
+    echo "$scratch exists and may hold edits; remove it yourself to start over" >&2
+    exit 1
+  fi
+  git clone --no-local --quiet "{{justfile_directory()}}" "$scratch"
+  git -C "$scratch" checkout --quiet -b pandocea-input
+  echo "scratch clone: $scratch (branch pandocea-input, at $(git -C "$scratch" rev-parse --short HEAD))"
+
+# Build the moxy side of the pandocea split in the scratch clone against the
+# extracted scratch repo (docs/plans/2026-11-12-465-pandocea-extraction.md):
+# the pandocea input is overridden to that local git tree, which
+# explore-pandocea-skeleton must have laid first. Writes the clone's staged
+# diff to .tmp/moxy-pandocea.patch. Nothing is committed or pushed.
+#
+# build the prepared moxy-side pandocea change against the scratch extraction
+[group("explore")]
+explore-pandocea-moxy-check:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  clone="{{justfile_directory()}}/.tmp/moxy-pandocea"
+  extract="{{justfile_directory()}}/.tmp/pandocea-extract"
+  cd "$clone"
+  git add -A
+  git diff --cached --stat | tail -n 3
+  git diff --cached --binary >"{{justfile_directory()}}/.tmp/moxy-pandocea.patch"
+  nix build --print-build-logs --override-input pandocea "git+file://$extract" .#gws-moxins -o result-gws-moxins
+  ls result-gws-moxins/share/moxy/moxins
+  ls result-gws-moxins/share/moxy/moxins/piers
 
 # POC for #456/#457/#453: a pandoc custom Lua writer emitting Docs API
 # batchUpdate requests. Offline phase checks the requests against the text
