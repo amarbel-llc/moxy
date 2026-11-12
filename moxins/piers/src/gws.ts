@@ -21,7 +21,17 @@ export { gwsBin };
 // all (a Drive delete's empty body), is `{}` for the latter and an error for
 // the former.
 export async function gwsJson(cwd: string, args: string[]): Promise<any> {
-  const stdout = (await gwsText(cwd, args)).trim();
+  let stdout: string;
+  try {
+    stdout = (await gwsText(cwd, args)).trim();
+  } catch (error) {
+    // piers' callers catch PiersError to add context to a failed step; the
+    // runner's failure carries the same one-line message.
+    if (error instanceof GwsError && !(error instanceof PiersError)) {
+      throw new PiersError(error.message);
+    }
+    throw error;
+  }
   if (!stdout) return {};
   try {
     return JSON.parse(stdout);
