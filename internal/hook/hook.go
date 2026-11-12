@@ -297,7 +297,7 @@ func decidePreToolUse(app *command.App, raw []byte, hi hookInput, prefix string,
 		debugHook("  decision: async inner-tool resolved")
 		return nil
 	}
-	if tryBatchAsyncInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
+	if tryBatchInnerDecision(hi.ToolName, prefix, hi.ToolInput, hi.Cwd, w) {
 		debugHook("  decision: batch async inner-list resolved")
 		return nil
 	}
@@ -434,9 +434,10 @@ func logHookDecision(hi hookInput, decision, reason string) {
 // a consent prompt for ask/Unknown inner tools rather than widening silently.
 // `restart` stays prompting — restart churns children. `batch` stays
 // prompting for a SYNCHRONOUS call (its single prompt is its design
-// contract); `batch {async:true}` instead routes through
-// tryBatchAsyncInnerDecision (#404), which applies the same inner-tool
-// treatment to the whole `calls` list.
+// contract), except that tryBatchSyncInnerDecision (#433) names any member
+// with no declared permission in that prompt; `batch {async:true}` instead
+// routes through tryBatchAsyncInnerDecision (#404), which applies the same
+// inner-tool treatment to the whole `calls` list.
 var builtinAutoAllow = map[string]bool{
 	"status":       true,
 	"async-result": true,
@@ -573,36 +574,21 @@ func tryBatchAsyncInnerDecision(toolName, prefix string, toolInput map[string]an
 		return false
 	}
 
-	resolver, err := getResolver()
-	if err != nil {
-		debugHook("  batch async getResolver error: %v", err)
+	members, ok := resolveBatchMembers(rawCalls, cwd)
+	if !ok {
 		return false
 	}
 
-	names := make([]string, 0, len(rawCalls))
+	names := make([]string, 0, len(members))
 	allAllow := true
 	var denyNames []string
-	for _, rc := range rawCalls {
-		m, ok := rc.(map[string]any)
-		if !ok {
-			return false
-		}
-		innerWire, _ := m["tool"].(string)
-		inner := underscoreToCanonical(innerWire)
-		if inner == "" {
-			return false
-		}
-		var innerArgs json.RawMessage
-		if raw, ok := m["args"]; ok {
-			innerArgs, _ = json.Marshal(raw)
-		}
-		dec, _ := resolver.Resolve(context.Background(), inner, innerArgs, cwd)
-		names = append(names, inner)
-		if dec != perms.Allow {
+	for _, m := range members {
+		names = append(names, m.tool)
+		if m.decision != perms.Allow {
 			allAllow = false
 		}
-		if dec == perms.Deny {
-			denyNames = append(denyNames, inner)
+		if m.decision == perms.Deny {
+			denyNames = append(denyNames, m.tool)
 		}
 	}
 
@@ -623,6 +609,95 @@ func tryBatchAsyncInnerDecision(toolName, prefix string, toolInput map[string]an
 	}
 
 	return writeHookDecision(w, decStr, decReason)
+}
+
+// batchMember is one `calls` entry of a batch with its resolved decision.
+type batchMember struct {
+	tool     string
+	decision perms.Decision
+}
+
+// resolveBatchMembers resolves every entry of a batch's `calls` list. ok is
+// false — and the caller must write no decision — when the resolver is
+// unavailable or any entry cannot be parsed to a canonical tool name, so a
+// decision never covers only part of the list.
+func resolveBatchMembers(rawCalls []any, cwd string) (members []batchMember, ok bool) {
+	resolver, err := getResolver()
+	if err != nil {
+		debugHook("  batch getResolver error: %v", err)
+		return nil, false
+	}
+	members = make([]batchMember, 0, len(rawCalls))
+	for _, rc := range rawCalls {
+		m, isMap := rc.(map[string]any)
+		if !isMap {
+			return nil, false
+		}
+		innerWire, _ := m["tool"].(string)
+		inner := underscoreToCanonical(innerWire)
+		if inner == "" {
+			return nil, false
+		}
+		var innerArgs json.RawMessage
+		if raw, has := m["args"]; has {
+			innerArgs, _ = json.Marshal(raw)
+		}
+		dec, _ := resolver.Resolve(context.Background(), inner, innerArgs, cwd)
+		members = append(members, batchMember{tool: inner, decision: dec})
+	}
+	return members, true
+}
+
+// tryBatchInnerDecision is the hook's whole rule for the `batch` builtin: an
+// async batch goes to tryBatchAsyncInnerDecision, a synchronous one to
+// tryBatchSyncInnerDecision. Returns true if it wrote a decision.
+func tryBatchInnerDecision(toolName, prefix string, toolInput map[string]any, cwd string, w io.Writer) bool {
+	if tryBatchAsyncInnerDecision(toolName, prefix, toolInput, cwd, w) {
+		return true
+	}
+	return tryBatchSyncInnerDecision(toolName, prefix, toolInput, cwd, w)
+}
+
+// tryBatchSyncInnerDecision handles a synchronous `batch` (moxy#433). A batch
+// of declared tools is untouched: no decision here, so the client's own single
+// prompt stays its consent. When some member has no declared permission
+// (Unknown) it forces that prompt now and names those members, because the
+// batch prompt alone does not say that part of what runs is undeclared — the
+// same informed consent the async path gives. A denied member also leaves the
+// batch to moxy, whose pre-flight refuses it by name before anything runs.
+// Returns true if it wrote a decision.
+func tryBatchSyncInnerDecision(toolName, prefix string, toolInput map[string]any, cwd string, w io.Writer) bool {
+	suffix := strings.TrimPrefix(toolName, prefix)
+	if suffix == toolName || suffix != "batch" {
+		return false
+	}
+	if async, _ := toolInput["async"].(bool); async {
+		return false
+	}
+	rawCalls, _ := toolInput["calls"].([]any)
+	if len(rawCalls) == 0 {
+		return false
+	}
+	members, ok := resolveBatchMembers(rawCalls, cwd)
+	if !ok {
+		return false
+	}
+	var undeclared []string
+	for _, m := range members {
+		switch m.decision {
+		case perms.Deny:
+			return false
+		case perms.Unknown:
+			undeclared = append(undeclared, m.tool)
+		}
+	}
+	if len(undeclared) == 0 {
+		return false
+	}
+	return writeHookDecision(w, "ask", fmt.Sprintf(
+		"batch runs %d sub-call(s); %d of them have no declared permission: %s — approve to run them",
+		len(members), len(undeclared), strings.Join(undeclared, ", "),
+	))
 }
 
 // underscoreToCanonical resolves an inner-tool name as it arrives in

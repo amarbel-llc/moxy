@@ -521,8 +521,110 @@ func TestTryBatchAsyncInnerDecision_AllDeniedNamed(t *testing.T) {
 	}
 }
 
-// A synchronous batch (async omitted or false) is untouched — it stays on
-// the client's own single-prompt decision, unaffected by this function.
+// moxy#433: a synchronous batch with a member that has no declared permission
+// forces one consent that NAMES it — the batch's own prompt would otherwise
+// not say that part of what it runs is undeclared.
+func TestTryBatchInnerDecision_SyncUnknownMemberForcesNamedAsk(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchInnerDecision(
+		"mcp__moxy__batch",
+		"mcp__moxy__",
+		map[string]any{
+			"calls": []any{
+				map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+				map[string]any{"tool": "unknown-srv_tool", "args": map[string]any{}},
+			},
+		},
+		".",
+		&buf,
+	)
+	if !wrote {
+		t.Fatal("expected a decision for a sync batch with an undeclared member")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "ask" {
+		t.Fatalf("decision = %q, want ask", got)
+	}
+	reason := out.HookSpecificOutput.PermissionDecisionReason
+	if !strings.Contains(reason, "unknown-srv.tool") {
+		t.Errorf("reason = %q, want it to name the undeclared tool", reason)
+	}
+	if !strings.Contains(reason, "no declared permission") {
+		t.Errorf("reason = %q, want it to say the tool has no declared permission", reason)
+	}
+	if strings.Contains(reason, "allow-srv.echo") {
+		t.Errorf("reason = %q, must not list the declared member as undeclared", reason)
+	}
+}
+
+// A synchronous batch of declared tools only is unchanged: no decision from
+// the hook, so the client's own single prompt stays the consent.
+func TestTryBatchInnerDecision_SyncDeclaredOnlyFallsThrough(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow:testdata/moxins-each")
+	resetResolverForTest()
+	for name, calls := range map[string][]any{
+		"allow": {map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}}},
+		"ask":   {map[string]any{"tool": "each-srv_echo", "args": map[string]any{}}},
+		"mixed": {
+			map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+			map[string]any{"tool": "each-srv_echo", "args": map[string]any{}},
+		},
+	} {
+		var buf bytes.Buffer
+		wrote := tryBatchInnerDecision("mcp__moxy__batch", "mcp__moxy__",
+			map[string]any{"calls": calls}, ".", &buf)
+		if wrote {
+			t.Errorf("%s: expected no interception, got %q", name, buf.String())
+		}
+	}
+}
+
+// A denied member leaves the batch to moxy, whose pre-flight refuses it by
+// name before anything runs; the hook does not prompt for a batch that will
+// not run.
+func TestTryBatchInnerDecision_SyncDenyMemberFallsThrough(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-dynamic-deny")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchInnerDecision("mcp__moxy__batch", "mcp__moxy__",
+		map[string]any{"calls": []any{
+			map[string]any{"tool": "unknown-srv_tool", "args": map[string]any{}},
+			map[string]any{"tool": "dyndeny-srv_echo", "args": map[string]any{}},
+		}}, ".", &buf)
+	if wrote {
+		t.Fatalf("expected fall-through when a member is denied, got %q", buf.String())
+	}
+}
+
+// The async path is unchanged by the sync rule: an async batch of declared
+// tools still gets its own decision (allow here).
+func TestTryBatchInnerDecision_AsyncStillHandledByAsyncRule(t *testing.T) {
+	t.Setenv("MOXIN_PATH", "testdata/moxins-allow")
+	resetResolverForTest()
+	var buf bytes.Buffer
+	wrote := tryBatchInnerDecision("mcp__moxy__batch", "mcp__moxy__",
+		map[string]any{"async": true, "calls": []any{
+			map[string]any{"tool": "allow-srv_echo", "args": map[string]any{}},
+		}}, ".", &buf)
+	if !wrote {
+		t.Fatal("expected the async rule to decide")
+	}
+	var out hookOutput
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := out.HookSpecificOutput.PermissionDecision; got != "allow" {
+		t.Fatalf("decision = %q, want allow", got)
+	}
+}
+
+// The async rule itself still ignores a synchronous batch; the sync rule is
+// tryBatchSyncInnerDecision, reached through tryBatchInnerDecision.
 func TestTryBatchAsyncInnerDecision_IgnoresSyncBatch(t *testing.T) {
 	var buf bytes.Buffer
 	wrote := tryBatchAsyncInnerDecision(

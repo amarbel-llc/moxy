@@ -134,6 +134,21 @@ still wins regardless of permission.
   (`internal/proxy/async.go`) mirrors `HandleAsync`'s preflight relaxation —
   only Deny is an absolute synchronous reject; Ask and Unknown are admitted,
   trusting the hook already gated the whole list.
+- **A synchronous `batch` follows the same rule for Unknown members
+  (moxy#433, operator-ruled).** Before, `HandleBatch`'s pre-flight refused any
+  Unknown sub-call, so a tool with no declared permission could not be reached
+  through a batch at all. Now it is admitted when moxy delegates permissions
+  to its client, and `tryBatchSyncInnerDecision` (`internal/hook/hook.go`)
+  makes the hook force an `ask` that names the members with no declared
+  permission, the informed consent the async path gives. A batch of declared
+  tools is unchanged (the client's own prompt for `batch` is the consent); a
+  denied member still stops the batch, in moxy's pre-flight, by name; and a
+  moxy meta tool (`batch`, `restart`, `async`, ...) in a batch is still
+  refused. Under `permission-mode = "enforce"` (moxy#486) nobody can answer a
+  prompt, so an Unknown sub-call is still refused unless an `enforce-allow`
+  grant lifts it. As with the async path, the consent rests on the hook
+  process having run: a client that does not run moxy's PreToolUse hook gives
+  the batch's own prompt only, which does not name the undeclared members.
 - **Consent is only as informative as the client renders.** The hook supplies
   the inner tool + args in `permissionDecisionReason`, but how prominently the
   client shows that reason is client-dependent; on a client that hides it, the

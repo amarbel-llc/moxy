@@ -217,14 +217,17 @@ func TestBatch_PreflightDeny(t *testing.T) {
 	p := newProxyWithResolverAndDispatch(
 		t,
 		map[string]perms.ToolPermInfo{
-			// No tools registered → every sub-call resolves Unknown
+			"deny.tool": {Perm: native.PermsDynamic, DynamicPerms: &native.DynamicPermsSpec{
+				Command: "sh",
+				Args:    []string{"-c", "exit 2"},
+			}},
 		},
 		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
 			t.Fatalf("dispatch should not be called on preflight rejection")
 			return nil, nil
 		},
 	)
-	in := []byte(`{"calls":[{"tool":"any.tool","args":{}}]}`)
+	in := []byte(`{"calls":[{"tool":"deny.tool","args":{}}]}`)
 	res, _ := p.HandleBatch(context.Background(), in)
 	if !res.IsError {
 		t.Fatal("expected IsError=true")
@@ -232,6 +235,112 @@ func TestBatch_PreflightDeny(t *testing.T) {
 	body := res.Content[0].Text
 	if !strings.Contains(body, `"type":"bailout"`) {
 		t.Errorf("expected bailout record; body=%s", body)
+	}
+}
+
+// moxy#433: a synchronous batch admits a tool with no declared permission
+// (Unknown). The consent is the hook's prompt, which names such tools
+// (tryBatchInnerDecision in internal/hook), so the pre-flight no longer
+// refuses them when moxy is delegating permissions to its client.
+func TestBatch_AdmitsUnknownWhenDelegating(t *testing.T) {
+	var ran []string
+	p := newProxyWithResolverAndDispatch(
+		t,
+		map[string]perms.ToolPermInfo{
+			"ok.tool": {Perm: native.PermsAlwaysAllow},
+			// undeclared.tool is absent → Resolve returns Unknown.
+		},
+		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			ran = append(ran, name)
+			return &protocol.ToolCallResultV1{Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}}}, nil
+		},
+	)
+	res, _ := p.HandleBatch(context.Background(),
+		[]byte(`{"calls":[{"tool":"ok.tool","args":{}},{"tool":"undeclared.tool","args":{}}]}`))
+	if res.IsError {
+		t.Fatalf("expected the batch to run, got bailout: %s", res.Content[0].Text)
+	}
+	if strings.Join(ran, ",") != "ok.tool,undeclared.tool" {
+		t.Fatalf("dispatched %v, want both sub-calls in order", ran)
+	}
+}
+
+// A deny member still stops the whole batch before anything runs, even when
+// the other members are admitted Unknown ones.
+func TestBatch_DenyMemberStillBailsOutWithUnknownPresent(t *testing.T) {
+	p := newProxyWithResolverAndDispatch(
+		t,
+		map[string]perms.ToolPermInfo{
+			"deny.tool": {Perm: native.PermsDynamic, DynamicPerms: &native.DynamicPermsSpec{
+				Command: "sh",
+				Args:    []string{"-c", "exit 2"},
+			}},
+		},
+		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			t.Fatal("dispatch must not run when any member is denied")
+			return nil, nil
+		},
+	)
+	res, _ := p.HandleBatch(context.Background(),
+		[]byte(`{"calls":[{"tool":"undeclared.tool","args":{}},{"tool":"deny.tool","args":{}}]}`))
+	if !res.IsError || !strings.Contains(res.Content[0].Text, `"type":"bailout"`) {
+		t.Fatalf("expected a bailout, got %+v", res)
+	}
+}
+
+// A builtin meta tool stays refused inside a batch: admitting Unknown must
+// not make `batch`, `restart` and the like reachable through it.
+func TestBatch_BuiltinSubCallStillRefused(t *testing.T) {
+	p := newProxyWithResolverAndDispatch(
+		t,
+		map[string]perms.ToolPermInfo{},
+		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			t.Fatal("dispatch must not run for a builtin sub-call")
+			return nil, nil
+		},
+	)
+	registerBuiltins(t, p, "restart")
+	res, _ := p.HandleBatch(context.Background(),
+		[]byte(`{"calls":[{"tool":"restart","args":{}}]}`))
+	if !res.IsError || !strings.Contains(res.Content[0].Text, `"type":"bailout"`) {
+		t.Fatalf("expected a bailout, got %+v", res)
+	}
+}
+
+// Under enforce (moxy#486) nobody can answer a prompt, so an undeclared tool
+// is still refused unless an enforce-allow grant lifts it.
+func TestBatch_EnforceRefusesUnknownWithoutGrant(t *testing.T) {
+	p := newProxyWithResolverAndDispatch(
+		t,
+		map[string]perms.ToolPermInfo{},
+		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			t.Fatal("dispatch must not run for an ungranted undeclared tool under enforce")
+			return nil, nil
+		},
+	)
+	p.SetPolicy(perms.Policy{Mode: perms.Enforce})
+	res, _ := p.HandleBatch(context.Background(),
+		[]byte(`{"calls":[{"tool":"undeclared.tool","args":{}}]}`))
+	if !res.IsError || !strings.Contains(res.Content[0].Text, `"type":"bailout"`) {
+		t.Fatalf("expected a bailout, got %+v", res)
+	}
+}
+
+func TestBatch_EnforceGrantAdmitsUnknown(t *testing.T) {
+	ran := 0
+	p := newProxyWithResolverAndDispatch(
+		t,
+		map[string]perms.ToolPermInfo{},
+		func(ctx context.Context, name string, args json.RawMessage) (*protocol.ToolCallResultV1, error) {
+			ran++
+			return &protocol.ToolCallResultV1{Content: []protocol.ContentBlockV1{{Type: "text", Text: "ok"}}}, nil
+		},
+	)
+	p.SetPolicy(perms.Policy{Mode: perms.Enforce, Allow: []string{"undeclared.tool"}})
+	res, _ := p.HandleBatch(context.Background(),
+		[]byte(`{"calls":[{"tool":"undeclared.tool","args":{}}]}`))
+	if res.IsError || ran != 1 {
+		t.Fatalf("expected the granted tool to run once, ran=%d res=%+v", ran, res)
 	}
 }
 

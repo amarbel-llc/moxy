@@ -85,16 +85,42 @@ explicit moxin
 .Em Any
 sub-call resolving to
 .Li deny
-or
-.Li unknown
 aborts the entire batch with a single
 .Li bailout
 record before any sub-call runs.
-The
+So does a sub-call naming a moxy meta tool
+.Pq Li batch , restart , async , ... ,
+which resolves to
 .Em unknown
-deny-by-default boundary is intentional: a single mis-typed tool name
-or a non-moxin tool reference nukes the batch instead of silently
-falling through to per-tool prompts.
+but is never reachable through a batch.
+.Pp
+Any other tool that resolves to
+.Em unknown
+.Pq a child MCP server tool, or a moxin tool with no declared permission
+runs, but only with informed consent.
+The PreToolUse hook resolves the inner tools before the batch call
+reaches moxy.
+A batch with an
+.Em unknown
+member makes the hook ask, and the prompt names the members that have
+no declared permission, the same consent
+.Li batch
+with
+.Li async: true
+gives.
+A batch of declared tools is unchanged: the client's own prompt for
+.Li batch
+is the consent.
+.Pp
+When moxy enforces permissions itself
+.Pq Li permission-mode = "enforce" ,
+see
+.Xr moxyfile 5
+there is nobody to answer a prompt, so an
+.Em unknown
+sub-call aborts the batch unless an
+.Li enforce-allow
+grant names the tool or its server.
 .Pp
 The
 .Li batch
@@ -165,13 +191,20 @@ or
 }
 .Ed
 .Ss Bail out before doing anything when one sub-call would deny
-A batch containing a single
-.Li slack.send_message
-call
-.Pq no moxin perm-request
+A batch containing a sub-call whose
+.Li [dynamic-perms]
+script exits
+.Li 2
 aborts the whole batch with a bailout record;
+nothing in it is invoked.
+.Ss A tool with no declared permission
+A batch containing
 .Li slack.send_message
-is never invoked.
+.Pq no moxin perm-request
+makes the hook ask, naming
+.Li slack.send_message
+as having no declared permission.
+Once approved it runs with the rest of the batch.
 .Ss Keep going past failures
 .Bd -literal -offset indent
 {
@@ -220,6 +253,8 @@ dispatch is exercised in
 .Pq TestBatch_OnErrorStop_MultipleSkipsCorrectIndex ,
 .Pq TestBatch_OnErrorContinue ,
 .Pq TestBatch_PreflightDeny ,
+.Pq TestBatch_AdmitsUnknownWhenDelegating ,
+.Pq TestBatch_EnforceRefusesUnknownWithoutGrant ,
 .Pq TestBatch_TransportError ,
 .Pq TestBatch_NonTextContent ,
 and bats integration tests in

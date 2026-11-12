@@ -48,8 +48,9 @@ type subCallDispatcher func(ctx context.Context, name string, args json.RawMessa
 // Sub-call execution flow:
 //  1. Parse + validate batchParams (malformed args, empty calls,
 //     invalid on_error → Tier 1 error result).
-//  2. Pre-flight every sub-call against p.resolver. Decisions Allow
-//     and Ask proceed; Deny and Unknown are collected as
+//  2. Pre-flight every sub-call against p.resolver. Decisions Allow,
+//     Ask and Unknown proceed (Unknown only when delegating, and not for
+//     a builtin; see the comment at the loop); the rest are collected as
 //     batchRejection entries. If any rejections accrue, emit a
 //     bailout record + summary and stop.
 //  3. Execute accepted sub-calls sequentially via the dispatcher
@@ -93,10 +94,15 @@ func (p *Proxy) HandleBatch(
 		return p.handleBatchAsync(ctx, params, onError)
 	}
 
-	// Pre-flight: resolve every sub-call. Allow and Ask proceed (the hook's
-	// single prompt covers the batch); under enforce (moxy#486) nobody can
-	// answer an Ask, so only Allow — or an enforce-allow grant lifting
-	// Unknown — proceeds.
+	// Pre-flight: resolve every sub-call. When moxy delegates permissions to
+	// its client, Allow, Ask and Unknown (no declared permission) proceed:
+	// the hook's single prompt covers the batch, and for a batch with an
+	// Unknown member that prompt names it (tryBatchSyncInnerDecision in
+	// internal/hook, moxy#433), the same informed consent the async path
+	// gives. Deny stops the batch, and so does a builtin meta tool, which
+	// resolves Unknown but must not become reachable through a batch. Under
+	// enforce (moxy#486) nobody can answer a prompt, so only Allow — or an
+	// enforce-allow grant lifting Unknown — proceeds.
 	policy := p.effectivePolicy(ctx)
 	var rejected []batchRejection
 	for i, c := range params.Calls {
@@ -109,6 +115,8 @@ func (p *Proxy) HandleBatch(
 				continue
 			}
 		} else if dec == perms.Allow || dec == perms.Ask {
+			continue
+		} else if dec == perms.Unknown && !p.hasBuiltinTool(c.Tool) {
 			continue
 		}
 		rejected = append(rejected, batchRejection{
