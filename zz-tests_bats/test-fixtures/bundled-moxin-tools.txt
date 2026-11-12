@@ -24,6 +24,7 @@ env.clock
 env.cpu
 env.date
 env.get
+env.host
 env.loadavg
 env.meminfo
 env.resolve

@@ -43,6 +43,51 @@ function meminfo_emits_byte_counts { # @test
   assert_success
 }
 
+function host_emits_virtualization_and_kvm_facts { # @test
+  run "$BIN/host"
+  assert_success
+  run jq -e '
+    (.hostname | type == "string" and length > 0)
+    and (.kernel | type == "string" and length > 0)
+    and (.cpu.count >= 1)
+    and (.cpu.flags | keys == ["hypervisor", "svm", "vmx"])
+    and ([.cpu.flags[]] | all(type == "boolean"))
+    and (.kvm.device_exists | type == "boolean")
+    and (.kvm.device_accessible | type == "boolean")
+    and (.kvm.module_loaded | type == "boolean")
+    and has("dmi") and has("nix_system_features")' <<<"$output"
+  assert_success
+}
+
+function host_kvm_accessible_implies_exists { # @test
+  run "$BIN/host"
+  assert_success
+  run jq -e '(.kvm.device_accessible | not) or .kvm.device_exists' <<<"$output"
+  assert_success
+}
+
+function host_says_null_not_error_when_dmi_is_missing { # @test
+  # The DMI directory is absent in many containers and VMs; that is a null,
+  # not a failure.
+  HOST_DMI_DIR="$BATS_TEST_TMPDIR/no-dmi" run "$BIN/host"
+  assert_success
+  run jq -e '.dmi == null' <<<"$output"
+  assert_success
+}
+
+function host_reads_dmi_and_nix_features_from_the_given_files { # @test
+  mkdir -p "$BATS_TEST_TMPDIR/dmi"
+  echo "Acme" >"$BATS_TEST_TMPDIR/dmi/sys_vendor"
+  echo "Widget 9" >"$BATS_TEST_TMPDIR/dmi/product_name"
+  printf 'build-users-group = nixbld\nsystem-features = nixos-test benchmark big-parallel kvm\n' \
+    >"$BATS_TEST_TMPDIR/nix.conf"
+  HOST_DMI_DIR="$BATS_TEST_TMPDIR/dmi" HOST_NIX_CONF="$BATS_TEST_TMPDIR/nix.conf" run "$BIN/host"
+  assert_success
+  run jq -e '.dmi == {vendor: "Acme", product: "Widget 9"}
+    and .nix_system_features == ["nixos-test", "benchmark", "big-parallel", "kvm"]' <<<"$output"
+  assert_success
+}
+
 function cpu_emits_percentages { # @test
   run "$BIN/cpu" 50
   assert_success

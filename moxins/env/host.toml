@@ -1,0 +1,13 @@
+schema = 3
+result-type = "text"
+perms-request = "always-allow"
+permit-async = false
+description = "Report host facts that decide how to run a build or test, as JSON: hostname, kernel, DMI vendor/product (null when absent), CPU model and count, whether the cpu flags show vmx/svm/hypervisor, whether /dev/kvm exists and is readable and writable, whether a kvm module is loaded, and nix's system-features (null when unset or unreadable). Linux only. Load and memory are env.loadavg and env.meminfo."
+command = "@BIN@/host"
+
+[input]
+type = "object"
+
+[annotations]
+read-only-hint = true
+open-world-hint = false

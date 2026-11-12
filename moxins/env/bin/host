@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Report host facts that decide how to run a build or test, as one JSON
+# document (moxy#441): hostname, kernel, DMI vendor/product (a guest hint),
+# CPU model and count, whether the cpu flags show vmx/svm/hypervisor, whether
+# /dev/kvm exists and is usable, whether a kvm module is loaded, and the nix
+# system-features line (so "kvm advertised but absent" is visible). Linux
+# only. Load and memory are env.loadavg and env.meminfo.
+#
+# HOST_DMI_DIR and HOST_NIX_CONF override the two paths for tests.
+set -euo pipefail
+
+if [ ! -r /proc/cpuinfo ]; then
+  echo "Error: /proc/cpuinfo not available (host is Linux-only)" >&2
+  exit 1
+fi
+
+dmi_dir="${HOST_DMI_DIR:-/sys/devices/virtual/dmi/id}"
+nix_conf="${HOST_NIX_CONF:-/etc/nix/nix.conf}"
+
+# First line of a file, or empty when it is missing or unreadable.
+first_line() {
+  local line=""
+  [ -r "$1" ] && IFS= read -r line <"$1" || true
+  printf '%s' "$line"
+}
+
+hostname=$(first_line /proc/sys/kernel/hostname)
+kernel=$(first_line /proc/sys/kernel/osrelease)
+
+cpu_model=""
+cpu_count=0
+flags=""
+while IFS= read -r line; do
+  case "$line" in
+    "model name"*)
+      [ -n "$cpu_model" ] || cpu_model="${line#*: }"
+      ;;
+    processor*)
+      cpu_count=$((cpu_count + 1))
+      ;;
+    flags*)
+      [ -n "$flags" ] || flags=" ${line#*: } "
+      ;;
+  esac
+done </proc/cpuinfo
+
+has_flag() { [[ $flags == *" $1 "* ]]; }
+
+kvm_exists=false
+kvm_accessible=false
+if [ -e /dev/kvm ]; then
+  kvm_exists=true
+  if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+    kvm_accessible=true
+  fi
+fi
+
+kvm_module=false
+if [ -r /proc/modules ]; then
+  while read -r name _; do
+    case "$name" in
+      kvm | kvm_intel | kvm_amd)
+        kvm_module=true
+        break
+        ;;
+    esac
+  done </proc/modules
+fi
+
+dmi_vendor=$(first_line "$dmi_dir/sys_vendor")
+dmi_product=$(first_line "$dmi_dir/product_name")
+
+# The last system-features assignment wins, as nix reads the file.
+features=""
+if [ -r "$nix_conf" ]; then
+  while IFS= read -r line; do
+    case "$line" in
+      "system-features"*=*)
+        features="${line#*=}"
+        ;;
+    esac
+  done <"$nix_conf"
+fi
+
+jq -n \
+  --arg hostname "$hostname" \
+  --arg kernel "$kernel" \
+  --arg cpu_model "$cpu_model" \
+  --argjson cpu_count "$cpu_count" \
+  --argjson vmx "$(has_flag vmx && echo true || echo false)" \
+  --argjson svm "$(has_flag svm && echo true || echo false)" \
+  --argjson hypervisor "$(has_flag hypervisor && echo true || echo false)" \
+  --argjson kvm_exists "$kvm_exists" \
+  --argjson kvm_accessible "$kvm_accessible" \
+  --argjson kvm_module "$kvm_module" \
+  --arg dmi_vendor "$dmi_vendor" \
+  --arg dmi_product "$dmi_product" \
+  --arg features "$features" \
+  '{
+    hostname: $hostname,
+    kernel: $kernel,
+    dmi: (if $dmi_vendor == "" and $dmi_product == "" then null
+          else {vendor: $dmi_vendor, product: $dmi_product} end),
+    cpu: {
+      model: $cpu_model,
+      count: $cpu_count,
+      flags: {vmx: $vmx, svm: $svm, hypervisor: $hypervisor}
+    },
+    kvm: {
+      device_exists: $kvm_exists,
+      device_accessible: $kvm_accessible,
+      module_loaded: $kvm_module
+    },
+    nix_system_features: (if $features == "" then null
+                          else ($features | split(" ") | map(select(. != ""))) end)
+  }'
