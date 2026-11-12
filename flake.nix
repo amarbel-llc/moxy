@@ -1252,6 +1252,15 @@
         # The same build with -race (every compile and link, per-package test
         # runs under the race detector): backs checks.go-test-race on godynSystem.
         moxy-native-race = mkMoxyNative { race = true; };
+        # The same build with coverage instrumentation (igloo godyn `cover`):
+        # with tests = true its passthru.coverage holds covdata/, coverage.out
+        # (text format) and percent.txt. Backs `just run-go-cover`. cgo and asm
+        # packages are not instrumented and packages without tests are absent
+        # from percent.txt (godyn(7) gaps).
+        moxy-native-cover = mkMoxyNative {
+          cover = true;
+          coverMode = "atomic";
+        };
 
         combined = pkgs.symlinkJoin {
           name = "moxy";
@@ -1552,6 +1561,9 @@
             go-pkgs-test
             ;
           default = combined;
+          # Per-package coverage of the whole test suite (godynSystem only):
+          # the result has coverage.out, percent.txt and covdata/.
+          moxy-coverage = moxy-native-cover.passthru.coverage;
           # The pinned google-workspace-cli the gws moxins wrap, exposed so
           # `just run-gws auth login` authenticates with the exact binary (and
           # credential format) the moxins will later read.

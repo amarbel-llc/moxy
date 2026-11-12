@@ -378,6 +378,28 @@ run-go-test:
   system=$(nix eval --raw --impure --expr 'builtins.currentSystem')
   nix build --no-link --print-build-logs ".#checks.${system}.go-vet" ".#checks.${system}.go-test-race"
 
+# Per-package coverage of the whole test suite, from igloo's godyn `cover`
+# option (`.#moxy-coverage` is `moxy-native-cover.passthru.coverage`). The
+# result is linked at result-coverage (percent.txt, coverage.out in Go's text
+# format, covdata/). Pass a substring to print only the matching packages.
+# Gaps from godyn(7): cgo and asm packages are not instrumented, and packages
+# without tests are absent from percent.txt. Replaces the old ambient-go recipe
+# (moxy#476).
+# Example: just run-go-cover internal/hook
+#
+# print per-package test coverage from godyn's cover option
+[group("post-build")]
+run-go-cover pkg="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  nix build --print-build-logs .#moxy-coverage -o result-coverage
+  echo "--- per-package coverage (result-coverage/percent.txt) ---"
+  if [ -n "{{pkg}}" ]; then
+    grep -F -- "{{pkg}}" result-coverage/percent.txt || { echo "no package matches {{pkg}} in percent.txt" >&2; exit 1; }
+  else
+    cat result-coverage/percent.txt
+  fi
+
 # Drive a freshly-built moxy from `claude -p`, exercising the `batch` builtin
 # end-to-end (MCP handshake, tool registration, dispatch, NDJSON output).
 # Why a recipe: clown's mkCircus pins moxy at build time, so the moxy
