@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "paths are pathspecs inside the session's own repository (git refuses one outside it), not file reads (moxy#510)"
 permit-async = false
 description = """Read-only `git log` for the session's repository. Has no write verb and no way to reach one, \
 so a profile that must stay read-only can keep it. The mixed `grit.branch` tool (log beside create, delete, \

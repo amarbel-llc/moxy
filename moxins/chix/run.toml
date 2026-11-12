@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "flake_dir and installable are unconstrained and a run executes code; moxy#519 decides how to constrain them"
 description = "Run a flake app."
 command = "@BIN@/run"
 arg-order = ["installable", "args", "flake_dir"]

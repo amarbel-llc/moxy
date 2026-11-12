@@ -111,6 +111,7 @@ type ToolSpec struct {
 	Annotations    *ToolAnnotations
 	Kind           string        // what the tool's result is; emitted as `_meta.kind` (#451)
 	Resources      []ResourceArg // inputs that name files or blobs; sorted by Param (#491)
+	PathExempt     string        // why an always-allow path reader declares no [resources] (#520)
 	Input          json.RawMessage
 	InputParsed    *InputSchema
 }
@@ -161,8 +162,9 @@ type rawToolFile struct {
 	SubstituteArgs       []string               `toml:"substitute-args"`        // #371
 	SubstituteResultURIs *bool                  `toml:"substitute-result-uris"` // retired by #371
 	Annotations          *ToolAnnotations       `toml:"annotations"`
-	Kind                 string                 `toml:"kind"`      // #451
-	Resources            map[string]rawResource `toml:"resources"` // #491
+	Kind                 string                 `toml:"kind"`        // #451
+	PathExempt           string                 `toml:"path-exempt"` // #520
+	Resources            map[string]rawResource `toml:"resources"`   // #491
 	Input                *InputSchema           `toml:"input"`
 }
 
@@ -382,6 +384,10 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			return nil, fmt.Errorf("tool file %s: %w", filename, err)
 		}
 
+		if err := checkPathRule(raw.PermsRequest, raw.Input, resources, raw.PathExempt); err != nil {
+			return nil, fmt.Errorf("tool file %s: %w", filename, err)
+		}
+
 		ts := ToolSpec{
 			Name:           toolName,
 			Description:    raw.Description,
@@ -400,6 +406,7 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 			Annotations:    raw.Annotations,
 			Kind:           raw.Kind,
 			Resources:      resources,
+			PathExempt:     raw.PathExempt,
 		}
 
 		if raw.Input != nil {
@@ -609,6 +616,7 @@ func detectUndecodedTool(data []byte, filename string, schema int) []string {
 		"content-type", "result-type", "no-truncate", "substitute-result-uris",
 		"substitute-args", // #371
 		"kind",            // #451
+		"path-exempt",     // #520
 	}
 	if schema <= 2 {
 		keys = append(keys, "arg_order", "stdin_param")

@@ -1,5 +1,6 @@
 schema = 3
 perms-request = "always-allow"
+path-exempt = "session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile"
 description = """Extract tool calls from a session, already structured. Returns one line per tool \
 call with sequence number, tool name, and truncated input JSON. Much faster than parsing raw \
 JSONL transcripts with jq."""

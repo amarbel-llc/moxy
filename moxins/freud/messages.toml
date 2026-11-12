@@ -1,5 +1,6 @@
 schema = 3
 perms-request = "always-allow"
+path-exempt = "session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile"
 description = """Extract conversation messages from a session with the JSONL schema already flattened. \
 Returns one line per message with role, text content, tool calls (as one-line summaries), \
 and tool results (as text previews). Filters by role, keyword search, and pagination."""

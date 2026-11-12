@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "paths are pathspecs inside the session's own repository (git refuses one outside it), not file reads (moxy#510)"
 permit-async = false
 cache-results = "always"
 content-type = "text/x-diff"

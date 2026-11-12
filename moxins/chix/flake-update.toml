@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "flake_dir is unconstrained and update writes there; moxy#519 decides how to constrain it"
 description = "Update flake.lock file. Args are passed literally to 'nix flake update' — consult your system nix's 'nix flake update --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-update"
 arg-order = ["args", "flake_dir"]

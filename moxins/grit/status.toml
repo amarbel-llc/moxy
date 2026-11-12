@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "paths are pathspecs inside the session's own repository (git refuses one outside it), not file reads (moxy#510)"
 permit-async = false
 description = """Read-only `git status --short --branch` for the session's repository: working-tree and index state, \
 with the branch and its upstream on the first line. Has no write verb and no way to reach one, so a \

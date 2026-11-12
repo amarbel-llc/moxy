@@ -1,5 +1,6 @@
 schema = 3
 perms-request = "always-allow"
+path-exempt = "session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile"
 description = """List subagents spawned during a session. Returns agent ID, prompt snippet, tool count, \
 and message count. Use the agent ID with messages or tool-usage tools to drill into subagent details."""
 command = "@BIN@/subagents"

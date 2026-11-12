@@ -432,7 +432,8 @@ Dispatched in `cmd/moxy/main.go`:
 - `perms-matrix [--moxins DIR]` -- the moxin tool permissions matrix as
   markdown (moxy#496, `internal/permsmatrix`); `just debug-perms-matrix`
   regenerates `docs/permissions-matrix.md`, and `zz-tests_bats/perms_matrix.bats`
-  pins the ungated path readers it flags
+  pins the ungated path readers it flags; the moxin loader refuses one
+  without a `path-exempt` reason (moxy#520, moxin(7) Undeclared path readers)
 - `install-mcp` / `generate-plugin` / `hook` -- purse-first integration
 
 ## Dependencies

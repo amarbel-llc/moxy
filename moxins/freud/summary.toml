@@ -1,5 +1,6 @@
 schema = 3
 perms-request = "always-allow"
+path-exempt = "session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile"
 description = """High-level overview of a session: project, duration, message counts, top tools \
 by frequency, and user prompts. Use this to understand what happened in a session before \
 diving into messages or tool_usage."""

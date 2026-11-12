@@ -2,6 +2,7 @@ schema = 3
 result-type = "text"
 content-type = "application/json"
 perms-request = "always-allow"
+path-exempt = "the input guard is the gate: store paths, dot or dot-hash-attr, registry names or github/gitlab/sourcehut refs only (moxy#495, chix_store_args.bats)"
 permit-async = false
 description = """Show the JSON representation of a derivation. Optionally \
 apply a jq filter to extract specific fields."""

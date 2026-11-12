@@ -11,7 +11,6 @@ package permsmatrix
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -35,10 +34,10 @@ type Row struct {
 	// PathInputs are inputs whose name suggests a path, directory, repo or
 	// session id. Inferred from names, not from behaviour.
 	PathInputs []string
+	// PathExempt is the tool's path-exempt reason (moxy#520): why an
+	// always-allow path reader names no resources.
+	PathExempt string
 }
-
-// pathInput matches input names that usually carry something to open.
-var pathInput = regexp.MustCompile(`^(name|page)$|(^|[-_])(path|paths|file|files|dir|dirs|cwd|folder|root|source|destination|target|installable|flake_dir|repo_path|session_id|session_ids)$`)
 
 // Build returns the rows for every tool of every config, sorted by
 // server then tool.
@@ -91,14 +90,8 @@ func rowOf(server string, t *native.ToolSpec) Row {
 			}
 		}
 	}
-	if t.InputParsed != nil {
-		for name := range t.InputParsed.Properties {
-			if pathInput.MatchString(name) {
-				r.PathInputs = append(r.PathInputs, name)
-			}
-		}
-		sort.Strings(r.PathInputs)
-	}
+	r.PathInputs = native.PathLikeInputs(t.InputParsed)
+	r.PathExempt = t.PathExempt
 	return r
 }
 
@@ -161,12 +154,16 @@ func Render(rows []Row) string {
 	}
 
 	b.WriteString("\n## Ungated path readers (inferred)\n\n")
-	b.WriteString("always-allow, no `[resources]` stanza, and an input whose name looks like a path or id.\n\n")
+	b.WriteString("always-allow, no `[resources]` stanza, and an input whose name looks like a path or id. Since moxy#520 the moxin loader refuses such a tool unless it carries a `path-exempt` reason, which is shown here.\n\n")
 	if len(flagged) == 0 {
 		b.WriteString("none\n")
 	}
 	for _, r := range flagged {
-		fmt.Fprintf(&b, "- `%s.%s`: %s\n", r.Server, r.Tool, strings.Join(r.PathInputs, ", "))
+		fmt.Fprintf(&b, "- `%s.%s`: %s", r.Server, r.Tool, strings.Join(r.PathInputs, ", "))
+		if r.PathExempt != "" {
+			fmt.Fprintf(&b, " (exempt: %s)", r.PathExempt)
+		}
+		b.WriteString("\n")
 	}
 	return b.String()
 }

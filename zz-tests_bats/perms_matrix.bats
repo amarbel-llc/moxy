@@ -6,7 +6,9 @@
 # tier. The ungated path readers it flags are pinned here, so adding an
 # always-allow tool with a path-like input and no [resources] stanza fails
 # this lane until someone decides it (add a stanza, change the tier, or add it
-# to this list on purpose).
+# to this list on purpose). Since moxy#520 the moxin loader refuses such a tool
+# unless it carries a path-exempt reason, so this list is also the list of
+# exemptions, and each flagged line shows its reason.
 
 setup() {
   load "$BATS_TEST_DIRNAME/common.bash"
@@ -74,6 +76,19 @@ function the_ungated_path_readers_are_exactly_the_decided_list { # @test
   [ "$output" = "$expected" ] || {
     echo "ungated path readers changed:" >&2
     diff <(echo "$expected") <(echo "$output") >&2 || true
+    false
+  }
+}
+
+function every_flagged_reader_carries_its_exemption_reason { # @test
+  run "${MOXY_BIN:-moxy}" perms-matrix
+  [ "$status" -eq 0 ]
+  flagged=$(echo "$output" | sed -n '/^## Ungated path readers/,$p' | grep '^- `')
+  [ -n "$flagged" ]
+  unexempt=$(echo "$flagged" | grep -v ' (exempt: .\+)$' || true)
+  [ -z "$unexempt" ] || {
+    echo "flagged readers without a path-exempt reason:" >&2
+    echo "$unexempt" >&2
     false
   }
 }

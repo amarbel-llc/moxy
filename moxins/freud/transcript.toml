@@ -2,6 +2,7 @@ schema = 3
 result-type = "text"
 content-type = "application/x-ndjson"
 perms-request = "always-allow"
+path-exempt = "session_id is a UUID contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile"
 description = "Return the raw JSONL transcript for a single session, looked up by session id across all projects."
 command = "@BIN@/transcript"
 

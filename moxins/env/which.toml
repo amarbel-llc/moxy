@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "name is a bare program name looked up on PATH, not a path; it only reports whether the program exists"
 permit-async = false
 description = "Locate a program on PATH by bare name. Returns the absolute path if found, exits nonzero if not. Names containing '/' or starting with '-' are refused."
 command = "@BIN@/which"

@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "the input guard is the gate: store paths or installables only (moxy#495, chix_store_args.bats)"
 description = """Build a derivation and return the output store path(s). \
 Equivalent to nix-store -r. Accepts .drv paths or installables."""
 command = "@BIN@/store-realize"

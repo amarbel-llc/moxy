@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "flake_dir is unconstrained and init writes there; moxy#519 decides how to constrain it"
 permit-async = false
 description = "Initialize a new flake in the specified directory."
 command = "@BIN@/flake-init"

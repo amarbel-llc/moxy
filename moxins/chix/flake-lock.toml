@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "flake_dir is unconstrained and lock writes there; moxy#519 decides how to constrain it"
 description = "Create or update flake.lock without building. Args are passed literally to 'nix flake lock' — consult your system nix's 'nix flake lock --help' for supported options (syntax varies across nix versions)."
 command = "@BIN@/flake-lock"
 arg-order = ["args", "flake_dir"]

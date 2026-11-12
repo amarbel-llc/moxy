@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "name is an environment variable name, not a path; the no-name listing and an allowlist are the operator's open item in the permissions audit"
 permit-async = false
 description = "Print an environment variable from an allowlist (PATH, HOME, USER, PWD, SHELL, LANG, TZ, TMPDIR, CLAUDE_CODE_TMPDIR, SPINCLASS_SESSION_ID); exit 1 if unset. A name off the allowlist answers \"redacted: not on the env_get allowlist\", not \"unset\". Without a name, lists the allowlisted variables and says how many others were redacted."
 command = "@BIN@/get"

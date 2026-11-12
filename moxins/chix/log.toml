@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "the input guard is the gate: store paths, dot or dot-hash-attr, registry names or github/gitlab/sourcehut refs only (moxy#495, chix_store_args.bats)"
 description = "Returns the build log for a derivation or installable as text. Read-only, [perms: always-allow]."
 command = "@BIN@/log"
 arg-order = ["path"]

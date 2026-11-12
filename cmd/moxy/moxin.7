@@ -501,6 +501,28 @@ or
 .Sy always-allow
 tier.
 With no broker nothing changes: the tier alone decides.
+.Pp
+.Ss Undeclared path readers
+A tool on the
+.Sy always-allow
+tier with no
+.Sy [resources]
+table and an input whose name looks like a path or id
+.Pq Dq path , Dq file_path , Dq dir , Dq repo_path , Dq session_id , Dq name , Dq page ,
+and so on; the match is by name, not behaviour) is a load error for its whole
+moxin (moxy#520): nothing would look at what that input points at.
+Either name the input in
+.Sy [resources.<input>] ,
+or set the top-level
+.Sy path-exempt
+string to the reason none is needed
+.Pq for example, an input guard in the script is the gate .
+The reason is shown by
+.Xr moxy-perms-matrix 1 .
+A blank
+.Sy path-exempt ,
+or one on a tool the rule does not cover, is also a load error, so a stale
+exemption cannot hide the next real gap.
 .Sh DISCOVERY
 Moxin configs are discovered from directories listed in the
 .Ev MOXIN_PATH

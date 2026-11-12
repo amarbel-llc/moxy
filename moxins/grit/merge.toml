@@ -1,6 +1,7 @@
 schema = 3
 result-type = "text"
 perms-request = "always-allow"
+path-exempt = "repo_path has no floor, unlike the sibling grit tools; grit is leaving moxy (moxy#482)"
 permit-async = false
 description = "Merge a branch into the current branch"
 command = "@BIN@/merge"
