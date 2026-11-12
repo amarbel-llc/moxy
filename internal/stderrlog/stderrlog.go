@@ -38,9 +38,9 @@ var (
 	activePath    string
 	completedPath string
 	pidSidecar    string
-	// original is the process's stderr from before Init teed fd 2 into a
-	// pipe; nil until Init has done so.
-	original *os.File
+	// restoreFd is a descriptor for the process's stderr from before Init
+	// teed fd 2 into a pipe, kept for Drain; -1 until Init has done so.
+	restoreFd = -1
 	// copierDone is closed when the goroutine fanning the pipe out to the log
 	// and the terminal has seen EOF and finished; nil until Init has teed.
 	copierDone chan struct{}
@@ -59,14 +59,14 @@ var (
 // teed, and is safe to call again.
 func Drain(timeout time.Duration) bool {
 	mu.Lock()
-	orig, done := original, copierDone
+	restore, done := restoreFd, copierDone
 	mu.Unlock()
-	if orig == nil || done == nil {
+	if restore < 0 || done == nil {
 		return true
 	}
 	// fd 2 is the pipe's write end; replacing it drops this process's
 	// reference to it.
-	_ = dupOntoStderr(int(orig.Fd()))
+	_ = dupOntoStderr(restore)
 	select {
 	case <-done:
 		return true
@@ -129,9 +129,19 @@ func Init(version string) error {
 		return fmt.Errorf("dup original stderr: %w", err)
 	}
 	origStderr := os.NewFile(uintptr(origStderrFd), "stderr-orig")
+	// Drain's own copy of the original stderr: the copier goroutine closes
+	// origStderr when it finishes, so Drain must not touch that *os.File.
+	restore, err := syscall.Dup(origStderrFd)
+	if err != nil {
+		origStderr.Close()
+		f.Close()
+		return fmt.Errorf("dup original stderr for drain: %w", err)
+	}
+	syscall.CloseOnExec(restore)
 
 	pr, pw, err := os.Pipe()
 	if err != nil {
+		syscall.Close(restore)
 		origStderr.Close()
 		f.Close()
 		return fmt.Errorf("pipe: %w", err)
@@ -139,12 +149,13 @@ func Init(version string) error {
 	if err := dupOntoStderr(int(pw.Fd())); err != nil {
 		pr.Close()
 		pw.Close()
+		syscall.Close(restore)
 		origStderr.Close()
 		f.Close()
 		return fmt.Errorf("dup2 pipe onto stderr: %w", err)
 	}
 	pw.Close() // fd 2 now holds the write end; the Go *File is unneeded.
-	original = origStderr
+	restoreFd = restore
 	done := make(chan struct{})
 	copierDone = done
 
