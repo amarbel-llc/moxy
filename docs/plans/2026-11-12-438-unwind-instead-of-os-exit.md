@@ -1,56 +1,49 @@
-# moxy#438: unwind instead of os.Exit (needs an operator ruling)
+# moxy#438: unwind instead of os.Exit
 
-Status: question for the operator. No code change; the stopgap
-(`stderrlog.OriginalStderr()`, merged earlier) keeps a fatal startup error
-visible.
+Status: done, 2026-11-12, following the operator's ruling to take the
+recommendations below. The `dewey` `ActiveContext` adoption stays a possible
+later layer, not part of this.
 
-## State
+## The problem
 
-- The sidestep prints the final `moxy: %v` straight to the pre-tee stderr, so
-  a fatal startup error is visible again (lane `startup_errors`).
-- Still open, as the issue says: failure does not *unwind*. `os.Exit` skips
-  deferred cleanup and does not wait for the stderr copier goroutine, so the
-  banners can still be cut off and the final line never reaches the session
-  log.
-- Direct exit sites in moxy today (`rg 'os\.Exit|log\.Fatal'`):
-  - `cmd/moxy/main.go`: `os.Exit(status.Run(...))` inside a `RunCLI` closure
-    (below `main`, nothing above it unwinds); `log.Fatalf` ×2 (install-mcp,
-    generate-plugin); the final `os.Exit(exitUnreadable)` and `os.Exit(1)`.
-  - `cmd/moxy/narrowing.go`: `os.Exit(runNarrows(...))` in a closure.
-  - `cmd/toolbox/main.go`, `cmd/readguard/main.go`: small single-purpose
-    binaries; their exits sit at the top and nothing is deferred.
+`stderrlog.Init` tees fd 2 into a pipe that a copier goroutine fans out to the
+session log and the terminal. A fatal error printed just before `os.Exit` died
+in the pipe, because `os.Exit` does not wait for goroutines or run defers. An
+earlier stopgap wrote the final line to the pre-tee stderr (`OriginalStderr`),
+which fixed the terminal but not the log or the banners.
 
-## Questions
+## What changed
 
-1. **Adopt dewey's `errors.ActiveContext` for the command layer, or fix with
-   plain Go unwinding first?**
-   Recommended: **plain unwinding first, `ActiveContext` later if wanted.**
-   The goal (flushes and deferred cleanup run) needs only that every closure
-   return an error or an exit code to a single `func main() { os.Exit(run()) }`
-   tail call. `ActiveContext` is a larger design change (the issue's author
-   says its API was not studied) and can be layered on afterwards without
-   undoing this.
+1. **Plain unwinding, not `ActiveContext` first.** `main` is now
+   `func main() { os.Exit(run()) }`, the one permitted exit. Every command
+   returns an error or an exit code up to `run`: `install-mcp` and
+   `generate-plugin` no longer `log.Fatalf`; `status` and `narrows` no longer
+   `os.Exit` from inside a `RunCLI` closure.
+2. **An `exitCodeError`** (`cmd/moxy/exitcode.go`) carries "exit with this
+   code, print nothing" up from `status` and `narrows`, so their documented
+   codes stay (`narrows` still reserves 1 for "the child widens" and maps any
+   other error to 2). `exitWith(0)` is nil.
+3. **Drain, not sidestep.** `stderrlog.Drain(timeout)` puts fd 2 back on the
+   original stderr, which drops this process's reference to the pipe, and
+   waits for the copier to finish. `run` calls it after the final error line
+   and the stopping banner, with a 500 ms bound: a spawned child that still
+   runs keeps the pipe open (children inherit fd 2), so the wait is bounded
+   and a timeout loses nothing already copied. `OriginalStderr` and its
+   `TODO(#438)` are gone, and the final line now reaches the session log too
+   (the copier writes to the renamed file's open descriptor).
+4. **Lint (purse-first#186)** is another repo's work and still wanted. After
+   this change `rg 'os\.Exit|log\.Fatal'` in `cmd/moxy` finds only the tail
+   call in `main`; the small `cmd/toolbox` and `cmd/readguard` binaries exit
+   at the top of `main` with nothing deferred.
 
-2. **How should "exit with this code, no message" travel up (`status`,
-   `narrows`)?**
-   Recommended: **a small `exitCode` error type** that `run()` maps to the
-   process exit code without printing, so `status` and `narrows` keep their
-   documented exit codes (`narrows` reserves 1 for "the child widens").
+## Tests
 
-3. **Drain the stderr pipe on exit, or keep the sidestep?**
-   Recommended: **drain.** `stderrlog` should close the write end and wait
-   for the copier with a short timeout once `run()` returns, then the final
-   error line can go through the normal path and reach the session log; the
-   sidestep and its `TODO(#438)` go away. The hazard noted in the issue is real
-   (a child holding the write end would hang an unbounded wait), hence the
-   timeout; first confirm whether spawned children inherit `os.Stderr`.
-
-4. **Ban direct `os.Exit` with a lint (purse-first#186)?**
-   Recommended: **yes, once 1 to 3 land**; the analyzer is another repo's
-   work, so it is not part of this issue.
-
-## Not started because
-
-Items 1 and 3 choose between designs and touch `cmd/moxy/main.go` and
-`internal/stderrlog`, which a startup-path change elsewhere could also touch.
-Say which way to go and it is one merge.
+- `internal/stderrlog/drain_test.go` re-executes the test binary: the final
+  line reaches both the terminal and the session log after `Drain`, and a
+  child holding fd 2 open makes `Drain` give up in about 300 ms (false)
+  without losing the earlier line. Written before `Drain` existed and failing
+  to compile, then passing.
+- `cmd/moxy/exitcode_test.go` pins the exit-code mapping, including that a
+  `narrows` error is 2, not 1.
+- `zz-tests_bats/startup_errors.bats` now asserts the error line and the
+  stopping banner are in the completed session log, not only on the terminal.

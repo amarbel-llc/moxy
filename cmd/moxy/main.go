@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
 	"text/tabwriter"
+	"time"
 
 	"code.linenisgreat.com/purse-first/libs/go-mcp/command"
 	"code.linenisgreat.com/purse-first/libs/go-mcp/protocol"
@@ -256,8 +257,7 @@ func newApp() *command.App {
 			if err != nil {
 				return fmt.Errorf("getting cwd: %w", err)
 			}
-			os.Exit(status.Run(os.Stdout, home, cwd))
-			return nil
+			return exitWith(status.Run(os.Stdout, home, cwd))
 		},
 		Run: func(_ context.Context, _ json.RawMessage, _ command.Prompter) (*command.Result, error) {
 			home, err := os.UserHomeDir()
@@ -440,7 +440,19 @@ func newApp() *command.App {
 	return app
 }
 
+// main is the one place the process exits (moxy#438): everything below returns
+// an exit code or an error up to run, so deferred cleanup runs and the stderr
+// tee is drained before the process ends.
 func main() {
+	os.Exit(run())
+}
+
+// stderrDrainTimeout bounds the wait for the stderr copier at exit. A spawned
+// child server that is still running keeps the pipe open, so the wait must
+// end on its own.
+const stderrDrainTimeout = 500 * time.Millisecond
+
+func run() int {
 	// The binary keeps every diagnostic log it always had (debug, moxin.<pid>,
 	// lifecycle, hook, streamhttp under $XDG_LOG_HOME/moxy); the packages no
 	// longer open them at init, so an embedder of pkg/moxy writes none unless
@@ -454,36 +466,56 @@ func main() {
 		switch os.Args[1] {
 		case "install-mcp":
 			if err := app.InstallMCP(); err != nil {
-				log.Fatalf("installing MCP: %v", err)
+				return report(fmt.Errorf("installing MCP: %w", err))
 			}
 			if err := hook.InstallSettingsHook(); err != nil {
-				log.Fatalf("installing hook: %v", err)
+				return report(fmt.Errorf("installing hook: %w", err))
 			}
-			return
+			return 0
 		case "generate-plugin":
 			if err := app.HandleGeneratePlugin(os.Args[2:], os.Stdout); err != nil {
-				log.Fatalf("generating plugin: %v", err)
+				return report(fmt.Errorf("generating plugin: %w", err))
 			}
-			return
+			return 0
 		}
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	if err := app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}); err != nil {
-		// Not os.Stderr: under serve, fd 2 is a pipe whose copier goroutine
-		// os.Exit kills before it drains.
-		// TODO(#438): unwind instead of os.Exit, then drop this sidestep.
-		fmt.Fprintf(stderrlog.OriginalStderr(), "moxy: %v\n", err)
-		// `narrows` reserves exit 1 for "the child widens". An error that
-		// never reached the comparison — a flag with no value, say — must
-		// not be mistaken for that verdict by a caller reading exit codes.
-		if len(os.Args) > 1 && os.Args[1] == "narrows" {
-			os.Exit(exitUnreadable)
-		}
-		os.Exit(1)
+	code := exitCodeFor(app.RunCLI(ctx, os.Args[1:], command.StubPrompter{}), os.Args[1:])
+	// The final error line and the stopping banner went through the stderr
+	// tee's pipe; wait for them to reach the log and the terminal.
+	stderrlog.Drain(stderrDrainTimeout)
+	return code
+}
+
+// exitCodeFor maps what RunCLI returned to the process exit code, printing an
+// error that carries no code of its own. An exitCodeError is a command's own
+// verdict (status, narrows) and prints nothing.
+func exitCodeFor(err error, args []string) int {
+	if err == nil {
+		return 0
 	}
+	var coded exitCodeError
+	if errors.As(err, &coded) {
+		return coded.code
+	}
+	// `narrows` reserves exit 1 for "the child widens". An error that never
+	// reached the comparison — a flag with no value, say — must not be
+	// mistaken for that verdict by a caller reading exit codes.
+	if len(args) > 0 && args[0] == "narrows" {
+		report(err)
+		return exitUnreadable
+	}
+	return report(err)
+}
+
+// report prints a fatal error on os.Stderr (the stderr tee under serve) and
+// returns the generic failure exit code.
+func report(err error) int {
+	fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
+	return 1
 }
 
 // resolveSessionID returns a session identifier and its source label.

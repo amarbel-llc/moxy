@@ -41,20 +41,38 @@ var (
 	// original is the process's stderr from before Init teed fd 2 into a
 	// pipe; nil until Init has done so.
 	original *os.File
+	// copierDone is closed when the goroutine fanning the pipe out to the log
+	// and the terminal has seen EOF and finished; nil until Init has teed.
+	copierDone chan struct{}
 )
 
-// OriginalStderr returns the stderr moxy started with, bypassing the tee
-// Init installs on fd 2 (os.Stderr until then). A write to it reaches the
-// terminal synchronously, so a final error printed just before os.Exit is not
-// lost in the pipe the copier goroutine never gets to drain (moxy#438). Such
-// a write does not reach the per-session log file.
-func OriginalStderr() *os.File {
+// Drain puts fd 2 back on the stderr moxy started with and waits for the
+// copier goroutine to deliver what is still in the pipe to the log and the
+// terminal, so a final error printed just before the process ends is not lost
+// (moxy#438). It reports whether the copier finished within timeout.
+//
+// The copier sees EOF only when every holder of the pipe's write end has let
+// go, and a spawned child server inherits fd 2: one that is still running
+// keeps the pipe open, which is why the wait is bounded rather than a hang.
+// A Drain that times out loses nothing already copied; what a child writes
+// afterwards goes to the terminal alone. Drain does nothing when Init never
+// teed, and is safe to call again.
+func Drain(timeout time.Duration) bool {
 	mu.Lock()
-	defer mu.Unlock()
-	if original == nil {
-		return os.Stderr
+	orig, done := original, copierDone
+	mu.Unlock()
+	if orig == nil || done == nil {
+		return true
 	}
-	return original
+	// fd 2 is the pipe's write end; replacing it drops this process's
+	// reference to it.
+	_ = dupOntoStderr(int(orig.Fd()))
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 // Init opens the per-session stderr log and dup2's fd 2 onto it so os.Stderr,
@@ -127,8 +145,11 @@ func Init(version string) error {
 	}
 	pw.Close() // fd 2 now holds the write end; the Go *File is unneeded.
 	original = origStderr
+	done := make(chan struct{})
+	copierDone = done
 
 	go func() {
+		defer close(done)
 		defer pr.Close()
 		defer f.Close()
 		defer origStderr.Close()

@@ -91,8 +91,7 @@ func addNarrowingCommands(app *command.App) {
 			if err := json.Unmarshal(argsJSON, &args); err != nil {
 				return err
 			}
-			os.Exit(runNarrows(args.Parent, args.Child, args.JSON))
-			return nil
+			return exitWith(runNarrows(args.Parent, args.Child, args.JSON))
 		},
 	})
 
