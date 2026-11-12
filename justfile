@@ -1288,9 +1288,13 @@ debug-manix-timing query="services.tinyproxy":
   echo "cache dir: $cache"
   ls -la "$cache" 2>&1 || echo "(no cache dir yet)"
   TIMEFORMAT='%Rs'
+  out=$(mktemp)
+  trap 'rm -f "$out"' EXIT
   for i in 1 2; do
     echo "--- run $i ---"
-    time manix "{{query}}" --source nixos-options --source hm-options --source nd-options | head -n 5
+    # to a file, not through `head`: a closed pipe would fail the recipe
+    time manix "{{query}}" --source nixos-options --source hm-options --source nd-options >"$out" 2>&1
+    head -n 5 "$out"
   done
   echo "--- cache after ---"
   ls -la "$cache" 2>&1 || echo "(no cache dir)"
