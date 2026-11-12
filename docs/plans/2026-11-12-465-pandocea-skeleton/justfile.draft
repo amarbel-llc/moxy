@@ -1,0 +1,18 @@
+default: build
+
+# build the piers moxin (standalone read policy)
+build:
+  nix build .#piers -o result-piers
+
+# run the pinned gws with the given arguments (`just run-gws auth login`)
+run-gws *args:
+  nix run .#gws -- {{args}}
+
+# offline checks of the pandoc writer, no Google calls
+explore-pandoc-docs-poc-offline:
+  cd zz-pocs/pandoc-docs-poc && zx offline.mjs
+
+# There is no `test` recipe yet: zz-tests_bats/piers_*.bats `load 'common'`
+# (moxy's helper library: setup_test_home, run_moxy_mcp, ...) and the bats
+# libs, which this repo does not have. Porting the subset they use, and a nix
+# bats lane, is step 6 of docs/plans/2026-11-12-465-pandocea-extraction.md.

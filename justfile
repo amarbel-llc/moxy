@@ -1274,6 +1274,91 @@ debug-py-typecheck:
 explore-claude-p: build-nix
   bin/explore-claude-p.bash "{{justfile_directory()}}"
 
+# Time `manix` twice on the same query and show where it keeps its cache, to
+# see whether the second run is fast (cache kept) or as slow as the first
+# (rebuilt per call), the theory behind chix.doc-options timing out (moxy#436).
+# Heavy: the first run builds manix's option index for three sources.
+#
+# time manix twice and show its cache
+[group("debug")]
+debug-manix-timing query="services.tinyproxy":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cache="${XDG_CACHE_HOME:-$HOME/.cache}/manix"
+  echo "cache dir: $cache"
+  ls -la "$cache" 2>&1 || echo "(no cache dir yet)"
+  TIMEFORMAT='%Rs'
+  for i in 1 2; do
+    echo "--- run $i ---"
+    time manix "{{query}}" --source nixos-options --source hm-options --source nd-options | head -n 5
+  done
+  echo "--- cache after ---"
+  ls -la "$cache" 2>&1 || echo "(no cache dir)"
+
+# Rehearse the pandocea split (moxy#465): clone this checkout into
+# .tmp/pandocea-extract and rewrite that clone with git-filter-repo so it keeps
+# only piers' paths, with their history. Local and reversible: nothing is
+# pushed, no repository is created, this checkout is untouched. Paths keep
+# their names (moxins/piers/..., zz-tests_bats/piers_*), so `git log --follow`
+# and mkBunMoxin's `./moxins/<name>/src` fileset work unchanged. The path list
+# is the contract with docs/plans/2026-11-12-465-pandocea-extraction.md.
+#
+# rehearse the history-preserving piers extraction into a scratch clone
+[group("explore")]
+explore-pandocea-extract:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  scratch="{{justfile_directory()}}/.tmp/pandocea-extract"
+  rm -rf "$scratch"
+  git clone --no-local --quiet "{{justfile_directory()}}" "$scratch"
+  cd "$scratch"
+  nix run nixpkgs#git-filter-repo -- --force \
+    --path moxins/piers \
+    --path zz-pocs/pandoc-docs-poc \
+    --path zz-tests_bats/piers_tools.bats \
+    --path zz-tests_bats/piers_markdown.bats \
+    --path zz-tests_bats/piers_images.bats \
+    --path zz-tests_bats/piers_stub.bash \
+    --path moxin-lib/gws-run.ts \
+    --path package.json \
+    --path bun.lock \
+    --path bun.nix
+  echo "--- extracted: $scratch ---"
+  echo "commits: $(git rev-list --count HEAD)"
+  echo "files:   $(git ls-files | wc -l)"
+  echo "first:   $(git log --reverse --format='%ci %s' | head -n1)"
+  echo "last:    $(git log -1 --format='%ci %s')"
+  echo "piers:   $(git log --reverse --format='%ci %s' -- moxins/piers | head -n1)"
+  git ls-files | cut -d/ -f1-2 | sort | uniq -c
+
+# Lay the pandocea skeleton (docs/plans/2026-11-12-465-pandocea-skeleton/*.draft)
+# over the extracted scratch clone and build the moxin there, which is the check
+# that the skeleton's flake works against the extracted history. Staged, not
+# committed, in the scratch clone only; nothing leaves this machine.
+#
+# build the extracted piers with the pandocea skeleton in the scratch clone
+[group("explore")]
+explore-pandocea-skeleton: explore-pandocea-extract
+  #!/usr/bin/env bash
+  set -euo pipefail
+  skel="{{justfile_directory()}}/docs/plans/2026-11-12-465-pandocea-skeleton"
+  scratch="{{justfile_directory()}}/.tmp/pandocea-extract"
+  for f in "$skel"/*.draft; do
+    cp "$f" "$scratch/$(basename "$f" .draft)"
+  done
+  printf 'result-*\n.tmp\n' >"$scratch/.gitignore"
+  cd "$scratch"
+  git add -A
+  nix build --print-build-logs .#piers -o result-piers
+  echo "--- built: $(readlink result-piers) ---"
+  ls result-piers result-piers/bin
+  # the placeholders must all be substituted
+  if grep -rE '@(BIN|FOLIO_PERMS|PIERS_DOCS_WRITER)@' result-piers/*.toml result-piers/bin 2>/dev/null; then
+    echo "unsubstituted placeholder left in the built moxin" >&2
+    exit 1
+  fi
+  echo "placeholders: all substituted"
+
 # POC for #456/#457/#453: a pandoc custom Lua writer emitting Docs API
 # batchUpdate requests. Offline phase checks the requests against the text
 # they insert; no Google calls. Driver self-asserts.

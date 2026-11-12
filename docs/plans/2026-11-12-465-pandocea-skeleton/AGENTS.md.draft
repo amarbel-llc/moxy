@@ -1,0 +1,36 @@
+# AGENTS.md
+
+pandocea turns markdown into Google Docs. Its first product is `piers`, an MCP
+moxin (Google Docs: read, create, edit, comment, rename) that moxy serves; the
+converter is a pandoc custom Lua writer plus a request runtime.
+
+## Layout
+
+- `moxins/piers/` -- the moxin: one TOML per tool and `src/*.ts` (bun + zx).
+  `src/docs-requests.lua` is the pandoc writer that emits Docs API
+  `batchUpdate` requests; `src/docs-markdown.ts` sends them; `src/images.ts`
+  renders and hosts images and PlantUML diagrams; `src/gws.ts` is piers' layer
+  over the gws runner.
+- `moxin-lib/gws-run.ts` -- the gws runner: gws runs from a scratch directory
+  and a failure is one line. Copied from moxy, where car, prison, gmail and
+  calendar share it; keep the two in step until a common home exists.
+- `zz-tests_bats/piers_*.bats`, `piers_stub.bash` -- bats against a stub gws.
+  They still `load 'common'` from moxy's helper library, so they do not run
+  here until it is ported.
+- `zz-pocs/pandoc-docs-poc/` -- the experiment the writer grew from.
+
+## Build
+
+- `just build` builds `.#piers` with a standalone read-policy stand-in.
+- Consumers (moxy) call `pandocea.lib.<system>.mkPiers folioPerms`, passing
+  their own read-policy script for the `@FOLIO_PERMS@` placeholder in the
+  create and update tomls.
+- `GWS_BIN` names the gws binary; tests point it at a stub.
+
+## Conventions
+
+- Justfile recipes are the paved paths; do not run ad hoc shell for repeated
+  work.
+- `version.env` is the one version source.
+- Moxin dependencies come through nix wrapping (`mkBunMoxin`), never ambient
+  PATH.

@@ -1,0 +1,256 @@
+{
+  description = "pandocea: markdown to Google Docs, and the piers MCP moxin built on it";
+
+  # Skeleton for the repository moxy#465 extracts piers into. It is built from
+  # moxy's own flake (the mkBunMoxin helper and the piers wiring are copied from
+  # it) and was checked only by building `.#piers` in the scratch clone that
+  # `just explore-pandocea-extract` makes; see
+  # docs/plans/2026-11-12-465-pandocea-extraction.md.
+  inputs = {
+    igloo.url = "https://code.linenisgreat.com/igloo/archive/master.tar.gz";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/b4fd65b198c599cbe814fcb9f42d25d021595ec9";
+    utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
+
+    igloo.inputs.nixpkgs-master.follows = "nixpkgs-master";
+    utils.inputs.systems.follows = "igloo/systems";
+  };
+
+  outputs =
+    {
+      self,
+      igloo,
+      utils,
+      ...
+    }:
+    utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = import igloo { inherit system; };
+
+        # version.env is the single version source (eng-versioning(7)).
+        pandoceaVersion = builtins.head (
+          builtins.match ".*PANDOCEA_VERSION=([^\n]+).*" (builtins.readFile ./version.env)
+        );
+
+        # The pinned google-workspace-cli (a third-party binary, not
+        # pandocea's version). Copied from moxy's flake: pandocea pins its own.
+        gwsRelease = "0.22.5";
+        gwsPlatform =
+          {
+            "aarch64-darwin" = {
+              name = "aarch64-apple-darwin";
+              hash = "sha256-HSqf/VvJssLEtIYw2vCC+tE9nlfXQZiKLCSO7VYvfaw=";
+            };
+            "x86_64-darwin" = {
+              name = "x86_64-apple-darwin";
+              hash = "sha256-Ufm9cxQE1LuibDbi4w3WjFbczR+DTAElLLCxTWplRLI=";
+            };
+            "x86_64-linux" = {
+              name = "x86_64-unknown-linux-gnu";
+              hash = "sha256-3njs29LxqEzKAGOn7LxEAkD8FLbrzLsX9GRreSqMXB8=";
+            };
+            "aarch64-linux" = {
+              name = "aarch64-unknown-linux-gnu";
+              hash = "sha256-lEkCldlYDh6IV05xWgoWKZF0fRLWL4x7jcyCaLbBzqA=";
+            };
+          }
+          .${system} or (throw "gws: unsupported system ${system}");
+
+        gws-bin = pkgs.stdenv.mkDerivation {
+          pname = "gws";
+          version = gwsRelease;
+          src = pkgs.fetchurl {
+            url = "https://github.com/googleworkspace/cli/releases/download/v${gwsRelease}/google-workspace-cli-${gwsPlatform.name}.tar.gz";
+            hash = gwsPlatform.hash;
+          };
+          sourceRoot = ".";
+          # The release is a prebuilt glibc ELF whose interpreter is absent on
+          # NixOS and in the build sandbox, so on Linux it is repointed at the
+          # Nix glibc loader. Darwin's Mach-O needs no patching.
+          nativeBuildInputs = pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.autoPatchelfHook;
+          buildInputs = pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.stdenv.cc.cc.lib;
+          installPhase = ''
+            mkdir -p $out/bin
+            cp gws $out/bin/gws
+            chmod +x $out/bin/gws
+          '';
+          meta.mainProgram = "gws";
+        };
+
+        # Copied from moxy's flake.nix (mkBunMoxin): bundles a moxin's
+        # moxins/<name>/src entrypoints with bun and wraps them with PATH deps.
+        # Replace this copy with moxy's lib export if moxy#302 / #434 lands.
+        # extraSubstitutions: `@NAME@` placeholders inside the sources;
+        # tomlSubstitutions: `@NAME@` placeholders in the built moxin tree.
+        mkBunMoxin =
+          name: deps: extraEntrypoints:
+          {
+            pathMode ? "set",
+            extraWrapArgs ? [ ],
+            extraSubstitutions ? { },
+            tomlSubstitutions ? { },
+          }:
+          let
+            rawSrc = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = pkgs.lib.fileset.unions [
+                ./moxins/${name}/src
+                # the shared gws runner the moxin imports
+                ./moxin-lib
+                ./package.json
+                ./bun.lock
+              ];
+            };
+            src =
+              if extraSubstitutions == { } then
+                rawSrc
+              else
+                pkgs.runCommand "${name}-moxin-src" { } (
+                  ''
+                    cp -rL ${rawSrc} $out
+                    chmod -R u+w $out
+                  ''
+                  + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                    for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                      substitute "$f" "$f" --replace-fail "@${placeholder}@" "${extraSubstitutions.${placeholder}}"
+                    done
+                  '') (builtins.attrNames extraSubstitutions)
+                );
+            bunBinaries = pkgs.buildBunBinaries {
+              pname = "${name}-moxin-scripts";
+              version = pandoceaVersion;
+              inherit src;
+              bunNix = ./bun.nix;
+              entrypoints = extraEntrypoints;
+              runtimeInputs = deps;
+              bunBuildFlags = [ "--sourcemap=inline" ];
+            };
+          in
+          pkgs.runCommand "${name}-moxin"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ] ++ deps;
+            }
+            (
+              ''
+                cp -r ${./moxins/${name}} $out
+                chmod -R u+w $out
+                rm -rf $out/src
+                mkdir -p $out/bin
+                bundle_dir=""
+                for f in ${bunBinaries}/bin/*; do
+                  bundle_dir=$(grep -oE '/nix/store/[^/]+' "$f" | grep bundle | head -1)
+                  [ -n "$bundle_dir" ] && break
+                done
+                for f in ${bunBinaries}/bin/*; do
+                  binname=$(basename "$f")
+                  jsfile="$binname.js"
+                  if [ -f "$bundle_dir/$jsfile" ]; then
+                    js_path="$bundle_dir/$jsfile"
+                  else
+                    js_path=$(find "$bundle_dir" -name "$jsfile" -type f | head -1)
+                  fi
+                  if [ -z "$js_path" ]; then
+                    echo "ERROR: could not find $jsfile in $bundle_dir" >&2
+                    exit 1
+                  fi
+                  bun_bin=$(grep -oE '/nix/store/[^ ]+/bin/bun' "$f" | head -1)
+                  cat > "$out/bin/$binname" <<WRAPPER
+                #!${pkgs.bash}/bin/bash
+                exec $bun_bin $js_path "\$@"
+                WRAPPER
+                  chmod +x "$out/bin/$binname"
+                done
+                for f in $out/bin/*; do
+                  wrapProgram "$f" \
+                    ${
+                      if pathMode != "inherit" then
+                        "--${pathMode} PATH ${if pathMode == "set" then "" else ": "}${pkgs.lib.makeBinPath deps}"
+                      else
+                        ""
+                    } \
+                    --unset LD_LIBRARY_PATH \
+                    ${pkgs.lib.concatStringsSep " " extraWrapArgs}
+                done
+                for f in $(grep -rl '@BIN@' $out); do
+                  substitute "$f" "$f" --replace-fail "@BIN@" "$out/bin"
+                done
+              ''
+              + pkgs.lib.concatMapStringsSep "\n" (placeholder: ''
+                for f in $(grep -rl "@${placeholder}@" $out 2>/dev/null || true); do
+                  substitute "$f" "$f" --replace-fail "@${placeholder}@" "${tomlSubstitutions.${placeholder}}"
+                done
+              '') (builtins.attrNames tomlSubstitutions)
+            );
+
+        gwsDeps = [
+          pkgs.bash
+          pkgs.coreutils
+          gws-bin
+        ];
+        # pandoc parses the markdown, docs-requests.lua is its custom writer,
+        # rsvg-convert rasterizes SVG and plantuml renders diagrams. The last
+        # two draw text through fontconfig, which finds no fonts in a build
+        # sandbox or on a non-NixOS host, so a default font set is pinned.
+        piersDeps = gwsDeps ++ [
+          pkgs.librsvg
+          pkgs.pandoc
+          pkgs.plantuml
+        ];
+        piersFontsConf = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
+
+        # The moxin, parameterised by the read-policy script create and update
+        # use for content_path and base_dir (`@FOLIO_PERMS@` in their tomls).
+        # moxy passes its own folio-perms here; pandocea does not input moxy,
+        # so the two flakes form no cycle.
+        mkPiers =
+          folioPerms:
+          mkBunMoxin "piers" piersDeps
+            {
+              "get" = "moxins/piers/src/get.ts";
+              "create" = "moxins/piers/src/create.ts";
+              "update" = "moxins/piers/src/update.ts";
+              "batch-update" = "moxins/piers/src/batch-update.ts";
+              "comment" = "moxins/piers/src/comment.ts";
+              "outline" = "moxins/piers/src/outline.ts";
+              "tab" = "moxins/piers/src/tab.ts";
+              "rename" = "moxins/piers/src/rename.ts";
+            }
+            {
+              extraWrapArgs = [
+                "--set-default"
+                "FONTCONFIG_FILE"
+                "${piersFontsConf}"
+              ];
+              extraSubstitutions.PIERS_DOCS_WRITER = "${./moxins/piers/src/docs-requests.lua}";
+              tomlSubstitutions.FOLIO_PERMS = "${folioPerms}";
+            };
+
+        # Standalone builds and tests have no read policy to defer to; this
+        # stand-in allows everything and says so. moxy never uses it.
+        standaloneFolioPerms = pkgs.writeShellScript "folio-perms-standalone" ''
+          echo "pandocea standalone: no read policy"
+          exit 0
+        '';
+      in
+      {
+        lib.mkPiers = mkPiers;
+
+        packages = {
+          piers = mkPiers standaloneFolioPerms;
+          gws = gws-bin;
+          default = self.packages.${system}.piers;
+        };
+
+        devShells.default = pkgs.mkShell {
+          packages = [
+            gws-bin
+            pkgs.bun
+            pkgs.just
+            pkgs.pandoc
+            pkgs.plantuml
+            pkgs.librsvg
+          ];
+        };
+      }
+    );
+}
