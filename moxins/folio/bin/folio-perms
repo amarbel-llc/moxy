@@ -8,6 +8,14 @@
 #   rm           — like write, but each positional is a possibly-space-
 #                  separated path list that is split before checking
 #                  (mirrors folio.rm's `paths` input shape)
+#   exec         — the paths name directories whose code will be RUN (a nix
+#                  build or run, moxy#519). Narrower than write: only inside
+#                  CWD (the session worktree) passes. A sibling repo is
+#                  readable but is another session's tree; the Claude write
+#                  dirs and /nix/store hold no code to run from here. The
+#                  path is resolved fully, a symlinked leaf included, since
+#                  exec runs what the path points at. An empty path is the
+#                  CWD, like an omitted input.
 #   copy|move    — apply read policy to $2 (source), write policy to $3 (dest)
 #   link         — apply read policy to $2 (source), write policy to $3 (target)
 #
@@ -34,7 +42,7 @@ set -euo pipefail
 op="${1:-}"
 shift || true
 if [ -z "$op" ]; then
-  echo "folio-perms: op (read|write|rm|copy|move|link) required" >&2
+  echo "folio-perms: op (read|write|exec|rm|copy|move|link) required" >&2
   exit 2
 fi
 
@@ -185,7 +193,25 @@ check_write() {
   exit 1
 }
 
+check_exec() {
+  local p="$1" resolved
+  # Unlike read and write, follow the leaf: exec runs what the path points at.
+  resolved=$(realpath -m -- "$p")
+  if within_dir "$resolved" "$cwd_real"; then
+    return 0
+  fi
+  echo "$p resolves outside CWD — confirmation required for exec"
+  exit 1
+}
+
 case "$op" in
+  exec)
+    for p in "$@"; do
+      [ -n "$p" ] && check_exec "$p"
+    done
+    echo "all paths inside CWD — auto-allowed to exec"
+    exit 0
+    ;;
   read)
     for path in "$@"; do
       [ -z "$path" ] && continue
@@ -236,7 +262,7 @@ case "$op" in
     exit 0
     ;;
   *)
-    echo "folio-perms: unknown op '$op' (want read|write|rm|copy|move|link)" >&2
+    echo "folio-perms: unknown op '$op' (want read|write|exec|rm|copy|move|link)" >&2
     exit 2
     ;;
 esac

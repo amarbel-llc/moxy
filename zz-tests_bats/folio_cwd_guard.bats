@@ -317,6 +317,90 @@ function folio_perms_unknown_op_denied { # @test
   [ "$status" -eq 2 ]
 }
 
+# ----- exec (moxy#519): running code from a directory -----
+#
+# Narrower than write: only the CWD (the session worktree) is allowed. A
+# sibling checkout is readable but another session's tree, and the Claude
+# write dirs hold notes, not code to run. The path is resolved all the way,
+# a symlinked leaf included, because exec runs what the path points at.
+
+function folio_perms_exec_allows_cwd_and_a_subdirectory { # @test
+  setup_perms
+  mkdir -p "$HOME/project/sub"
+  cd "$HOME/project"
+
+  PWD="$HOME/project" run "$PERMS" exec .
+  [ "$status" -eq 0 ]
+  PWD="$HOME/project" run "$PERMS" exec sub
+  [ "$status" -eq 0 ]
+  PWD="$HOME/project" run "$PERMS" exec "$HOME/project/sub"
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_exec_with_no_path_is_the_cwd { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  PWD="$HOME/project" run "$PERMS" exec ""
+  [ "$status" -eq 0 ]
+}
+
+function folio_perms_exec_asks_in_a_sibling_repo_though_read_allows_it { # @test
+  setup_perms
+  mkdir -p "$HOME/repos/myrepo" "$HOME/repos/sibling"
+  git -C "$HOME/repos/myrepo" init -q
+  cd "$HOME/repos/myrepo"
+
+  PWD="$HOME/repos/myrepo" run "$PERMS" read "$HOME/repos/sibling"
+  [ "$status" -eq 0 ]
+  PWD="$HOME/repos/myrepo" run "$PERMS" exec "$HOME/repos/sibling"
+  [ "$status" -eq 1 ]
+  [[ $output == *"confirmation required for exec"* ]]
+}
+
+function folio_perms_exec_asks_in_a_claude_write_dir { # @test
+  setup_perms
+  mkdir -p "$HOME/project" "$HOME/.claude/plans"
+  cd "$HOME/project"
+
+  PWD="$HOME/project" run "$PERMS" write "$HOME/.claude/plans"
+  [ "$status" -eq 0 ]
+  PWD="$HOME/project" run "$PERMS" exec "$HOME/.claude/plans"
+  [ "$status" -eq 1 ]
+}
+
+function folio_perms_exec_asks_outside_and_in_the_nix_store { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" run "$PERMS" exec /var/empty
+  [ "$status" -eq 1 ]
+  PWD="$HOME/project" run "$PERMS" exec /nix/store/foo
+  [ "$status" -eq 1 ]
+}
+
+function folio_perms_exec_follows_a_symlinked_directory_out_of_the_cwd { # @test
+  setup_perms
+  mkdir -p "$HOME/project" "$HOME/elsewhere"
+  cd "$HOME/project"
+  ln -s "$HOME/elsewhere" linked
+
+  # write and read judge the link's own location; exec runs what it points at.
+  PWD="$HOME/project" run "$PERMS" exec linked
+  [ "$status" -eq 1 ]
+}
+
+function folio_perms_exec_checks_every_positional { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" run "$PERMS" exec . /var/empty
+  [ "$status" -eq 1 ]
+}
+
 # ----- Regression: result-symlink canonicalization (#253, #256) -----
 #
 # A `result` symlink at the worktree root (produced by `nix build`) points
