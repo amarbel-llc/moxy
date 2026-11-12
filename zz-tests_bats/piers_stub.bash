@@ -38,10 +38,16 @@ set -euo pipefail
 { printf '%s\t' "$@"; printf '\n'; } >>"$GWS_STUB_LOG"
 # gws saves a non-JSON reply as download.<ext> in its cwd (#458).
 if [ -n "${GWS_STUB_WRITE_DOWNLOAD:-}" ]; then : >download.html; fi
-upload="" json="" params=""
+# Every call fails, as gws does on an auth or network error (#467).
+if [ -n "${GWS_STUB_FAIL_ALL:-}" ]; then
+  echo '{"error":{"message":"stub boom"}}'
+  exit 1
+fi
+upload="" json="" params="" output=""
 args=("$@")
 for ((i = 0; i < $#; i++)); do
   case "${args[i]}" in
+  --output) output="${args[i + 1]}" ;;
   --upload) upload="${args[i + 1]}" ;;
   --json) json="${args[i + 1]}" ;;
   --params) params="${args[i + 1]}" ;;
@@ -131,6 +137,14 @@ case "$1 $2 $3" in
   printf '%s' "$params" >"$GWS_STUB_DIR/reply-params.json"
   printf '%s' "$json" >"$GWS_STUB_DIR/reply.json"
   echo '{"id":"r1"}'
+  ;;
+"drive files get")
+  echo '{"id":"stub-doc","name":"Stub Doc","mimeType":"application/vnd.google-apps.document","webViewLink":"https://docs.google.com/document/d/stub-doc"}'
+  ;;
+"drive files export")
+  # gws writes the export to --output, relative to its cwd
+  printf 'exported by the stub' >"$output"
+  echo '{"status":"success"}'
   ;;
 "drive files update")
   printf '%s' "$params" >"$GWS_STUB_DIR/rename-params.json"

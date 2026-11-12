@@ -1,7 +1,4 @@
-import { $ } from "zx";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
+import { gwsPassthrough } from "../../../moxin-lib/gws-run";
 
 const [daysStr, calendar, timezone] = process.argv.slice(2);
 
@@ -23,12 +20,4 @@ if (timezone) {
 }
 
 const params = JSON.stringify(p);
-const result = await $`gws calendar events list --params ${params}`;
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      { type: "text", text: result.stdout, mimeType: "application/json" },
-    ],
-  }),
-);
+await gwsPassthrough(["calendar", "events", "list", "--params", params]);

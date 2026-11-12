@@ -448,6 +448,8 @@
                 with pkgs.lib.fileset;
                 unions [
                   ./moxins/${name}/src
+                  # shared TypeScript the gws moxins import (moxy#467)
+                  ./moxin-lib
                   ./package.json
                   ./bun.lock
                 ];

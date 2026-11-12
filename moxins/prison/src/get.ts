@@ -1,7 +1,4 @@
-import { $ } from "zx";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
+import { gwsPassthrough } from "../../../moxin-lib/gws-run";
 
 const [spreadsheetId, range] = process.argv.slice(2);
 
@@ -10,12 +7,11 @@ const params = JSON.stringify({
   range: range || "Sheet1",
 });
 
-const result = await $`gws sheets spreadsheets values get --params ${params}`;
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      { type: "text", text: result.stdout, mimeType: "application/json" },
-    ],
-  }),
-);
+await gwsPassthrough([
+  "sheets",
+  "spreadsheets",
+  "values",
+  "get",
+  "--params",
+  params,
+]);

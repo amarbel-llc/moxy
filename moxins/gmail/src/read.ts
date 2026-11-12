@@ -1,7 +1,4 @@
-import { $ } from "zx";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
+import { gwsPassthrough } from "../../../moxin-lib/gws-run";
 
 const [id] = process.argv.slice(2);
 
@@ -11,12 +8,4 @@ const params = JSON.stringify({
   format: "full",
 });
 
-const result = await $`gws gmail users messages get --params ${params}`;
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      { type: "text", text: result.stdout, mimeType: "application/json" },
-    ],
-  }),
-);
+await gwsPassthrough(["gmail", "users", "messages", "get", "--params", params]);

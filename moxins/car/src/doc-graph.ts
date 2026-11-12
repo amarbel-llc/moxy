@@ -1,7 +1,7 @@
-import { $ } from "zx";
 import { mkdtemp, readFile, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { gwsText } from "../../../moxin-lib/gws-run";
 import {
   extractFileId,
   extractLinksFromHtml,
@@ -13,9 +13,6 @@ import {
   extractOutline,
   type DocTab,
 } from "./gws-links.ts";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
 
 const MAX_NODES = 50;
 
@@ -64,31 +61,45 @@ const queue: { fileId: string; depth: number }[] = [
 
 async function fetchMetadata(
   fileId: string,
+  dir: string,
 ): Promise<{ name: string; mimeType: string; webViewLink: string }> {
   const params = JSON.stringify({
     fileId,
     fields: "id,name,mimeType,webViewLink",
   });
-  const result = await $`gws drive files get --params ${params}`;
-  return JSON.parse(result.stdout);
+  return JSON.parse(
+    await gwsText(dir, ["drive", "files", "get", "--params", params]),
+  );
 }
 
 async function exportHtml(fileId: string, dir: string): Promise<string> {
-  const tmp = join(dir, "export.html");
   const params = JSON.stringify({ fileId, mimeType: "text/html" });
-  await $`gws drive files export --params ${params} --output ${tmp}`;
-  return readFile(tmp, "utf-8");
+  // gws refuses an --output path outside its cwd (#447): the scratch dir is
+  // its cwd and the name is relative to it.
+  await gwsText(dir, [
+    "drive",
+    "files",
+    "export",
+    "--params",
+    params,
+    "--output",
+    "export.html",
+  ]);
+  return readFile(join(dir, "export.html"), "utf-8");
 }
 
 const DOCS_MIME = "application/vnd.google-apps.document";
 
-async function fetchOutline(fileId: string): Promise<DocTab[]> {
+async function fetchOutline(fileId: string, dir: string): Promise<DocTab[]> {
   const params = JSON.stringify({
     documentId: fileId,
     includeTabsContent: true,
   });
-  const result = await $`gws docs documents get --params ${params}`;
-  return extractOutline(JSON.parse(result.stdout));
+  return extractOutline(
+    JSON.parse(
+      await gwsText(dir, ["docs", "documents", "get", "--params", params]),
+    ),
+  );
 }
 
 function addStructureNodes(fileId: string, tabs: DocTab[]) {
@@ -148,7 +159,7 @@ try {
 
     let meta: { name: string; mimeType: string; webViewLink: string };
     try {
-      meta = await fetchMetadata(fileId);
+      meta = await fetchMetadata(fileId, dir);
     } catch {
       gwsNodes.set(fileId, {
         id: fileId,
@@ -172,7 +183,7 @@ try {
 
     if (meta.mimeType === DOCS_MIME) {
       try {
-        const tabs = await fetchOutline(fileId);
+        const tabs = await fetchOutline(fileId, dir);
         addStructureNodes(fileId, tabs);
       } catch {}
     }

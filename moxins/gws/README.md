@@ -17,7 +17,15 @@ moxins:
 
 | Tool | Description |
 |------|-------------|
-| `api` | Raw gws API call (debugging) |
+| `api` | Raw gws API call (debugging); `json` carries a request body |
+
+`car`, `prison`, `gmail`, `calendar` and `api` run gws through one shared
+runner, `moxin-lib/gws-run.ts` (bundled into each moxin by `mkBunMoxin`): gws
+runs from a scratch directory, since it saves a non-JSON reply as
+`download.<ext>` in its cwd and loads a `.env` from there (#458), and a failure
+is one line naming the gws command and its message rather than a zx stack
+(#467). `piers` keeps its own copy in `moxins/piers/src/gws.ts`. `GWS_BIN`
+names the gws binary, for tests.
 
 ## Markdown in piers
 

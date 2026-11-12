@@ -1,7 +1,4 @@
-import { $ } from "zx";
-
-$.verbose = false;
-$.stdio = ["pipe", "pipe", "ignore"];
+import { gwsPassthrough } from "../../../moxin-lib/gws-run";
 
 const [folderId, pageSize] = process.argv.slice(2);
 
@@ -12,12 +9,4 @@ const params = JSON.stringify({
   orderBy: "name",
 });
 
-const result = await $`gws drive files list --params ${params}`;
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      { type: "text", text: result.stdout, mimeType: "application/json" },
-    ],
-  }),
-);
+await gwsPassthrough(["drive", "files", "list", "--params", params]);
