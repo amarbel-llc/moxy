@@ -1235,6 +1235,23 @@ func (p *Proxy) callToolV1(
 		return p.callResourceTemplates(ctx, child)
 	}
 
+	// A tool the server's [servers.annotations] filter hides from tools/list is
+	// not callable either (moxy#450), like the --expose, exclude and
+	// allow-tools gates above. The child's own tool list is read per call, so
+	// the verdict is never staler than the list a client saw.
+	if child.Config.Annotations != nil {
+		hidden, err := toolHiddenByFilter(ctx, child.Client, toolName, child.Config.Annotations)
+		if err != nil {
+			return protocol.ErrorResultV1(fmt.Sprintf(
+				"cannot check the [servers.annotations] filter of server %q: %v",
+				serverName, err,
+			)), nil
+		}
+		if hidden {
+			return annotationRefusal(serverName, toolName), nil
+		}
+	}
+
 	params := protocol.ToolCallParams{
 		Name:      toolName,
 		Arguments: args,
@@ -2102,6 +2119,15 @@ func (p *Proxy) callToolEphemeral(
 	toolName string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
+	// The filter hides a tool from tools/list, so it is not callable either
+	// (moxy#450); an ephemeral server's tool list is the one probed at
+	// startup. The synthetic resource tools are not filtered at listing.
+	if meta, ok := p.ephemeral[serverName]; ok && meta.Config.Annotations != nil &&
+		toolName != "resource-read" && toolName != "resource-templates" &&
+		ephemeralToolHiddenByFilter(meta, toolName) {
+		return annotationRefusal(serverName, toolName), nil
+	}
+
 	client, err := p.spawnEphemeral(ctx, serverName)
 	if err != nil {
 		return protocol.ErrorResultV1(

@@ -633,16 +633,14 @@ An empty filter
 .Pq Li "annotations = {}"
 passes nothing and is not the same as no filter.
 .Pp
-Be aware that an annotation filter only hides tools from the tool list:
+An annotation filter is enforced when a tool is called as well as when tools are
+listed: a tool the filter hides is neither listed nor callable, so a client that
+knows its name still gets a refusal.
 .Xr moxy 1
-does not check it when a tool is called, so a client that knows a hidden tool's
-name can still call it.
-The rule above keeps a child from
-.Em listing
-more than its parent; it does not make a filter a boundary.
-Use
-.Va allow-tools
-for that.
+reads the server's tool list on each call to a filtered server to decide, and
+refuses the call if that list cannot be read.
+A tool the server does not list is left to the server to report as unknown.
+The rule above therefore keeps a child from reaching more than its parent.
 .Pp
 .Va ephemeral ,
 .Va progressive-disclosure ,

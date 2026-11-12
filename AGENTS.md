@@ -222,7 +222,9 @@ Unknown resource reads return structured JSON hints pointing agents to
 
 Server configs can include `[servers.annotations]` filters (`readOnlyHint`,
 `destructiveHint`, `idempotentHint`, `openWorldHint`) to expose only tools
-matching specific annotation values from a child server.
+matching specific annotation values from a child server. A tool the filter
+hides is neither listed nor callable (moxy#450, `internal/proxy/annotation_gate.go`:
+the filtered server's tool list is read per call; unreadable fails closed).
 
 ### Pagination
 

@@ -43,7 +43,7 @@ moxyfile(5) NARROWING is the normative, key-by-key statement. In brief:
 | --- | --- |
 | `[[servers]]` | Every server C runs (defined and not in C's `disable-servers`) is one P runs, with identical `command` (argv-exact), `url`, `headers`, `headers-helper`, `oauth`, `nix-devshell`. C may omit servers. |
 | relative paths | A `command`, `headers-helper`, `[credentials]` command or `nix-devshell` flake ref (`.`, `a/b`, `path:./x`, `git+file:.`) relative to the working directory is refused in C even when identical to P's. Bare PATH names, `~/`, `$VAR` and registry/remote flake refs pass; resolving those is the launcher's env. |
-| `[servers.annotations]` | The filter is OR over its hints, so each hint adds tools. If P filters, C filters too and every hint C sets is one P sets with the same value (subset); C may set fewer. List-only: see Limitations. |
+| `[servers.annotations]` | The filter is OR over its hints, so each hint adds tools. If P filters, C filters too and every hint C sets is one P sets with the same value (subset); C may set fewer. Enforced at call time too (moxy#450). |
 | `disable-moxins` | C covers every P entry; a whole-moxin entry covers a single-tool entry, not the reverse. Also: a server name P defines and C does not must be in C's `disable-moxins`, because a `[[servers]]` entry shadows the same-named moxin. |
 | `builtin-native` | If P is `false`, C is `false`. (The merge is closest-wins here; narrowing is not.) |
 | `[credentials]` | If C sets it, it equals P's. |
@@ -246,11 +246,12 @@ spawned, no port bound.
   serves. A launcher that wants the early answer to hold pins the child's
   `MOXIN_PATH` to the parent's; the serve-time check is the backstop, not a
   substitute.
-- **Annotation filters are not a boundary.** moxy applies
-  `[servers.annotations]` to `tools/list` only; nothing checks it at call
-  time, so a client that knows a hidden tool's name can call it. Narrowing
-  keeps a child from *listing* more than its parent, no more. `allow-tools`
-  is the boundary. Enforcing the filter at dispatch is a separate change.
+- **Annotation filters are enforced at call time too (moxy#450).** A tool
+  `[servers.annotations]` hides from `tools/list` is not callable either, like
+  `--expose`, `/clown/exclude-tools` and `allow-tools`; the filtered server's
+  tool list is read per call and an unreadable list refuses the call. The
+  subset rule above therefore keeps a child from reaching more than its
+  parent. (Before moxy#450 the filter was list-only.)
 - **A hand-written parent reference has no record.** A serving moxy reads
   that as a record of no moxins and refuses any moxin it can reach (the
   default `MOXIN_PATH` includes the working directory's `.moxy/moxins`, so

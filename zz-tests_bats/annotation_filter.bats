@@ -80,3 +80,47 @@ EOF
   delete_count=$(echo "$output" | jq '[.tools[] | select(.name == "srv.delete-item")] | length')
   [[ $delete_count -eq 0 ]]
 }
+
+# moxy#450: a tool the filter hides from tools/list is not callable by name
+# either. The filter is a boundary, like --expose and allow-tools.
+
+function annotation_filter_refuses_a_call_to_a_hidden_tool { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/annotated-tool-server.bash"]
+
+[servers.annotations]
+readOnlyHint = true
+EOF
+  cd "$HOME/repo"
+
+  # the listed tool runs
+  run_moxy_mcp tools/call '{"name":"srv.list-items"}'
+  assert_success
+  echo "$output" | jq -e '.content[0].text == "items: a, b, c"' || fail "listed tool did not run: $output"
+
+  # a hidden tool (readOnlyHint=false) and a tool with no annotations are
+  # refused, and the child never runs them
+  local tool
+  for tool in srv.update-item srv.delete-item; do
+    run_moxy_mcp tools/call "$(jq -cn --arg n "$tool" '{name: $n}')"
+    assert_success
+    echo "$output" | jq -e '.content[0].text | contains("hidden by its [servers.annotations] filter")' || fail "$tool was not refused: $output"
+    echo "$output" | jq -e '.content[0].text | (contains("updated") or contains("deleted")) | not' || fail "$tool ran: $output"
+  done
+}
+
+function annotation_filter_unset_leaves_every_tool_callable { # @test
+  mkdir -p "$HOME/repo"
+  cat >"$HOME/repo/moxyfile" <<EOF
+[[servers]]
+name = "srv"
+command = ["bash", "$FIXTURES_DIR/annotated-tool-server.bash"]
+EOF
+  cd "$HOME/repo"
+  run_moxy_mcp tools/call '{"name":"srv.update-item"}'
+  assert_success
+  echo "$output" | jq -e '.content[0].text == "updated"' || fail "$output"
+}
