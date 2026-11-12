@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { $ } from "zx";
 
 $.verbose = false;
@@ -19,12 +22,19 @@ if (json) {
   args.push("--json", json);
 }
 
-const result = await $`${gwsBin} ${args}`;
-
-process.stdout.write(
-  JSON.stringify({
-    content: [
-      { type: "text", text: result.stdout, mimeType: "application/json" },
-    ],
-  }),
-);
+// gws saves a non-JSON 2xx reply (a Drive delete's empty body) as
+// download.<ext> in its cwd, and loads a .env from there (#458), so it runs
+// from a scratch directory, never from the caller's tree.
+const workDir = await mkdtemp(join(tmpdir(), "gws-api-"));
+try {
+  const result = await $({ cwd: workDir })`${gwsBin} ${args}`;
+  process.stdout.write(
+    JSON.stringify({
+      content: [
+        { type: "text", text: result.stdout, mimeType: "application/json" },
+      ],
+    }),
+  );
+} finally {
+  await rm(workDir, { recursive: true, force: true });
+}

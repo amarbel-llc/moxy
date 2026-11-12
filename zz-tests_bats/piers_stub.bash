@@ -36,6 +36,8 @@ setup_gws_stub() {
   cat >"$GWS_BIN" <<'EOF'
 set -euo pipefail
 { printf '%s\t' "$@"; printf '\n'; } >>"$GWS_STUB_LOG"
+# gws saves a non-JSON reply as download.<ext> in its cwd (#458).
+if [ -n "${GWS_STUB_WRITE_DOWNLOAD:-}" ]; then : >download.html; fi
 upload="" json="" params=""
 args=("$@")
 for ((i = 0; i < $#; i++)); do
