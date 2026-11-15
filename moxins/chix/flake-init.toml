@@ -1,7 +1,6 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
-path-exempt = "flake_dir is unconstrained and init writes there; moxy#519 decides how to constrain it"
+perms-request = "dynamic"
 permit-async = false
 description = "Initialize a new flake in the specified directory."
 command = "@BIN@/flake-init"
@@ -13,7 +12,19 @@ description = "Template flake reference (e.g., 'templates#rust'). If not specifi
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory to initialize the flake in. Defaults to current directory."
+description = "Directory to initialize the flake in. Defaults to current directory. Judged like a folio write: the session worktree passes, anything else asks."
 
 [annotations]
 idempotent-hint = false
+
+# moxy#519: the template is written into flake_dir, under the folio write
+# policy. The template reference itself is not judged here.
+
+[resources.flake_dir]
+op = "write"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["write"]
+arg-order = ["flake_dir"]
+timeout-ms = 5000

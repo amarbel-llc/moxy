@@ -1,22 +1,32 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
-path-exempt = "flake_dir is unconstrained and lock writes there; moxy#519 decides how to constrain it"
-description = "Create or update flake.lock without building. Args are passed literally to 'nix flake lock' — consult your system nix's 'nix flake lock --help' for supported options (syntax varies across nix versions)."
+perms-request = "dynamic"
+description = "Create or update flake.lock without building. Args are passed to 'nix flake lock' after a check (moxy#519): only a short list of flags that carry no path or code (--keep-going, --no-build, --all-systems, --show-trace, --print-build-logs, --verbose, --quiet, --refresh, --offline, --no-update-lock-file, --no-write-lock-file, --no-registries, --recreate-lock-file, -L, -v, -q) and the flake reference '.'; anything else is refused. Use flake_dir to pick the flake."
 command = "@BIN@/flake-lock"
 arg-order = ["args", "flake_dir"]
 
 [input.properties.args]
 type = "array"
-description = "Positional arguments and flags passed literally to 'nix flake lock'. Each element is a single argv entry — no shell parsing."
+description = "Flags and the flake reference '.', passed to 'nix flake lock' as single argv entries (no shell parsing); see the tool description for the allowed flags."
 
 [input.properties.args.items]
 type = "string"
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory to cd into before invoking nix. Defaults to current directory. Orthogonal to any '--flake' arg you pass."
+description = "Directory to cd into before invoking nix; flake.lock is written there. Defaults to current directory. Judged like a folio write: the session worktree passes, anything else asks."
 
 [annotations]
 idempotent-hint = true
 open-world-hint = true
+
+# moxy#519: flake.lock is written in flake_dir, under the folio write policy.
+
+[resources.flake_dir]
+op = "write"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["write"]
+arg-order = ["flake_dir"]
+timeout-ms = 5000

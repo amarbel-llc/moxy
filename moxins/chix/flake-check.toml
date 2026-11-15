@@ -1,23 +1,33 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
-path-exempt = "flake_dir is unconstrained; moxy#519 decides how to constrain it"
-description = "Run flake checks and tests. Args are passed literally to 'nix flake check' — consult your system nix's 'nix flake check --help' for supported options (syntax varies across nix versions)."
+perms-request = "dynamic"
+description = "Run flake checks and tests. Args are passed to 'nix flake check' after a check (moxy#519): only a short list of flags that carry no path or code (--keep-going, --no-build, --all-systems, --show-trace, --print-build-logs, --verbose, --quiet, --refresh, --offline, --no-update-lock-file, --no-write-lock-file, --no-registries, --recreate-lock-file, -L, -v, -q) and the flake reference '.'; anything else is refused. Use flake_dir to pick the flake."
 command = "@BIN@/flake-check"
 arg-order = ["args", "flake_dir"]
 
 [input.properties.args]
 type = "array"
-description = "Positional arguments and flags passed literally to 'nix flake check'. Each element is a single argv entry — no shell parsing. Common choices: ['--keep-going'] to report every failing check."
+description = "Flags and the flake reference '.', passed to 'nix flake check' as single argv entries (no shell parsing); see the tool description for the allowed flags. Common choice: ['--keep-going'] to report every failing check."
 
 [input.properties.args.items]
 type = "string"
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory to cd into before invoking nix. Defaults to current directory. Orthogonal to any '--flake' arg you pass."
+description = "Directory to cd into before invoking nix. Defaults to current directory. Judged like a folio read: the session worktree and sibling checkouts pass, anything else asks."
 
 [annotations]
 read-only-hint = true
 idempotent-hint = true
 open-world-hint = true
+
+# moxy#519: the flake is read from flake_dir, under the folio read policy.
+
+[resources.flake_dir]
+op = "read"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["read"]
+arg-order = ["flake_dir"]
+timeout-ms = 5000

@@ -26,10 +26,6 @@ teardown() {
 EXPECTED_UNGATED=(
   chix.build
   chix.derivation-show
-  chix.flake-check
-  chix.flake-init
-  chix.flake-lock
-  chix.flake-update
   chix.log
   chix.run
   chix.store-cat
@@ -67,6 +63,11 @@ function the_matrix_lists_the_gated_readers_with_their_stanza { # @test
   [[ $output == *'| `folio.df` | dynamic | broker+floor |'* ]]
   [[ $output == *'| `toolbox.run` | dynamic | broker+floor |'* ]]
   [[ $output == *'| `env.clock` | always-allow | none |'* ]]
+  # moxy#519: the flake tools that read or write flake_dir are judged.
+  [[ $output == *'| `chix.flake-check` | dynamic | broker+floor |'* ]]
+  [[ $output == *'| `chix.flake-lock` | dynamic | broker+floor |'* ]]
+  [[ $output == *'| `chix.flake-update` | dynamic | broker+floor |'* ]]
+  [[ $output == *'| `chix.flake-init` | dynamic | broker+floor |'* ]]
 }
 
 function the_ungated_path_readers_are_exactly_the_decided_list { # @test

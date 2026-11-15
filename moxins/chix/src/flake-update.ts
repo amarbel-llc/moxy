@@ -1,3 +1,3 @@
 import { runFlakeSubcommand } from "./flake-runner.ts";
 
-await runFlakeSubcommand("update");
+await runFlakeSubcommand("update", "inputs");

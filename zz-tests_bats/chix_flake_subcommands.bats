@@ -33,12 +33,12 @@ teardown() {
 function each_tool_runs_its_subcommand_with_each_arg_as_one_entry { # @test
   local sub
   for sub in check lock update; do
-    run "$BIN/flake-$sub" '["--keep-going","an arg with spaces"]' "$HOME/flake"
+    run "$BIN/flake-$sub" '["--keep-going","--refresh"]' "$HOME/flake"
     assert_success
     assert_output --partial "stdout from nix"
     assert_output --partial "stderr from nix"
     run cat "$HOME/nix-argv"
-    assert_output "$(printf '%s\n' flake "$sub" --keep-going "an arg with spaces")"
+    assert_output "$(printf '%s\n' flake "$sub" --keep-going --refresh)"
     run cat "$HOME/nix-cwd"
     assert_output "$HOME/flake"
   done

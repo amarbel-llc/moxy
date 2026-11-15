@@ -1,10 +1,15 @@
 import { $ } from "zx";
+import { type Positional, refuseUnsafeArgs } from "./flake-args.ts";
 
 // The body of chix's `nix flake <subcommand>` tools (flake-check, flake-lock,
 // flake-update). argv[2] is a JSON array of extra arguments, argv[3] the
 // flake directory. nix's stdout and stderr are written merged; the exit code
-// is 0 when nix succeeds and 1 otherwise.
-export async function runFlakeSubcommand(subcommand: string): Promise<void> {
+// is 0 when nix succeeds and 1 otherwise. The extra arguments are checked
+// first (flake-args.ts, moxy#519): a refused argument never reaches nix.
+export async function runFlakeSubcommand(
+  subcommand: string,
+  positional: Positional,
+): Promise<void> {
   $.verbose = false;
   $.cwd = process.argv[3] || ".";
 
@@ -12,6 +17,12 @@ export async function runFlakeSubcommand(subcommand: string): Promise<void> {
   // parsing of element contents. .nothrow() keeps control on non-zero exit so
   // we can surface the merged stderr/stdout ourselves.
   const extraArgs = parseExtraArgs(process.argv[2]);
+  const refusal = refuseUnsafeArgs(extraArgs, positional);
+  if (refusal !== null) {
+    process.stdout.write(`chix flake ${subcommand}: ${refusal}\n`);
+    process.exitCode = 1;
+    return;
+  }
   const result = await $`nix flake ${subcommand} ${extraArgs}`.nothrow();
 
   process.stdout.write((result.stdout ?? "") + (result.stderr ?? ""));
