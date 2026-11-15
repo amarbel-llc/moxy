@@ -4,7 +4,7 @@
 
 Verified columns come from the parsed tool TOML. `path inputs` is inferred from input names.
 
-105 tools: 71 always-allow, 32 dynamic, 0 each-use, 2 delegate-to-client.
+106 tools: 66 always-allow, 38 dynamic, 0 each-use, 2 delegate-to-client.
 
 ## Matrix
 
@@ -23,20 +23,20 @@ Verified columns come from the parsed tool TOML. `path inputs` is inferred from 
 | `car.get` | always-allow | none | – | – | true | `read-only=true, open-world=true` | – |
 | `car.list` | always-allow | none | – | – | true | `read-only=true, open-world=true` | – |
 | `car.search` | always-allow | none | – | – | true | `read-only=true, open-world=true` | – |
-| `chix.build` | always-allow | none | – | – | true | `idempotent=true, open-world=true` | `flake_dir, installable` |
+| `chix.build` | dynamic | broker+floor | `@FOLIO_PERMS@ flake-exec` | `flake_dir:exec` | true | `idempotent=true, open-world=true` | `flake_dir, installable` |
 | `chix.derivation-show` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | `path` |
 | `chix.develop-run` | delegate-to-client | client | – | – | true | `open-world=true` | `flake_dir` |
 | `chix.doc` | always-allow | none | – | – | true | `read-only=true, idempotent=true` | – |
 | `chix.doc-options` | always-allow | none | – | – | true | `read-only=true, idempotent=true` | – |
 | `chix.doc-tree` | always-allow | none | – | – | true | `read-only=true, idempotent=true` | – |
-| `chix.flake-check` | always-allow | none | – | – | true | `read-only=true, idempotent=true, open-world=true` | `flake_dir` |
-| `chix.flake-init` | always-allow | none | – | – | false | `idempotent=false` | `flake_dir` |
-| `chix.flake-lock` | always-allow | none | – | – | true | `idempotent=true, open-world=true` | `flake_dir` |
+| `chix.flake-check` | dynamic | broker+floor | `@FOLIO_PERMS@ read` | `flake_dir:read` | true | `read-only=true, idempotent=true, open-world=true` | `flake_dir` |
+| `chix.flake-init` | dynamic | broker+floor | `@FOLIO_PERMS@ write` | `flake_dir:write` | false | `idempotent=false` | `flake_dir` |
+| `chix.flake-lock` | dynamic | broker+floor | `@FOLIO_PERMS@ write` | `flake_dir:write` | true | `idempotent=true, open-world=true` | `flake_dir` |
 | `chix.flake-show` | always-allow | none | – | – | true | `read-only=true, idempotent=true` | – |
-| `chix.flake-update` | always-allow | none | – | – | true | `open-world=true` | `flake_dir` |
+| `chix.flake-update` | dynamic | broker+floor | `@FOLIO_PERMS@ write` | `flake_dir:write` | true | `open-world=true` | `flake_dir` |
 | `chix.log` | always-allow | none | – | – | true | `read-only=true, idempotent=true` | `path` |
 | `chix.nix-hash` | dynamic | broker+floor | `@FOLIO_PERMS@ read` | `path:read` | false | `read-only=true, idempotent=true` | `path` |
-| `chix.run` | always-allow | none | – | – | true | `open-world=true` | `flake_dir, installable` |
+| `chix.run` | dynamic | broker+floor | `@FOLIO_PERMS@ flake-exec` | `flake_dir:exec` | true | `open-world=true` | `flake_dir, installable` |
 | `chix.search` | always-allow | none | – | – | true | `read-only=true, idempotent=true` | – |
 | `chix.store-cat` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | `path` |
 | `chix.store-gc` | delegate-to-client | client | – | – | true | `destructive=true` | – |
@@ -49,6 +49,7 @@ Verified columns come from the parsed tool TOML. `path inputs` is inferred from 
 | `env.cpu` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
 | `env.date` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
 | `env.get` | always-allow | none | – | – | false | `read-only=true, idempotent=true` | `name` |
+| `env.host` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
 | `env.loadavg` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
 | `env.meminfo` | always-allow | none | – | – | false | `read-only=true, open-world=false` | – |
 | `env.resolve` | dynamic | broker+floor | `@FOLIO_PERMS@ read` | `path:read` | false | `read-only=true, idempotent=true` | `path` |
@@ -118,32 +119,26 @@ Verified columns come from the parsed tool TOML. `path inputs` is inferred from 
 
 ## Ungated path readers (inferred)
 
-always-allow, no `[resources]` stanza, and an input whose name looks like a path or id.
+always-allow, no `[resources]` stanza, and an input whose name looks like a path or id. Since moxy#520 the moxin loader refuses such a tool unless it carries a `path-exempt` reason, which is shown here.
 
-- `chix.build`: flake_dir, installable
-- `chix.derivation-show`: path
-- `chix.flake-check`: flake_dir
-- `chix.flake-init`: flake_dir
-- `chix.flake-lock`: flake_dir
-- `chix.flake-update`: flake_dir
-- `chix.log`: path
-- `chix.run`: flake_dir, installable
-- `chix.store-cat`: path
-- `chix.store-ls`: path
-- `chix.store-path-info`: path
-- `chix.store-realize`: path
-- `env.get`: name
-- `env.which`: name
-- `freud.messages`: session_id
-- `freud.subagents`: session_id
-- `freud.summary`: session_id
-- `freud.tool-usage`: session_id
-- `freud.transcript`: session_id
-- `freud.unique-tools`: session_ids
-- `grit.commit`: repo_path
-- `grit.diff`: paths
-- `grit.log`: paths
-- `grit.merge`: repo_path
-- `grit.status`: paths
-- `man.section`: page
-- `man.toc`: page
+- `chix.derivation-show`: path (exempt: the input guard is the gate: store paths, dot or dot-hash-attr, registry names or github/gitlab/sourcehut refs only (moxy#495, chix_store_args.bats))
+- `chix.log`: path (exempt: the input guard is the gate: store paths, dot or dot-hash-attr, registry names or github/gitlab/sourcehut refs only (moxy#495, chix_store_args.bats))
+- `chix.store-cat`: path (exempt: the input guard is the gate: store paths only (moxy#495, chix_store_args.bats))
+- `chix.store-ls`: path (exempt: the input guard is the gate: store paths only (moxy#495, chix_store_args.bats))
+- `chix.store-path-info`: path (exempt: the input guard is the gate: store paths or installables only (moxy#495, chix_store_args.bats))
+- `chix.store-realize`: path (exempt: the input guard is the gate: store paths or installables only (moxy#495, chix_store_args.bats))
+- `env.get`: name (exempt: name is an environment variable name, not a path; the no-name listing and an allowlist are the operator's open item in the permissions audit)
+- `env.which`: name (exempt: name is a bare program name looked up on PATH, not a path; it only reports whether the program exists)
+- `freud.messages`: session_id (exempt: session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile)
+- `freud.subagents`: session_id (exempt: session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile)
+- `freud.summary`: session_id (exempt: session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile)
+- `freud.tool-usage`: session_id (exempt: session_id is a UUID or agent-id contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile)
+- `freud.transcript`: session_id (exempt: session_id is a UUID contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile)
+- `freud.unique-tools`: session_ids (exempt: session_ids are UUIDs contained in the projects directory (moxy#495); the residual is exposure of other sessions, handled by profile)
+- `grit.commit`: repo_path (exempt: repo_path has no floor, unlike the sibling grit tools; grit is leaving moxy (moxy#482))
+- `grit.diff`: paths (exempt: paths are pathspecs inside the session's own repository (git refuses one outside it), not file reads (moxy#510))
+- `grit.log`: paths (exempt: paths are pathspecs inside the session's own repository (git refuses one outside it), not file reads (moxy#510))
+- `grit.merge`: repo_path (exempt: repo_path has no floor, unlike the sibling grit tools; grit is leaving moxy (moxy#482))
+- `grit.status`: paths (exempt: paths are pathspecs inside the session's own repository (git refuses one outside it), not file reads (moxy#510))
+- `man.section`: page (exempt: page is a man page name resolved through MANPATH, not a path (moxy#495, man_input_guard.bats))
+- `man.toc`: page (exempt: page is a man page name resolved through MANPATH, not a path (moxy#495, man_input_guard.bats))
