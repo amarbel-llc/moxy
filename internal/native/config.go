@@ -301,7 +301,10 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		Tools:       make([]ToolSpec, 0, len(toolFiles)),
 	}
 
-	for _, filename := range toolFiles {
+	// Every tool file is checked, and every failure reported together, so a
+	// moxin with several bad files is fixed in one pass, not one per restart.
+	var failures []error
+	parseTool := func(filename string) (*ParseResult, error) {
 		toolPath := filepath.Join(dirPath, filename)
 		data, err := os.ReadFile(toolPath)
 		if err != nil {
@@ -424,6 +427,15 @@ func ParseMoxinDirFull(dirPath string) (*ParseResult, error) {
 		cfg.Tools = append(cfg.Tools, ts)
 		debugMoxin("ParseMoxinDirFull: %s: parsed tool %q (cmd=%q, args=%v)", meta.Name, toolName, raw.Command, raw.Args)
 		allUndecoded = append(allUndecoded, detectUndecodedTool(data, filename, raw.Schema)...)
+		return nil, nil
+	}
+	for _, filename := range toolFiles {
+		if _, err := parseTool(filename); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	if err := joinToolFailures(meta.Name, failures); err != nil {
+		return nil, err
 	}
 
 	debugMoxin("ParseMoxinDirFull: %s: completed with %d tools", meta.Name, len(cfg.Tools))

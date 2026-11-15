@@ -29,6 +29,24 @@ func PathLikeInputs(in *InputSchema) []string {
 	return out
 }
 
+// joinToolFailures turns the per-file load errors of one moxin into a single
+// error. One failure is returned as it is; several are listed together with
+// the fix the path rule asks for, so no file hides behind another.
+func joinToolFailures(moxin string, failures []error) error {
+	switch len(failures) {
+	case 0:
+		return nil
+	case 1:
+		return failures[0]
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d tool files of moxin %q failed to load:", len(failures), moxin)
+	for _, f := range failures {
+		fmt.Fprintf(&b, "\n  - %s", f)
+	}
+	return fmt.Errorf("%s", b.String())
+}
+
 // checkPathRule enforces moxy#520: an always-allow tool whose inputs look
 // like paths must either name them in [resources.*], so the policy broker and
 // the floor judge what they point at, or carry a path-exempt reason saying
@@ -42,7 +60,7 @@ func checkPathRule(tier PermsRequest, in *InputSchema, resources []ResourceArg, 
 		return fmt.Errorf("path-exempt must give a reason")
 	case covered && !hasExempt:
 		return fmt.Errorf(
-			"always-allow tool takes path-like input(s) %s but declares no [resources.<input>] stanza; add one, or set path-exempt = \"<why nothing needs to judge it>\"",
+			"always-allow tool takes path-like input(s) %s but declares no [resources.<input>] stanza; add one, or set path-exempt = \"<why nothing needs to judge it>\" (moxin(7), Undeclared path readers)",
 			strings.Join(PathLikeInputs(in), ", "))
 	case hasExempt && !covered:
 		return fmt.Errorf("path-exempt is set but the tool is not an always-allow path reader without [resources]; remove it")
