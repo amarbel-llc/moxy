@@ -24,10 +24,8 @@ teardown() {
 # on purpose: their `paths` are pathspecs inside the session's own repository
 # (no repo_path, and git refuses a pathspec outside it), not file reads.
 EXPECTED_UNGATED=(
-  chix.build
   chix.derivation-show
   chix.log
-  chix.run
   chix.store-cat
   chix.store-ls
   chix.store-path-info
@@ -68,6 +66,8 @@ function the_matrix_lists_the_gated_readers_with_their_stanza { # @test
   [[ $output == *'| `chix.flake-lock` | dynamic | broker+floor |'* ]]
   [[ $output == *'| `chix.flake-update` | dynamic | broker+floor |'* ]]
   [[ $output == *'| `chix.flake-init` | dynamic | broker+floor |'* ]]
+  [[ $output == *'| `chix.build` | dynamic | broker+floor |'* ]]
+  [[ $output == *'| `chix.run` | dynamic | broker+floor |'* ]]
 }
 
 function the_ungated_path_readers_are_exactly_the_decided_list { # @test

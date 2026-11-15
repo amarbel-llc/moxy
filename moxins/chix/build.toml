@@ -1,19 +1,18 @@
 schema = 3
 result-type = "text"
 content-type = "application/json"
-perms-request = "always-allow"
-path-exempt = "flake_dir and installable are unconstrained and a build runs code; moxy#519 decides how to constrain them"
+perms-request = "dynamic"
 description = "Build a nix flake package. Returns store paths on success."
 command = "@BIN@/build"
 arg-order = ["installable", "flake_dir", "print_build_logs"]
 
 [input.properties.installable]
 type = "string"
-description = "Flake installable (e.g., '.#default', 'nixpkgs#hello'). Defaults to '.#default'."
+description = "Flake installable. Defaults to '.#default'. A local one ('.' or '.#attr', resolved in flake_dir) is allowed; a remote or other reference (e.g., 'nixpkgs#hello', 'github:o/r') asks, since a build runs its code."
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory containing the flake. Defaults to current directory."
+description = "Directory containing the flake. Defaults to current directory. A build runs the flake's code, so only the session worktree passes; anything else asks."
 
 [input.properties.print_build_logs]
 type = "string"
@@ -22,3 +21,16 @@ description = "Whether to print build logs (-L flag). Defaults to true."
 [annotations]
 idempotent-hint = true
 open-world-hint = true
+
+# moxy#519: a build runs the flake's code, so flake_dir is an exec resource
+# (worktree only). The floor also asks for any installable that is not a local
+# reference; the broker is asked only about the directory.
+
+[resources.flake_dir]
+op = "exec"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["flake-exec"]
+arg-order = ["flake_dir", "installable"]
+timeout-ms = 5000

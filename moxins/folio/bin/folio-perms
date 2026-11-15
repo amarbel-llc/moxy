@@ -16,6 +16,9 @@
 #                  path is resolved fully, a symlinked leaf included, since
 #                  exec runs what the path points at. An empty path is the
 #                  CWD, like an omitted input.
+#   flake-exec   — exec on $1 (the flake directory) plus a check that $2, the
+#                  installable, is a local reference: "." or ".#attr".
+#                  Anything else (nixpkgs#x, github:o/r, path:/x) asks.
 #   copy|move    — apply read policy to $2 (source), write policy to $3 (dest)
 #   link         — apply read policy to $2 (source), write policy to $3 (target)
 #
@@ -42,7 +45,7 @@ set -euo pipefail
 op="${1:-}"
 shift || true
 if [ -z "$op" ]; then
-  echo "folio-perms: op (read|write|exec|rm|copy|move|link) required" >&2
+  echo "folio-perms: op (read|write|exec|flake-exec|rm|copy|move|link) required" >&2
   exit 2
 fi
 
@@ -205,6 +208,22 @@ check_exec() {
 }
 
 case "$op" in
+  flake-exec)
+    # flake-exec FLAKE_DIR INSTALLABLE (chix build and run, moxy#519): the
+    # directory must pass exec, and the installable must be a local flake
+    # reference, "." or ".#attr", which resolves against that directory.
+    # A remote or non-local one (nixpkgs#x, github:o/r, path:/x, a store path,
+    # an option-looking value) fetches or names something outside it: ask.
+    [ -n "${1:-}" ] && check_exec "$1"
+    inst="${2:-}"
+    local_ref='^\.(#[A-Za-z0-9._"+-]+)?$'
+    if [ -n "$inst" ] && ! [[ $inst =~ $local_ref ]]; then
+      echo "installable '$inst' is not a local flake reference (. or .#attr) — confirmation required for exec"
+      exit 1
+    fi
+    echo "local flake reference in an allowed directory — auto-allowed to exec"
+    exit 0
+    ;;
   exec)
     for p in "$@"; do
       [ -n "$p" ] && check_exec "$p"
@@ -262,7 +281,7 @@ case "$op" in
     exit 0
     ;;
   *)
-    echo "folio-perms: unknown op '$op' (want read|write|exec|rm|copy|move|link)" >&2
+    echo "folio-perms: unknown op '$op' (want read|write|exec|flake-exec|rm|copy|move|link)" >&2
     exit 2
     ;;
 esac

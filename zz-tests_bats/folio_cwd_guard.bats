@@ -392,6 +392,54 @@ function folio_perms_exec_follows_a_symlinked_directory_out_of_the_cwd { # @test
   [ "$status" -eq 1 ]
 }
 
+# ----- flake-exec (moxy#519 slice 3): chix build and run -----
+#
+# flake-exec FLAKE_DIR INSTALLABLE: the directory must pass exec, and the
+# installable must be a local reference ("." or ".#attr"), which resolves
+# against that directory. Anything else (nixpkgs#hello, github:o/r, path:/x,
+# a store path, an option-looking value) fetches or names something outside it.
+
+function folio_perms_flake_exec_allows_a_local_installable_in_the_cwd { # @test
+  setup_perms
+  mkdir -p "$HOME/project/sub"
+  cd "$HOME/project"
+
+  local inst
+  for inst in "" . ".#default" ".#bats-default" '.#packages.x86_64-linux."a.b"'; do
+    PWD="$HOME/project" run "$PERMS" flake-exec "" "$inst"
+    [ "$status" -eq 0 ]
+    PWD="$HOME/project" run "$PERMS" flake-exec sub "$inst"
+    [ "$status" -eq 0 ]
+  done
+}
+
+function folio_perms_flake_exec_asks_for_a_remote_or_non_local_installable { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  local inst
+  for inst in "nixpkgs#hello" "github:owner/repo#pkg" "path:/etc" "path:." \
+    "git+file:///etc" "/nix/store/abc-foo" "./sub#x" "../x#y" "-f" "--file" \
+    ".#a b" ".#x;id" ".#" "#x"; do
+    PWD="$HOME/project" run "$PERMS" flake-exec "" "$inst"
+    [ "$status" -eq 1 ] || {
+      echo "installable '$inst' got $status"
+      false
+    }
+    [[ $output == *"confirmation required"* ]]
+  done
+}
+
+function folio_perms_flake_exec_asks_when_the_directory_is_outside_the_cwd { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" run "$PERMS" flake-exec /var/empty .
+  [ "$status" -eq 1 ]
+}
+
 function folio_perms_exec_checks_every_positional { # @test
   setup_perms
   mkdir -p "$HOME/project"

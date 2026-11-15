@@ -1,14 +1,13 @@
 schema = 3
 result-type = "text"
-perms-request = "always-allow"
-path-exempt = "flake_dir and installable are unconstrained and a run executes code; moxy#519 decides how to constrain them"
+perms-request = "dynamic"
 description = "Run a flake app."
 command = "@BIN@/run"
 arg-order = ["installable", "args", "flake_dir"]
 
 [input.properties.installable]
 type = "string"
-description = "Flake installable to run. Defaults to '.#default'."
+description = "Flake installable to run. Defaults to '.#default'. A local one ('.' or '.#attr', resolved in flake_dir) is allowed; a remote or other reference (e.g., 'nixpkgs#hello', 'github:o/r') asks, since a run executes its code."
 
 [input.properties.args]
 type = "array"
@@ -16,7 +15,20 @@ description = "Arguments to pass to the app."
 
 [input.properties.flake_dir]
 type = "string"
-description = "Directory containing the flake. Defaults to current directory."
+description = "Directory containing the flake. Defaults to current directory. A run executes the flake's code, so only the session worktree passes; anything else asks."
 
 [annotations]
 open-world-hint = true
+
+# moxy#519: a run executes the flake's code, so flake_dir is an exec resource
+# (worktree only). The floor also asks for any installable that is not a local
+# reference; the broker is asked only about the directory.
+
+[resources.flake_dir]
+op = "exec"
+
+[dynamic-perms]
+command = "@FOLIO_PERMS@"
+args = ["flake-exec"]
+arg-order = ["flake_dir", "installable"]
+timeout-ms = 5000
