@@ -434,6 +434,9 @@ Dispatched in `cmd/moxy/main.go`:
   regenerates `docs/permissions-matrix.md`, and `zz-tests_bats/perms_matrix.bats`
   pins the ungated path readers it flags; the moxin loader refuses one
   without a `path-exempt` reason (moxy#520, moxin(7) Undeclared path readers)
+- `check-moxins --dir DIR` -- load a moxin directory (or its subdirectories)
+  with the server's loader and list every failing tool file; exit 1 on any.
+  The intended per-repo gate for shipped moxin directories
 - `install-mcp` / `generate-plugin` / `hook` -- purse-first integration
 
 ## Dependencies

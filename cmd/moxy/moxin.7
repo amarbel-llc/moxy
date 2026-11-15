@@ -523,6 +523,11 @@ A blank
 .Sy path-exempt ,
 or one on a tool the rule does not cover, is also a load error, so a stale
 exemption cannot hide the next real gap.
+A moxin with several bad tool files reports all of them in one error.
+A repo that ships moxins should run
+.Xr moxy-check-moxins 1
+on them in its own gate, so a file the loader refuses fails that repo's merge,
+not every session that loads the moxin.
 .Sh DISCOVERY
 Moxin configs are discovered from directories listed in the
 .Ev MOXIN_PATH
