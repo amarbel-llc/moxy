@@ -143,6 +143,23 @@ command = ["smith", "mcp"]
 			want:   []string{"servers.smith: nix-devshell differs from parent"},
 		},
 		{
+			name:   "child may not add a manifest-command (it runs at startup)",
+			parent: smith,
+			child:  smith + "manifest-command = [\"smith\", \"manifest\"]\n",
+			want:   []string{"servers.smith: manifest-command differs from parent"},
+		},
+		{
+			name:   "child may not change a manifest-command",
+			parent: smith + "manifest-command = [\"smith\", \"manifest\"]\n",
+			child:  smith + "manifest-command = [\"other\", \"manifest\"]\n",
+			want:   []string{"servers.smith: manifest-command differs from parent"},
+		},
+		{
+			name:   "an identical manifest-command narrows",
+			parent: smith + "manifest-command = [\"smith\", \"manifest\"]\n",
+			child:  smith + "manifest-command = [\"smith\", \"manifest\"]\n",
+		},
+		{
 			name:   "url servers compare url, headers, helper and oauth",
 			parent: "[[servers]]\nname = \"h\"\nurl = \"https://a.example/mcp\"\nheaders-helper = \"tok a\"\n[servers.headers]\nAuthorization = \"Bearer $A\"\n[servers.oauth]\nclient-id = \"one\"\n",
 			child:  "[[servers]]\nname = \"h\"\nurl = \"https://b.example/mcp\"\nheaders-helper = \"tok b\"\n[servers.headers]\nAuthorization = \"Bearer $B\"\n[servers.oauth]\nclient-id = \"two\"\n",

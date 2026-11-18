@@ -79,6 +79,13 @@ type EphemeralMeta struct {
 	Resources    []protocol.ResourceV1
 	Templates    []protocol.ResourceTemplateV1
 	Prompts      []protocol.PromptV1
+
+	// Lazy marks a server with a manifest-command (moxy#525): its tools come
+	// from that command, it is not spawned at startup, and the first call
+	// spawns it and keeps it running in lazyClient.
+	Lazy       bool
+	lazyMu     sync.Mutex
+	lazyClient ServerBackend
 }
 
 // ConnectFunc creates and initializes a client for a given server moxyfile.
@@ -318,8 +325,8 @@ func New(
 	ephemeral := make(map[string]*EphemeralMeta)
 	for _, cfg := range allConfigs {
 		configs[cfg.Name] = cfg
-		if cfg.IsEphemeral(globalEphemeral) {
-			ephemeral[cfg.Name] = &EphemeralMeta{Config: cfg}
+		if meta := ephemeralMetaFor(cfg, globalEphemeral); meta != nil {
+			ephemeral[cfg.Name] = meta
 		}
 	}
 	p := &Proxy{
@@ -352,6 +359,16 @@ func (p *Proxy) SetManPageDirs(dirs []string) {
 
 func (p *Proxy) ProbeEphemeral(ctx context.Context) {
 	for name, meta := range p.ephemeral {
+		if meta.Lazy {
+			if err := p.loadManifest(ctx, meta); err != nil {
+				fmt.Fprintf(os.Stderr, "moxy: failed to load manifest for lazy %s: %v\n", name, err)
+				p.markFailed(name, err)
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "moxy: %s is lazy: %d tool(s) from its manifest-command, not started\n",
+				name, len(meta.Tools))
+			continue
+		}
 		cfg := meta.Config
 		client, result, err := p.connectFunc(ctx, cfg)
 		if err != nil {
@@ -404,6 +421,16 @@ func (p *Proxy) ProbeEphemeral(ctx context.Context) {
 }
 
 func (p *Proxy) reprobeEphemeral(ctx context.Context, meta *EphemeralMeta) error {
+	if meta.Lazy {
+		// A restart stops the running server (the next call starts it again)
+		// and re-reads the manifest.
+		meta.closeLazy()
+		if err := p.loadManifest(ctx, meta); err != nil {
+			return fmt.Errorf("reloading manifest of lazy %s: %w", meta.Config.Name, err)
+		}
+		p.notifyToolsChanged()
+		return nil
+	}
 	cfg := meta.Config
 	client, result, err := p.connectFunc(ctx, cfg)
 	if err != nil {
@@ -1828,12 +1855,13 @@ func (p *Proxy) Reload(ctx context.Context) error {
 	newEphemeral := make(map[string]*EphemeralMeta)
 	for _, cfg := range res.ActiveServers {
 		newConfigs[cfg.Name] = cfg
-		if cfg.IsEphemeral(res.Ephemeral) {
-			newEphemeral[cfg.Name] = &EphemeralMeta{Config: cfg}
+		if meta := ephemeralMetaFor(cfg, res.Ephemeral); meta != nil {
+			newEphemeral[cfg.Name] = meta
 		}
 	}
 
 	p.mu.Lock()
+	oldEphemeral := p.ephemeral
 	oldChildren := p.children
 	p.children = res.Children
 	p.failed = res.Failed
@@ -1848,6 +1876,9 @@ func (p *Proxy) Reload(ctx context.Context) error {
 	// children may take longer.
 	for _, c := range oldChildren {
 		_ = c.Client.Close()
+	}
+	for _, meta := range oldEphemeral {
+		meta.closeLazy()
 	}
 
 	// Wire notification forwarding on the new child set.
@@ -2128,13 +2159,25 @@ func (p *Proxy) callToolEphemeral(
 		return annotationRefusal(serverName, toolName), nil
 	}
 
-	client, err := p.spawnEphemeral(ctx, serverName)
-	if err != nil {
-		return protocol.ErrorResultV1(
-			fmt.Sprintf("spawning ephemeral %s: %v", serverName, err),
-		), nil
+	var client ServerBackend
+	var err error
+	if meta, ok := p.ephemeral[serverName]; ok && meta.Lazy {
+		// Spawned by the first call, then kept running (moxy#525): not closed.
+		client, err = p.lazyBackend(ctx, meta)
+		if err != nil {
+			return protocol.ErrorResultV1(
+				fmt.Sprintf("starting lazy %s: %v", serverName, err),
+			), nil
+		}
+	} else {
+		client, err = p.spawnEphemeral(ctx, serverName)
+		if err != nil {
+			return protocol.ErrorResultV1(
+				fmt.Sprintf("spawning ephemeral %s: %v", serverName, err),
+			), nil
+		}
+		defer client.Close()
 	}
-	defer client.Close()
 
 	if toolName == "resource-read" {
 		return p.callResourceReadOn(ctx, client, serverName, args)

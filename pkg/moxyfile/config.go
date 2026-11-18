@@ -149,6 +149,31 @@ func ParseLiteral(data []byte) (Config, error) {
 			}
 		}
 
+		if srv.IsLazy() {
+			switch {
+			case hasURL:
+				return Config{}, fmt.Errorf(
+					"server %q: manifest-command is only valid for command servers",
+					srv.Name,
+				)
+			case !hasCommand:
+				return Config{}, fmt.Errorf(
+					"server %q: manifest-command needs a command to start on the first call",
+					srv.Name,
+				)
+			case srv.Ephemeral != nil && *srv.Ephemeral:
+				return Config{}, fmt.Errorf(
+					"server %q: manifest-command and ephemeral conflict (a lazy server stays running after its first call)",
+					srv.Name,
+				)
+			case srv.NixDevshell != nil:
+				return Config{}, fmt.Errorf(
+					"server %q: manifest-command is not supported with nix-devshell",
+					srv.Name,
+				)
+			}
+		}
+
 		if !hasURL {
 			if srv.Headers != nil {
 				return Config{}, fmt.Errorf(

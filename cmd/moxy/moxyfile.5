@@ -417,6 +417,33 @@ and re-spawns it on demand for each tool call.
 Overrides the global
 .Va ephemeral
 setting.
+.It Va manifest-command
+An array of strings: a cheap command that prints the server's
+.Li tools/list
+result as JSON (an object with a
+.Li tools
+array) and exits, without starting the server.
+When set, the server is lazy: moxy lists its tools from this command's output,
+does not spawn the server at startup, spawns it on the first call to one of its
+tools, and keeps it running from then on.
+A manifest command that fails, times out (30 seconds) or prints something
+that is not a tools/list result makes the server a failed server, with the
+reason shown by its
+.Cm status
+tool; moxy does not fall back to starting it.
+A restart stops a running lazy server and reads the manifest again.
+Needs
+.Va command ;
+not valid with
+.Va url ,
+.Va ephemeral
+or
+.Va nix-devshell .
+A lazy server lists tools only: its resources and prompts are not served.
+Under narrowing, a child's
+.Va manifest-command
+must equal its parent's.
+Unset, the server behaves exactly as without this key.
 .It Va progressive-disclosure
 Overrides the global
 .Va progressive-disclosure

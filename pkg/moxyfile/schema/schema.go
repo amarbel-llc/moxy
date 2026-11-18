@@ -62,6 +62,13 @@ type ServerConfig struct {
 	Ephemeral             *bool             `toml:"ephemeral"`
 	ProgressiveDisclosure *bool             `toml:"progressive-disclosure"`
 	NixDevshell           *string           `toml:"nix-devshell"`
+	// ManifestCommand makes the server lazy (moxy#525): a cheap command, as
+	// an argv array, that prints the server's tools/list result as JSON. Moxy
+	// lists the tools from it, does not spawn the server at startup, and
+	// spawns it on the first call. Array form only: the generated codec writes
+	// an optional Command field even when empty, which the array's omitempty
+	// does not.
+	ManifestCommand []string `toml:"manifest-command,omitempty"`
 }
 
 // The values permission-mode accepts (moxy#486). Unset reads as delegate.
@@ -92,6 +99,12 @@ func (s ServerConfig) EffectiveCommand() (executable string, args []string) {
 		return "nix", a
 	}
 	return s.Command.Executable(), s.Command.Args()
+}
+
+// IsLazy reports whether the server is started on its first call rather than
+// at startup: it declares a manifest-command to list its tools without running.
+func (s ServerConfig) IsLazy() bool {
+	return len(s.ManifestCommand) > 0
 }
 
 func (s ServerConfig) IsEphemeral(globalEphemeral *bool) bool {

@@ -68,6 +68,9 @@ func renderServer(b *strings.Builder, srv ServerConfig) {
 	if srv.URL != "" {
 		writeString(b, "url", srv.URL)
 	}
+	if srv.IsLazy() {
+		fmt.Fprintf(b, "manifest-command = %s\n", tomlStringArray(srv.ManifestCommand))
+	}
 	if srv.HeadersHelper != nil {
 		writeString(b, "headers-helper", *srv.HeadersHelper)
 	}

@@ -344,6 +344,15 @@ func decodeConfigParsed(doc *document.Document) (*ConfigDocument, error) {
 					_vServersNixDevshell.MarkConsumedString()
 				}
 			}
+			if _vServersManifestCommand, _ok := _eServers.Field("manifest-command"); _ok && _vServersManifestCommand.Kind == cst.VLeaf {
+				if _x, _xok := cst.ExtractStringSlice(_vServersManifestCommand.Leaf); _xok {
+					d.data.Servers[i].ManifestCommand = _x
+					if d.data.Servers[i].ManifestCommand == nil {
+						d.data.Servers[i].ManifestCommand = []string{}
+					}
+					_vServersManifestCommand.MarkConsumed()
+				}
+			}
 		}
 	}
 	if _eaServers, _eaok := model.Field("servers"); _eaok && _eaServers.IsEmptyArray() {
@@ -537,6 +546,13 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 			if d.data.Servers[i].NixDevshell != nil {
 				if err := cst.SetAny(container, "nix-devshell", *d.data.Servers[i].NixDevshell); err != nil {
 					return nil, fmt.Errorf("%w", err)
+				}
+			}
+			{
+				if len(d.data.Servers[i].ManifestCommand) > 0 || cst.HasValue(container, "manifest-command") {
+					if err := cst.SetAny(container, "manifest-command", d.data.Servers[i].ManifestCommand); err != nil {
+						return nil, fmt.Errorf("%w", err)
+					}
 				}
 			}
 		}
@@ -844,6 +860,15 @@ func DecodeConfigInto(data *Config, sub *cst.Value) error {
 					_vServersNixDevshell.MarkConsumedString()
 				}
 			}
+			if _vServersManifestCommand, _ok := _eServers.Field("manifest-command"); _ok && _vServersManifestCommand.Kind == cst.VLeaf {
+				if _x, _xok := cst.ExtractStringSlice(_vServersManifestCommand.Leaf); _xok {
+					data.Servers[i].ManifestCommand = _x
+					if data.Servers[i].ManifestCommand == nil {
+						data.Servers[i].ManifestCommand = []string{}
+					}
+					_vServersManifestCommand.MarkConsumed()
+				}
+			}
 		}
 	}
 	if _eaServers, _eaok := sub.Field("servers"); _eaok && _eaServers.IsEmptyArray() {
@@ -1035,6 +1060,13 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 			if data.Servers[i].NixDevshell != nil {
 				if err := cst.SetAny(container, "nix-devshell", *data.Servers[i].NixDevshell); err != nil {
 					return fmt.Errorf("%w", err)
+				}
+			}
+			{
+				if len(data.Servers[i].ManifestCommand) > 0 || cst.HasValue(container, "manifest-command") {
+					if err := cst.SetAny(container, "manifest-command", data.Servers[i].ManifestCommand); err != nil {
+						return fmt.Errorf("%w", err)
+					}
 				}
 			}
 		}

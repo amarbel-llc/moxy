@@ -127,6 +127,10 @@ func bootstrap(ctx context.Context, in bootstrapInputs) (*bootstrapResult, error
 	var children []proxy.ChildEntry
 	var failed []proxy.FailedServer
 	for _, srvCfg := range activeServers {
+		if srvCfg.IsLazy() {
+			fmt.Fprintf(stderr, "moxy: %s configured as lazy (manifest-command; started on its first call)\n", srvCfg.Name)
+			continue
+		}
 		if srvCfg.IsEphemeral(cfg.Ephemeral) {
 			fmt.Fprintf(stderr, "moxy: %s configured as ephemeral (on-demand)\n", srvCfg.Name)
 			continue

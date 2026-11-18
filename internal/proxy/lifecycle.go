@@ -16,8 +16,12 @@ func (p *Proxy) RestartServer(ctx context.Context, serverName string) error {
 func (p *Proxy) CloseChildren() {
 	p.mu.RLock()
 	children := p.children
+	lazy := p.ephemeral
 	p.mu.RUnlock()
 	for _, c := range children {
 		_ = c.Client.Close()
+	}
+	for _, meta := range lazy {
+		meta.closeLazy()
 	}
 }

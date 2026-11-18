@@ -329,6 +329,7 @@ func invocationDifferences(parent, child moxyfile.ServerConfig) []string {
 		}
 	}
 	differs("command", slices.Equal(parent.Command.Parts(), child.Command.Parts()))
+	differs("manifest-command", slices.Equal(parent.ManifestCommand, child.ManifestCommand))
 	differs("url", parent.URL == child.URL)
 	differs("headers", maps.Equal(parent.Headers, child.Headers))
 	differs("headers-helper", sameOptional(parent.HeadersHelper, child.HeadersHelper))
@@ -339,6 +340,9 @@ func invocationDifferences(parent, child moxyfile.ServerConfig) []string {
 	// the child's working directory, which the parent does not control.
 	if exe := child.Command.Parts(); len(exe) > 0 && isWorkingDirRelative(exe[0]) {
 		diffs = append(diffs, "command is relative to the working directory")
+	}
+	if exe := child.ManifestCommand; len(exe) > 0 && isWorkingDirRelative(exe[0]) {
+		diffs = append(diffs, "manifest-command is relative to the working directory")
 	}
 	if child.HeadersHelper != nil && commandIsWorkingDirRelative(*child.HeadersHelper) {
 		diffs = append(diffs, "headers-helper is relative to the working directory")
