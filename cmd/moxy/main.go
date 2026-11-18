@@ -109,7 +109,10 @@ func newApp() *command.App {
 			Short: "Run as MCP proxy server over streamable HTTP",
 			Long: "Loads the moxyfile hierarchy, spawns child MCP servers, serves " +
 				"/healthz and /mcp over streamable HTTP, and shuts down on " +
-				"SIGINT/SIGTERM. With no --listen flag, binds an ephemeral port on " +
+				"SIGINT/SIGTERM, or when the process that started it is gone " +
+				"(its parent changes; exit status non-zero; not watched when " +
+				"started as pid 1's child, e.g. a systemd unit). With no --listen " +
+				"flag, binds an ephemeral port on " +
 				"127.0.0.1 and prints a clown-plugin-protocol handshake line to " +
 				"stdout (for clown-plugin-host). With --listen ADDR, binds that " +
 				"fixed address instead and logs the bound address to stderr only — " +

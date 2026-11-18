@@ -57,6 +57,9 @@ and
 (a dynamic system-prompt fragment clown fetches once at session launch,
 reflecting live child-server state \(em connected servers with tool counts
 and any that failed to start; 204 when there is nothing to add).
+It also shuts down, children first, when the process that started it is
+gone (its parent changes), exiting non-zero with a reason on stderr; a
+moxy started as pid 1's child, such as a systemd unit, is not watched.
 With no
 .Fl -listen
 flag, binds an ephemeral port on

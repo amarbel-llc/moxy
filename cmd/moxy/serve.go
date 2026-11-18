@@ -118,6 +118,21 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	// serve-http: shut down, children first, when the process that started
+	// us is gone (moxy#526). A launcher-less start (ppid 1) is left alone.
+	parentGone := func() error { return nil }
+	if mode == transportHTTP {
+		ctx, parentGone = watchParent(ctx, os.Getppid(), parentPollInterval, os.Getppid)
+	}
+	// The error that ended the server wins over a clean ErrServerClosed so the
+	// exit code is non-zero when the parent vanished.
+	ended := func(err error) error {
+		if perr := parentGone(); perr != nil {
+			return perr
+		}
+		return err
+	}
+
 	// A fixed-address HTTP origin sits behind a tunnel, so bind it before the
 	// slow part (spawning every child) rather than after: a restart is then a
 	// held request, not a refused connection / 502. See streamhttp.StartupGate.
@@ -142,7 +157,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		// clown-plugin-host on the other end of stdout, so suppress the
 		// handshake line and report the bound address on stderr only.
 		if early != nil {
-			return early.serve(inst)
+			return ended(early.serve(inst))
 		}
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
@@ -151,7 +166,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		}
 		fmt.Fprintf(os.Stdout, "1|1|tcp|%s|streamable-http\n", ln.Addr())
 		fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (clown-plugin-protocol)\n", ln.Addr())
-		return runHTTPServerOnListener(ctx, ln, inst, "")
+		return ended(runHTTPServerOnListener(ctx, ln, inst, ""))
 
 	default:
 		if early != nil {
