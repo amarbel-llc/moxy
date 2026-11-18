@@ -133,6 +133,103 @@ debug-git-grep pattern path='.':
 debug-load:
   @cat /proc/loadavg; nproc
 
+# For each moxy process: PSS, its parent's name, the flag names on its command
+# line (never values) and the environment KEY NAMES (never values) that start
+# with MOXY, MOXIN or CLOWN, so a PSS spread can be compared to configuration.
+# Then orphan candidates: moxy/chrest/nebulous processes whose parent is pid 1
+# or, for children, is not a moxy. Serves the moxy memory pass; reads /proc only.
+#
+# print per-moxy PSS next to config key names, then orphan candidates
+[group("debug")]
+debug-moxy-env-keys:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  declare -A is_moxy
+  for d in /proc/[0-9]*; do
+    pid=${d#/proc/}
+    [[ $(cat "$d/comm" 2>/dev/null) == *moxy* ]] && is_moxy[$pid]=1
+  done
+  for pid in "${!is_moxy[@]}"; do
+    d=/proc/$pid
+    ppid=$(awk '/^PPid:/{print $2}' "$d/status" 2>/dev/null) || continue
+    pcomm=$(cat "/proc/$ppid/comm" 2>/dev/null || echo '?')
+    pss=$(awk '/^Pss:/{print $2}' "$d/smaps_rollup" 2>/dev/null || echo '?')
+    flags=$(tr '\0' '\n' <"$d/cmdline" 2>/dev/null | grep -E '^--?[A-Za-z]' | sed 's/=.*//' | sort -u | tr '\n' ' ')
+    keys=$(tr '\0' '\n' <"$d/environ" 2>/dev/null | sed 's/=.*//' | grep -E '^(MOXY|MOXIN|CLOWN)' | sort | tr '\n' ' ')
+    echo "pid=$pid pss_kB=$pss parent=$pcomm flags=[${flags}] env_keys=[${keys}]"
+  done | sort -t= -k3 -n
+  echo '--- orphan candidates (parent pid 1, or child whose parent is not moxy) ---'
+  for d in /proc/[0-9]*; do
+    pid=${d#/proc/}
+    comm=$(cat "$d/comm" 2>/dev/null) || continue
+    case $comm in
+      *moxy*|*chrest*|*nebulous*) ;;
+      *) continue ;;
+    esac
+    ppid=$(awk '/^PPid:/{print $2}' "$d/status" 2>/dev/null) || continue
+    pcomm=$(cat "/proc/$ppid/comm" 2>/dev/null || echo '?')
+    if [[ $ppid == 1 ]] || { [[ $comm != *moxy* ]] && [[ -z ${is_moxy[$ppid]:-} ]]; }; then
+      echo "pid=$pid comm=$comm ppid=$ppid parent=$pcomm"
+    fi
+  done
+
+# PSS of every cutting-garden process and of its nebulous children, with n,
+# min, median and max per name. The "before" number for moxy#508 step A (one
+# cutting-garden per host); reads /proc only.
+#
+# print PSS summary (n, min, median, max in kB) for cutting-garden and nebulous
+[group("debug")]
+debug-cg-pss:
+  #!/usr/bin/env bash
+  set -uo pipefail
+  rows=$(for d in /proc/[0-9]*; do
+    comm=$(cat "$d/comm" 2>/dev/null) || continue
+    case $comm in
+      *cutting-garden*) name=cutting-garden ;;
+      *nebulous*) name=nebulous ;;
+      *) continue ;;
+    esac
+    pss=$(awk '/^Pss:/{print $2}' "$d/smaps_rollup" 2>/dev/null) || continue
+    [[ -n $pss ]] && echo "$name $pss"
+  done)
+  for name in cutting-garden nebulous; do
+    printf '%s\n' "$rows" | awk -v n="$name" '$1==n{print $2}' | sort -n | awk -v n="$name" '
+      {a[NR]=$1} END{
+        if (NR==0) {print n, "n=0"; exit}
+        m = (NR%2) ? a[(NR+1)/2] : (a[NR/2]+a[NR/2+1])/2
+        print n, "n=" NR, "min_kB=" a[1], "median_kB=" m, "max_kB=" a[NR]}'
+  done
+
+# One read-only pass over /proc: every process whose name is moxy, and each of
+# its direct children, with PSS and RSS in kB from smaps_rollup. Serves the
+# moxy memory pass (what one idle session's moxy and its children cost); run it
+# a few times and take the median per process.
+#
+# print PSS/RSS of every moxy process and its direct children
+[group("debug")]
+debug-moxy-pss:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  declare -A is_moxy
+  for d in /proc/[0-9]*; do
+    pid=${d#/proc/}
+    [[ $(cat "$d/comm" 2>/dev/null) == *moxy* ]] && is_moxy[$pid]=1
+  done
+  printf 'pid ppid comm pss_kB rss_kB threads age_s\n'
+  up=$(cut -d' ' -f1 /proc/uptime)
+  hz=$(getconf CLK_TCK)
+  for d in /proc/[0-9]*; do
+    pid=${d#/proc/}
+    ppid=$(awk '/^PPid:/{print $2}' "$d/status" 2>/dev/null) || continue
+    if [[ -n ${is_moxy[$pid]:-} || -n ${is_moxy[$ppid]:-} ]]; then
+      comm=$(cat "$d/comm" 2>/dev/null) || continue
+      thr=$(awk '/^Threads:/{print $2}' "$d/status" 2>/dev/null) || thr=?
+      start=$(awk '{print $22}' "$d/stat" 2>/dev/null) || start=0
+      age=$(awk -v u="$up" -v s="$start" -v h="$hz" 'BEGIN{printf "%d", u - s/h}')
+      awk -v p="$pid" -v pp="$ppid" -v c="$comm" -v t="$thr" -v a="$age" '/^Pss:/{pss=$2} /^Rss:/{rss=$2} END{print p, pp, c, pss, rss, t, a}' "$d/smaps_rollup" 2>/dev/null || true
+    fi
+  done
+
 # Run the folio glob script (source, not the nix wrapper) against a throwaway
 # tree. Agent dev-loop for moxy#514; the gating coverage is folio_glob.bats.
 #
