@@ -164,9 +164,11 @@ pass-tools = ["two"]'
   assert_success
   assert_equal "$(echo "$output" | jq -r '.contents[0].text' | jq -c '[.[].name]')" '["execute-command"]'
 
+  # "two" has no tool the allowlist names, so it is not started at all
+  # (moxy#525): nothing of it is discoverable, whatever the hint says.
   run_moxy_mcp resources/read '{"uri":"moxy://tools/two"}'
   assert_success
-  assert_equal "$(echo "$output" | jq -r '.contents[0].text' | jq -c '[.[].name]')" '[]'
+  refute_output --partial "execute-command"
 
   run_moxy_mcp resources/read '{"uri":"moxy://tools/two/execute-command"}'
   assert_success
