@@ -115,10 +115,17 @@ func bootstrap(ctx context.Context, in bootstrapInputs) (*bootstrapResult, error
 	}
 
 	disableServers := cfg.BuildDisableServerSet()
+	allowTools := cfg.BuildAllowToolSet()
 	var activeServers []moxyfile.ServerConfig
 	for _, srvCfg := range cfg.Servers {
 		if disableServers.ServerDisabled(srvCfg.Name) {
 			fmt.Fprintf(stderr, "moxy: skipping server %q (disabled by moxyfile)\n", srvCfg.Name)
+			continue
+		}
+		// A child the allowlist leaves no tool is never listed or callable, so
+		// it is not started (moxy#525): same footing as a disabled server.
+		if !allowTools.AllowsServer(srvCfg.Name) {
+			fmt.Fprintf(stderr, "moxy: skipping server %q (allow-tools leaves it no tools)\n", srvCfg.Name)
 			continue
 		}
 		activeServers = append(activeServers, srvCfg)

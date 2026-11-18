@@ -285,6 +285,23 @@ func (s AllowToolSet) Allows(server, tool string) bool {
 	return s[server] || s[server+"."+tool]
 }
 
+// AllowsServer reports whether the allowlist leaves a [[servers]] child at
+// least one tool: no list is in force, or the list names the server whole, or
+// it names one of the server's tools ("server.tool"). A child it does not
+// leave a tool has nothing to list or answer.
+func (s AllowToolSet) AllowsServer(server string) bool {
+	if s == nil || s[server] {
+		return true
+	}
+	prefix := server + "."
+	for entry := range s {
+		if strings.HasPrefix(entry, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // DisableServerSet provides O(1) lookups for disabled [[servers]] entries.
 // Whole-server only — per-tool granularity is rejected at parse time.
 type DisableServerSet struct {

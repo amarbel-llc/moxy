@@ -270,7 +270,13 @@ leaves
 .Dq grit.status
 .Pc .
 A file that does not set the key leaves the list as it found it.
-It governs tools only; resources and prompts are unaffected.
+It governs tools only; resources and prompts of a server that keeps a tool are
+unaffected.
+A
+.Sx SERVERS
+entry the list leaves no tool at all, neither by its name nor by a dotted pair
+under it, is not started: moxy logs that it skipped it, as it does for a
+disabled server, and so its resources and prompts are not served either.
 Entries name tools as
 .Ar server Ns Li \&. Ns Ar tool
 whatever
