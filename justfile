@@ -274,6 +274,24 @@ debug-moxy-heap variant="" settle="60" driver="clock" serial="no":
   # shellcheck disable=SC2086
   cat "$work/err" $logs 2>/dev/null | awk '/^gc [0-9]+ @/ { n++; if (match($0, /[0-9]+->[0-9]+->[0-9]+ MB/)) { split(substr($0, RSTART, RLENGTH), a, /->| /); c = a[3] + 0; if (c > max) max = c; last = c; peak = (a[1] + 0 > peak) ? a[1] + 0 : peak } } END { if (n) printf "gctrace: %d GC cycles, heap before-GC peak %d MB, live-after-GC max %d MB, last %d MB\n", n, peak, max, last; else print "gctrace: no gc lines found" }'
 
+# Cold evaluation cost of one flake output: `nix eval --no-eval-cache` of its
+# drvPath, with wall seconds and peak RSS from GNU time and the evaluator's own
+# counters from NIX_SHOW_STATS (values, function calls, thunks, cpu time).
+# Serves circus#436 (a pages-only output must evaluate cheaply): run it for
+# `manpages` and for `default`, one at a time.
+#
+# print the cold eval wall time, peak RSS and nix eval stats of .#<attr>
+[group("debug")]
+debug-eval-cost attr:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  stats=$(mktemp)
+  trap 'rm -f "$stats"' EXIT
+  NIX_SHOW_STATS=1 NIX_SHOW_STATS_PATH="$stats" \
+    command time -f 'wall_s=%e peak_rss_kB=%M' \
+    nix eval --no-eval-cache --raw ".#{{attr}}.drvPath" >/dev/null
+  jq -c '{cpuTime, values: .values.number, functionCalls: .nrFunctionCalls, thunks: .nrThunks, heapBytes: .gc.heapSize}' "$stats"
+
 # PSS of every cutting-garden process and of its nebulous children, with n,
 # min, median and max per name. The "before" number for moxy#508 step A (one
 # cutting-garden per host); reads /proc only.
@@ -471,7 +489,27 @@ debug-serve-http-gap bin="build/moxy" delay="8":
   zx bin/debug-serve-http-gap.mjs {{bin}} {{delay}}
 
 [group("post-build")]
-test: test-flake-check test-bats-net_cap test-validate-mcp test-status test-status-clean-env
+test: test-flake-check test-bats-net_cap test-validate-mcp test-status test-status-clean-env test-manpages-pure
+
+# packages.manpages is the pages-only output circus#436 wants: a consumer that
+# evaluates only the pages must not instantiate moxy's godyn graph. A sandbox
+# check cannot see a derivation's build inputs (the finished pages carry no
+# store references either way), so this walks the derivation's input closure and
+# fails if a Go build (godyn, toolbox, readguard, the moxy package) is in it.
+#
+# check that packages.manpages needs no Go build
+[group("post-build")]
+test-manpages-pure:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  drv=$(nix eval --raw .#manpages.drvPath)
+  bad=$(nix-store --query --requisites "$drv" | grep -E 'godyn|-toolbox-[0-9]|-readguard-[0-9]|-moxy-[0-9]' || true)
+  if [[ -n $bad ]]; then
+    echo "packages.manpages needs a Go build; its input closure holds:" >&2
+    echo "$bad" >&2
+    exit 1
+  fi
+  echo "packages.manpages: $(nix-store --query --requisites "$drv" | wc -l) derivation inputs, none a Go build"
 
 # Run the bats integration suite inside the nix build sandbox via
 # `nix build .#bats-default`. The default lane filters

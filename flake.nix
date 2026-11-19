@@ -359,7 +359,7 @@
               cp ${./cmd/moxy/moxin.7} $out/share/man/man7/moxin.7
               cp ${./cmd/moxy/moxy-restart.7} $out/share/man/man7/moxy-restart.7
               cp ${./cmd/moxy/moxy-batch.7} $out/share/man/man7/moxy-batch.7
-              cp ${toolbox-moxin}/share/man/man1/*.1 $out/share/man/man1/
+              cp ${toolbox-man}/share/man/man1/*.1 $out/share/man/man1/
               MANPATH=$out/share/man mandb --no-purge --create $out/share/man
             '';
 
@@ -903,15 +903,31 @@
         # folio-perms is its static read floor (#490), as for jq and rg. The
         # man pages land on the man path through moxy-man, and as plain text in
         # share/moxy/man for the man://<page> resources (#501).
-        toolbox-moxin =
-          pkgs.runCommand "toolbox-moxin"
+        # The toolbox pages on their own: scdoc over the checked-in .scd
+        # sources, with no reference to the toolbox Go binary, so moxy-man (and
+        # so packages.manpages, circus#436) needs no godyn build to evaluate.
+        toolbox-man =
+          pkgs.runCommand "toolbox-man"
             {
               nativeBuildInputs = [
-                pkgs.makeWrapper
                 pkgs.scdoc
                 pkgs.mandoc
                 pkgs.util-linux # col
               ];
+            }
+            ''
+              mkdir -p $out/share/man/man1 $out/share/moxy/man
+              for s in ${./moxins/toolbox/man}/*.scd; do
+                page=$(basename "$s" .scd)
+                scdoc <"$s" >"$out/share/man/man1/$page"
+                # -T markdown takes mdoc(7) only; scdoc writes man(7)
+                mandoc -T utf8 -O width=80 "$out/share/man/man1/$page" | col -bx >"$out/share/moxy/man/$page.txt"
+              done
+            '';
+        toolbox-moxin =
+          pkgs.runCommand "toolbox-moxin"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ];
             }
             ''
               mkdir -p $out/bin $out/share/man/man1 $out/share/moxy/man
@@ -923,12 +939,8 @@
                   --replace-quiet "@BIN@" "$out/bin" \
                   --replace-quiet "@FOLIO_PERMS@" "${folio-moxin}/bin/folio-perms"
               done
-              for s in ${./moxins/toolbox/man}/*.scd; do
-                page=$(basename "$s" .scd)
-                scdoc <"$s" >"$out/share/man/man1/$page"
-                # -T markdown takes mdoc(7) only; scdoc writes man(7)
-                mandoc -T utf8 -O width=80 "$out/share/man/man1/$page" | col -bx >"$out/share/moxy/man/$page.txt"
-              done
+              cp ${toolbox-man}/share/man/man1/* $out/share/man/man1/
+              cp ${toolbox-man}/share/moxy/man/* $out/share/moxy/man/
             '';
 
         # gws moxins: built, but unshipped (#391) — see the gws-bin block above
@@ -1561,6 +1573,11 @@
             go-pkgs-test
             ;
           default = combined;
+          # Pages only (circus#436, eng-manpages(7)): $out/share/man/man<N>/
+          # <page>.<N>, uncompressed, and nothing else in its closure, so a
+          # consumer that only wants the pages never instantiates moxy's godyn
+          # graph. checks.manpages-pure pins both properties.
+          manpages = moxy-man;
           # Per-package coverage of the whole test suite (godynSystem only):
           # the result has coverage.out, percent.txt and covdata/.
           moxy-coverage = moxy-native-cover.passthru.coverage;
@@ -1611,6 +1628,33 @@
           # covers its rule set (igloo FDR 0007 § golangci-lint parity).
           go-lint = goLint;
           bats = batsLaneOutputs.bats-default;
+          # packages.manpages (circus#436) is the hand-written pages, built
+          # without the Go binary. The default package installs those plus the
+          # per-subcommand man1 pages `moxy generate-plugin` writes from the
+          # binary (moxy-add.1 ...), which a pages-only output cannot carry.
+          # So: every page in manpages must be in the default package (nothing
+          # shadowed or renamed), and the only default-only pages are those
+          # generated moxy-<subcommand>.1 ones. The default package gzips, so
+          # names are compared without .gz. That the output needs no Go build
+          # is `just test-manpages-pure`: a sandbox check cannot see inputs.
+          manpages-pure = pkgs.runCommand "manpages-pure" { } ''
+            pages() { (cd "$1/share/man" && find . -type f -path './man[0-9]/*' | sed 's/\.gz$//' | sort); }
+            pages ${moxy-man} > want
+            pages ${moxy} > got
+            missing=$(comm -23 want got)
+            if [ -n "$missing" ]; then
+              echo "packages.manpages has pages the default package does not install:" >&2
+              echo "$missing" >&2
+              exit 1
+            fi
+            extra=$(comm -13 want got | grep -vE '^\./man1/moxy-[a-z-]+\.1$' || true)
+            if [ -n "$extra" ]; then
+              echo "the default package installs pages packages.manpages lacks, beyond the generated moxy-<subcommand>.1:" >&2
+              echo "$extra" >&2
+              exit 1
+            fi
+            touch $out
+          '';
           # Codec drift guard (igloo FDR 0008): `go generate` in the vendored
           # module tree, failing on any diff from the committed source.
           # Backend-independent. `just verify-tommy-codegen` builds this.
