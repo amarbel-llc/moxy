@@ -374,18 +374,20 @@
         # (moxy-add ... moxy-version). They are in this output because the
         # homes' manpath and the session man page index are built from it: a
         # page missing here drops out of that index. moxy.1 here is the
-        # generated one, as in the default package, whose postInstall copies
-        # moxy-man with `cp -n`, so the generated moxy.1 wins over the
-        # hand-written cmd/moxy/moxy.1 (which is therefore not installed).
+        # hand-written cmd/moxy/moxy.1, as in the default package, whose
+        # postInstall copies moxy-man over what generate-plugin wrote (moxy#529;
+        # it used to be `cp -n`, which let the shorter generated moxy.1 win).
+        # The committed generated moxy.1 is therefore not installed.
         # The committed pages carry no build date or revision (see
         # moxy-man-generated); the version goes back into each .TH line here.
         moxy-manpages = pkgs.runCommand "moxy-manpages" { } ''
-          mkdir -p $out/share/man
-          cp -r ${moxy-man}/share/man/man[0-9] $out/share/man/
-          chmod -R u+w $out/share/man
+          mkdir -p $out/share/man/man1
           for f in ${./manpages-generated}/*.1; do
             sed -E '1s/"moxy"$/"moxy ${moxyVersion}"/' "$f" > $out/share/man/man1/$(basename "$f")
           done
+          # The hand-written pages go on top, so the hand-written moxy.1 takes
+          # the name from the generated one (moxy#529), as in the default package.
+          cp -rf --no-preserve=mode ${moxy-man}/share/man/man[0-9] $out/share/man/
         '';
 
         # What `moxy generate-plugin` writes: the per-subcommand section 1
@@ -1217,7 +1219,9 @@
                 --replace-fail "@MOXY@" "$out/bin/moxy"
               chmod +x $out/share/purse-first/moxy/hooks/pre-tool-use
 
-              cp -rn ${moxy-man}/share/man/* $out/share/man/
+              # -f: the hand-written moxy.1 replaces the shorter one
+              # generate-plugin just wrote (moxy#529).
+              cp -rf --no-preserve=mode ${moxy-man}/share/man/* $out/share/man/
 
               # Moxin tools have their own PATH via wrapProgram in per-moxin
               # derivations. The moxy binary itself only needs bash for
@@ -1703,6 +1707,21 @@
                 exit 1
               fi
             done < want
+            touch $out
+          '';
+          # moxy.1 is the hand-written cmd/moxy/moxy.1 in both outputs (moxy#529):
+          # `moxy generate-plugin` also writes a (much shorter) moxy.1, and it
+          # must not take the name. The pages here are compared whole, not
+          # after the .TH line, because the hand-written page is mdoc.
+          manpages-handwritten-moxy-1 = pkgs.runCommand "manpages-handwritten-moxy-1" { } ''
+            for pkg in ${moxy-manpages} ${moxy}; do
+              if [ -e "$pkg/share/man/man1/moxy.1" ]; then cat "$pkg/share/man/man1/moxy.1" > got
+              else zcat "$pkg/share/man/man1/moxy.1.gz" > got; fi
+              if ! diff -q ${./cmd/moxy/moxy.1} got >/dev/null; then
+                echo "$pkg installs a moxy.1 that is not cmd/moxy/moxy.1 (moxy#529)" >&2
+                exit 1
+              fi
+            done
             touch $out
           '';
           # The committed copy of what `moxy generate-plugin` writes
