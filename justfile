@@ -173,6 +173,83 @@ debug-moxy-env-keys:
     fi
   done
 
+# Start one nix-built `moxy serve mcp` in a throwaway HOME (no moxyfile, so only
+# the bundled moxins), optionally under an environment variant such as
+# GOMEMLIMIT=24MiB or GODEBUG=madvdontneed=1, and print its PSS/RSS (kB) idle,
+# after n1 and n2 tool calls, and after a settle (seconds), plus the moxy
+# process's CPU seconds (utime+stime) and the wall seconds spent on the calls.
+# driver=clock: 50 then 500 env.clock calls (small results); driver=bigread: 10
+# then 50 folio.read calls of a 1 MB file (large results, cached as blobs).
+# Tests the "Go heap is not returned after tool calls" theory for the moxy
+# memory pass. Read-only apart from a temp dir; variant is an optional VAR=value.
+#
+# print moxy PSS idle/after calls/after settle, CPU seconds and call wall time
+[group("debug")]
+debug-moxy-heap variant="" settle="60" driver="clock":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  out=$(nix build .#moxy --no-link --print-out-paths)
+  bin=$out/bin/moxy
+  # The justfile exports a MOXIN_PATH at a result-moxins link that may not exist.
+  export MOXIN_PATH="$out/share/moxy/moxins"
+  work=$(mktemp -d)
+  trap 'exec 3>&- 2>/dev/null || true; [[ -n ${pid:-} ]] && kill "$pid" 2>/dev/null || true; rm -rf "$work"' EXIT
+  mkdir -p "$work/home" "$work/cwd"
+  mkfifo "$work/in"
+  case "{{driver}}" in
+    clock) tool=env.clock; targs='{}'; n1=50; n2=500 ;;
+    bigread)
+      tool=folio.read; n1=10; n2=50
+      # yes dies of SIGPIPE when head stops reading; that is how this ends.
+      { yes 'the quick brown fox jumps over the lazy dog' | head -c 1048576 >"$work/cwd/big.txt"; } || true
+      targs=$(printf '{"file_path":"%s"}' "$work/cwd/big.txt")
+      # Large results are cached as blobs: give the throwaway HOME a madder store.
+      (cd "$work/home" && madder init .default >/dev/null 2>&1) || echo "warning: no madder store; large results may fail" >&2
+      ;;
+    *) echo "driver must be clock or bigread" >&2; exit 2 ;;
+  esac
+  (cd "$work/cwd" && env HOME="$work/home" MOXY_DISABLE_STATSD=1 {{variant}} "$bin" serve mcp <"$work/in" >"$work/out" 2>"$work/err") &
+  pid=$!
+  exec 3>"$work/in"
+  printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"heap","version":"0"}}}' >&3
+  printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&3
+  sleep 3
+  # The wrapper may exec the real binary or fork it; follow to the process that holds memory.
+  real=$pid
+  if [[ $(cat /proc/$pid/comm) != *wrapped* ]]; then
+    kid=$(cat /proc/$pid/task/$pid/children 2>/dev/null | awk '{print $1}')
+    [[ -n $kid ]] && real=$kid
+  fi
+  sample() { printf '%-22s pid=%s comm=%s %s\n' "$1" "$real" "$(cat /proc/$real/comm)" "$(awk '/^Pss:/{p=$2} /^Rss:/{r=$2} END{printf "pss_kB=%s rss_kB=%s", p, r}' /proc/$real/smaps_rollup)"; }
+  calls() {
+    local from=$1 to=$2 i
+    for ((i = from; i <= to; i++)); do
+      printf '{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' $((i + 100)) "$tool" "$targs" >&3
+    done
+    local want=$((to + 1)) got=0 waited=0
+    while ((waited < 240)); do
+      got=$(grep -c '"id":' "$work/out" || true)
+      ((got >= want)) && return 0
+      sleep 0.5; waited=$((waited + 1))
+    done
+    echo "warning: only $got of $want responses after 120 s" >&2
+  }
+  cpu_ticks() { awk '{print $14 + $15}' /proc/$real/stat; }
+  hz=$(getconf CLK_TCK)
+  echo "variant: {{variant}}  driver: {{driver}} ($tool)"
+  sample "idle"
+  cpu0=$(cpu_ticks); t0=$(date +%s.%N)
+  calls 1 "$n1"
+  sample "after $n1 calls"
+  calls $((n1 + 1)) "$n2"
+  t1=$(date +%s.%N); cpu1=$(cpu_ticks)
+  sample "after $n2 calls"
+  sleep {{settle}}
+  sample "after {{settle}} s settle"
+  awk -v c0="$cpu0" -v c1="$cpu1" -v hz="$hz" -v t0="$t0" -v t1="$t1" -v n="$n2" 'BEGIN{printf "cpu_s=%.2f wall_s=%.2f for %d calls\n", (c1-c0)/hz, t1-t0, n}'
+  echo "responses: $(grep -c '"id":' "$work/out"), errors: $(grep -c '"isError":true' "$work/out" || true)"
+  grep -m1 '"isError":true' "$work/out" | cut -c1-400 || true
+
 # PSS of every cutting-garden process and of its nebulous children, with n,
 # min, median and max per name. The "before" number for moxy#508 step A (one
 # cutting-garden per host); reads /proc only.
