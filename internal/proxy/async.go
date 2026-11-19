@@ -182,7 +182,8 @@ func (p *Proxy) HandleAsync(
 	jobValues := carryCallValues(ctx)
 	id, err := p.asyncManager.Dispatch(ctx, params.Tool, params.Args, timeout,
 		func(jobCtx context.Context, tool string, callArgs json.RawMessage) (*protocol.ToolCallResultV1, error) {
-			return p.CallToolV1(jobValues(jobCtx), tool, callArgs)
+			// The observer saw this async call and the call it wraps.
+			return p.CallToolV1(markWrapped(jobValues(jobCtx)), tool, callArgs)
 		})
 	if err != nil {
 		return protocol.ErrorResultV1(

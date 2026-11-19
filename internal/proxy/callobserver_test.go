@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"sync"
 	"testing"
+
+	"code.linenisgreat.com/moxy/internal/native"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 type recordingObserver struct {
@@ -71,6 +74,33 @@ func TestCallObserverSeesRefusedCallsToo(t *testing.T) {
 	_ = dispatchJSON(t, p, "nosuch.thing", `{}`) // unknown server: an error result
 	if len(rec.names) != 1 {
 		t.Errorf("observer saw %v, want the one refused call", rec.names)
+	}
+}
+
+// The observer is told about a batch once, as the wrapper, which presents its
+// inner calls; the inner calls the batch then dispatches are not observed a
+// second time (moxy#523: they were counted twice).
+func TestBatchInnerCallsAreNotObservedAgain(t *testing.T) {
+	rec := &recordingObserver{}
+	p := echoProxy()
+	p.SetResolver(perms.NewResolverWithPerms(map[string]perms.ToolPermInfo{
+		"srv.thing": {Perm: native.PermsAlwaysAllow},
+	}))
+	p.SetCallObserver(rec)
+
+	res, err := p.HandleBatch(context.Background(), json.RawMessage(
+		`{"calls":[{"tool":"srv.thing","args":{"a":1}},{"tool":"srv.thing","args":{"a":2}}]}`))
+	if err != nil || res.IsError {
+		t.Fatalf("HandleBatch: res=%+v err=%v", res, err)
+	}
+	if len(rec.names) != 0 {
+		t.Fatalf("the batch's inner calls were observed again: %v", rec.names)
+	}
+
+	// A direct call is still observed.
+	_ = dispatchJSON(t, p, "srv.thing", `{"a":3}`)
+	if len(rec.names) != 1 {
+		t.Fatalf("a direct call must still be observed once, got %v", rec.names)
 	}
 }
 

@@ -140,9 +140,27 @@ func (p *Proxy) SetCallObserver(o CallObserver) {
 	p.mu.Unlock()
 }
 
-// observeCall tells the observer about a dispatch. It recovers every panic so
-// an observer can never change a call's outcome.
-func (p *Proxy) observeCall(name string, args json.RawMessage) {
+// wrappedKey marks a context as one a batch or async job dispatches a wrapped
+// call under: the wrapper itself was observed, and presented its inner calls
+// then, so observing them again as they run would count each twice (moxy#523).
+type wrappedKey struct{}
+
+func markWrapped(ctx context.Context) context.Context {
+	return context.WithValue(ctx, wrappedKey{}, true)
+}
+
+func isWrapped(ctx context.Context) bool {
+	v, _ := ctx.Value(wrappedKey{}).(bool)
+	return v
+}
+
+// observeCall tells the observer about a dispatch, unless the dispatch is a
+// wrapped call whose wrapper the observer already saw. It recovers every panic
+// so an observer can never change a call's outcome.
+func (p *Proxy) observeCall(ctx context.Context, name string, args json.RawMessage) {
+	if isWrapped(ctx) {
+		return
+	}
 	p.mu.RLock()
 	o := p.callObserver
 	p.mu.RUnlock()
@@ -1089,7 +1107,7 @@ func (p *Proxy) CallToolV1(
 	name string,
 	args json.RawMessage,
 ) (*protocol.ToolCallResultV1, error) {
-	p.observeCall(name, args)
+	p.observeCall(ctx, name, args)
 	start := time.Now()
 	result, err := p.callToolV1(ctx, name, args)
 	serverName, toolName := p.metricSegments(name)

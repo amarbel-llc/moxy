@@ -34,10 +34,13 @@ type FieldRecord struct {
 // Record is one log line. It names the tool, the types of the fields and
 // the verdict, and carries no argument values.
 type Record struct {
-	Tool    string        `json:"tool"`
-	Fields  []FieldRecord `json:"fields,omitempty"`
-	Verdict Verdict       `json:"verdict"`
-	Error   string        `json:"error,omitempty"`
+	Tool   string        `json:"tool"`
+	Fields []FieldRecord `json:"fields,omitempty"`
+	// Via names the wrapper a call ran inside, outermost first: "batch",
+	// "async" or "async>batch" (moxy#523). Absent for a direct dispatch.
+	Via     string  `json:"via,omitempty"`
+	Verdict Verdict `json:"verdict"`
+	Error   string  `json:"error,omitempty"`
 }
 
 // Observer evaluates and logs calls in shadow mode. It never affects the
@@ -69,9 +72,28 @@ func (o *Observer) Observe(name string, args map[string]any) {
 		o.write(Record{Tool: name, Verdict: VerdictRefused, Error: err.Error()})
 		return
 	}
+	via := wrapperVia(name, args)
 	for _, c := range calls {
-		o.write(o.evaluate(c))
+		rec := o.evaluate(c)
+		rec.Via = via
+		o.write(rec)
 	}
+}
+
+// wrapperVia says which wrapper the calls built from name's arguments ran
+// inside: a batch or async call is observed once, as the wrapper, and presents
+// the calls it wraps (the moxy proxy does not observe them again as they run).
+func wrapperVia(name string, args map[string]any) string {
+	switch name {
+	case "batch":
+		return "batch"
+	case "async":
+		if inner, _ := args["tool"].(string); inner == "batch" {
+			return "async>batch"
+		}
+		return "async"
+	}
+	return ""
 }
 
 func (o *Observer) evaluate(c Call) (rec Record) {

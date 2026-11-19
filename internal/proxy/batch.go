@@ -154,6 +154,9 @@ func (p *Proxy) runBatchCalls(
 	if dispatch == nil {
 		dispatch = p.CallToolV1
 	}
+	// The observer saw the batch and the calls it presents; the sub-calls
+	// run under a marked context so they are not observed a second time.
+	ctx = markWrapped(ctx)
 	records := make([]ndjsonTestRecord, 0, len(calls))
 	passed, failed, skipped := 0, 0, 0
 	stopped := false

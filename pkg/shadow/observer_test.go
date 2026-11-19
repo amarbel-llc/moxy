@@ -71,6 +71,37 @@ func TestObserveLogsToolFieldTypesAndVerdictNotValues(t *testing.T) {
 	}
 }
 
+// A call a wrapper presents is marked with the wrapper it ran inside (moxy#523),
+// so a review can tell it from a direct dispatch; a direct call has no mark.
+func TestObserveMarksCallsPresentedByAWrapper(t *testing.T) {
+	var buf bytes.Buffer
+	o := NewObserver(newTestBuilder(t, testEnv()), nil, &buf)
+
+	o.Observe("man.toc", map[string]any{"page": "ls"})
+	o.Observe("batch", map[string]any{"calls": []any{
+		map[string]any{"tool": "man.toc", "args": map[string]any{"page": "ls"}},
+		map[string]any{"tool": "folio.read", "args": map[string]any{"file_path": "/home/u/x"}},
+	}})
+	o.Observe("async", map[string]any{"tool": "man.toc", "args": map[string]any{"page": "ls"}})
+	o.Observe("async", map[string]any{"tool": "batch", "args": map[string]any{"calls": []any{
+		map[string]any{"tool": "man.toc", "args": map[string]any{"page": "ls"}},
+	}}})
+
+	var via []string
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("log line %q: %v", line, err)
+		}
+		v, _ := rec["via"].(string)
+		via = append(via, v)
+	}
+	want := []string{"", "batch", "batch", "async", "async>batch"}
+	if strings.Join(via, "|") != strings.Join(want, "|") {
+		t.Fatalf("via per record = %q, want %q", via, want)
+	}
+}
+
 func TestObserveWithNoEvaluatorRecordsUnevaluated(t *testing.T) {
 	var buf bytes.Buffer
 	o := NewObserver(newTestBuilder(t, testEnv()), nil, &buf)
