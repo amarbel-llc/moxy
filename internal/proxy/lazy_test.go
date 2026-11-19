@@ -199,6 +199,34 @@ func TestLazyServerRestartStopsItAndRereadsManifest(t *testing.T) {
 	}
 }
 
+// A server may declare its tools in the moxyfile instead of running a
+// manifest-command (manifest-json): it is lazy the same way.
+func TestLazyServerWithDeclaredToolsIsNotSpawnedAtBootAndStartsOnTheFirstCall(t *testing.T) {
+	sc := &spawnCounter{raw: okCallResult(t)}
+	cfg := moxyfile.ServerConfig{
+		Name:         "lazy",
+		Command:      moxyfile.MakeCommand("lazy-server"),
+		ManifestJSON: manifestToolsJSON,
+	}
+	p := New(nil, nil, []moxyfile.ServerConfig{cfg}, nil, nil, sc.connect)
+	p.ProbeEphemeral(context.Background())
+
+	if n := sc.spawns(); n != 0 {
+		t.Fatalf("a server with declared tools must not be spawned at boot, got %d spawn(s)", n)
+	}
+	if names := toolNames(t, p); !slices.Contains(names, "lazy.hello") {
+		t.Fatalf("tools/list must answer from the declared tools: got %v", names)
+	}
+	for i := 0; i < 2; i++ {
+		if res, err := p.CallToolV1(context.Background(), "lazy.hello", nil); err != nil || res.IsError {
+			t.Fatalf("call %d: res=%+v err=%v", i, res, err)
+		}
+	}
+	if n := sc.spawns(); n != 1 {
+		t.Fatalf("the first call spawns the server once and the second reuses it: got %d spawn(s)", n)
+	}
+}
+
 func TestLazyServerWithFailingManifestIsALoadError(t *testing.T) {
 	for _, mode := range []string{"fail", "garbage"} {
 		t.Run(mode, func(t *testing.T) {

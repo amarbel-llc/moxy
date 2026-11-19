@@ -353,6 +353,12 @@ func decodeConfigParsed(doc *document.Document) (*ConfigDocument, error) {
 					_vServersManifestCommand.MarkConsumed()
 				}
 			}
+			if _vServersManifestJson, _ok := _eServers.Field("manifest-json"); _ok && _vServersManifestJson.Kind == cst.VLeaf {
+				if _x, _xok := cst.ExtractString(_vServersManifestJson.Leaf); _xok {
+					d.data.Servers[i].ManifestJSON = _x
+					_vServersManifestJson.MarkConsumedString()
+				}
+			}
 		}
 	}
 	if _eaServers, _eaok := model.Field("servers"); _eaok && _eaServers.IsEmptyArray() {
@@ -554,6 +560,13 @@ func (d *ConfigDocument) Encode() ([]byte, error) {
 						return nil, fmt.Errorf("%w", err)
 					}
 				}
+			}
+			if d.data.Servers[i].ManifestJSON != "" {
+				if err := cst.SetAny(container, "manifest-json", d.data.Servers[i].ManifestJSON); err != nil {
+					return nil, fmt.Errorf("%w", err)
+				}
+			} else {
+				cst.DeleteValue(container, "manifest-json")
 			}
 		}
 	}
@@ -869,6 +882,12 @@ func DecodeConfigInto(data *Config, sub *cst.Value) error {
 					_vServersManifestCommand.MarkConsumed()
 				}
 			}
+			if _vServersManifestJson, _ok := _eServers.Field("manifest-json"); _ok && _vServersManifestJson.Kind == cst.VLeaf {
+				if _x, _xok := cst.ExtractString(_vServersManifestJson.Leaf); _xok {
+					data.Servers[i].ManifestJSON = _x
+					_vServersManifestJson.MarkConsumedString()
+				}
+			}
 		}
 	}
 	if _eaServers, _eaok := sub.Field("servers"); _eaok && _eaServers.IsEmptyArray() {
@@ -1068,6 +1087,13 @@ func EncodeConfigFrom(data *Config, doc *document.Document, container *cst.Node)
 						return fmt.Errorf("%w", err)
 					}
 				}
+			}
+			if data.Servers[i].ManifestJSON != "" {
+				if err := cst.SetAny(container, "manifest-json", data.Servers[i].ManifestJSON); err != nil {
+					return fmt.Errorf("%w", err)
+				}
+			} else {
+				cst.DeleteValue(container, "manifest-json")
 			}
 		}
 	}

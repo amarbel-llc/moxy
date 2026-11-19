@@ -383,7 +383,7 @@ func (p *Proxy) ProbeEphemeral(ctx context.Context) {
 				p.markFailed(name, err)
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "moxy: %s is lazy: %d tool(s) from its manifest-command, not started\n",
+			fmt.Fprintf(os.Stderr, "moxy: %s is lazy: %d tool(s) from its manifest, not started\n",
 				name, len(meta.Tools))
 			continue
 		}

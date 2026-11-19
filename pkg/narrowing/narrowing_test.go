@@ -155,6 +155,12 @@ command = ["smith", "mcp"]
 			want:   []string{"servers.smith: manifest-command differs from parent"},
 		},
 		{
+			name:   "child may not change the tools a server declares",
+			parent: smith + "manifest-json = '{\"tools\":[{\"name\":\"a\",\"inputSchema\":{\"type\":\"object\"}}]}'\n",
+			child:  smith + "manifest-json = '{\"tools\":[{\"name\":\"b\",\"inputSchema\":{\"type\":\"object\"}}]}'\n",
+			want:   []string{"servers.smith: manifest-json differs from parent"},
+		},
+		{
 			name:   "an identical manifest-command narrows",
 			parent: smith + "manifest-command = [\"smith\", \"manifest\"]\n",
 			child:  smith + "manifest-command = [\"smith\", \"manifest\"]\n",

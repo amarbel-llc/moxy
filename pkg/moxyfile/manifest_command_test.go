@@ -57,6 +57,75 @@ func TestManifestCommandRoundTrip(t *testing.T) {
 	}
 }
 
+// manifest-json (moxy#525): the declared fallback for a server that has no
+// manifest-command. The moxyfile holds the server's tools/list result itself,
+// and the server is lazy exactly as with a manifest-command.
+
+const declaredTools = `{"tools":[{"name":"hello","description":"says hello","inputSchema":{"type":"object"}}]}`
+
+func TestParseManifestJSON(t *testing.T) {
+	cfg, err := Parse([]byte("[[servers]]\nname = \"chrest\"\ncommand = \"chrest mcp\"\nmanifest-json = '''\n" + declaredTools + "\n'''\n"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	srv := cfg.Servers[0]
+	if !srv.IsLazy() {
+		t.Error("a server with manifest-json must be lazy")
+	}
+	if !strings.Contains(srv.ManifestJSON, `"name":"hello"`) {
+		t.Errorf("manifest-json lost its content: %q", srv.ManifestJSON)
+	}
+}
+
+func TestManifestJSONRoundTrip(t *testing.T) {
+	doc, err := DecodeConfig([]byte("[[servers]]\nname = \"c\"\ncommand = \"c mcp\"\nmanifest-json = '" + declaredTools + "'\n"))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	out, err := doc.Encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	doc2, err := DecodeConfig(out)
+	if err != nil {
+		t.Fatalf("re-decode: %v", err)
+	}
+	if got := doc2.Data().Servers[0].ManifestJSON; got != declaredTools {
+		t.Errorf("manifest-json after round-trip: got %q", got)
+	}
+}
+
+func TestParseRejectsManifestJSONThatIsNotAToolsList(t *testing.T) {
+	for name, body := range map[string]string{
+		"not json":      `not json at all`,
+		"no tools list": `{"hello":1}`,
+		"a bare array":  `[{"name":"x"}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Parse([]byte("[[servers]]\nname = \"c\"\ncommand = \"c mcp\"\nmanifest-json = '" + body + "'\n"))
+			if err == nil {
+				t.Fatalf("expected an error for manifest-json = %q", body)
+			}
+		})
+	}
+}
+
+func TestParseRejectsManifestJSONBesideManifestCommand(t *testing.T) {
+	_, err := Parse([]byte("[[servers]]\nname = \"c\"\ncommand = \"c mcp\"\nmanifest-command = [\"c\", \"manifest\"]\nmanifest-json = '" + declaredTools + "'\n"))
+	if err == nil {
+		t.Fatal("expected an error: a server lists its tools from one source, not two")
+	}
+}
+
+func TestParseRejectsManifestJSONWithoutCommandOrOnURLServer(t *testing.T) {
+	if _, err := Parse([]byte("[[servers]]\nname = \"c\"\nmanifest-json = '" + declaredTools + "'\n")); err == nil {
+		t.Error("expected an error: manifest-json needs a command to start on the first call")
+	}
+	if _, err := Parse([]byte("[[servers]]\nname = \"c\"\nurl = \"https://example.com/mcp\"\nmanifest-json = '" + declaredTools + "'\n")); err == nil {
+		t.Error("expected an error: manifest-json is for command servers")
+	}
+}
+
 func TestParseRejectsManifestCommandWithoutCommand(t *testing.T) {
 	_, err := Parse([]byte("[[servers]]\nname = \"x\"\nmanifest-command = [\"x\", \"manifest\"]\n"))
 	if err == nil {

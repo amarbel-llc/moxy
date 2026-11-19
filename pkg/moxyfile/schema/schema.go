@@ -69,6 +69,11 @@ type ServerConfig struct {
 	// an optional Command field even when empty, which the array's omitempty
 	// does not.
 	ManifestCommand []string `toml:"manifest-command,omitempty"`
+	// ManifestJSON is the declared alternative (moxy#525): the server's
+	// tools/list result written into the moxyfile itself, for a server that
+	// has no manifest-command. Moxy lists the tools from it and the server is
+	// lazy exactly as with a manifest-command. Not both.
+	ManifestJSON string `toml:"manifest-json,omitempty"`
 }
 
 // The values permission-mode accepts (moxy#486). Unset reads as delegate.
@@ -102,9 +107,10 @@ func (s ServerConfig) EffectiveCommand() (executable string, args []string) {
 }
 
 // IsLazy reports whether the server is started on its first call rather than
-// at startup: it declares a manifest-command to list its tools without running.
+// at startup: it lists its tools without running, from a manifest-command or
+// from a manifest-json it declares.
 func (s ServerConfig) IsLazy() bool {
-	return len(s.ManifestCommand) > 0
+	return len(s.ManifestCommand) > 0 || s.ManifestJSON != ""
 }
 
 func (s ServerConfig) IsEphemeral(globalEphemeral *bool) bool {

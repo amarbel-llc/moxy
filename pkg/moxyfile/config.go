@@ -1,6 +1,7 @@
 package moxyfile
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -151,14 +152,19 @@ func ParseLiteral(data []byte) (Config, error) {
 
 		if srv.IsLazy() {
 			switch {
+			case len(srv.ManifestCommand) > 0 && srv.ManifestJSON != "":
+				return Config{}, fmt.Errorf(
+					"server %q: manifest-command and manifest-json both set (a server lists its tools from one source)",
+					srv.Name,
+				)
 			case hasURL:
 				return Config{}, fmt.Errorf(
-					"server %q: manifest-command is only valid for command servers",
+					"server %q: manifest-command and manifest-json are only valid for command servers",
 					srv.Name,
 				)
 			case !hasCommand:
 				return Config{}, fmt.Errorf(
-					"server %q: manifest-command needs a command to start on the first call",
+					"server %q: manifest-command and manifest-json need a command to start on the first call",
 					srv.Name,
 				)
 			case srv.Ephemeral != nil && *srv.Ephemeral:
@@ -168,9 +174,14 @@ func ParseLiteral(data []byte) (Config, error) {
 				)
 			case srv.NixDevshell != nil:
 				return Config{}, fmt.Errorf(
-					"server %q: manifest-command is not supported with nix-devshell",
+					"server %q: manifest-command and manifest-json are not supported with nix-devshell",
 					srv.Name,
 				)
+			}
+			if srv.ManifestJSON != "" {
+				if err := checkToolsList(srv.ManifestJSON); err != nil {
+					return Config{}, fmt.Errorf("server %q: manifest-json: %w", srv.Name, err)
+				}
 			}
 		}
 
@@ -349,6 +360,24 @@ func stringSet(entries []string) map[string]bool {
 		set[e] = true
 	}
 	return set
+}
+
+// checkToolsList reports whether s is a JSON object with a "tools" array, the
+// shape of an MCP tools/list result (a manifest-json declares one).
+func checkToolsList(s string) error {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(s), &obj); err != nil {
+		return fmt.Errorf("not a JSON object: %w", err)
+	}
+	var tools []json.RawMessage
+	raw, ok := obj["tools"]
+	if !ok {
+		return errors.New(`no "tools" array: want a tools/list result such as {"tools":[...]}`)
+	}
+	if err := json.Unmarshal(raw, &tools); err != nil {
+		return fmt.Errorf(`"tools" is not an array: %w`, err)
+	}
+	return nil
 }
 
 func Load(path string) (Config, error) {

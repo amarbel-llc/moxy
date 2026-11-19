@@ -450,6 +450,43 @@ Under narrowing, a child's
 .Va manifest-command
 must equal its parent's.
 Unset, the server behaves exactly as without this key.
+.It Va manifest-json
+The declared alternative to
+.Va manifest-command :
+a string holding the server's
+.Li tools/list
+result as JSON (an object with a
+.Li tools
+array), written in the moxyfile itself (a TOML literal string,
+.Li '''...''' ,
+is the easy form).
+Moxy lists the tools from it, does not spawn the server at startup and spawns it
+on the first call, exactly as with
+.Va manifest-command ;
+nothing is run to learn the tools, so it suits a server with no manifest mode.
+A value that is not a JSON object with a
+.Li tools
+array is refused when the moxyfile is read.
+Not valid beside
+.Va manifest-command
+(a server lists its tools from one source), and subject to the same rules as
+.Va manifest-command
+(needs
+.Va command ;
+not valid with
+.Va url ,
+.Va ephemeral
+or
+.Va nix-devshell ) .
+The declared list can drift from what the server really offers: the server's own
+.Li tools/list
+is never consulted, and the list changes only when the moxyfile is read again
+(the
+.Cm restart
+tool with no server name), not by restarting the one server.
+Under narrowing, a child's
+.Va manifest-json
+must equal its parent's.
 .It Va progressive-disclosure
 Overrides the global
 .Va progressive-disclosure

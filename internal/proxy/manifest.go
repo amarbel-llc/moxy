@@ -62,8 +62,15 @@ func runManifest(ctx context.Context, cfg moxyfile.ServerConfig) ([]protocol.Too
 // failing command is a load error: the server is marked failed (so the client
 // sees <name>.status saying why) and is never spawned.
 func (p *Proxy) loadManifest(ctx context.Context, meta *EphemeralMeta) error {
-	tools, err := runManifest(ctx, meta.Config)
-	if err != nil {
+	var tools []protocol.ToolV1
+	var err error
+	if meta.Config.ManifestJSON != "" {
+		// Declared in the moxyfile: nothing to run (checked at parse time).
+		tools, err = decodeToolsList([]byte(meta.Config.ManifestJSON))
+		if err != nil {
+			return fmt.Errorf("manifest-json: not a tools/list result: %w", err)
+		}
+	} else if tools, err = runManifest(ctx, meta.Config); err != nil {
 		return err
 	}
 	meta.Tools = tools

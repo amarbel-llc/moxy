@@ -330,6 +330,7 @@ func invocationDifferences(parent, child moxyfile.ServerConfig) []string {
 	}
 	differs("command", slices.Equal(parent.Command.Parts(), child.Command.Parts()))
 	differs("manifest-command", slices.Equal(parent.ManifestCommand, child.ManifestCommand))
+	differs("manifest-json", parent.ManifestJSON == child.ManifestJSON)
 	differs("url", parent.URL == child.URL)
 	differs("headers", maps.Equal(parent.Headers, child.Headers))
 	differs("headers-helper", sameOptional(parent.HeadersHelper, child.HeadersHelper))
