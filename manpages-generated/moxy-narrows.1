@@ -1,0 +1,22 @@
+.TH MOXY-NARROWS 1 "" "moxy"
+.SH NAME
+moxy-narrows \- Check that a child moxyfile grants no more than a parent
+.SH SYNOPSIS
+.B moxy narrows
+.RI --parent = STRING
+.RI --child = STRING
+.RI [ --json = BOOLEAN ]
+.SH DESCRIPTION
+Resolves --parent and --child to effective moxyfiles and reports every way the child grants more than the parent. A directory is walked as if it were the working directory (global moxyfile, each directory from $HOME down to it, and includes); a file is that file plus its includes and nothing else, which is how a file written by show-effective-moxyfile is read. A directory is also given the resolved-moxins record a moxy served from it would discover in this environment; a file keeps the record it carries. Tools are judged at three levels, none < pass < use: every tool the child holds in allow-tools (use) or pass-tools (pass) must be one the parent holds in either, so a child may use a tool its parent only passes. A refused tool is reported as '<key>: child holds <tool> at <level>, parent at none'. Prints one '<key>: <reason>' line per violation, sorted by key then subject, to stdout. Exits 0 when the child narrows the parent, 1 when it does not, 2 when either side cannot be read or the arguments are malformed. See moxyfile(5) NARROWING.
+.SH OPTIONS
+.TP
+.B --parent (required)
+Parent reference: a moxyfile, or a directory to walk.
+.TP
+.B --child (required)
+Child reference: a moxyfile, or a directory to walk.
+.TP
+.B --json
+Print {"narrows":bool,"violations":[{"key","subject","message"}]} instead of lines.
+.SH SEE ALSO
+.BR moxy (1)

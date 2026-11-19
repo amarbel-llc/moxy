@@ -1,0 +1,30 @@
+.TH MOXY-SERVE-HTTP 1 "" "moxy"
+.SH NAME
+moxy-serve-http \- Run as MCP proxy server over streamable HTTP
+.SH SYNOPSIS
+.B moxy serve-http
+.RI [ --listen = STRING ]
+.RI [ --expose = STRING ]
+.RI [ --name-template = STRING ]
+.RI [ --permissions = STRING ]
+.SH DESCRIPTION
+Loads the moxyfile hierarchy, spawns child MCP servers, serves /healthz and /mcp over streamable HTTP, and shuts down on SIGINT/SIGTERM, or when the process that started it is gone (its parent changes; exit status non-zero; not watched when started as pid 1's child, e.g. a systemd unit). With no --listen flag, binds an ephemeral port on 127.0.0.1 and prints a clown-plugin-protocol handshake line to stdout (for clown-plugin-host). With --listen ADDR, binds that fixed address instead and logs the bound address to stderr only — use this to put moxy behind a reverse proxy or tunnel that needs a stable upstream. STARTUP: a fixed --listen address is bound before child servers are spawned, so a restart never refuses connections (which a tunnel surfaces as a 502). Until every child has finished starting, /healthz answers 503 {"status":"starting"} and every other request (initialize, tools/list, /clown/*) is held on its accepted connection, then served once startup completes, so the initialize instructions are complete; a request held longer than 90s gets a 503 with Retry-After. The ephemeral-port (clown-plugin) mode binds after startup, since its handshake line announces a ready server.
+.SH OPTIONS
+.TP
+.B --listen
+Fixed TCP address to bind, e.g. 127.0.0.1:8731. When omitted, binds an ephemeral 127.0.0.1 port and prints the clown-plugin handshake.
+Default: 
+.TP
+.B --expose
+Tool-exposure filter for strict/public frontends, e.g. 'resources-only' or '-meta'. Comma-separated profiles (full, no-meta, resources-only) and +/-{child,resource-bridge,meta} toggles. Default (empty) exposes everything. See docs/features/0006-tool-exposure-filter.md.
+Default: 
+.TP
+.B --name-template
+Template for advertised tool/prompt names using {server} and {tool}, e.g. '{server}_{tool}' for claude.ai-safe dot-free names. Default '{server}.{tool}'. {tool} is required; omitting {server} risks cross-server collisions (rejected at startup). See docs/features/0007-name-template.md.
+Default: 
+.TP
+.B --permissions
+Serve-time permission mode: 'delegate' (default: a Claude Code hook in front of moxy decides) or 'enforce' (moxy resolves every call's perms-request itself and refuses anything but allow, for clients with no hook). Tightens the moxyfile's permission-mode; it cannot loosen it. See moxyfile(5) and docs/features/0015-serve-time-permission-enforcement.md.
+Default: 
+.SH SEE ALSO
+.BR moxy (1)

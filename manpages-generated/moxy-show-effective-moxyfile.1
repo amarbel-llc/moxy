@@ -1,0 +1,15 @@
+.TH MOXY-SHOW-EFFECTIVE-MOXYFILE 1 "" "moxy"
+.SH NAME
+moxy-show-effective-moxyfile \- Print the effective merged moxyfile as canonical TOML
+.SH SYNOPSIS
+.B moxy show-effective-moxyfile
+.RI [ --dir = STRING ]
+.SH DESCRIPTION
+Merges the moxyfile hierarchy for the working directory (or --dir) and prints the result as one include-free moxyfile: fixed key order, sorted lists and servers, commands in array form. The same configuration always prints the same bytes. Header values keep their $VAR references — nothing is expanded — so the output is safe to write to disk. allow-tools and pass-tools are written as the hierarchy merged them, per tool at the lowest level any layer holds it. Rendering a directory also records, under resolved-moxins, the directory each moxin name resolves to in the current environment; rendering a file reproduces the record it carries. A spawner captures this at spawn time and hands it to a child moxy as MOXY_PARENT_MOXYFILE. See moxyfile(5) NARROWING.
+.SH OPTIONS
+.TP
+.B --dir
+Directory to walk as if it were the working directory. Default: the working directory.
+Default: 
+.SH SEE ALSO
+.BR moxy (1)

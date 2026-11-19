@@ -1,0 +1,14 @@
+.TH MOXY-CHECK-MOXINS 1 "" "moxy"
+.SH NAME
+moxy-check-moxins \- Check that a directory of moxins loads, listing every failure
+.SH SYNOPSIS
+.B moxy check-moxins
+.RI --dir = STRING
+.SH DESCRIPTION
+Loads the moxin at --dir, or every moxin in its subdirectories, with the loader the server uses, and prints every tool file that fails with the reason. Exits 1 if any moxin fails, 0 otherwise; it reads files only and starts nothing. This is the intended per-repo gate for shipped moxin directories: a repo that ships moxins runs it on them (a justfile recipe or a flake check), so a file the loader would refuse fails that repo's merge gate, not every session that later loads the moxin.
+.SH OPTIONS
+.TP
+.B --dir (required)
+A moxin directory (holds _moxin.toml) or a directory whose subdirectories are moxins.
+.SH SEE ALSO
+.BR moxy (1)

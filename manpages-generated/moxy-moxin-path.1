@@ -1,0 +1,9 @@
+.TH MOXY-MOXIN-PATH 1 "" "moxy"
+.SH NAME
+moxy-moxin-path \- Print default MOXIN_PATH from legacy hierarchy
+.SH SYNOPSIS
+.B moxy moxin-path
+.SH DESCRIPTION
+Computes a colon-separated MOXIN_PATH by probing the legacy directory hierarchy (.moxy/moxins/ in cwd, intermediate parents, global config, and system moxins). Only existing directories are included. Usage: export MOXIN_PATH=$(moxy moxin-path)
+.SH SEE ALSO
+.BR moxy (1)

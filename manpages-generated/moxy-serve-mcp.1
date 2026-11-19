@@ -1,0 +1,9 @@
+.TH MOXY-SERVE-MCP 1 "" "moxy"
+.SH NAME
+moxy-serve-mcp \- Run as MCP proxy server over stdio
+.SH SYNOPSIS
+.B moxy serve-mcp
+.SH DESCRIPTION
+Loads the moxyfile hierarchy, spawns child MCP servers, performs initialize handshakes, probes ephemeral servers, and serves as a unified MCP server on stdin/stdout. Shuts down gracefully on SIGINT/SIGTERM.
+.SH SEE ALSO
+.BR moxy (1)

@@ -1,0 +1,14 @@
+.TH MOXY-PERMS-MATRIX 1 "" "moxy"
+.SH NAME
+moxy-perms-matrix \- Print the moxin tool permissions matrix as markdown
+.SH SYNOPSIS
+.B moxy perms-matrix
+.RI [ --moxins = STRING ]
+.SH DESCRIPTION
+Prints one row per moxin tool: its permission tier, who judges its inputs (broker and floor, floor only, nothing, a prompt), its [resources] stanzas, async eligibility and annotations, and the tools that are always-allow, name no resources and take a path-like input. With --moxins DIR, DIR's subdirectories are the moxins (the source tree's moxins/); otherwise the moxins this moxy would discover. See docs/plans/2026-11-03-permissions-audit.md.
+.SH OPTIONS
+.TP
+.B --moxins
+Directory whose subdirectories are moxins; default: discover as the server does.
+.SH SEE ALSO
+.BR moxy (1)

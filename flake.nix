@@ -363,6 +363,56 @@
               MANPATH=$out/share/man mandb --no-purge --create $out/share/man
             '';
 
+        # THE PAGES-ONLY OUTPUT (`packages.<system>.manpages`, eng-manpages(7);
+        # circus#436): every page the default package installs, with no Go build
+        # in its closure or its eval. The hand-written pages come from moxy-man;
+        # the pages `moxy generate-plugin` writes from the binary are the
+        # committed copy in manpages-generated/ (checks.manpages-codegen proves
+        # it current, checks.manpages-pure that the page sets are equal).
+        #
+        # The generated pages are 16: moxy.1 and the 15 moxy-<subcommand>.1
+        # (moxy-add ... moxy-version). They are in this output because the
+        # homes' manpath and the session man page index are built from it: a
+        # page missing here drops out of that index. moxy.1 here is the
+        # generated one, as in the default package, whose postInstall copies
+        # moxy-man with `cp -n`, so the generated moxy.1 wins over the
+        # hand-written cmd/moxy/moxy.1 (which is therefore not installed).
+        # The committed pages carry no build date or revision (see
+        # moxy-man-generated); the version goes back into each .TH line here.
+        moxy-manpages = pkgs.runCommand "moxy-manpages" { } ''
+          mkdir -p $out/share/man
+          cp -r ${moxy-man}/share/man/man[0-9] $out/share/man/
+          chmod -R u+w $out/share/man
+          for f in ${./manpages-generated}/*.1; do
+            sed -E '1s/"moxy"$/"moxy ${moxyVersion}"/' "$f" > $out/share/man/man1/$(basename "$f")
+          done
+        '';
+
+        # What `moxy generate-plugin` writes: the per-subcommand section 1
+        # pages (moxy-add.1 ...) plus the plugin tree. The source of
+        # manpages-generated/ (the committed copy packages.manpages ships
+        # without a Go build, circus#436) and what checks.manpages-codegen
+        # compares that copy against. Uses the bare godyn binary, not the
+        # wrapped package, so it does not depend on the pages it feeds.
+        #
+        # Only the section 1 pages are kept, with line 1 normalised: it is
+        # `.TH NAME 1 "<build date>" "moxy <version>+<revision>"`, and neither
+        # field is stable from one commit to the next, so a committed copy
+        # would be stale at once. The date is blanked and the version reduced
+        # to "moxy"; moxy-manpages puts the version back.
+        moxy-man-generated = pkgs.runCommand "moxy-man-generated" { } ''
+          mkdir -p raw $out/share/man/man1
+          MOXY_MCP_BINARY="${moxy-native}/bin/moxy" ${moxy-native}/bin/moxy generate-plugin raw
+          for f in raw/share/man/man1/*.1; do
+            sed -E '1s/^(\.TH [^ ]+ [0-9]+) "[^"]*" "[^"]*"$/\1 "" "moxy"/' "$f" > $out/share/man/man1/$(basename "$f")
+            if ! head -n 1 $out/share/man/man1/$(basename "$f") | grep -q ' "" "moxy"$'; then
+              echo "$(basename "$f"): line 1 is not the .TH NAME N date version form this normalises" >&2
+              head -n 1 "$f" >&2
+              exit 1
+            fi
+          done
+        '';
+
         # Helper: build a moxin with bin/ scripts wrapped with PATH deps.
         # extraSubstitutions: attrset of {NAME = "/abs/path";} pairs. Each
         # `@NAME@` placeholder anywhere under the moxin tree is replaced with
@@ -1577,7 +1627,10 @@
           # <page>.<N>, uncompressed, and nothing else in its closure, so a
           # consumer that only wants the pages never instantiates moxy's godyn
           # graph. checks.manpages-pure pins both properties.
-          manpages = moxy-man;
+          manpages = moxy-manpages;
+          # What generate-plugin writes, for `just codemod-generate-manpages`
+          # to copy into manpages-generated/.
+          inherit moxy-man-generated;
           # Per-package coverage of the whole test suite (godynSystem only):
           # the result has coverage.out, percent.txt and covdata/.
           moxy-coverage = moxy-native-cover.passthru.coverage;
@@ -1628,29 +1681,37 @@
           # covers its rule set (igloo FDR 0007 § golangci-lint parity).
           go-lint = goLint;
           bats = batsLaneOutputs.bats-default;
-          # packages.manpages (circus#436) is the hand-written pages, built
-          # without the Go binary. The default package installs those plus the
-          # per-subcommand man1 pages `moxy generate-plugin` writes from the
-          # binary (moxy-add.1 ...), which a pages-only output cannot carry.
-          # So: every page in manpages must be in the default package (nothing
-          # shadowed or renamed), and the only default-only pages are those
-          # generated moxy-<subcommand>.1 ones. The default package gzips, so
-          # names are compared without .gz. That the output needs no Go build
-          # is `just test-manpages-pure`: a sandbox check cannot see inputs.
+          # packages.manpages (circus#436) installs exactly the pages the
+          # default package does, so a lint or an index over it sees what the
+          # homes install: the same page names, and the same text after the
+          # .TH line (the default package gzips, so names are compared without
+          # .gz; the .TH line carries the build date and revision). That it
+          # needs no Go build is `just test-manpages-pure`: a sandbox check
+          # cannot see a derivation's inputs.
           manpages-pure = pkgs.runCommand "manpages-pure" { } ''
             pages() { (cd "$1/share/man" && find . -type f -path './man[0-9]/*' | sed 's/\.gz$//' | sort); }
-            pages ${moxy-man} > want
+            pages ${moxy-manpages} > want
             pages ${moxy} > got
-            missing=$(comm -23 want got)
-            if [ -n "$missing" ]; then
-              echo "packages.manpages has pages the default package does not install:" >&2
-              echo "$missing" >&2
+            if ! diff -u want got; then
+              echo "packages.manpages and the default package install different pages" >&2
               exit 1
             fi
-            extra=$(comm -13 want got | grep -vE '^\./man1/moxy-[a-z-]+\.1$' || true)
-            if [ -n "$extra" ]; then
-              echo "the default package installs pages packages.manpages lacks, beyond the generated moxy-<subcommand>.1:" >&2
-              echo "$extra" >&2
+            while read -r page; do
+              body() { if [ -e "$1/share/man/$page" ]; then tail -n +2 "$1/share/man/$page"; else zcat "$1/share/man/$page.gz" | tail -n +2; fi; }
+              if ! diff -u <(body ${moxy-manpages}) <(body ${moxy}); then
+                echo "$page differs between packages.manpages and the default package" >&2
+                exit 1
+              fi
+            done < want
+            touch $out
+          '';
+          # The committed copy of what `moxy generate-plugin` writes
+          # (manpages-generated/) must equal what the binary writes now: a
+          # command's flags or description changed without `just
+          # codemod-generate-manpages`.
+          manpages-codegen = pkgs.runCommand "manpages-codegen" { nativeBuildInputs = [ pkgs.diffutils ]; } ''
+            if ! diff -r --no-dereference ${moxy-man-generated}/share/man/man1 ${./manpages-generated}; then
+              echo "manpages-generated/ is stale: run 'just codemod-generate-manpages'" >&2
               exit 1
             fi
             touch $out

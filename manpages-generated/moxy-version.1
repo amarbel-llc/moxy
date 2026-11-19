@@ -1,0 +1,9 @@
+.TH MOXY-VERSION 1 "" "moxy"
+.SH NAME
+moxy-version \- Print moxy build version and any build-time-pinned tools
+.SH SYNOPSIS
+.B moxy version
+.SH DESCRIPTION
+Prints the moxy version+commit burnt in via -ldflags at build time, plus a row for each external tool that was pinned alongside (currently: madder). Mirrors `spinclass version` so the audit trail is consistent.
+.SH SEE ALSO
+.BR moxy (1)

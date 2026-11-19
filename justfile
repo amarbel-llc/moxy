@@ -274,6 +274,21 @@ debug-moxy-heap variant="" settle="60" driver="clock" serial="no":
   # shellcheck disable=SC2086
   cat "$work/err" $logs 2>/dev/null | awk '/^gc [0-9]+ @/ { n++; if (match($0, /[0-9]+->[0-9]+->[0-9]+ MB/)) { split(substr($0, RSTART, RLENGTH), a, /->| /); c = a[3] + 0; if (c > max) max = c; last = c; peak = (a[1] + 0 > peak) ? a[1] + 0 : peak } } END { if (n) printf "gctrace: %d GC cycles, heap before-GC peak %d MB, live-after-GC max %d MB, last %d MB\n", n, peak, max, last; else print "gctrace: no gc lines found" }'
 
+# Refresh manpages-generated/ (the committed section 1 pages that
+# packages.manpages ships without a Go build, circus#436) from what
+# `moxy generate-plugin` writes now. Run after changing a command's flags or
+# description; checks.manpages-codegen (in `nix flake check`) fails until you
+# do. New files must be `git add`ed before nix can see them.
+#
+# regenerate the committed section 1 man pages
+[group("codemod")]
+codemod-generate-manpages:
+  nix build '.#moxy-man-generated' --out-link .tmp/man-generated
+  rm -rf manpages-generated
+  mkdir manpages-generated
+  cp -a .tmp/man-generated/share/man/man1/. manpages-generated/
+  chmod -R u+w manpages-generated
+
 # Cold evaluation cost of one flake output: `nix eval --no-eval-cache` of its
 # drvPath, with wall seconds and peak RSS from GNU time and the evaluator's own
 # counters from NIX_SHOW_STATS (values, function calls, thunks, cpu time).
@@ -496,6 +511,10 @@ test: test-flake-check test-bats-net_cap test-validate-mcp test-status test-stat
 # check cannot see a derivation's build inputs (the finished pages carry no
 # store references either way), so this walks the derivation's input closure and
 # fails if a Go build (godyn, toolbox, readguard, the moxy package) is in it.
+#
+# (A first version asserted this on the closure of the finished pages inside a
+# sandbox check; it passed vacuously, because finished pages hold no store
+# references even when building them needed every Go package.)
 #
 # check that packages.manpages needs no Go build
 [group("post-build")]

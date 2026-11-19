@@ -1,0 +1,30 @@
+.TH MOXY-RENDER 1 "" "moxy"
+.SH NAME
+moxy-render \- Render or reverse-resolve a namespaced tool/prompt name under a template
+.SH SYNOPSIS
+.B moxy render
+.RI [ --name-template = STRING ]
+.RI [ --server = STRING ]
+.RI [ --tool = STRING ]
+.RI [ --resolve = STRING ]
+.SH DESCRIPTION
+Forward (default): prints the advertised name for --server/--tool under --name-template. Reverse (--resolve <rendered>): prints the canonical "server<TAB>tool" via a structural inverse, which works only for invertible templates (exactly one {server} and one {tool} separated by a literal). render does NOT introspect a running server — pass the same --name-template you gave serve-http. See docs/features/0007-name-template.md.
+.SH OPTIONS
+.TP
+.B --name-template
+Template using {server} and {tool}. Default '{server}.{tool}'.
+Default: 
+.TP
+.B --server
+Server name (forward direction).
+Default: 
+.TP
+.B --tool
+Tool or prompt name (forward direction).
+Default: 
+.TP
+.B --resolve
+Reverse-resolve this rendered name to 'server<TAB>tool' instead of rendering forward.
+Default: 
+.SH SEE ALSO
+.BR moxy (1)

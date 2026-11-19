@@ -1,0 +1,87 @@
+.TH MOXY 1 "" "moxy"
+.SH NAME
+moxy \- MCP proxy that aggregates child MCP servers
+.SH SYNOPSIS
+.B moxy
+.I command
+.RI [ options ]
+.SH DESCRIPTION
+Moxy spawns child MCP servers as subprocesses, communicates with them via JSON-RPC over stdio, and presents their tools, resources, and prompts through a single unified MCP server. Child server capabilities are namespaced with a dot separator (e.g. grit.status, folio.read). Configuration is loaded from a hierarchy of TOML moxyfiles: global (~/.config/moxy/moxyfile), per-directory, and project-local.
+.SH COMMANDS
+.TP
+.BR add (1)
+Interactively add a server to a moxyfile
+.TP
+.BR check-moxins (1)
+Check that a directory of moxins loads, listing every failure
+.TP
+.BR install-claude-plugin (1)
+Install the moxy Claude Code plugin via claude CLI
+.TP
+.BR list-moxins (1)
+List available builtin moxins
+.TP
+.BR moxin-path (1)
+Print default MOXIN_PATH from legacy hierarchy
+.TP
+.BR narrows (1)
+Check that a child moxyfile grants no more than a parent
+.TP
+.BR perms-matrix (1)
+Print the moxin tool permissions matrix as markdown
+.TP
+.BR render (1)
+Render or reverse-resolve a namespaced tool/prompt name under a template
+.TP
+.BR serve-http (1)
+Run as MCP proxy server over streamable HTTP
+.TP
+.BR serve-mcp (1)
+Run as MCP proxy server over stdio
+.TP
+.BR serve-moxin (1)
+Serve a single builtin moxin as a standalone MCP server
+.TP
+.BR show-claude-plugin-path (1)
+Print the path to the Claude Code plugin directory
+.TP
+.BR show-effective-moxyfile (1)
+Print the effective merged moxyfile as canonical TOML
+.TP
+.BR status (1)
+Show all configured servers and moxins with their sources
+.TP
+.BR version (1)
+Print moxy build version and any build-time-pinned tools
+.SH EXAMPLES
+.TP
+Start the MCP proxy server
+.nf
+$ moxy serve mcp
+.fi
+.TP
+Show config hierarchy, moxins, and validation
+.nf
+$ moxy status
+.fi
+.TP
+Interactively add a server to the local moxyfile
+.nf
+$ moxy add
+.fi
+.SH SEE ALSO
+.BR moxy-add (1),
+.BR moxy-check-moxins (1),
+.BR moxy-install-claude-plugin (1),
+.BR moxy-list-moxins (1),
+.BR moxy-moxin-path (1),
+.BR moxy-narrows (1),
+.BR moxy-perms-matrix (1),
+.BR moxy-render (1),
+.BR moxy-serve-http (1),
+.BR moxy-serve-mcp (1),
+.BR moxy-serve-moxin (1),
+.BR moxy-show-claude-plugin-path (1),
+.BR moxy-show-effective-moxyfile (1),
+.BR moxy-status (1),
+.BR moxy-version (1)

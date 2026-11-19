@@ -1,0 +1,14 @@
+.TH MOXY-SERVE-MOXIN 1 "" "moxy"
+.SH NAME
+moxy-serve-moxin \- Serve a single builtin moxin as a standalone MCP server
+.SH SYNOPSIS
+.B moxy serve-moxin
+.RI --name = STRING
+.SH DESCRIPTION
+Looks up a moxin by name from the builtin system moxins, then serves it as a standalone MCP server over stdio. No proxy, no moxyfile — just the named moxin's tools. Use this to run individual moxins without the full moxy proxy.
+.SH OPTIONS
+.TP
+.B --name (required)
+Name of the builtin moxin to serve
+.SH SEE ALSO
+.BR moxy (1)
