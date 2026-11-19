@@ -19,6 +19,10 @@
 #   flake-exec   — exec on $1 (the flake directory) plus a check that $2, the
 #                  installable, is a local reference: "." or ".#attr".
 #                  Anything else (nixpkgs#x, github:o/r, path:/x) asks.
+#   flake-template — write on $1 (the flake directory) plus a check that $2,
+#                  the template, is empty (the default) or a local reference:
+#                  "." or ".#attr". Anything else (templates#rust, nixpkgs#x,
+#                  github:o/r, path:/x) asks.
 #   copy|move    — apply read policy to $2 (source), write policy to $3 (dest)
 #   link         — apply read policy to $2 (source), write policy to $3 (target)
 #
@@ -45,7 +49,7 @@ set -euo pipefail
 op="${1:-}"
 shift || true
 if [ -z "$op" ]; then
-  echo "folio-perms: op (read|write|exec|flake-exec|rm|copy|move|link) required" >&2
+  echo "folio-perms: op (read|write|exec|flake-exec|flake-template|rm|copy|move|link) required" >&2
   exit 2
 fi
 
@@ -224,6 +228,23 @@ case "$op" in
     echo "local flake reference in an allowed directory — auto-allowed to exec"
     exit 0
     ;;
+  flake-template)
+    # flake-template FLAKE_DIR TEMPLATE (chix flake-init, moxy#522): the
+    # directory must pass write, and the template must be absent (the default
+    # template, as before) or a local flake reference, "." or ".#attr", which
+    # resolves against that directory. Anything else (templates#rust, which is
+    # a registry name and fetches; nixpkgs#x, github:o/r, path:/x, a relative
+    # path, an option-looking value) fetches or names something outside it: ask.
+    [ -n "${1:-}" ] && check_write "$1"
+    tmpl="${2:-}"
+    local_ref='^\.(#[A-Za-z0-9._"+-]+)?$'
+    if [ -n "$tmpl" ] && ! [[ $tmpl =~ $local_ref ]]; then
+      echo "template '$tmpl' is not a local flake reference (. or .#attr) — confirmation required for flake init"
+      exit 1
+    fi
+    echo "default or local template in an allowed directory — auto-allowed to write"
+    exit 0
+    ;;
   exec)
     for p in "$@"; do
       [ -n "$p" ] && check_exec "$p"
@@ -281,7 +302,7 @@ case "$op" in
     exit 0
     ;;
   *)
-    echo "folio-perms: unknown op '$op' (want read|write|exec|flake-exec|rm|copy|move|link)" >&2
+    echo "folio-perms: unknown op '$op' (want read|write|exec|flake-exec|flake-template|rm|copy|move|link)" >&2
     exit 2
     ;;
 esac

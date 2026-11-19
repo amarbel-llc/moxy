@@ -8,7 +8,7 @@ arg-order = ["template", "flake_dir"]
 
 [input.properties.template]
 type = "string"
-description = "Template flake reference (e.g., 'templates#rust'). If not specified, uses default template."
+description = "Template flake reference. If not specified, uses the default template. A local one ('.' or '.#attr') is allowed; a registry name or remote reference (e.g., 'templates#rust', 'github:o/r') asks, since it fetches."
 
 [input.properties.flake_dir]
 type = "string"
@@ -18,13 +18,15 @@ description = "Directory to initialize the flake in. Defaults to current directo
 idempotent-hint = false
 
 # moxy#519: the template is written into flake_dir, under the folio write
-# policy. The template reference itself is not judged here.
+# policy. moxy#522: the floor also asks for any template that is not absent or
+# a local reference (".", ".#attr"): a registry name or a remote reference
+# fetches. The broker is asked only about the directory.
 
 [resources.flake_dir]
 op = "write"
 
 [dynamic-perms]
 command = "@FOLIO_PERMS@"
-args = ["write"]
-arg-order = ["flake_dir"]
+args = ["flake-template"]
+arg-order = ["flake_dir", "template"]
 timeout-ms = 5000

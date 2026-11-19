@@ -440,6 +440,55 @@ function folio_perms_flake_exec_asks_when_the_directory_is_outside_the_cwd { # @
   [ "$status" -eq 1 ]
 }
 
+# ----- flake-template (moxy#522): chix flake-init's template reference -----
+#
+# flake-template FLAKE_DIR TEMPLATE: the directory must pass write, and the
+# template must be absent (the default template, as before) or a local
+# reference ("." or ".#attr"). Anything else (templates#rust, nixpkgs#x,
+# github:o/r, path:/x, a relative path, an option-looking value) fetches or
+# names something outside the worktree, so it asks.
+
+function folio_perms_flake_template_allows_the_default_and_a_local_reference { # @test
+  setup_perms
+  mkdir -p "$HOME/project/sub"
+  cd "$HOME/project"
+
+  local tmpl
+  for tmpl in "" . ".#default" ".#rust" '.#templates."a.b"'; do
+    PWD="$HOME/project" run "$PERMS" flake-template "" "$tmpl"
+    [ "$status" -eq 0 ]
+    PWD="$HOME/project" run "$PERMS" flake-template sub "$tmpl"
+    [ "$status" -eq 0 ]
+  done
+}
+
+function folio_perms_flake_template_asks_for_a_remote_registry_or_non_local_reference { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  local tmpl
+  for tmpl in "templates#rust" "nixpkgs#hello" "github:owner/repo#pkg" "path:/etc" \
+    "git+file:///etc" "/nix/store/abc-foo" "./sub#x" "../x#y" "-t" "--impure" \
+    ".#a b" ".#x;id" ".#" "#x"; do
+    PWD="$HOME/project" run "$PERMS" flake-template "" "$tmpl"
+    [ "$status" -eq 1 ] || {
+      echo "template '$tmpl' got $status"
+      false
+    }
+    [[ $output == *"confirmation required"* ]]
+  done
+}
+
+function folio_perms_flake_template_asks_when_the_directory_is_outside_the_cwd { # @test
+  setup_perms
+  mkdir -p "$HOME/project"
+  cd "$HOME/project"
+
+  HOME=/dev/null CLAUDE_CODE_TMPDIR= PWD="$HOME/project" run "$PERMS" flake-template /var/empty ""
+  [ "$status" -eq 1 ]
+}
+
 function folio_perms_exec_checks_every_positional { # @test
   setup_perms
   mkdir -p "$HOME/project"
