@@ -35,8 +35,17 @@ allow-tools = [
 # moxy that has the allow-tools skip (moxy#525); on an older moxy list it here
 # instead, e.g. disable-servers = ["chrest", "issue-filer"].
 #
-# Bundled moxins are loaded in-process whatever this file says (about 4.7 MB;
-# only builtin-native = false avoids it, and that removes folio/rg too).
+# allow-tools filters tools; it never skips a moxin, and only [[servers]]
+# children are skipped when it leaves them nothing. To not serve a moxin at
+# all, list it in disable-moxins (startup logs "skipping moxin ... disabled by
+# moxyfile"). That does not save memory: moxins are discovered and parsed
+# in-process before the list applies (about 4.7 MB; only builtin-native =
+# false avoids it, and that removes folio/rg too).
+#
+# Names in allow-tools and disable-moxins are the dotted canonical form
+# (folio.read, man.semantic-search), not the underscore form a client may
+# display (folio_read). An underscored name is a bare server name to the
+# parser, so it names no tool that moxy serves.
 #
 # For a unit a spawner hands this file to, set MOXY_PARENT_MOXYFILE to the
 # spawner's own moxyfile so moxy refuses to serve one that widens it (FDR 0013;
