@@ -71,7 +71,8 @@ func SpawnAndInitialize(ctx context.Context, name, command string, args []string
 		return nil, nil, fmt.Errorf("creating stdout pipe for %s: %w", name, err)
 	}
 
-	if err := cmd.Start(); err != nil {
+	setParentDeathSignal(cmd)
+	if err := startChild(cmd); err != nil {
 		logLifecycle("spawn FAIL %s: %v", name, err)
 		return nil, nil, fmt.Errorf("starting %s: %w", name, err)
 	}
