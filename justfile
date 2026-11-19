@@ -240,16 +240,29 @@ debug-moxy-heap variant="" settle="60" driver="clock" serial="no":
     echo "warning: only $got of $want responses after 120 s" >&2
   }
   cpu_ticks() { awk '{print $14 + $15}' /proc/$real/stat; }
+  # Where the PSS lives: sum per mapping name (file path, [heap], [stack], or anonymous).
+  smaps_top() {
+    printf '  top mappings by PSS (kB) %s:\n' "$1"
+    awk '/^[0-9a-f]+-[0-9a-f]+ / { name = ($6 == "" ? "[anon]" : $6) } /^Pss:/ { s[name] += $2 } END { for (n in s) printf "    %8d %s\n", s[n], n }' /proc/$real/smaps | sort -rn | head -6
+  }
   hz=$(getconf CLK_TCK)
   echo "variant: {{variant}}  driver: {{driver}} ($tool)"
   sample "idle"
+  smaps_top idle
   cpu0=$(cpu_ticks); t0=$(date +%s.%N)
   calls 1 "$n1"
   sample "after $n1 calls"
   calls $((n1 + 1)) "$n2"
   t1=$(date +%s.%N); cpu1=$(cpu_ticks)
   sample "after $n2 calls"
-  sleep {{settle}}
+  smaps_top "after $n2 calls"
+  if (({{settle}} > 60)); then
+    sleep 60
+    sample "after 60 s settle"
+    sleep $(({{settle}} - 60))
+  else
+    sleep {{settle}}
+  fi
   sample "after {{settle}} s settle"
   awk -v c0="$cpu0" -v c1="$cpu1" -v hz="$hz" -v t0="$t0" -v t1="$t1" -v n="$n2" 'BEGIN{printf "cpu_s=%.2f wall_s=%.2f for %d calls\n", (c1-c0)/hz, t1-t0, n}'
   echo "responses: $(grep -c '"id":' "$work/out"), errors: $(grep -c '"isError":true' "$work/out" || true)"
