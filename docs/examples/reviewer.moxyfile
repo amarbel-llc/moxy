@@ -1,0 +1,43 @@
+# A read-only reviewer: reads files, searches, reads git history and the forge,
+# changes nothing. An example for a worker or juggler unit's moxyfile, not
+# installed anywhere. Measured with `just debug-moxy-heap "" 1 idle no
+# docs/examples/reviewer.moxyfile` (the tools it serves are listed).
+#
+# allow-tools is the fail-closed list, enforced in the proxy at list and at
+# call: a bare entry allows a whole server, `server.tool` one tool. Anything
+# not named here is neither listed nor callable. See moxyfile(5) NARROWING.
+allow-tools = [
+  "folio.read",
+  "folio.glob",
+  "folio.ls",
+  "folio.tree",
+  "folio.file-type",
+  "folio.du",
+  "folio.df",
+  "rg",
+  "jq",
+  "man",
+  "toolbox",
+  "grit.status",
+  "grit.diff",
+  "grit.log",
+  "grit.rev-parse",
+  "grit.worktree-list",
+  "smith.issue-get",
+  "smith.issue-list",
+  "smith.pr-get",
+  "smith.pr-list",
+  "smith.pr-status",
+  "smith.content-get",
+]
+
+# A [[servers]] child the reviewer has no allowed tool of is not spawned on a
+# moxy that has the allow-tools skip (moxy#525); on an older moxy list it here
+# instead, e.g. disable-servers = ["chrest", "issue-filer"].
+#
+# Bundled moxins are loaded in-process whatever this file says (about 4.7 MB;
+# only builtin-native = false avoids it, and that removes folio/rg too).
+#
+# For a unit a spawner hands this file to, set MOXY_PARENT_MOXYFILE to the
+# spawner's own moxyfile so moxy refuses to serve one that widens it (FDR 0013;
+# `moxy narrows --parent P --child C` checks it offline).

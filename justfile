@@ -196,11 +196,16 @@ debug-moxy-heap variant="" settle="60" driver="clock" serial="no" config="":
   trap 'exec 3>&- 2>/dev/null || true; [[ -n ${pid:-} ]] && kill "$pid" 2>/dev/null || true; rm -rf "$work"' EXIT
   mkdir -p "$work/home" "$work/cwd"
   mkfifo "$work/in"
-  # config: one line of moxyfile TOML written to the throwaway HOME's global
-  # moxyfile (e.g. 'builtin-native = false'); driver=idle makes no calls.
+  # config: moxyfile TOML written to the throwaway HOME's global moxyfile: a
+  # path to a moxyfile (e.g. docs/examples/reviewer.moxyfile), else the text
+  # itself (e.g. 'builtin-native = false'); driver=idle makes no calls.
   if [[ -n "{{config}}" ]]; then
     mkdir -p "$work/home/.config/moxy"
-    printf '%s\n' "{{config}}" >"$work/home/.config/moxy/moxyfile"
+    if [[ -f "{{config}}" ]]; then
+      cp "{{config}}" "$work/home/.config/moxy/moxyfile"
+    else
+      printf '%s\n' "{{config}}" >"$work/home/.config/moxy/moxyfile"
+    fi
   fi
   case "{{driver}}" in
     idle) tool=env.clock; targs='{}'; n1=0; n2=0 ;;
