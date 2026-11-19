@@ -185,7 +185,7 @@ debug-moxy-env-keys:
 #
 # print moxy PSS idle/after calls/after settle, CPU seconds and call wall time
 [group("debug")]
-debug-moxy-heap variant="" settle="60" driver="clock" serial="no":
+debug-moxy-heap variant="" settle="60" driver="clock" serial="no" config="":
   #!/usr/bin/env bash
   set -euo pipefail
   out=$(nix build .#moxy --no-link --print-out-paths)
@@ -196,7 +196,14 @@ debug-moxy-heap variant="" settle="60" driver="clock" serial="no":
   trap 'exec 3>&- 2>/dev/null || true; [[ -n ${pid:-} ]] && kill "$pid" 2>/dev/null || true; rm -rf "$work"' EXIT
   mkdir -p "$work/home" "$work/cwd"
   mkfifo "$work/in"
+  # config: one line of moxyfile TOML written to the throwaway HOME's global
+  # moxyfile (e.g. 'builtin-native = false'); driver=idle makes no calls.
+  if [[ -n "{{config}}" ]]; then
+    mkdir -p "$work/home/.config/moxy"
+    printf '%s\n' "{{config}}" >"$work/home/.config/moxy/moxyfile"
+  fi
   case "{{driver}}" in
+    idle) tool=env.clock; targs='{}'; n1=0; n2=0 ;;
     clock) tool=env.clock; targs='{}'; n1=50; n2=500 ;;
     bigread)
       tool=folio.read; n1=10; n2=50
@@ -249,6 +256,13 @@ debug-moxy-heap variant="" settle="60" driver="clock" serial="no":
   echo "variant: {{variant}}  driver: {{driver}} ($tool)"
   sample "idle"
   smaps_top idle
+  if [[ "{{driver}}" == idle ]]; then
+    # How many tools this moxy serves (taken after the idle sample, which it does not affect).
+    printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' >&3
+    sleep 1
+    echo "tools listed: $(grep '"id":2' "$work/out" | jq '.result.tools | length')"
+    echo "by server: $(grep '"id":2' "$work/out" | jq -r '.result.tools[].name | split(".")[0]' | sort | uniq -c | tr '\n' ' ')"
+  fi
   cpu0=$(cpu_ticks); t0=$(date +%s.%N)
   calls 1 "$n1"
   sample "after $n1 calls"
