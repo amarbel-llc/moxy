@@ -185,7 +185,7 @@ debug-moxy-env-keys:
 #
 # print moxy PSS idle/after calls/after settle, CPU seconds and call wall time
 [group("debug")]
-debug-moxy-heap variant="" settle="60" driver="clock":
+debug-moxy-heap variant="" settle="60" driver="clock" serial="no":
   #!/usr/bin/env bash
   set -euo pipefail
   out=$(nix build .#moxy --no-link --print-out-paths)
@@ -225,6 +225,11 @@ debug-moxy-heap variant="" settle="60" driver="clock":
     local from=$1 to=$2 i
     for ((i = from; i <= to; i++)); do
       printf '{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' $((i + 100)) "$tool" "$targs" >&3
+      if [[ "{{serial}}" == yes ]]; then
+        # One call in flight at a time, as a single agent issues them.
+        local w=0
+        while (($(grep -c '"id":' "$work/out" || true) < i + 1)) && ((w < 1200)); do sleep 0.05; w=$((w + 1)); done
+      fi
     done
     local want=$((to + 1)) got=0 waited=0
     while ((waited < 240)); do
@@ -249,6 +254,12 @@ debug-moxy-heap variant="" settle="60" driver="clock":
   awk -v c0="$cpu0" -v c1="$cpu1" -v hz="$hz" -v t0="$t0" -v t1="$t1" -v n="$n2" 'BEGIN{printf "cpu_s=%.2f wall_s=%.2f for %d calls\n", (c1-c0)/hz, t1-t0, n}'
   echo "responses: $(grep -c '"id":' "$work/out"), errors: $(grep -c '"isError":true' "$work/out" || true)"
   grep -m1 '"isError":true' "$work/out" | cut -c1-400 || true
+  # With GODEBUG=gctrace=1 the runtime writes "gc N @t ...: A->B->C MB, G MB goal"
+  # lines to fd 2, which moxy's stderr log may hold instead of $work/err. C is the
+  # live heap after that GC: it tells garbage (C stays small) from retention.
+  logs=$(find "$work/home" -name '*.log' 2>/dev/null || true)
+  # shellcheck disable=SC2086
+  cat "$work/err" $logs 2>/dev/null | awk '/^gc [0-9]+ @/ { n++; if (match($0, /[0-9]+->[0-9]+->[0-9]+ MB/)) { split(substr($0, RSTART, RLENGTH), a, /->| /); c = a[3] + 0; if (c > max) max = c; last = c; peak = (a[1] + 0 > peak) ? a[1] + 0 : peak } } END { if (n) printf "gctrace: %d GC cycles, heap before-GC peak %d MB, live-after-GC max %d MB, last %d MB\n", n, peak, max, last; else print "gctrace: no gc lines found" }'
 
 # PSS of every cutting-garden process and of its nebulous children, with n,
 # min, median and max per name. The "before" number for moxy#508 step A (one
