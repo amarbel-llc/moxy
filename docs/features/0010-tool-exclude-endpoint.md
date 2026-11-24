@@ -128,10 +128,14 @@ test suite, which asserts on it the same way the `restart` SSE tests do).
   Correction (clown's plugin listeners, contract v1): on loopback TCP that
   boundary is no boundary, since any same-host process can reach the port and
   call this route (and `/mcp`). Under `CLOWN_PLUGIN_RUNTIME_DIR` moxy listens
-  only on a unix socket in clown's private 0700 directory, and that directory
-  is the protection; the route itself is unchanged and still checks nothing.
-  On the TCP listeners it stays unauthenticated. See moxy(1) `serve-http` and
-  ENVIRONMENT.
+  only on a unix socket (0600) in clown's private 0700 directory; the route
+  itself is unchanged and still checks nothing. That keeps out other users and
+  confined sessions, which cannot see the directory. It does not keep out an
+  unconfined process of the same account, which can connect to the socket
+  directly and skip clown's authenticated front; the intended end state is
+  that clown binds the socket and passes moxy an inherited descriptor with no
+  path. On the TCP listeners the route stays unauthenticated to any local
+  process. See moxy(1) `serve-http` and ENVIRONMENT.
 
 ## Limitations
 

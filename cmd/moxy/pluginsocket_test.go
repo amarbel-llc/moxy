@@ -78,6 +78,7 @@ func TestPluginSocketPathRefusals(t *testing.T) {
 		{"missing", missing, euid, "does not exist"},
 		{"not a directory", notDir, euid, "not a directory"},
 		{"symlink", link, euid, "not a directory"},
+		{"symlink with a trailing slash", link + "/", euid, "not a directory"},
 		{"group bits", groupBits, euid, "group or world"},
 		{"world bits", worldBits, euid, "group or world"},
 		{"other owner", privateDir(t), euid + 1, "owned by uid"},
@@ -194,31 +195,132 @@ func TestListenPluginSocketRefusesNonSocketFile(t *testing.T) {
 }
 
 func TestPluginRuntimeDirSelection(t *testing.T) {
-	env := func(v string) func(string) string {
-		return func(k string) string {
-			if k == pluginRuntimeDirEnv {
-				return v
-			}
-			return ""
-		}
-	}
 	cases := []struct {
-		name   string
-		mode   transportMode
-		listen string
-		value  string
-		want   string
+		name    string
+		mode    transportMode
+		listen  string
+		value   string
+		present bool
+		want    string
+		wantErr string
 	}{
-		{"http, variable set: unix socket", transportHTTP, "", "/run/x", "/run/x"},
-		{"http, variable unset: tcp fallback", transportHTTP, "", "", ""},
-		{"http, --listen wins over the variable", transportHTTP, "127.0.0.1:1", "/run/x", ""},
-		{"stdio ignores the variable", transportStdio, "", "/run/x", ""},
+		{"http, variable set: unix socket", transportHTTP, "", "/run/x", true, "/run/x", ""},
+		{"http, variable unset: tcp fallback", transportHTTP, "", "", false, "", ""},
+		{"http, variable set but empty: refused", transportHTTP, "", "", true, "", "set but empty"},
+		{"http, --listen wins over the variable", transportHTTP, "127.0.0.1:1", "/run/x", true, "", ""},
+		{"stdio ignores the variable", transportStdio, "", "/run/x", true, "", ""},
+		{"stdio ignores an empty variable", transportStdio, "", "", true, "", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := pluginRuntimeDir(c.mode, c.listen, env(c.value)); got != c.want {
-				t.Fatalf("pluginRuntimeDir = %q, want %q", got, c.want)
+			got, err := selectPluginRuntimeDir(c.mode, c.listen, c.value, c.present)
+			if c.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+					t.Fatalf("err = %v, want one containing %q", err, c.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			if got != c.want {
+				t.Fatalf("selectPluginRuntimeDir = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// The variable must not reach anything moxy starts: a nested serve-http
+// would otherwise listen on (and later remove) this moxy's socket path.
+func TestTakePluginRuntimeDirRemovesTheVariable(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		mode   transportMode
+		listen string
+		want   string
+	}{
+		{"used", transportHTTP, "", "/run/x"},
+		{"--listen", transportHTTP, "127.0.0.1:1", ""},
+		{"stdio", transportStdio, "", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(pluginRuntimeDirEnv, "/run/x")
+			got, err := takePluginRuntimeDir(c.mode, c.listen)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != c.want {
+				t.Fatalf("takePluginRuntimeDir = %q, want %q", got, c.want)
+			}
+			if v, ok := os.LookupEnv(pluginRuntimeDirEnv); ok {
+				t.Fatalf("%s still set (%q) after takePluginRuntimeDir", pluginRuntimeDirEnv, v)
+			}
+		})
+	}
+}
+
+func TestPluginSocketPathCleansATrailingSlash(t *testing.T) {
+	dir := privateDir(t)
+	got, err := pluginSocketPath(dir+"/", os.Geteuid())
+	if err != nil {
+		t.Fatalf("pluginSocketPath(dir/): %v", err)
+	}
+	if want := filepath.Join(dir, "server.sock"); got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+}
+
+func TestListenPluginSocketRefusesALiveSocket(t *testing.T) {
+	dir := privateDir(t)
+	path := filepath.Join(dir, "server.sock")
+	live, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer live.Close()
+
+	ln, _, err := listenPluginSocket(dir)
+	if err == nil {
+		ln.Close()
+		t.Fatal("listenPluginSocket over a live socket: nil error")
+	}
+	if !strings.Contains(err.Error(), "live") {
+		t.Fatalf("error %q does not contain %q", err, "live")
+	}
+	if _, err := os.Lstat(path); err != nil {
+		t.Fatalf("the live socket was removed: %v", err)
+	}
+	// And it still answers.
+	c, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatalf("live socket no longer answers: %v", err)
+	}
+	c.Close()
+}
+
+// A predecessor's Close must not remove the socket a successor bound at the
+// same path after the predecessor's file was replaced.
+func TestPluginSocketCloseLeavesASuccessorsSocket(t *testing.T) {
+	dir := privateDir(t)
+	first, path, err := listenPluginSocket(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The predecessor is shutting down: its file is gone (as when a successor
+	// found it dead and removed it), and the successor binds the same name.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := listenPluginSocket(dir)
+	if err != nil {
+		t.Fatalf("successor listenPluginSocket: %v", err)
+	}
+	first.Close()
+	if _, err := os.Lstat(path); err != nil {
+		t.Fatalf("predecessor's Close removed the successor's socket: %v", err)
+	}
+	second.Close()
+	if _, err := os.Lstat(path); !os.IsNotExist(err) {
+		t.Fatalf("successor's own socket still present after its Close (lstat err %v)", err)
 	}
 }

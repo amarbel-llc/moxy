@@ -117,18 +117,23 @@ func newApp() *command.App {
 				"socket $CLOWN_PLUGIN_RUNTIME_DIR/server.sock (mode 0600), opens no " +
 				"TCP listener, prints the handshake line " +
 				"`1|1|unix|PATH|streamable-http` to stdout, and removes the socket " +
-				"on exit; it refuses to start if that value is not an absolute " +
-				"path or names something missing, not a directory (a symlink " +
+				"on exit (only if the path still names the file it created); it " +
+				"removes the variable from its environment so no child inherits " +
+				"it, and refuses to start if the value is empty, not an absolute " +
+				"path, or names something missing, not a directory (a symlink " +
 				"included), not owned by its effective user, or with any group or " +
 				"world permission bit, or if the socket path exceeds the unix path " +
-				"limit; a stale socket there is replaced, any other file is a " +
-				"refusal. With no --listen flag and that variable unset, binds an " +
+				"limit; a dead socket there is replaced, a live one or any other " +
+				"file is a refusal. With no --listen flag and that variable unset, binds an " +
 				"ephemeral port on " +
 				"127.0.0.1 and prints a clown-plugin-protocol handshake line to " +
 				"stdout (for clown-plugin-host). SECURITY: moxy holds no token and " +
 				"checks no Origin; every route, /mcp and /clown/exclude-tools " +
 				"included, answers whoever can connect. On the unix socket the " +
-				"private directory is the protection. On any TCP listener " +
+				"0700 directory and 0600 socket keep out other users and confined " +
+				"sessions (clown hides the directory from them), NOT an unconfined " +
+				"process of the same account, which can connect directly and skip " +
+				"clown's authenticated front. On any TCP listener " +
 				"(ephemeral, --listen, MOXY_HTTP_ADDR) there is none: any local " +
 				"process that reaches the address can list and call every tool. " +
 				"With --listen ADDR (which wins over CLOWN_PLUGIN_RUNTIME_DIR), binds that " +

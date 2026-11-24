@@ -84,9 +84,18 @@ Moxy holds no token and checks no Origin: every route, including
 and
 .Pa /clown/exclude-tools ,
 answers whoever can connect.
-On the unix socket the private directory is the protection: only its owner
-can reach the socket, and clown keeps that directory out of a confined
-session's view and fronts it with its own authenticated listener.
+On the unix socket, the directory's mode 0700 and the socket's mode 0600 keep
+out other users, and a confined session cannot reach the socket because clown
+keeps that directory out of its view and fronts the socket with its own
+authenticated listener.
+They do
+.Em not
+keep out an unconfined process running as the same account: it owns the
+directory and the socket, can find the path, and can connect directly,
+skipping clown's front, and then list and call every tool.
+The intended end state is that clown binds the socket itself and hands
+.Nm
+an inherited descriptor with no path.
 On the TCP listeners
 .Pq the ephemeral port, Fl -listen , Ev MOXY_HTTP_ADDR
 there is no protection: any process on the host that can reach the address,
@@ -505,14 +514,30 @@ listens only on
 in that directory, mode 0600, and prints a
 .Li unix
 handshake line.
+.Nm
+removes the variable from its environment at startup, in every mode, so no
+child server, and no
+.Nm
+started by one, inherits the path.
 It refuses to start, with the reason on stderr and a non-zero exit, when the
-value is not an absolute path, or names something missing, not a directory
-.Pq a symbolic link included ,
+value is empty, not an absolute path, or names something missing, not a
+directory
+.Pq a symbolic link included, with or without a trailing slash ,
 not owned by its effective user, or with any group or world permission bit,
 or when the socket path is longer than the system's unix socket path limit
 .Pq 107 bytes on Linux, 103 on Darwin .
-A socket already at that path, left by a predecessor, is replaced; any other
-kind of file there is a refusal and is left as it is.
+A socket already at that path that refuses connections, left by a dead
+predecessor, is replaced; one that answers, or any other kind of file there,
+is a refusal and is left as it is.
+On exit the socket is removed only if the path still names the file this
+.Nm
+created.
+Unlike the
+.Fl -listen
+origin, this mode sends no
+.Li READY=1
+to
+.Ev NOTIFY_SOCKET .
 .Fl -listen
 wins over the variable, and
 .Cm serve mcp

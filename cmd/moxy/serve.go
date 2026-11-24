@@ -78,6 +78,14 @@ type liveStderr struct{}
 func (liveStderr) Write(p []byte) (int, error) { return os.Stderr.Write(p) }
 
 func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTemplate, permissions string) error {
+	// First, before anything can start a process: read
+	// CLOWN_PLUGIN_RUNTIME_DIR and remove it from the environment, so no
+	// child (nor a nested serve-http) inherits this moxy's socket path.
+	runtimeDir, err := takePluginRuntimeDir(mode, listenAddr)
+	if err != nil {
+		return err
+	}
+
 	opts, sessionSource, err := serveOptions(app, expose, nameTemplate, permissions)
 	if err != nil {
 		return err
@@ -98,8 +106,8 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 	// launcher's stderr as written.
 	var unixLn net.Listener
 	var unixPath string
-	if dir := pluginRuntimeDir(mode, listenAddr, os.Getenv); dir != "" {
-		unixLn, unixPath, err = listenPluginSocket(dir)
+	if runtimeDir != "" {
+		unixLn, unixPath, err = listenPluginSocket(runtimeDir)
 		if err != nil {
 			return err
 		}
@@ -192,6 +200,7 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		}
 		fmt.Fprintf(os.Stdout, "1|1|tcp|%s|streamable-http\n", ln.Addr())
 		fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (clown-plugin-protocol)\n", ln.Addr())
+		fmt.Fprintf(os.Stderr, "moxy: %s unset: this loopback TCP listener is unauthenticated; any local process can reach it\n", pluginRuntimeDirEnv)
 		return ended(runHTTPServerOnListener(ctx, ln, inst, ""))
 
 	default:
@@ -255,7 +264,10 @@ type earlyHTTP struct {
 	srv           *http.Server
 	gate          *streamhttp.StartupGate
 	sessionIDPath string
-	done          chan error
+	// notify sends sd_notify READY=1 once serving: only for the fixed-address
+	// origin, never for a clown plugin, whose NOTIFY_SOCKET would be clown's.
+	notify bool
+	done   chan error
 }
 
 // startEarlyHTTP binds addr and starts serving the startup gate. source labels
@@ -268,8 +280,11 @@ func startEarlyHTTP(ctx context.Context, addr, source string) (*earlyHTTP, error
 	}
 	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (%s)\n", ln.Addr(), source)
 	// A fixed address is a long-lived origin behind a tunnel: the session id
-	// is persisted so a restart is invisible to clients.
-	return serveEarlyHTTP(ctx, ln, streamhttp.DefaultSessionIDPath()), nil
+	// is persisted so a restart is invisible to clients. It may run as a
+	// systemd Type=notify unit, so readiness is reported.
+	e := serveEarlyHTTP(ctx, ln, streamhttp.DefaultSessionIDPath())
+	e.notify = true
+	return e, nil
 }
 
 // serveEarlyHTTP serves the startup gate on ln until serve installs the real
@@ -293,8 +308,10 @@ func (e *earlyHTTP) serve(inst *moxy.Instance) error {
 	e.gate.Ready(newStreamHTTP(inst, e.sessionIDPath))
 	// Ready only now, with the real handler in place: the listener has been
 	// up since before the children started, holding requests at the gate.
-	if err := notifyReady(); err != nil {
-		fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
+	if e.notify {
+		if err := notifyReady(); err != nil {
+			fmt.Fprintf(os.Stderr, "moxy: %v\n", err)
+		}
 	}
 	return finishHTTPServe(inst, <-e.done)
 }

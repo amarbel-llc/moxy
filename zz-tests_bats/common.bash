@@ -4,6 +4,10 @@ bats_load_library bats-assert-additions
 bats_load_library bats-island
 bats_load_library bats-emo
 
+# A session's own CLOWN_PLUGIN_RUNTIME_DIR must never reach a moxy under test:
+# it would move every serve-http test onto that session's socket path.
+unset CLOWN_PLUGIN_RUNTIME_DIR
+
 # Helpers below resolve `moxy` and `madder` via env-var fallbacks so the
 # same suite runs both inside `pkgs.testers.batsLane` (which exports
 # `MOXY_BIN`/`MADDER_BIN` as absolute store paths via the binaries map)
@@ -202,12 +206,33 @@ run_moxy_mcp_init() {
 # --- Streamable HTTP helpers ----------------------------------------------
 # Start `moxy serve-http` as a background process in the current directory's
 # moxyfile. Parses the clown-plugin-protocol handshake line on stdout to
-# discover the ephemeral port, then waits for /healthz to return 200.
+# discover the address (an ephemeral port, or a unix socket under
+# CLOWN_PLUGIN_RUNTIME_DIR), then waits up to 10s for /healthz to return 200.
 #
-# Exports: MOXY_HTTP_PID, MOXY_HTTP_URL, MOXY_HTTP_STDOUT, MOXY_HTTP_STDERR.
+# Exports: MOXY_HTTP_PID (moxy's own pid), MOXY_HTTP_URL, MOXY_HTTP_UNIX
+# (unix handshakes only), MOXY_HTTP_STDOUT, MOXY_HTTP_STDERR.
 # Caller should invoke stop_moxy_http in teardown.
 start_moxy_http() {
   _ensure_madder_default_store
+  spawn_moxy_http "$@" || return 1
+
+  local code i
+  for ((i = 0; i < 100; i++)); do
+    code=$(moxy_curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz" 2>/dev/null || true)
+    if [[ $code == 200 ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "healthz never became 200; stderr:" >&2
+  cat "$MOXY_HTTP_STDERR" >&2
+  return 1
+}
+
+# The first half of start_moxy_http: spawn and parse the handshake, without
+# creating the madder store or waiting for /healthz (a unix-socket moxy
+# prints its handshake before its children are ready).
+spawn_moxy_http() {
   MOXY_HTTP_STDOUT=$(mktemp)
   MOXY_HTTP_STDERR=$(mktemp)
 
@@ -218,7 +243,8 @@ start_moxy_http() {
   # which breaks unrelated tests that jq-decode the body. Tests that
   # exercise heartbeat behavior should override this explicitly.
   # Extra args ("$@") are appended to serve-http, e.g. --expose <selector>.
-  (cd "$moxy_cwd" && MOXY_HEARTBEAT_INTERVAL=0 "${MOXY_BIN:-moxy}" serve-http "$@") >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
+  # `exec` makes $! moxy itself, not the subshell, so a test can signal it.
+  (cd "$moxy_cwd" && MOXY_HEARTBEAT_INTERVAL=0 exec "${MOXY_BIN:-moxy}" serve-http "$@") >"$MOXY_HTTP_STDOUT" 2>"$MOXY_HTTP_STDERR" </dev/null &
   MOXY_HTTP_PID=$!
 
   local line addr i
@@ -255,18 +281,6 @@ start_moxy_http() {
   else
     MOXY_HTTP_URL="http://$addr"
   fi
-
-  local code
-  for ((i = 0; i < 30; i++)); do
-    code=$(moxy_curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz" 2>/dev/null || true)
-    if [[ $code == 200 ]]; then
-      return 0
-    fi
-    sleep 0.1
-  done
-  echo "healthz never became 200; stderr:" >&2
-  cat "$MOXY_HTTP_STDERR" >&2
-  return 1
 }
 
 # Start `moxy serve-http --listen 127.0.0.1:0` (the caller-chosen fixed-bind
@@ -347,9 +361,9 @@ moxy_curl() {
 
 # Succeeds when process $1 or one of its direct children holds a listening
 # TCP socket (IPv4 or IPv6): matches the socket inodes among their fds against
-# /proc/net/tcp{,6} rows in state 0A (LISTEN). Linux only. Children count
-# because $MOXY_HTTP_PID may be the `( cd && moxy )` subshell rather than
-# moxy itself.
+# /proc/net/tcp{,6} rows in state 0A (LISTEN). Linux only. Children count so
+# a listener opened by a child server is seen too. It samples once: a
+# listener opened and closed before the call is not seen.
 pid_has_tcp_listener() {
   local pid="$1" pids stat line rest fd target inodes=""
   pids=("$pid")
