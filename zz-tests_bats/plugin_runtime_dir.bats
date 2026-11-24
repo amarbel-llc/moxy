@@ -111,6 +111,17 @@ function a_failure_after_the_handshake_exits_nonzero_and_removes_the_socket { # 
   run head -n 1 "$MOXY_HTTP_STDOUT"
   assert_output "1|1|unix|$RUNTIME_DIR/server.sock|streamable-http"
 
+  # Bounded: if startup ever stopped failing, moxy would serve on and an
+  # unbounded wait would hang the lane instead of failing this test.
+  local i
+  for ((i = 0; i < 100; i++)); do
+    kill -0 "$MOXY_HTTP_PID" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$MOXY_HTTP_PID" 2>/dev/null; then
+    cat "$MOXY_HTTP_STDERR" >&2
+    fail "moxy still running 10s after the handshake; expected its startup to fail"
+  fi
   local rc=0
   wait "$MOXY_HTTP_PID" || rc=$?
   ((rc != 0)) || fail "moxy exited 0 although startup failed"

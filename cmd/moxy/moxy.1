@@ -532,6 +532,10 @@ is a refusal and is left as it is.
 On exit the socket is removed only if the path still names the file this
 .Nm
 created.
+So a restart into the same directory fails while the previous
+.Nm
+still listens there: the launcher must stop the old one first (or use a fresh
+directory), and must not start two in one directory at once.
 Unlike the
 .Fl -listen
 origin, this mode sends no
