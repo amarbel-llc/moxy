@@ -125,6 +125,13 @@ test suite, which asserts on it the same way the `restart` SSE tests do).
 - **Unauthenticated, alongside `/clown/system-prompt`.** This is a
   local-network, clown-to-moxy control channel serving the same trust
   boundary as the existing system-prompt route, not a new one.
+  Correction (clown's plugin listeners, contract v1): on loopback TCP that
+  boundary is no boundary, since any same-host process can reach the port and
+  call this route (and `/mcp`). Under `CLOWN_PLUGIN_RUNTIME_DIR` moxy listens
+  only on a unix socket in clown's private 0700 directory, and that directory
+  is the protection; the route itself is unchanged and still checks nothing.
+  On the TCP listeners it stays unauthenticated. See moxy(1) `serve-http` and
+  ENVIRONMENT.
 
 ## Limitations
 

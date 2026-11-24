@@ -92,6 +92,22 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 		defer closeShadow()
 	}
 
+	// CLOWN_PLUGIN_RUNTIME_DIR (clown's plugin listeners): listen only on a
+	// unix socket in clown's private directory. Checked and bound before
+	// stderr is redirected below, so a refusal of the directory reaches the
+	// launcher's stderr as written.
+	var unixLn net.Listener
+	var unixPath string
+	if dir := pluginRuntimeDir(mode, listenAddr, os.Getenv); dir != "" {
+		unixLn, unixPath, err = listenPluginSocket(dir)
+		if err != nil {
+			return err
+		}
+		// Shutdown closes it first on the normal path; this covers every
+		// early return, and closing removes the socket.
+		defer unixLn.Close()
+	}
+
 	// Load and judge the moxyfile (MOXY_PARENT_MOXYFILE) before stderr is
 	// redirected below: a refusal to serve has to reach the launcher's stderr
 	// as written, and it must come before anything is started. A bad --expose
@@ -143,6 +159,16 @@ func runServer(app *command.App, mode transportMode, listenAddr, expose, nameTem
 			return err
 		}
 		defer early.close()
+	}
+	// The unix socket is served through the same startup gate, and its
+	// handshake is printed at once: clown dials the socket and polls /healthz,
+	// which answers 503 until every child has started. Like the ephemeral TCP
+	// path it is one session per process, so the session id stays in memory.
+	if unixLn != nil {
+		early = serveEarlyHTTP(ctx, unixLn, "")
+		defer early.close()
+		fmt.Fprintf(os.Stdout, "1|1|unix|%s|streamable-http\n", unixPath)
+		fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on unix socket %s (clown-plugin-protocol, %s)\n", unixPath, pluginRuntimeDirEnv)
 	}
 
 	inst, err := prepared.Open(ctx)
@@ -226,9 +252,10 @@ func fixedHTTPAddr(mode transportMode, listenAddr string) (addr, source string) 
 // children are still starting. Its gate holds requests until serve installs
 // the real handler.
 type earlyHTTP struct {
-	srv  *http.Server
-	gate *streamhttp.StartupGate
-	done chan error
+	srv           *http.Server
+	gate          *streamhttp.StartupGate
+	sessionIDPath string
+	done          chan error
 }
 
 // startEarlyHTTP binds addr and starts serving the startup gate. source labels
@@ -240,24 +267,30 @@ func startEarlyHTTP(ctx context.Context, addr, source string) (*earlyHTTP, error
 		return nil, fmt.Errorf("listening on %s: %w", addr, err)
 	}
 	fmt.Fprintf(os.Stderr, "moxy: serving streamable-http on %s (%s)\n", ln.Addr(), source)
+	// A fixed address is a long-lived origin behind a tunnel: the session id
+	// is persisted so a restart is invisible to clients.
+	return serveEarlyHTTP(ctx, ln, streamhttp.DefaultSessionIDPath()), nil
+}
+
+// serveEarlyHTTP serves the startup gate on ln until serve installs the real
+// handler. sessionIDPath "" keeps the session id in memory (one session per
+// process: the clown-plugin paths).
+func serveEarlyHTTP(ctx context.Context, ln net.Listener, sessionIDPath string) *earlyHTTP {
 	fmt.Fprintf(os.Stderr, "moxy: accepting connections before children are ready; requests are held until startup completes\n")
 
 	gate := streamhttp.NewStartupGate(startupHoldMax)
-	e := &earlyHTTP{srv: &http.Server{Handler: gate}, gate: gate, done: make(chan error, 1)}
+	e := &earlyHTTP{srv: &http.Server{Handler: gate}, gate: gate, sessionIDPath: sessionIDPath, done: make(chan error, 1)}
 	shutdownOnDone(ctx, e.srv)
 	go func() { e.done <- e.srv.Serve(ln) }()
-	return e, nil
+	return e
 }
 
 func (e *earlyHTTP) close() { e.srv.Close() }
 
 // serve releases the held requests onto the real handler, then blocks until
-// the server stops and tears down. A fixed address is a long-lived origin
-// behind a tunnel: the session id is persisted so a restart is invisible to
-// clients (the ephemeral clown-plugin path is one session per process and
-// stays in memory).
+// the server stops and tears down.
 func (e *earlyHTTP) serve(inst *moxy.Instance) error {
-	e.gate.Ready(newStreamHTTP(inst, streamhttp.DefaultSessionIDPath()))
+	e.gate.Ready(newStreamHTTP(inst, e.sessionIDPath))
 	// Ready only now, with the real handler in place: the listener has been
 	// up since before the children started, holding requests at the gate.
 	if err := notifyReady(); err != nil {

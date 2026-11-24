@@ -240,16 +240,25 @@ start_moxy_http() {
     return 1
   fi
 
+  local network
+  network=$(awk -F'|' '{print $3}' <<<"$line")
   addr=$(awk -F'|' '{print $4}' <<<"$line")
   if [[ -z $addr ]]; then
     echo "invalid handshake line: $line" >&2
     return 1
   fi
-  MOXY_HTTP_URL="http://$addr"
+  # A `unix` handshake (CLOWN_PLUGIN_RUNTIME_DIR set) names a socket path;
+  # moxy_curl dials it and the URL's host is a placeholder.
+  if [[ $network == unix ]]; then
+    MOXY_HTTP_UNIX="$addr"
+    MOXY_HTTP_URL="http://moxy"
+  else
+    MOXY_HTTP_URL="http://$addr"
+  fi
 
   local code
   for ((i = 0; i < 30; i++)); do
-    code=$(curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz" 2>/dev/null || true)
+    code=$(moxy_curl -sS -o /dev/null -w "%{http_code}" "$MOXY_HTTP_URL/healthz" 2>/dev/null || true)
     if [[ $code == 200 ]]; then
       return 0
     fi
@@ -323,7 +332,51 @@ stop_moxy_http() {
     wait "$MOXY_HTTP_PID" 2>/dev/null || true
   fi
   rm -f "${MOXY_HTTP_STDOUT:-}" "${MOXY_HTTP_STDERR:-}"
-  unset MOXY_HTTP_PID MOXY_HTTP_STDOUT MOXY_HTTP_STDERR MOXY_HTTP_URL MOXY_SESSION_ID
+  unset MOXY_HTTP_PID MOXY_HTTP_STDOUT MOXY_HTTP_STDERR MOXY_HTTP_URL MOXY_HTTP_UNIX MOXY_SESSION_ID
+}
+
+# curl against the moxy under test: over its unix socket when the handshake
+# named one (MOXY_HTTP_UNIX), else plain TCP.
+moxy_curl() {
+  if [[ -n ${MOXY_HTTP_UNIX:-} ]]; then
+    curl --unix-socket "$MOXY_HTTP_UNIX" "$@"
+  else
+    curl "$@"
+  fi
+}
+
+# Succeeds when process $1 or one of its direct children holds a listening
+# TCP socket (IPv4 or IPv6): matches the socket inodes among their fds against
+# /proc/net/tcp{,6} rows in state 0A (LISTEN). Linux only. Children count
+# because $MOXY_HTTP_PID may be the `( cd && moxy )` subshell rather than
+# moxy itself.
+pid_has_tcp_listener() {
+  local pid="$1" pids stat line rest fd target inodes=""
+  pids=("$pid")
+  for stat in /proc/[0-9]*/stat; do
+    { read -r line <"$stat"; } 2>/dev/null || continue
+    rest=${line##*) }
+    # rest: state ppid ...
+    read -r _ rest <<<"$rest"
+    if [[ ${rest%% *} == "$pid" ]]; then
+      stat=${stat#/proc/}
+      pids+=("${stat%/stat}")
+    fi
+  done
+  for pid in "${pids[@]}"; do
+    for fd in "/proc/$pid/fd"/*; do
+      target=$(readlink "$fd" 2>/dev/null) || continue
+      if [[ $target =~ ^socket:\[([0-9]+)\]$ ]]; then
+        inodes+="${BASH_REMATCH[1]}"$'\n'
+      fi
+    done
+  done
+  [[ -n $inodes ]] || return 1
+  awk -v want="$inodes" '
+    BEGIN { n = split(want, a, "\n"); for (i = 1; i <= n; i++) w[a[i]] = 1 }
+    FNR > 1 && $4 == "0A" && ($10 in w) { found = 1 }
+    END { exit !found }
+  ' /proc/net/tcp /proc/net/tcp6 2>/dev/null
 }
 
 # Dump captured moxy stderr on test failure. Call from teardown before
@@ -373,7 +426,7 @@ http_post_mcp() {
     curl_args+=(-H "Mcp-Session-Id: $sid")
   fi
 
-  HTTP_STATUS=$(curl "${curl_args[@]}" "$MOXY_HTTP_URL/mcp" 2>/dev/null || echo "000")
+  HTTP_STATUS=$(moxy_curl "${curl_args[@]}" "$MOXY_HTTP_URL/mcp" 2>/dev/null || echo "000")
   output=$(cat "$body_file")
   MOXY_SESSION_ID=$(awk -F': *' 'BEGIN{IGNORECASE=1} tolower($1)=="mcp-session-id"{gsub(/\r/,"",$2); print $2}' "$headers_file")
   rm -f "$headers_file" "$body_file"
@@ -382,7 +435,7 @@ http_post_mcp() {
 # DELETE /mcp with a session id. Sets $HTTP_STATUS.
 http_delete_session() {
   local sid="$1"
-  HTTP_STATUS=$(curl -sS -X DELETE -o /dev/null -w "%{http_code}" \
+  HTTP_STATUS=$(moxy_curl -sS -X DELETE -o /dev/null -w "%{http_code}" \
     -H "Mcp-Session-Id: $sid" "$MOXY_HTTP_URL/mcp" 2>/dev/null || echo "000")
 }
 
@@ -392,7 +445,7 @@ sse_start() {
   local sid="$1"
   local outfile="$2"
   : >"$outfile"
-  curl -sS -N \
+  moxy_curl -sS -N \
     -H "Accept: text/event-stream" \
     -H "Mcp-Session-Id: $sid" \
     "$MOXY_HTTP_URL/mcp" >"$outfile" 2>/dev/null &

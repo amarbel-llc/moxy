@@ -62,10 +62,36 @@ gone (its parent changes), exiting non-zero with a reason on stderr; a
 moxy started as pid 1's child, such as a systemd unit, is not watched.
 With no
 .Fl -listen
-flag, binds an ephemeral port on
+flag and
+.Ev CLOWN_PLUGIN_RUNTIME_DIR
+set (as clown sets it for an HTTP plugin), listens only on the unix socket
+.Pa $CLOWN_PLUGIN_RUNTIME_DIR/server.sock
+(mode 0600), opens no TCP listener, prints the handshake line
+.Li 1|1|unix| Ns Ar path Ns Li |streamable-http
+to stdout, and removes the socket on exit; see
+.Sx ENVIRONMENT
+for the checks it makes on that directory.
+With no
+.Fl -listen
+flag and that variable unset, binds an ephemeral port on
 .Li 127.0.0.1
-and prints a clown-plugin-protocol handshake line to stdout, for use
-under a clown-plugin-host.
+and prints a clown-plugin-protocol handshake line
+.Li 1|1|tcp| Ns Ar addr Ns Li |streamable-http
+to stdout, for use under a clown-plugin-host.
+.Pp
+Moxy holds no token and checks no Origin: every route, including
+.Pa /mcp
+and
+.Pa /clown/exclude-tools ,
+answers whoever can connect.
+On the unix socket the private directory is the protection: only its owner
+can reach the socket, and clown keeps that directory out of a confined
+session's view and fronts it with its own authenticated listener.
+On the TCP listeners
+.Pq the ephemeral port, Fl -listen , Ev MOXY_HTTP_ADDR
+there is no protection: any process on the host that can reach the address,
+under any user, can initialize a session and list and call every tool.
+.Pp
 With
 .Fl -listen Ar addr
 .Pq e.g. Li 127.0.0.1:8731 ,
@@ -103,6 +129,12 @@ to
 when that is set, so a systemd unit with
 .Li Type=notify
 becomes active only once moxy is actually serving.
+The unix socket under
+.Ev CLOWN_PLUGIN_RUNTIME_DIR
+is bound and its handshake line printed before any child server is spawned,
+and it answers through the same startup gate: clown polls
+.Pa /healthz
+on it until it answers 200.
 The ephemeral-port mode binds after startup, since its handshake line announces
 a ready server.
 .Pp
@@ -460,6 +492,36 @@ reference than the one intended.
 Unset
 .Pq the default
 means no check.
+.It Ev CLOWN_PLUGIN_RUNTIME_DIR
+Set by clown for an HTTP plugin: a private directory clown creates before
+starting it.
+When set and
+.Cm serve-http
+has no
+.Fl -listen ,
+.Nm
+listens only on
+.Pa server.sock
+in that directory, mode 0600, and prints a
+.Li unix
+handshake line.
+It refuses to start, with the reason on stderr and a non-zero exit, when the
+value is not an absolute path, or names something missing, not a directory
+.Pq a symbolic link included ,
+not owned by its effective user, or with any group or world permission bit,
+or when the socket path is longer than the system's unix socket path limit
+.Pq 107 bytes on Linux, 103 on Darwin .
+A socket already at that path, left by a predecessor, is replaced; any other
+kind of file there is a refusal and is left as it is.
+.Fl -listen
+wins over the variable, and
+.Cm serve mcp
+ignores it.
+Unset
+.Pq the default
+keeps the ephemeral
+.Li 127.0.0.1
+port.
 .It Ev MOXY_HTTP_ADDR
 When set on the default
 .Pq stdio

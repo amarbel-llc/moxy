@@ -112,9 +112,26 @@ func newApp() *command.App {
 				"SIGINT/SIGTERM, or when the process that started it is gone " +
 				"(its parent changes; exit status non-zero; not watched when " +
 				"started as pid 1's child, e.g. a systemd unit). With no --listen " +
-				"flag, binds an ephemeral port on " +
+				"flag and CLOWN_PLUGIN_RUNTIME_DIR set (clown sets it for an HTTP " +
+				"plugin: a private directory it creates), listens ONLY on the unix " +
+				"socket $CLOWN_PLUGIN_RUNTIME_DIR/server.sock (mode 0600), opens no " +
+				"TCP listener, prints the handshake line " +
+				"`1|1|unix|PATH|streamable-http` to stdout, and removes the socket " +
+				"on exit; it refuses to start if that value is not an absolute " +
+				"path or names something missing, not a directory (a symlink " +
+				"included), not owned by its effective user, or with any group or " +
+				"world permission bit, or if the socket path exceeds the unix path " +
+				"limit; a stale socket there is replaced, any other file is a " +
+				"refusal. With no --listen flag and that variable unset, binds an " +
+				"ephemeral port on " +
 				"127.0.0.1 and prints a clown-plugin-protocol handshake line to " +
-				"stdout (for clown-plugin-host). With --listen ADDR, binds that " +
+				"stdout (for clown-plugin-host). SECURITY: moxy holds no token and " +
+				"checks no Origin; every route, /mcp and /clown/exclude-tools " +
+				"included, answers whoever can connect. On the unix socket the " +
+				"private directory is the protection. On any TCP listener " +
+				"(ephemeral, --listen, MOXY_HTTP_ADDR) there is none: any local " +
+				"process that reaches the address can list and call every tool. " +
+				"With --listen ADDR (which wins over CLOWN_PLUGIN_RUNTIME_DIR), binds that " +
 				"fixed address instead and logs the bound address to stderr only — " +
 				"use this to put moxy behind a reverse proxy or tunnel that needs a " +
 				"stable upstream. STARTUP: a fixed --listen address is bound before " +
@@ -124,7 +141,9 @@ func newApp() *command.App {
 				"every other request (initialize, tools/list, /clown/*) is held on " +
 				"its accepted connection, then served once startup completes, so " +
 				"the initialize instructions are complete; a request held longer " +
-				"than 90s gets a 503 with Retry-After. The ephemeral-port " +
+				"than 90s gets a 503 with Retry-After. The CLOWN_PLUGIN_RUNTIME_DIR " +
+				"socket is bound, and its handshake printed, before children are " +
+				"spawned, behind the same gate (clown polls /healthz). The ephemeral-port " +
 				"(clown-plugin) mode binds after startup, since its handshake line " +
 				"announces a ready server.",
 		},
@@ -132,7 +151,7 @@ func newApp() *command.App {
 			{
 				Name:        "listen",
 				Type:        command.String,
-				Description: "Fixed TCP address to bind, e.g. 127.0.0.1:8731. When omitted, binds an ephemeral 127.0.0.1 port and prints the clown-plugin handshake.",
+				Description: "Fixed TCP address to bind, e.g. 127.0.0.1:8731; wins over CLOWN_PLUGIN_RUNTIME_DIR. When omitted, listens on $CLOWN_PLUGIN_RUNTIME_DIR/server.sock if that is set, else binds an ephemeral 127.0.0.1 port; either way it prints the clown-plugin handshake.",
 				Default:     "",
 			},
 			{
