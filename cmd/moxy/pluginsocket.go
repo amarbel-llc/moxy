@@ -124,6 +124,7 @@ func listenPluginSocket(dir string) (net.Listener, string, error) {
 	fi, err := os.Lstat(path)
 	if err != nil {
 		ul.Close()
+		os.Remove(path)
 		return nil, "", fmt.Errorf("%s: %w", pluginRuntimeDirEnv, err)
 	}
 	return &pluginListener{UnixListener: ul, path: path, file: fi}, path, nil
@@ -167,12 +168,15 @@ type pluginListener struct {
 	once sync.Once
 }
 
+// Close checks and removes the file BEFORE closing the listening descriptor:
+// while it still listens, a successor's probe connects and refuses to
+// replace the file, so the file cannot change between the check and the
+// remove.
 func (l *pluginListener) Close() error {
-	err := l.UnixListener.Close()
 	l.once.Do(func() {
 		if fi, lerr := os.Lstat(l.path); lerr == nil && os.SameFile(fi, l.file) {
 			os.Remove(l.path)
 		}
 	})
-	return err
+	return l.UnixListener.Close()
 }
