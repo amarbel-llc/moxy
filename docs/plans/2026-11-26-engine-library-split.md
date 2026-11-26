@@ -10,8 +10,11 @@ Relayed by chat from `spinclass/slim-myrtle`, who put an earlier version of this
 plan to the operator in a decisions document (U: I have not seen it). Quoted
 parts are as relayed.
 
-1. File the holes and fix them now. Push and merge nothing until the operator
-   says so.
+1. File the holes and fix them now. An earlier hold on pushing, because this
+   plan describes the holes, was lifted later the same day (as relayed): "I'm
+   unconcerned about the holes being public, we can operate normally (not in CVE
+   mode)". The lift asks for no merge or deploy; moxy's usual review and merge
+   rules apply.
 2. Engine home: "moxy for now. we can examine moving to clown in the future
    (we'd move all of moxy into clown)".
 3. spinclass **owns** the folio code, "and moxy loses these tools. moxy should
