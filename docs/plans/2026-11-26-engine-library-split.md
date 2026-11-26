@@ -4,6 +4,18 @@ Date: 2026-11-26. Status: **plan, revised the same day for the operator's
 rulings**. Only step 0 has code. Labels: **R** read in code or docs, **T** tried,
 **U** not verified.
 
+> **ON HOLD: do not act on this plan's ownership parts.** Later on 2026-11-26
+> the operator replaced ruling 3 below (as relayed by
+> `spinclass/slim-myrtle`): "actually, wait one second. moxy should provide the
+> tools that can read/write/manipulate, but spinclass should provide the
+> _resources_ that are read / written manipulated. so rg.search stays in moxy,
+> and we need to figure out how to make it possibly for moxy's tools to operate
+> against the resrouces that spinclass will provide for folio -- yes this is a
+> pivot". Every claim that rests on spinclass owning the folio tools, or on moxy
+> losing them, is not current: that covers parts of sections 3 to 12. The new
+> shape is still being worked out and is not designed here. Sections 1 and 2
+> describe the code and stand.
+
 ## Rulings (operator, 2026-11-26)
 
 Relayed by chat from `spinclass/slim-myrtle`, who put an earlier version of this
@@ -44,8 +56,8 @@ not give any tool: tools are TOML files plus scripts that nix wraps.
 
 ## 2. Step 0: what was fixed (moxy#532)
 
-Fixed with tests in a commit of its own, **not pushed, merged or deployed**: a
-running moxy keeps the old behaviour.
+Fixed with tests. **This change deploys nothing**: a running moxy keeps the old
+behaviour until it is updated.
 
 - **T** `folio.glob`: the pattern can no longer leave `path` (absolute and `..`
   patterns are refused; matches that resolve outside are dropped). `path` is now
@@ -54,8 +66,8 @@ running moxy keeps the old behaviour.
 - **Behaviour change:** an absolute glob pattern is now an error that says to
   pass the directory as `path`. Matches through a linked directory that leads
   outside are no longer listed.
-- **Not fixed (R, not tried):** `folio.tree` with `follow_symlinks` looks like
-  the same class. It was outside the ruling's list.
+- **T** `folio.tree`: `follow_symlinks` walked into whatever a link pointed at.
+  `true` is now refused (fixed after the operator's later go).
 
 **The fix does not make folio scopeable to one directory** (R): the floor is far
 wider than a directory and is the fallback when no broker answers; `readguard`
@@ -196,7 +208,7 @@ Sizes are rough guesses.
 
 | # | Step | Where | Size |
 |---|---|---|---|
-| 0 | Fix moxy#532 (done, unpushed). Decide on `tree` | moxy | S |
+| 0 | Fix moxy#532, `tree` included (done) | moxy | S |
 | 1 | Slice 1: the file package, read/list/glob/grep beneath one root | spinclass | spinclass sizes it |
 | 2 | juggler proof: a fake-model run that lists the tools offered | spinclass, juggler | S |
 | 3 | Move `folio-perms` out of the folio moxin | moxy | S |
@@ -244,4 +256,3 @@ edited here.**
 | 2 | May sessions switch before all 16 tools have a replacement? | no, unless each missing one is dropped by name |
 | 3 | Keep the names `folio.*`? | yes |
 | 4 | Who hosts the krone origin once moxy is a library? | keep `moxy serve-http` until a named host runs it |
-| 5 | Restrict `tree`'s `follow_symlinks` as in step 0? | yes, tests first |
