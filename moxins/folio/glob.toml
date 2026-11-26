@@ -7,8 +7,14 @@ alternatives like "**/*.{go,rs}". Returns matching FILE paths only (directories 
 are never listed, so "vendor/*" lists the files directly under vendor/, not its \
 subdirectories), sorted by modification time (newest first). An empty answer \
 says "No files found", and notes when directories matched. A malformed pattern \
-(for example an unclosed "{") is an error."""
-command = "@BIN@/glob"
+(for example an unclosed "{") is an error. Matches never leave `path`: an \
+absolute pattern or a ".." segment is refused, and matches reached through a \
+linked directory that leads outside `path` are left out; pass such a directory \
+as `path` instead."""
+# readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490, #532) and
+# enters it, so a path that links out of the read policy is refused.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "2", "--", "@BIN@/glob"]
 arg-order = ["pattern", "path"]
 
 [input]
@@ -17,7 +23,7 @@ required = ["pattern"]
 
 [input.properties.pattern]
 type = "string"
-description = "The glob pattern to match files against (e.g. \"**/*.go\", \"src/**/*.ts\")"
+description = "The glob pattern to match files against, relative to path (e.g. \"**/*.go\", \"src/**/*.ts\")"
 
 [input.properties.path]
 type = "string"

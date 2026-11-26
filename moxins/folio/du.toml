@@ -19,7 +19,7 @@ description = "File or directory path. Auto-allowed inside CWD, /nix/store, sibl
 
 [input.properties.flags]
 type = "string"
-description = "Optional flags passed to du (e.g. \"-ah\", \"-c\"). When provided, runs du directly instead of JSON output."
+description = "Optional reporting flags for du (e.g. \"-ah\", \"-c\", \"-d 1\", \"--max-depth=1\"). Only listed options are accepted: no paths, no link following (-L), no file lists (-X, --exclude-from, --files0-from), no abbreviated long options. When provided, runs du directly instead of JSON output."
 
 [annotations]
 read-only-hint = true

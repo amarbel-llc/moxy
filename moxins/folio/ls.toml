@@ -19,7 +19,7 @@ description = "Directory path to list. Defaults to current working directory. Au
 
 [input.properties.flags]
 type = "string"
-description = "Optional flags passed to ls (e.g. \"-la\", \"-lh\"). When provided, runs ls directly instead of JSON output."
+description = "Optional display flags for ls (e.g. \"-la\", \"-lh\", \"-R\", \"--sort=size\"). Only listed options are accepted: no paths, no link following (-L, -H, --dereference), no abbreviated long options. When provided, runs ls directly instead of JSON output."
 
 [annotations]
 read-only-hint = true

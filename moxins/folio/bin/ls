@@ -8,10 +8,24 @@ if [ ! -d "$dir" ]; then
   exit 1
 fi
 
-if [ -n "$flags" ]; then
+# The permission check judges `path` alone (#532), so every word of `flags`
+# must be a listed option: no operand, nothing that follows links (-L, -H,
+# --dereference*), and no abbreviated long option. Split without globbing.
+words=()
+read -r -d '' -a words <<<"$flags" || true
+short='^-[1aAbBcCdfFghGiklmnNopqQrRsStuUvxXZ]+$'
+long='^--(all|almost-all|classify|directory|escape|full-time|group-directories-first|human-readable|inode|literal|no-group|numeric-uid-gid|recursive|reverse|si|size|color(=[a-z]+)?|(sort|time)=[a-z]+|time-style=[^[:space:]]+|(hide|ignore)=[^[:space:]]+)$'
+for word in "${words[@]}"; do
+  if ! [[ $word =~ $short || $word =~ $long ]]; then
+    echo "ERROR: ls flag not allowed: '$word'. flags takes display options only (no paths, no link following); name the directory in path." >&2
+    exit 2
+  fi
+done
+
+if [ ${#words[@]} -gt 0 ]; then
   # readguard (#490) enters the directory and passes "."; map the headers
   # back to the name the caller gave
-  text=$(ls $flags -- "$dir" | { if [ -n "${READGUARD_MAP:-}" ]; then "$READGUARD_MAP" map; else cat; fi; })
+  text=$(ls "${words[@]}" -- "$dir" | { if [ -n "${READGUARD_MAP:-}" ]; then "$READGUARD_MAP" map; else cat; fi; })
   mime="text/plain"
 else
   first=true
