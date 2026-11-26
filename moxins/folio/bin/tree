@@ -8,6 +8,13 @@ exclude_extra="${5:-}"
 follow_symlinks="${6:-false}"
 json="${7:-false}"
 
+# The permission check judges `path` alone (#532), and `tree -l` would walk
+# into whatever a link under it points at: there is no way to bound it.
+if [ "$follow_symlinks" != "false" ]; then
+  echo "ERROR: follow_symlinks is not supported: links are listed, not entered. To list a linked directory, pass it as path." >&2
+  exit 2
+fi
+
 if [ ! -d "$path" ]; then
   echo "not a directory: $path" >&2
   exit 1
@@ -28,7 +35,6 @@ if [ "$depth" != "0" ]; then
 fi
 [ "$show_hidden"     = "true" ] && args+=("-a")
 [ "$dirs_only"       = "true" ] && args+=("-d")
-[ "$follow_symlinks" = "true" ] && args+=("-l")
 [ "$json"            = "true" ] && args+=("-J")
 args+=("-I" "$exclude")
 

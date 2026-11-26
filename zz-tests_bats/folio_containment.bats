@@ -134,6 +134,29 @@ function ls_keeps_the_ordinary_flags { # @test
   done
 }
 
+function tree_refuses_to_follow_links { # @test
+  ln -s "$OUTSIDE" "$PROJECT/sub/way-out"
+  local extra
+  for extra in '{"follow_symlinks": true}' '{"follow_symlinks": true, "json": true}' '{"follow_symlinks": true, "depth": 0}'; do
+    call folio.tree "$(jq -cn --argjson e "$extra" '{path: "sub"} + $e')"
+    assert_error
+    assert_nothing_outside
+    [[ $(text_of) == *"follow_symlinks is not supported"* ]] || fail "$output"
+  done
+}
+
+function tree_lists_a_link_without_entering_it { # @test
+  ln -s "$OUTSIDE" "$PROJECT/sub/way-out"
+  local extra
+  for extra in '{}' '{"follow_symlinks": false}' '{"depth": 0}'; do
+    call folio.tree "$(jq -cn --argjson e "$extra" '{path: "sub"} + $e')"
+    assert_ok
+    [[ $(text_of) == *way-out* && $(text_of) == *inside.txt* ]] || fail "$output"
+    # the link's own target is shown, nothing under it
+    [[ $output != *outside-marker* ]] || fail "reached outside: $output"
+  done
+}
+
 function du_flags_take_no_operand { # @test
   local f
   for f in "-a $OUTSIDE" "$OUTSIDE" '-a ../elsewhere' '-d 1 ../elsewhere' '-- ../elsewhere'; do

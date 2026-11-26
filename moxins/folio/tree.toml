@@ -39,7 +39,7 @@ description = "Pipe-separated glob patterns to prune (tree -I). Appended to the 
 
 [input.properties.follow_symlinks]
 type = "boolean"
-description = "Follow symlinked directories (tree -l). Defaults to false."
+description = "Not supported: links are listed, not entered, and true is refused. To list a linked directory, pass it as path."
 
 [input.properties.json]
 type = "boolean"
