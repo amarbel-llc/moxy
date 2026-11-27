@@ -160,8 +160,10 @@ the unmatched case. Checks MAY be pipelined; verdicts MAY arrive in any order.
 
 A call naming several resources is checked per resource and the strictest
 verdict wins (`deny` over `ask` over `allow`); moxy MAY stop at the first
-`deny`. A resource that is `/dev/fd/*` (the pipe a `madder://blobs/` argument
-is substituted with) or empty names nothing and is not checked.
+`deny`. A resource that is exactly `/dev/fd/<digits>` (the pipe a
+`madder://blobs/` argument is substituted with) or empty names nothing and is
+not checked. A value that only starts that way, or only starts like a blob URI,
+is checked as the file path it spells.
 
 Which tools are checked is declared by the tool, not guessed: a moxin tool
 names its resource inputs and the operation on each in `[resources.<input>]`

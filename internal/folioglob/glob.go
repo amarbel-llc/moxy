@@ -19,8 +19,12 @@ import (
 	"time"
 )
 
-// maxAlternatives bounds brace expansion.
-const maxAlternatives = 1024
+// maxAlternatives bounds brace expansion, and maxSegments the depth of one
+// alternative.
+const (
+	maxAlternatives = 1024
+	maxSegments     = 256
+)
 
 // ErrEscapes refuses a pattern that spells a way out of the directory.
 var ErrEscapes = errors.New("glob pattern must stay under path: absolute patterns and '..' segments are refused. Pass that directory as path instead")
@@ -71,10 +75,15 @@ func Match(root *os.Root, pattern string) (Result, error) {
 			case unescape(seg) == "..":
 				return Result{}, ErrEscapes
 			case strings.Contains(seg, "[[:"):
-				return Result{}, fmt.Errorf("unsupported glob pattern: POSIX character classes are not supported: %s", pattern)
+				return Result{}, fmt.Errorf("unsupported glob pattern: POSIX character classes are not supported, write a range such as [A-Za-z]: %s", pattern)
+			case seg == "**" && len(c.segments) > 0 && c.segments[len(c.segments)-1] == "**":
+				continue // "**/**" matches what "**" does, at a higher cost
 			}
 			if _, err := path.Match(seg, ""); err != nil {
-				return Result{}, fmt.Errorf("unsupported glob pattern: malformed %q in: %s", seg, pattern)
+				return Result{}, fmt.Errorf("unsupported glob pattern: malformed %q (to match a bracket itself, write \\[): %s", seg, pattern)
+			}
+			if len(c.segments) == maxSegments {
+				return Result{}, fmt.Errorf("unsupported glob pattern: more than %d segments; give a deeper directory as path", maxSegments)
 			}
 			c.segments = append(c.segments, seg)
 		}
@@ -192,9 +201,19 @@ func join(dir, name string) string {
 	return dir + "/" + name
 }
 
-// classNegation rewrites the shell's "[!...]" as path.Match's "[^...]".
+// classNegation rewrites the shell's "[!...]" as path.Match's "[^...]",
+// leaving an escaped "\[!" alone.
 func classNegation(seg string) string {
-	return strings.ReplaceAll(seg, "[!", "[^")
+	b := []byte(seg)
+	for i := 0; i+1 < len(b); i++ {
+		switch {
+		case b[i] == '\\':
+			i++
+		case b[i] == '[' && b[i+1] == '!':
+			b[i+1] = '^'
+		}
+	}
+	return string(b)
 }
 
 func hasMeta(seg string) bool {
@@ -254,7 +273,7 @@ scan:
 			return nil, fmt.Errorf("unsupported glob pattern: unclosed '{' in brace expression: %s", s)
 		}
 		if len(out) >= maxAlternatives {
-			return nil, fmt.Errorf("unsupported glob pattern: more than %d brace alternatives", maxAlternatives)
+			return nil, fmt.Errorf("unsupported glob pattern: more than %d brace alternatives; split the pattern into several calls", maxAlternatives)
 		}
 		return append(out, s), nil
 	}

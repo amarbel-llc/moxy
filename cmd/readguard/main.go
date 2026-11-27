@@ -18,12 +18,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"code.linenisgreat.com/moxy/internal/readguard"
+	"code.linenisgreat.com/moxy/pkg/perms"
 )
 
 func main() {
@@ -81,6 +81,11 @@ func main() {
 	os.Exit(2)
 }
 
+// blobRefused says why a blob reference got no further, and what to do.
+func blobRefused(operand string) error {
+	return fmt.Errorf("%s: not a blob reference this input takes (only a whole madder://blobs/<digest>, in an input that accepts blobs). Pass a file path; for a file really named this way, prefix it with ./", operand)
+}
+
 func positions(s string) []int {
 	var out []int
 	for _, f := range strings.Split(s, ",") {
@@ -110,11 +115,8 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 	// relative file operands mean; the directory itself is named from here
 	fileOpener := o
 	if cwdArg > 0 && cwdArg <= len(args) && args[cwdArg-1] != "" {
-		d := args[cwdArg-1]
-		if !filepath.IsAbs(d) {
-			d = filepath.Join(cwd, d)
-		}
-		fileOpener.Cwd = d
+		// the trailing slash resolves it whole, as entering it will
+		fileOpener.Cwd = perms.CanonicalPath(perms.AbsolutePath(cwd, args[cwdArg-1]) + "/")
 	}
 	ctx := context.Background()
 
@@ -130,7 +132,7 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 	for _, positions := range [][]int{files, verify, anyPaths} {
 		for _, n := range positions {
 			if v, ok := at(n); ok && readguard.UnsubstitutedBlob(v) {
-				return fmt.Errorf("%s: this input does not take a blob reference", v)
+				return blobRefused(v)
 			}
 		}
 	}
@@ -205,7 +207,7 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 				continue
 			}
 			if readguard.UnsubstitutedBlob(operand) {
-				return fmt.Errorf("%s: this input does not take a blob reference", operand)
+				return blobRefused(operand)
 			}
 			if list[i], err = openFd(fileOpener, operand); err != nil {
 				return err

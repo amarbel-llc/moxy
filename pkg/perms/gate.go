@@ -3,6 +3,8 @@ package perms
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -145,8 +147,12 @@ func AbsolutePath(cwd, path string) string {
 // `result -> /nix/store/...` link in the worktree is a worktree path). Links
 // above the leaf are resolved, ".." applies to what a link points at, a final
 // ".", ".." or slash resolves the whole path (the system follows a link named
-// that way), and a name that does not exist or cannot be resolved is kept. It
-// is the path the gate judges; toolbox opens exactly this path (FDR 0016).
+// that way), and a name that does not exist or cannot be resolved is kept.
+// From a ".." or "." that follows a name which is there but is no directory
+// (a file, a dangling link, a pipe behind a /proc link) the rest is left as
+// written: the system fails there, and resolving it as text would name some
+// other file. It is the path the gate judges; toolbox opens exactly this path
+// (FDR 0016).
 func CanonicalPath(path string) string {
 	if !filepath.IsAbs(path) {
 		cwd, err := os.Getwd()
@@ -166,23 +172,43 @@ func CanonicalPath(path string) string {
 		followLeaf = true
 	}
 	resolved := "/"
+	// blocked: resolved holds a name that is there but cannot be walked
+	// through, so no later ".." or "." means anything
+	blocked := false
 	for i, part := range parts {
 		switch part {
-		case ".":
-		case "..":
-			// resolved holds no link by now, so its parent is the real one
-			resolved = filepath.Dir(resolved)
+		case ".", "..":
+			if blocked {
+				return strings.TrimSuffix(resolved, "/") + "/" + strings.Join(parts[i:], "/")
+			}
+			if part == ".." {
+				// resolved holds no link by now (each was followed, or
+				// blocked), so its parent is the real one
+				resolved = filepath.Dir(resolved)
+			}
 		default:
 			resolved = filepath.Join(resolved, part)
 			if i == len(parts)-1 && !followLeaf {
 				return resolved
 			}
-			if real, err := filepath.EvalSymlinks(resolved); err == nil {
-				resolved = real
+			var walkable bool
+			if resolved, walkable = follow(resolved); !walkable {
+				blocked = true
 			}
 		}
 	}
 	return resolved
+}
+
+// follow resolves name and reports whether ".." may apply to the result: it is
+// a directory, or it does not exist at all (as `realpath -m` treats it).
+func follow(name string) (string, bool) {
+	if target, err := filepath.EvalSymlinks(name); err == nil {
+		info, err := os.Stat(target)
+		return target, err == nil && info.IsDir()
+	}
+	_, err := os.Lstat(name)
+	return name, errors.Is(err, fs.ErrNotExist)
 }
 
 // rank orders decisions by strictness; Unknown (the client decides) sits

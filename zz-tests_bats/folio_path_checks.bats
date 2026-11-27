@@ -145,6 +145,30 @@ function readers_refuse_a_descriptor_path_that_climbs_out { # @test
   [[ $(text_of) == "moxy denied"* ]] || fail "glob was not refused: $output"
 }
 
+function a_blob_uri_with_a_suffix_is_not_substituted { # @test
+  # moxy once replaced just the URI part, leaving a path that climbed out of
+  # the pipe's name after the permission check had judged another string
+  echo cached >"$HOME/blob-body"
+  _ensure_madder_default_store
+  local id
+  id=$(cd "$HOME" && "${MADDER_BIN:-madder}" write -format json .default blob-body | jq -r 'select(.id) | .id')
+  printf 'permission-mode = "enforce"\n' >"$PROJECT/moxyfile"
+  call folio.read "$(jq -cn --arg p "madder://blobs/$id" '{file_path: $p}')"
+  assert_ok
+  [[ $(text_of) == *cached* ]] || fail "$output"
+  local p="madder://blobs/$id/../../../self/root$OUTSIDE"
+  call folio.read "$(jq -cn --arg p "$p/outside-marker.txt" '{file_path: $p}')"
+  assert_error
+  [[ $output != *outside-secret* ]] || fail "read reached it: $output"
+  call folio.tar "$(jq -cn --arg p "$p/outside-marker.txt" '{path: $p}')"
+  assert_error
+  call folio.file-type "$(jq -cn --arg p "$p/outside-marker.txt" '{path: $p}')"
+  assert_error
+  [[ $output != *ASCII* ]] || fail "file-type reached it: $output"
+  call rg.search "$(jq -cn --arg p "$p" '{pattern: "outside-secret", path: $p, output_mode: "content"}')"
+  [[ $output != *outside-marker.txt* ]] || fail "rg reached it: $output"
+}
+
 function readers_without_blob_inputs_refuse_a_blob_uri_as_a_path { # @test
   mkdir -p "$PROJECT/madder:/blobs"
   ln -s "$OUTSIDE/dir" "$PROJECT/madder:/blobs/abc"
@@ -170,8 +194,11 @@ function a_path_named_null_is_guarded { # @test
     assert_error
     [[ $output != *outside-marker* ]] || fail "$tool reached it: $output"
   done
+  ln -sfn "$OUTSIDE/outside-marker.txt" "$PROJECT/null"
   call folio.read '{"file_path": "null"}'
   assert_error
+  [[ $output != *outside-secret* ]] || fail "read reached it: $output"
+  ln -sfn "$OUTSIDE" "$PROJECT/null"
   call folio.glob '{"pattern": "*", "path": "null"}'
   assert_error
   [[ $output != *outside-marker* ]] || fail "glob reached it: $output"

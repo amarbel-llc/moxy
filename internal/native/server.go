@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -391,6 +392,15 @@ func extractStdinParam(arguments json.RawMessage, name string) (string, json.Raw
 	return val, remaining
 }
 
+// namesAPath reports an input whose value is a file the permission check
+// judges: a declared resource without a grammar of its own. Substituting part
+// of such a value would yield a path the check never saw (moxy#534).
+func (spec *ToolSpec) namesAPath(param string) bool {
+	return slices.ContainsFunc(spec.Resources, func(r ResourceArg) bool {
+		return r.Param == param && r.Grammar == ""
+	})
+}
+
 // substituteInputBlobURIs rewrites madder://blobs/<digest> references to
 // /dev/fd/N pipes in the inputs the tool lists in substitute-args (#371): a
 // string input, or each string of an array input. Every other input reaches
@@ -419,7 +429,7 @@ func (s *Server) substituteInputBlobURIs(
 		if !ok {
 			continue
 		}
-		rewritten, err := rewriteJSONStrings(ctx, r, val)
+		rewritten, err := rewriteJSONStrings(ctx, r, val, spec.namesAPath(name))
 		if err != nil {
 			r.sub.Cleanup()
 			return nil, nil, fmt.Errorf("input %s: %w", name, err)
@@ -443,8 +453,10 @@ func (s *Server) substituteInputBlobURIs(
 
 // rewriteJSONStrings applies r to a JSON string, or to each string of a
 // JSON array, and returns the re-encoded value — or nil when nothing in it
-// changed. Other values (null, numbers, objects) are never touched.
-func rewriteJSONStrings(ctx context.Context, r *blobRewriter, val json.RawMessage) (json.RawMessage, error) {
+// changed. Other values (null, numbers, objects) are never touched. With
+// wholeOnly, a string is rewritten only when it is one blob URI and nothing
+// else.
+func rewriteJSONStrings(ctx context.Context, r *blobRewriter, val json.RawMessage, wholeOnly bool) (json.RawMessage, error) {
 	trimmed := bytes.TrimSpace(val)
 	if len(trimmed) == 0 {
 		return nil, nil
@@ -453,6 +465,9 @@ func rewriteJSONStrings(ctx context.Context, r *blobRewriter, val json.RawMessag
 		var str string
 		if err := json.Unmarshal(raw, &str); err != nil {
 			return nil, err
+		}
+		if wholeOnly && blobURIPattern.FindString(str) != str {
+			return nil, nil
 		}
 		rewritten, err := r.rewrite(ctx, str)
 		if err != nil || rewritten == str {

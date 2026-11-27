@@ -147,7 +147,10 @@ Nothing in spinclass changes, and the path engine (folio-perms,
 ## Opening: the judged path, no symlinks
 
 The gate judges a path with its parent directories resolved and its leaf as
-named (spinclass's folioeval and folio-perms alike), so opening the operand
+named; a final `..`, `.` or slash resolves the whole path, and `..` applies to
+what a link points at (moxy#534, in `perms.CanonicalPath` and folio-perms;
+whether spinclass's folioeval does the same is not checked). So opening the
+operand
 afterwards would follow a symlink leaf to wherever it points. `toolbox run`
 therefore opens files itself, after asking again, and the applet only ever
 receives descriptors:

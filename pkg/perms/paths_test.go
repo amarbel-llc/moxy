@@ -44,6 +44,36 @@ func TestResourcesOfLookalikePassThroughIsAFile(t *testing.T) {
 	}
 }
 
+// ".." after a name that is there but is no directory (a pipe behind a
+// /proc link, a dangling link, a file) has no text meaning: the system fails
+// there, so the rest stays as written and the open fails too.
+func TestCanonicalPathNeverClimbsOutOfWhatItCannotResolve(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "file"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("pipe:[1]", filepath.Join(root, "pipe")); err != nil {
+		t.Fatal(err)
+	}
+	for _, rest := range []string{"pipe/../x", "pipe/../../etc/passwd", "file/../x", "pipe/sub/../../x", "pipe/..", "file/."} {
+		in := root + "/" + rest
+		got := CanonicalPath(in)
+		if got != in {
+			t.Errorf("CanonicalPath(%q) = %q, want it unchanged", in, got)
+		}
+		if _, err := os.Stat(got); err == nil {
+			t.Errorf("CanonicalPath(%q) = %q, which opens", in, got)
+		}
+	}
+	// a name that is simply missing is no link: ".." applies to it
+	if got, want := CanonicalPath(root+"/new/../file"), root+"/file"; got != want {
+		t.Errorf("CanonicalPath through a missing name = %q, want %q", got, want)
+	}
+}
+
 // The judged path is the one the system would open: ".." applies to what a
 // link points at, not to the link's name, and a final "..", "." or slash is
 // resolved too.

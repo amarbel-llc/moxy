@@ -8,9 +8,10 @@ are never listed, so "vendor/*" lists the files directly under vendor/, not its 
 subdirectories), sorted by modification time (newest first). An empty answer \
 says "No files found", and notes when directories matched. A malformed pattern \
 (for example an unclosed "{") is an error. Matching never leaves `path`: an \
-absolute pattern or a ".." segment is refused, and a link that leads outside \
-`path` (or any absolute link) is not searched, which the answer then says; pass \
-such a directory as `path` instead. "**" does not enter linked directories."""
+absolute pattern or a ".." segment is refused, and when matching would follow \
+a link that leads outside `path` (or any absolute link) it does not, and the \
+answer says so; pass such a directory as `path` instead. "**" does not enter \
+linked directories. POSIX classes like [[:alpha:]] are not supported."""
 # readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490, #532) and
 # enters it, so a path that links out of the read policy is refused. Its glob
 # subcommand then matches beneath that directory (internal/folioglob); position

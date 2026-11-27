@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -98,6 +99,46 @@ func TestMatchRefusesEverySpellingOfAWayOut(t *testing.T) {
 	} {
 		if _, err := Match(root, pattern); !errors.Is(err, ErrEscapes) {
 			t.Errorf("Match(%q) err = %v, want ErrEscapes", pattern, err)
+		}
+	}
+}
+
+func TestMatchEscapedBracketIsLiteral(t *testing.T) {
+	base, root := fixture(t)
+	if err := os.WriteFile(filepath.Join(base, "wt", "[!x].md"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Match(root, `\[!x].md`)
+	if err != nil || !slices.Equal(res.Files, []string{"[!x].md"}) {
+		t.Errorf(`\[!x].md = %+v, %v`, res, err)
+	}
+}
+
+// Repeated "**" must cost no more than one, and a pattern too deep to be a
+// real one is refused.
+func TestMatchBoundsDepth(t *testing.T) {
+	_, root := fixture(t)
+	res, err := Match(root, strings.Repeat("**/", 100000)+"*.go")
+	if err != nil || len(res.Files) != 3 {
+		t.Errorf("repeated ** = %+v, %v", res.Files, err)
+	}
+	if _, err := Match(root, strings.Repeat("*/", maxSegments+1)+"x"); err == nil {
+		t.Error("an over-deep pattern was accepted")
+	}
+}
+
+// Every refusal says what to do instead.
+func TestMatchRefusalsNameAWayOn(t *testing.T) {
+	_, root := fixture(t)
+	for pattern, hint := range map[string]string{
+		"[[:alpha:]]*":                      "[A-Za-z]",
+		strings.Repeat("{a,b}", 11) + ".x":  "split",
+		strings.Repeat("*/", maxSegments+1): "path",
+		"../x":                              "as path",
+	} {
+		_, err := Match(root, pattern)
+		if err == nil || !strings.Contains(err.Error(), hint) {
+			t.Errorf("Match(%.30q) err = %v, want a hint naming %q", pattern, err, hint)
 		}
 	}
 }

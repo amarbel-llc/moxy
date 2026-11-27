@@ -476,12 +476,24 @@ and
 are exclusive.
 The input must be a string or an array of strings; a table naming any other
 input is a load error.
-Each value is a file path (made absolute against the caller's working
-directory, symlinks above the leaf resolved) or a
+Each value is a file path or a
 .Sy madder://blobs/<digest>
 URI;
+an exact
 .Pa /dev/fd/N
-and empty values name nothing.
+and empty values name nothing, and a value that merely starts like either
+form is a path.
+A path is made absolute against the caller's working directory and resolved
+as the system would walk it: symlinks above the leaf are followed,
+.Pa ..
+applies to what a link points at, and a final
+.Pa .. ,
+.Pa \&.
+or slash resolves the whole path.
+An input named here that also appears in
+.Sy substitute-args
+.Pq and has no Sy grammar
+has a blob URI substituted only when the URI is its whole value.
 .Pp
 When a policy broker is configured (RFC 0002,
 .Ev CLOWN_POLICY_BROKER ) ,
