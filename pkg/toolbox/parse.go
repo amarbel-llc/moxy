@@ -2,6 +2,7 @@ package toolbox
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -25,6 +26,16 @@ type Stage struct {
 type Pipeline struct {
 	Stages []Stage
 }
+
+var blobURI = regexp.MustCompile(`^madder://blobs/[A-Za-z0-9_-][A-Za-z0-9._-]*$`)
+
+// IsBlobURI reports a madder://blobs/<digest> reference and nothing else.
+//
+// It matters for file operands: moxy substitutes a blob URI wherever it
+// appears in the command, after the permission check has parsed it, so
+// anything around one would be judged as one path and opened as another
+// (moxy#535). Parse refuses such an operand.
+func IsBlobURI(s string) bool { return blobURI.MatchString(s) }
 
 // Parse parses a command. Every word is checked against its applet's flag
 // table; an unknown applet or flag, a bad value or a wrong operand count is
@@ -154,6 +165,13 @@ func parseStage(words []string) (Stage, error) {
 					return Stage{}, err
 				}
 				break
+			}
+		}
+	}
+	if a.FileOperands {
+		for _, o := range st.Operands {
+			if strings.Contains(o, "madder://") && !IsBlobURI(o) {
+				return Stage{}, fmt.Errorf("%s: %q: a madder://blobs/<digest> URI must be its own operand, with nothing around it", a.Name, o)
 			}
 		}
 	}

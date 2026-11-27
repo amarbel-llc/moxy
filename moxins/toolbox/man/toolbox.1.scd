@@ -82,6 +82,9 @@ Short flags may be combined (*sort -rn*); a flag's value may be attached
 
 An operand of an applet that reads inputs is a path, a
 *madder://blobs/*_digest_ URI (a cached tool result), or *-* for stdin.
+A blob URI must be the whole operand: one with anything around it is
+refused, because moxy replaces the URI wherever it appears and the result
+would be a different path from the one judged.
 
 Each path is a read resource. Before the call runs, moxy's permission gate
 judges every one under the same policy as *folio.read*: the policy broker

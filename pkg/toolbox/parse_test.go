@@ -95,6 +95,39 @@ func TestFilesSkipsValuesAndStdin(t *testing.T) {
 	}
 }
 
+// moxy substitutes a blob URI wherever it appears in the command, after the
+// permission check has read the command. So a file operand that holds one must
+// be exactly it: anything around it would be judged as one path and opened as
+// another (moxy#535).
+func TestFileOperandHoldsABlobURIOnlyWhole(t *testing.T) {
+	for _, command := range []string{
+		"wc -c ..madder://blobs/blake2b256-abc/../../../x",
+		"wc -c madder://blobs/blake2b256-abc/../x",
+		"wc -c a/madder://blobs/blake2b256-abc",
+		"wc -c madder://blobs/blake2b256-abc'/../x'",
+		`wc -c ma''dder://blobs/blake2b256-abc/x`,
+		"sort madder://blobs/..",
+		"wc -c madder://other/x",
+		"tr a b | cut -b 1- x/madder://blobs/blake2b256-abc",
+	} {
+		_, err := Parse(command)
+		if err == nil || !strings.Contains(err.Error(), "its own operand") {
+			t.Errorf("Parse(%q) err = %v, want a refusal naming the way on", command, err)
+		}
+	}
+	for _, command := range []string{
+		"wc -c madder://blobs/blake2b256-abc",
+		"wc -c 'madder://blobs/blake2b256-abc'",
+		"wc -c /dev/fd/3",
+		// not a file operand: text, whatever it says
+		"tr -d 'madder://x'",
+	} {
+		if _, err := Parse(command); err != nil {
+			t.Errorf("Parse(%q): %v", command, err)
+		}
+	}
+}
+
 func TestQuotedMetacharactersAreLiteral(t *testing.T) {
 	p, err := Parse(`tr '[:upper:]' '[:lower:]' | tr -d '$;|*'`)
 	if err != nil {

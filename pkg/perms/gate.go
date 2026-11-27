@@ -121,16 +121,13 @@ func appendResource(out []OpResource, op Op, value, cwd string) []OpResource {
 
 // The two forms moxy itself substitutes or passes through are recognised
 // exactly (#534): a value that merely starts like one is an ordinary path.
-var (
-	descriptorPath = regexp.MustCompile(`^/dev/fd/[0-9]+$`)
-	blobURI        = regexp.MustCompile(`^madder://blobs/[A-Za-z0-9_-][A-Za-z0-9._-]*$`)
-)
+var descriptorPath = regexp.MustCompile(`^/dev/fd/[0-9]+$`)
 
 // IsDescriptorPath reports the /dev/fd/N a blob URI is substituted with.
 func IsDescriptorPath(s string) bool { return descriptorPath.MatchString(s) }
 
 // IsBlobURI reports a madder://blobs/<digest> reference and nothing else.
-func IsBlobURI(s string) bool { return blobURI.MatchString(s) }
+func IsBlobURI(s string) bool { return toolbox.IsBlobURI(s) }
 
 // AbsolutePath prefixes cwd to a relative path without cleaning either:
 // shortening ".." as text, as filepath.Join does, can name a different file

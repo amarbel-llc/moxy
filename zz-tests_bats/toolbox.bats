@@ -139,6 +139,20 @@ function a_blobs_blake2b256_digest_is_its_own_id { # @test
   [[ $(result_text) == 1 ]] || fail "b2sum: $output"
 }
 
+function an_operand_around_a_blob_uri_is_refused { # @test
+  local id
+  id=$(seed_blob "content addressed")
+  # outside the policy, one level above the project
+  echo parent-secret >"$HOME/parent-secret.txt"
+  printf 'permission-mode = "enforce"\n' >"$PROJECT/moxyfile"
+  toolbox "cut -b 1- madder://blobs/$id"
+  assert_ok
+  # judged as parent-secret.txt inside the project, once opened above it
+  toolbox "cut -b 1- ..madder://blobs/$id/../../../parent-secret.txt"
+  assert_error
+  [[ $output != *parent-secret$'\n'* && $(result_text) != parent-secret* ]] || fail "reached it: $output"
+}
+
 function shell_syntax_and_unlisted_flags_are_refused_and_nothing_is_written { # @test
   local cmd
   for cmd in "wc -c hello.txt > out" "sort -o out nums.txt" "sort --compress-program=sh nums.txt" \
