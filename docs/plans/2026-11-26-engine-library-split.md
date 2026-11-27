@@ -65,14 +65,21 @@ old behaviour until it is updated.
 - **T** `folio.ls`, `du` and `tree`: no input but `path` names or follows
   anything.
 - **T** `folio.tar`: `member` and `pattern` are never read as options.
-- **T** Path checks: only the exact substituted forms pass unjudged, the judged
-  path is the one the system would open, and `folio.df` goes through
-  `readguard`.
+- **T** Path checks, for the reported cases: only the exact substituted forms
+  pass unjudged, a blob URI is substituted into a path input only as its whole
+  value, `..` and a final `.` or slash are resolved as the system walks them,
+  and `folio.df` goes through `readguard`. **This does not make every judged
+  path the one that gets opened:** a later review found older gaps in
+  `folio-perms` and the write tools, and a copy of the old rule in
+  `moxins/grit/bin/clone-perms`.
 - **Behaviour changes:** an absolute glob pattern is an error that says to pass
-  the directory as `path`; a link leading outside `path`, and any absolute
-  link, is not searched, which the answer says; `**` does not enter linked
-  directories; `ls` and `du` take only listed flags; `tree` refuses
-  `follow_symlinks`.
+  the directory as `path`; when matching would follow a link leading outside
+  `path`, or any absolute link, it does not, and the answer says so; `**` does
+  not enter linked directories; POSIX classes are refused, and patterns are
+  capped at 1024 brace alternatives and 256 segments; `ls` and `du` take only
+  listed flags; `tree` refuses `follow_symlinks`; `readguard` refuses a blob URI
+  in an input that takes none; the text `null` is a path; `df` refuses a link
+  out of the read policy.
 
 **These fixes do not make folio scopeable to one directory** (R): the floor is
 far wider than a directory and is the fallback when no broker answers;
