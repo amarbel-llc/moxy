@@ -38,7 +38,9 @@ unchanged apart from receiving `/dev/fd/N` where they received a path.
 ### Opening one operand
 
 1. Absolute-ize against the cwd, then `perms.CanonicalPath` (the path the
-   hook judged).
+   hook judged). Neither step shortens `..` as text: it applies to what a link
+   points at, and a final `..`, `.` or slash resolves the whole path, as the
+   system would walk it (moxy#534).
 2. Re-ask the gate. Broker when `CLOWN_POLICY_BROKER` answers, else the
    `folio-perms read` floor (exit 0 allow, 1 ask, 2 deny). Only **deny**
    refuses here: an ask was the hook's to put before the call reached us.
@@ -53,8 +55,12 @@ unchanged apart from receiving `/dev/fd/N` where they received a path.
    refuses. The error names the operand, the link target and the reason.
 5. `fstat` the opened descriptor; non-regular files are refused (as toolbox).
 
-`/dev/fd/N` (N ≥ 3, moxy's substituted blob pipes) and `madder://` pass
-through untouched, as they do today.
+Only an exact `/dev/fd/N` (moxy's substituted blob pipes) passes through
+untouched; a value that merely starts that way is a path. A `madder://` value
+that reaches the guard was not substituted, because the input takes no blobs,
+and is refused: handed on, it would be read as a relative path. An omitted or
+JSON-null input arrives empty; every other text, `null` included, is a path
+(moxy#534).
 
 ### Per tool
 
@@ -64,7 +70,8 @@ through untouched, as they do today.
 | `jq.jq` | opens each element of `files` (JSON array rewritten to `/dev/fd/N`s); `cwd` is verified, relative files resolve against it |
 | `rg.search` | `path` is opened with `--any-args`: a directory is entered by `fchdir` on the opened descriptor and searched as `.` (rg still finds the parents' ignore files), a file arrives as `/dev/fd/N`; the script maps rg's `./` or `/dev/fd/N` prefix back to the caller's name (`READGUARD_ORIG`/`READGUARD_REPL`) |
 | `folio.ls`, `tree`, `du`, `file-type` | `--any-args 1`: a directory is entered (`fchdir`) and listed as `.`, a file arrives as `/dev/fd/N`; the script pipes its text (before its JSON envelope) through `$READGUARD_MAP map` to get the caller's name back (`internal/readguard.MapOutput`: `.`, `.:`, `./x`, du's `\t.`, tree's `"name":"."`, or the `/dev/fd/N` token). `du` gets `-D`, `file-type` gets `-L` for the fd form |
-| `folio.glob` | added with moxy#532: `--any-args 2`, so `path` is entered by descriptor. Matches print relative to it, so nothing is mapped back |
+| `folio.glob` | added with moxy#532: `--any-args 3`, so `path` is entered by descriptor, and the program run is `readguard glob`. It matches through an `os.Root` of that directory (`internal/folioglob`), which resolves no name outside it, so there is no check-to-open gap below the root. Matches print relative to it, so nothing is mapped back |
+| `folio.df` | added with moxy#534: `--any-args 1`. It prints no path, so nothing is mapped back |
 | `folio.tar`, `chix.nix-hash` | `--file-args 1`: the file arrives as `/dev/fd/N` (the tar script already copies a `/dev/fd` tarball to a temp file); no name is printed |
 | `arboretum.outline`, `arboretum.search` | **verified only** (`--verify-args`): the language is detected from the file extension, which a `/dev/fd/N` stand-in loses, so the tool opens the name itself and the check-to-open gap stays |
 | `env.resolve` | **not wrapped, deliberately**: it exists to report a symlink's target (`readlink`) and its canonical form, so refusing or following links would change what it is for. It reads no file content; the existing `/proc`, `/sys`, `/dev` refusal stays. Operator may overrule |

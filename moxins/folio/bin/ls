@@ -14,7 +14,7 @@ fi
 words=()
 read -r -d '' -a words <<<"$flags" || true
 short='^-[1aAbBcCdfFghGiklmnNopqQrRsStuUvxXZ]+$'
-long='^--(all|almost-all|classify|directory|escape|full-time|group-directories-first|human-readable|inode|literal|no-group|numeric-uid-gid|recursive|reverse|si|size|color(=[a-z]+)?|(sort|time)=[a-z]+|time-style=[^[:space:]]+|(hide|ignore)=[^[:space:]]+)$'
+long='^--(all|almost-all|classify|directory|escape|full-time|group-directories-first|human-readable|inode|literal|no-group|numeric-uid-gid|recursive|reverse|si|size|color(=[a-z]+)?|(sort|time)=[a-z]+|time-style=[^[:space:]]+|block-size=([0-9]+|[0-9]*[KMGTPE](i?B)?)|(hide|ignore)=[^[:space:]]+)$'
 for word in "${words[@]}"; do
   if ! [[ $word =~ $short || $word =~ $long ]]; then
     echo "ERROR: ls flag not allowed: '$word'. flags takes display options only (no paths, no link following); name the directory in path." >&2

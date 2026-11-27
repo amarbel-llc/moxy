@@ -3,7 +3,10 @@ perms-request = "dynamic"
 description = """Filesystem free space (df) for the filesystem holding a path. Defaults to the current \
 working directory. Returns JSON {filesystem, size_bytes, used_bytes, avail_bytes, use_percent, \
 mount_point, human}, the free-space counterpart to folio.du. Read-only."""
-command = "@BIN@/df"
+# readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490, #534): a
+# directory is entered and reported as ".", a file arrives as /dev/fd/N.
+command = "@READGUARD@"
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "1", "--", "@BIN@/df"]
 arg-order = ["path"]
 
 [input]

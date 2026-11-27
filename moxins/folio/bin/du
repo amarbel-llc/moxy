@@ -20,9 +20,9 @@ mapback() { if [ -n "${READGUARD_MAP:-}" ]; then "$READGUARD_MAP" map; else cat;
 # option. Split without globbing.
 words=()
 read -r -d '' -a words <<<"$flags" || true
-short='^-[0abchklmPsSx]+$'
+short='^-([0abchklmPsSx]+|B[0-9]*[KMGTPE])$'
 depth='^-[0abchklmPsSx]*d([0-9]*)$'
-long='^--(all|apparent-size|bytes|count-links|human-readable|inodes|no-dereference|null|one-file-system|separate-dirs|si|summarize|time|total|(block-size|max-depth|threshold)=-?[0-9]+[A-Za-z]*|time=[a-z]+|(time-style|exclude)=[^[:space:]]+)$'
+long='^--(all|apparent-size|bytes|count-links|human-readable|inodes|no-dereference|null|one-file-system|separate-dirs|si|summarize|time|total|(max-depth|threshold)=-?[0-9]+[A-Za-z]*|block-size=([0-9]+|[0-9]*[KMGTPE](i?B)?)|time=[a-z]+|(time-style|exclude)=[^[:space:]]+)$'
 want_depth=""
 for word in "${words[@]}"; do
   if [ -n "$want_depth" ] && [[ $word =~ ^[0-9]+$ ]]; then

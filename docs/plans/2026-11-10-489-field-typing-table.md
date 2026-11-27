@@ -47,7 +47,7 @@ the two keys that overlap the typing.
 | folio.read | file_path | fs-path-v1 (`op=read`); a `madder://blobs/<digest>` value is a resource read under moxy/moxy | `substitute-args = ["file_path"]`, `[resources.file_path] op = "read"` |
 | folio.read | start, end, delete_start, delete_end | tool-input-v1 | none |
 | folio.glob | path | fs-path-v1 (`op=read`); defaults to CWD, present resolved | `[resources.path] op = "read"` |
-| folio.glob | pattern | tool-input-v1. Note: a pattern like `../x/*` or an absolute one reaches outside `path`; shadow mode should log it, and whether it is a path field is a RFC 0018 question | none |
+| folio.glob | pattern | tool-input-v1. Since moxy#532 matching cannot leave `path`: an absolute pattern or a `..` segment is refused, and a link leading outside is not searched | none |
 | man.list | none | no fields | `always-allow`, `permit-async = false` |
 | man.toc | page | tool-input-v1 | none |
 | man.section | page, section_name | tool-input-v1 | none |
@@ -71,7 +71,8 @@ attest.
 2. **Defaults.** `rg.search.path` and `folio.glob.path` default to CWD inside the
    moxin script. The RFC says present env-resolved fields resolved; the CWD is
    known to moxy at dispatch, but the `Call` builder needs it passed in.
-3. **`folio.glob.pattern` can leave `path`.** Not a typing question I can settle.
+3. (Closed by moxy#532: `folio.glob.pattern` could leave `path`; it no longer
+   can.)
 4. **`man://` resources** (moxy#501) are a resource surface owned by moxy; the
    profile samples do not cover them yet.
 5. **smith manifests**: I did not locate the smith tool manifests; find them

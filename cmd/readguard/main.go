@@ -36,6 +36,19 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) >= 3 && os.Args[1] == "glob" {
+		// folio.glob's matcher, run under `exec` so that the directory is
+		// already the one readguard opened (#532)
+		dir := ""
+		if len(os.Args) > 3 {
+			dir = os.Args[3]
+		}
+		if err := runGlob(os.Stdout, os.Args[2], dir); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			os.Exit(2)
+		}
+		return
+	}
 	if len(os.Args) < 2 || os.Args[1] != "exec" {
 		fmt.Fprintln(os.Stderr, "usage: readguard exec --floor FOLIO_PERMS [flags] -- PROGRAM ARG...\n       readguard map   (stdin to stdout, READGUARD_REPL mapped back to READGUARD_ORIG)")
 		os.Exit(2)
@@ -105,12 +118,21 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 	}
 	ctx := context.Background()
 
+	// An omitted or JSON-null input arrives as "". Every other value,
+	// the text "null" included, is a path (#534).
 	at := func(n int) (string, bool) {
 		if n > len(args) {
 			return "", false
 		}
 		v := args[n-1]
-		return v, v != "" && v != "null" && !readguard.Passthrough(v)
+		return v, v != "" && !readguard.Passthrough(v)
+	}
+	for _, positions := range [][]int{files, verify, anyPaths} {
+		for _, n := range positions {
+			if v, ok := at(n); ok && readguard.UnsubstitutedBlob(v) {
+				return fmt.Errorf("%s: this input does not take a blob reference", v)
+			}
+		}
 	}
 	openFd := func(o readguard.Opener, operand string) (string, error) {
 		f, err := o.Open(ctx, operand)
@@ -181,6 +203,9 @@ func guard(floor string, files, jsonFiles, verify, anyPaths []int, cwdArg int, a
 		for i, operand := range list {
 			if readguard.Passthrough(operand) || strings.HasPrefix(operand, "-") {
 				continue
+			}
+			if readguard.UnsubstitutedBlob(operand) {
+				return fmt.Errorf("%s: this input does not take a blob reference", operand)
 			}
 			if list[i], err = openFd(fileOpener, operand); err != nil {
 				return err

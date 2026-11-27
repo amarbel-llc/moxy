@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"code.linenisgreat.com/moxy/internal/native"
@@ -56,8 +57,8 @@ func (r *Resolver) HasGate() bool { return r.gate != nil }
 
 // ResourcesOf extracts the resources a call names from its JSON arguments,
 // per the tool's declared resource inputs. Relative paths are made absolute
-// against cwd. Empty values and /dev/fd/* (the pipe a blob URI is substituted
-// with) name nothing.
+// against cwd. Empty values and an exact /dev/fd/N (the pipe a blob URI is
+// substituted with) name nothing.
 func ResourcesOf(specs []native.ResourceArg, args json.RawMessage, cwd string) []OpResource {
 	if len(specs) == 0 || len(args) == 0 {
 		return nil
@@ -107,43 +108,81 @@ func ResourcesOf(specs []native.ResourceArg, args json.RawMessage, cwd string) [
 
 func appendResource(out []OpResource, op Op, value, cwd string) []OpResource {
 	switch {
-	case value == "", strings.HasPrefix(value, "/dev/fd/"):
+	case value == "", IsDescriptorPath(value):
 		return out
-	case strings.HasPrefix(value, "madder://blobs/"):
+	case IsBlobURI(value):
 		return append(out, OpResource{Op: op, Resource: Resource{Kind: KindBlob, URI: value}})
 	}
-	path := strings.TrimPrefix(value, "file://")
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(cwd, path)
-	}
+	path := AbsolutePath(cwd, strings.TrimPrefix(value, "file://"))
 	return append(out, OpResource{Op: op, Resource: Resource{Kind: KindFile, URI: "file://" + CanonicalPath(path)}})
 }
 
-// CanonicalPath cleans path and resolves symlinks in everything above the
-// leaf, like `realpath -m` on the parent: the leaf itself is not followed (a
-// `result -> /nix/store/...` link in the worktree is a worktree path), and a
-// parent that does not exist yet keeps its missing tail. It is the path the
-// gate judges; toolbox opens exactly this path (FDR 0016).
+// The two forms moxy itself substitutes or passes through are recognised
+// exactly (#534): a value that merely starts like one is an ordinary path.
+var (
+	descriptorPath = regexp.MustCompile(`^/dev/fd/[0-9]+$`)
+	blobURI        = regexp.MustCompile(`^madder://blobs/[A-Za-z0-9_-][A-Za-z0-9._-]*$`)
+)
+
+// IsDescriptorPath reports the /dev/fd/N a blob URI is substituted with.
+func IsDescriptorPath(s string) bool { return descriptorPath.MatchString(s) }
+
+// IsBlobURI reports a madder://blobs/<digest> reference and nothing else.
+func IsBlobURI(s string) bool { return blobURI.MatchString(s) }
+
+// AbsolutePath prefixes cwd to a relative path without cleaning either:
+// shortening ".." as text, as filepath.Join does, can name a different file
+// from the one the system opens. CanonicalPath resolves the result.
+func AbsolutePath(cwd, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return strings.TrimSuffix(cwd, "/") + "/" + path
+}
+
+// CanonicalPath resolves path the way the system would walk it, like
+// `realpath -m`, except that a plain leaf is not followed (a
+// `result -> /nix/store/...` link in the worktree is a worktree path). Links
+// above the leaf are resolved, ".." applies to what a link points at, a final
+// ".", ".." or slash resolves the whole path (the system follows a link named
+// that way), and a name that does not exist or cannot be resolved is kept. It
+// is the path the gate judges; toolbox opens exactly this path (FDR 0016).
 func CanonicalPath(path string) string {
-	path = filepath.Clean(path)
-	dir, leaf := filepath.Split(path)
-	dir = filepath.Clean(dir)
-	if leaf == "" {
-		return dir
-	}
-	var tail []string
-	for p := dir; ; p = filepath.Dir(p) {
-		if resolved, err := filepath.EvalSymlinks(p); err == nil {
-			parts := append([]string{resolved}, tail...)
-			return filepath.Join(append(parts, leaf)...)
+	if !filepath.IsAbs(path) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return filepath.Clean(path)
 		}
-		if _, err := os.Lstat(p); err == nil || p == filepath.Dir(p) {
-			// unresolvable but present, or the root: give up resolving.
-			break
-		}
-		tail = append([]string{filepath.Base(p)}, tail...)
+		path = AbsolutePath(cwd, path)
 	}
-	return path
+	var parts []string
+	for _, part := range strings.Split(path, "/") {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	followLeaf := strings.HasSuffix(path, "/")
+	if n := len(parts); n > 0 && (parts[n-1] == "." || parts[n-1] == "..") {
+		followLeaf = true
+	}
+	resolved := "/"
+	for i, part := range parts {
+		switch part {
+		case ".":
+		case "..":
+			// resolved holds no link by now, so its parent is the real one
+			resolved = filepath.Dir(resolved)
+		default:
+			resolved = filepath.Join(resolved, part)
+			if i == len(parts)-1 && !followLeaf {
+				return resolved
+			}
+			if real, err := filepath.EvalSymlinks(resolved); err == nil {
+				resolved = real
+			}
+		}
+	}
+	return resolved
 }
 
 // rank orders decisions by strictness; Unknown (the client decides) sits

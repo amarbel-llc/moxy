@@ -80,6 +80,56 @@ function glob_never_returns_a_match_outside_path { # @test
   done
 }
 
+function glob_never_names_anything_outside_path_on_the_way_back_in { # @test
+  # leaves path and returns: the last directory is inside, the names between
+  # are not
+  cd "$PROJECT"
+  glob '\.\./elsewhere/*/\.\./\.\./project/sub/*'
+  [[ $(text_of) != *elsewhere* && $(text_of) != *dir/* ]] || fail "named outside: $output"
+  ln -s "$OUTSIDE" "$PROJECT/way-out"
+  ln -s "$PROJECT/sub" "$OUTSIDE/dir/back"
+  glob 'way-out/*/back/*'
+  [[ $(text_of) != *dir/back* ]] || fail "named outside: $output"
+}
+
+function glob_treats_a_newline_as_part_of_a_name { # @test
+  glob $'x\n/**'
+  [[ $(text_of) == "No files found" ]] || fail "$output"
+}
+
+function glob_says_when_a_link_was_not_searched { # @test
+  glob '**/*.nope'
+  [[ $(text_of) == "No files found" ]] || fail "$output"
+  ln -s "$OUTSIDE" "$PROJECT/way-out"
+  glob 'way-out/*'
+  [[ $(text_of) == *"leads outside path"* && $(text_of) == *"as path"* ]] || fail "$output"
+  assert_nothing_outside
+  # the notice is the same whether or not anything out there matches
+  local first
+  first=$(text_of)
+  glob 'way-out/no-such-name*'
+  [[ $(text_of) == "$first" ]] || fail "notice depends on outside contents: $output"
+}
+
+function glob_double_star_finds_nested_and_hidden_files { # @test
+  mkdir -p "$PROJECT/sub/a/b" "$PROJECT/.hidden"
+  : >"$PROJECT/sub/a/b/deep.go"
+  : >"$PROJECT/.hidden/h.go"
+  : >"$PROJECT/top.go"
+  : >"$PROJECT/with space.go"
+  glob '**/*.go'
+  local want
+  for want in sub/a/b/deep.go .hidden/h.go top.go 'with space.go'; do
+    grep -qxF "$want" <<<"$(text_of)" || fail "missing $want: $output"
+  done
+  [[ $(text_of | grep -c .) == 4 ]] || fail "$output"
+  glob 'sub/**'
+  grep -qxF sub/a/b/deep.go <<<"$(text_of)" || fail "$output"
+  grep -qxF sub/inside.txt <<<"$(text_of)" || fail "$output"
+  glob '[!x]op.g?'
+  [[ $(text_of) == top.go ]] || fail "$output"
+}
+
 function glob_still_matches_inside_through_an_inside_link { # @test
   ln -s sub "$PROJECT/sub-link"
   glob 'sub-link/*'
@@ -127,7 +177,7 @@ function ls_refuses_flags_that_follow_links { # @test
 
 function ls_keeps_the_ordinary_flags { # @test
   local f
-  for f in -la -lh -1 -R '-l -a -t -r' '--all --sort=size' '--color=never -F'; do
+  for f in -la -lh -1 -R '-l -a -t -r' '--all --sort=size' '--color=never -F' '-l --block-size=M'; do
     call folio.ls "$(jq -cn --arg f "$f" '{path: "sub", flags: $f}')"
     assert_ok
     [[ $(text_of) == *inside.txt* ]] || fail "$f: $output"
@@ -153,7 +203,7 @@ function tree_lists_a_link_without_entering_it { # @test
     assert_ok
     [[ $(text_of) == *way-out* && $(text_of) == *inside.txt* ]] || fail "$output"
     # the link's own target is shown, nothing under it
-    [[ $output != *outside-marker* ]] || fail "reached outside: $output"
+    assert_nothing_outside
   done
 }
 
@@ -177,7 +227,7 @@ function du_refuses_flags_that_follow_links_or_read_files { # @test
 
 function du_keeps_the_ordinary_flags { # @test
   local f
-  for f in -a -ah -c '-a -d 1' -ad1 '--all --max-depth=1' '-a --exclude=*.log' '-a --apparent-size -b'; do
+  for f in -a -ah -c '-a -d 1' -ad1 '--all --max-depth=1' '-a --exclude=*.log' '-a --apparent-size -b' '-a -BM' '-a -B1K' '-a --block-size=M'; do
     call folio.du "$(jq -cn --arg f "$f" '{path: "sub", flags: $f}')"
     assert_ok
     [[ $(text_of) == *sub* ]] || fail "$f: $output"

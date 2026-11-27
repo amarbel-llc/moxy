@@ -84,10 +84,17 @@ type Opener struct {
 	Cwd string
 }
 
-// Passthrough reports operands that are not paths to judge: moxy's
-// substituted blob pipes and unsubstituted blob URIs.
+// Passthrough reports the one operand that is not a path to judge: the
+// /dev/fd/N moxy substituted a blob URI with, in exactly that form (#534).
 func Passthrough(operand string) bool {
-	return strings.HasPrefix(operand, "/dev/fd/") || strings.HasPrefix(operand, "madder://")
+	return perms.IsDescriptorPath(operand)
+}
+
+// UnsubstitutedBlob reports a blob reference that reached the guard as text:
+// moxy substitutes one only in an input that takes blobs. Handed on, the tool
+// would read it as a relative path, so the guard refuses it.
+func UnsubstitutedBlob(operand string) bool {
+	return strings.HasPrefix(operand, "madder://")
 }
 
 // Open returns the regular file the operand names, opened without following
@@ -115,11 +122,7 @@ func (o Opener) Verify(ctx context.Context, operand string) error {
 }
 
 func (o Opener) open(ctx context.Context, operand string, regularOnly bool) (*os.File, error) {
-	path := operand
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(o.Cwd, path)
-	}
-	path = perms.CanonicalPath(path)
+	path := perms.CanonicalPath(perms.AbsolutePath(o.Cwd, operand))
 	if dec, reason := o.Gate.Decide(ctx, path); dec == perms.Deny {
 		return nil, fmt.Errorf("%s: denied: %s", operand, reason)
 	}

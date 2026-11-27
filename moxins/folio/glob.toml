@@ -7,14 +7,16 @@ alternatives like "**/*.{go,rs}". Returns matching FILE paths only (directories 
 are never listed, so "vendor/*" lists the files directly under vendor/, not its \
 subdirectories), sorted by modification time (newest first). An empty answer \
 says "No files found", and notes when directories matched. A malformed pattern \
-(for example an unclosed "{") is an error. Matches never leave `path`: an \
-absolute pattern or a ".." segment is refused, and matches reached through a \
-linked directory that leads outside `path` are left out; pass such a directory \
-as `path` instead."""
+(for example an unclosed "{") is an error. Matching never leaves `path`: an \
+absolute pattern or a ".." segment is refused, and a link that leads outside \
+`path` (or any absolute link) is not searched, which the answer then says; pass \
+such a directory as `path` instead. "**" does not enter linked directories."""
 # readguard opens path by a RESOLVE_NO_SYMLINKS descriptor (#490, #532) and
-# enters it, so a path that links out of the read policy is refused.
+# enters it, so a path that links out of the read policy is refused. Its glob
+# subcommand then matches beneath that directory (internal/folioglob); position
+# 3 is path, after the subcommand name and the pattern.
 command = "@READGUARD@"
-args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "2", "--", "@BIN@/glob"]
+args = ["exec", "--floor", "@BIN@/folio-perms", "--any-args", "3", "--", "@READGUARD@", "glob"]
 arg-order = ["pattern", "path"]
 
 [input]

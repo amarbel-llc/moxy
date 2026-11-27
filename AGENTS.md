@@ -397,9 +397,11 @@ via an `@…@` substitution rather than re-wrapping in the plugin dir.
   `cmd/toolbox` (a separate binary) runs pipelines of coreutils applets,
   opening judged paths itself through `internal/readguard` (below)
 - `internal/readguard` + `cmd/readguard` -- the read tools' open guard
-  (moxy#490): `folio.read`, `jq.jq` and `rg.search` run their script through
-  `readguard exec`, which re-asks the gate, opens the path with
-  `openat2(RESOLVE_NO_SYMLINKS)` and hands the script `/dev/fd/N`. A symlink
+  (moxy#490): the read tools (the note below has the per-tool table) run
+  through `readguard exec`, which re-asks the gate, opens the path with
+  `openat2(RESOLVE_NO_SYMLINKS)` and hands the script `/dev/fd/N`.
+  `readguard glob` is `folio.glob`'s matcher (`internal/folioglob`, over an
+  `os.Root`; moxy#532). A symlink
   leaf is followed only if its resolved target is allowed by the policy
   (else refused naming the path); a directory is entered by `fchdir` on the
   opened descriptor (`rg.search`, jq's `cwd`), the script mapping output back

@@ -27,12 +27,14 @@ if [ -n "$member" ]; then
     echo "ERROR: pattern only applies when listing (omit member)" >&2
     exit 2
   fi
-  tar -xf "$path" -O "$member"
+  # `--` and `grep -e` (#533): caller input is a member name or a pattern,
+  # never an option (tar options can run programs).
+  tar --force-local -xf "$path" -O -- "$member"
   exit
 fi
 
 if [ -n "$pattern" ]; then
-  tar -tf "$path" | grep -E "$pattern"
+  tar --force-local -tf "$path" | grep -E -e "$pattern"
 else
-  tar -tf "$path"
+  tar --force-local -tf "$path"
 fi

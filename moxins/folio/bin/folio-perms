@@ -28,8 +28,8 @@
 #
 # Policy:
 #   - Path inside CWD                              → allow (read or write)
-#   - /dev/fd/* (result-URI substitution pipe)     → allow
-#   - madder://blobs/<digest> (cached tool result) → allow
+#   - exactly /dev/fd/N (substitution pipe)        → allow read
+#   - exactly madder://blobs/<digest>              → allow read
 #   - Path inside /nix/store                       → allow read; deny write
 #   - Path inside a sibling repo of this repo       → allow read
 #     (i.e. under the parent of this repo's MAIN worktree, but NOT the
@@ -151,25 +151,39 @@ within_sibling_repo() {
 
 resolve() {
   local p="$1"
+  # A final "..", "." or slash names what the system would reach by walking
+  # it, link or not: resolve the whole path (#534).
   case "$p" in
-    /dev/fd/*|madder://blobs/*) echo "$p"; return ;;
+    */ | . | .. | */. | */..)
+      realpath -m -- "$p"
+      return
+      ;;
   esac
-  # Resolve the parent directory canonically but do NOT follow a symlink at
-  # the leaf itself. A `result -> /nix/store/...` symlink in the worktree is
-  # located *in the CWD*, so it should be treated as a CWD path for policy.
-  # Only its target is in /nix/store — the symlink entry itself is not.
+  # Otherwise resolve the parent directory canonically but do NOT follow a
+  # symlink at the leaf itself. A `result -> /nix/store/...` symlink in the
+  # worktree is located *in the CWD*, so it should be treated as a CWD path
+  # for policy. Only its target is in /nix/store — the symlink entry itself
+  # is not.
   local parent leaf resolved_parent
   parent=$(dirname -- "$p")
   leaf=$(basename -- "$p")
   resolved_parent=$(realpath -m -- "$parent")
-  echo "${resolved_parent}/${leaf}"
+  echo "${resolved_parent%/}/${leaf}"
+}
+
+# The two forms that name no path to judge, in exactly the shape moxy handles
+# them (#534; pkg/perms IsDescriptorPath and IsBlobURI): the /dev/fd/N a blob
+# is substituted with, and a blob reference before substitution. Anything that
+# merely starts like one is an ordinary path.
+is_passthrough_read() {
+  [[ $1 =~ ^/dev/fd/[0-9]+$ || $1 =~ ^madder://blobs/[A-Za-z0-9_-][A-Za-z0-9._-]*$ ]]
 }
 
 check_read() {
   local p="$1"
-  case "$p" in
-    /dev/fd/*|madder://blobs/*) return 0 ;;
-  esac
+  if is_passthrough_read "$p"; then
+    return 0
+  fi
   local resolved
   resolved=$(resolve "$p")
   if within_any "$resolved" "${read_dirs[@]}"; then
@@ -183,10 +197,9 @@ check_read() {
 }
 
 check_write() {
+  # No pass-through for writes: nothing moxy substitutes is a write target, so
+  # either shape here is judged as the path it spells.
   local p="$1"
-  case "$p" in
-    /dev/fd/*|madder://blobs/*) return 0 ;;
-  esac
   local resolved
   resolved=$(resolve "$p")
   if within_any "$resolved" "${deny_write_dirs[@]}"; then
