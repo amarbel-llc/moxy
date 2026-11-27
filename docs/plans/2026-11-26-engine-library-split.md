@@ -26,7 +26,11 @@ parts are as relayed.
    plan describes the holes, was lifted later the same day (as relayed): "I'm
    unconcerned about the holes being public, we can operate normally (not in CVE
    mode)". The lift asks for no merge or deploy; moxy's usual review and merge
-   rules apply.
+   rules apply. On 2026-11-27 the operator confirmed it in this plan's own
+   session by asking for the merge, and `circus/eager-holly` reported their
+   direct words to it: "push the fixhes, this is not a CVE incident". The
+   operator also ruled that no switch back is needed for these fixes
+   ("offsswitch is not necessary for this").
 2. Engine home: "moxy for now. we can examine moving to clown in the future
    (we'd move all of moxy into clown)".
 3. **(Replaced; see the notice above. `rg.search` stays in moxy.)** spinclass
@@ -69,9 +73,11 @@ old behaviour until it is updated.
   pass unjudged, a blob URI is substituted into a path input only as its whole
   value, `..` and a final `.` or slash are resolved as the system walks them,
   and `folio.df` goes through `readguard`. **This does not make every judged
-  path the one that gets opened:** a later review found older gaps in
-  `folio-perms` and the write tools, and a copy of the old rule in
-  `moxins/grit/bin/clone-perms`.
+  path the one that gets opened:** later reviews found older gaps in
+  `folio-perms` and the write tools, tracked in moxy#535.
+- **T** `toolbox.run`: a file operand holds a blob URI only as the whole
+  operand. `grit.clone` judges its destination with folio's write rule instead
+  of a copy of the old one.
 - **Behaviour changes:** an absolute glob pattern is an error that says to pass
   the directory as `path`; when matching would follow a link leading outside
   `path`, or any absolute link, it does not, and the answer says so; `**` does
@@ -85,9 +91,9 @@ old behaviour until it is updated.
 far wider than a directory and is the fallback when no broker answers;
 `readguard` never sees an in-process gate; under `delegate` with no hook the
 server does not enforce "ask"; large `folio.read` and `rg.search` output has no
-cap. These are limits of the design, which is being reworked; no issue tracks
-them separately. A suggested rule for it: a scope is a hard limit checked first,
-with no floor and no fallback; policy may only narrow it (principle 4).
+cap. These are limits of the design; moxy#536 tracks the design of one
+file-access path. A suggested rule for it: a scope is a hard limit checked
+first, with no floor and no fallback; policy may only narrow it (principle 4).
 
 ## 3. The shape after the rulings (on hold)
 
@@ -179,7 +185,8 @@ replacement too (R for juggler and `narrows`, from a circus plan; others U).
   `moxyfile.Config`. An in-memory config exists, but its type belongs to the
   TOML package. It must become plain Go options before the format can go (R).
 - **juggler briefs carry an inline moxyfile today** (as the coordinator reports;
-  a circus record shows a brief's `allow-tools` in use). Under ruling 4 a run
+  circus `docs/plans/2026-11-26-first-review-build.md`, "Results of slices 0 and
+  1", records a brief's `allow-tools` in use). Under ruling 4 a run
   gets a subset of spinclass's tools, so the brief needs a new way to name that
   subset, and a way to add its own tools (the review run's `emit_issue` and
   `done` are a circus moxin). Do not drop the moxyfile before both exist and a
@@ -212,8 +219,8 @@ probably; nothing was run.
 - **R** `allow-tools` must list the tools; under `enforce` they also need
   `enforce-allow`.
 - **U** Whether a juggler brief accepts `[[servers]]`, and whether spinclass can
-  serve without a session. A circus record (not rechecked) says a brief's
-  `[env]` did not reach tools under `juggler run`.
+  serve without a session. That same circus record (not rechecked) says a
+  brief's `[env]` did not reach tools under `juggler run`.
 
 ## 9. Steps, in order (all but step 0 on hold)
 
@@ -231,8 +238,10 @@ Sizes are rough guesses.
 | 7 | Replace moxyfile settings with Go options and a subset check | moxy, clown, spinclass, juggler | L, design first |
 | 8 | Move the krone origin and other binary users; remove the binary | circus, moxy | L |
 
-Review runs are not waiting: a circus plan records that the operator chose
-circus's own limited tools for now (circus#514 tracks the switch). grit's move
+Review runs are not waiting: circus
+`docs/plans/2026-11-26-first-review-build.md`, "Operator design rulings after
+slice 1", records that the operator chose circus's own limited tools for now
+(circus#514 tracks the switch). grit's move
 is a separate track (moxy#482, spinclass#379). moxy#508 (one shared moxy per
 host) assumes a long-lived moxy server and needs a fresh ruling under ruling 3.
 
