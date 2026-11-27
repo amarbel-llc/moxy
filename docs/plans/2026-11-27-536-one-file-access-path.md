@@ -3,6 +3,13 @@
 Date: 2026-11-27. Status: **proposal, no code**. Labels: **R** read in code,
 **U** not verified.
 
+> **DRAFT: this failed its principles review. Build nothing from it until the
+> findings are resolved on moxy#536.** The review (8 conflicts, 8 unclear)
+> found, among other things, that the load-time check would miss tools which
+> declare no resources, that "safe now" for an attended "ask" is unsupported,
+> that a scope does not bind programs given only a name, and that the new
+> refusals have no switch back. The operator accepted merging it as a draft.
+
 ## The problem, as one story
 
 An agent calls a tool with a path. A check reads that text and says "inside the
