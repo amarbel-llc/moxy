@@ -886,9 +886,16 @@
         # deps list here would be a no-op — both the bun binary and the bash
         # scripts resolve git through the inherited process PATH at exec time.
         # Keep this empty; see #219.
-        grit-moxin = mkBunMoxin "grit" [ ] {
-          "push-stack" = "moxins/grit/src/push-stack.ts";
-        } { pathMode = "inherit"; };
+        grit-moxin =
+          mkBunMoxin "grit" [ ]
+            {
+              "push-stack" = "moxins/grit/src/push-stack.ts";
+            }
+            {
+              pathMode = "inherit";
+              # clone-perms judges its destination with folio's write rule (#535).
+              tomlSubstitutions.FOLIO_PERMS = "${folio-moxin}/bin/folio-perms";
+            };
         # jq reads the files it is given: folio's read rule, one script (#490).
         jq-moxin = mkMoxin "jq" [ pkgs.bash pkgs.coreutils pkgs.jq ] {
           extraSubstitutions = {

@@ -123,6 +123,21 @@ setup_perms() {
   [ -x "$PERMS" ] || skip "clone-perms not at $PERMS"
 }
 
+# The destination is judged by folio's write rule itself, not a copy of it
+# (moxy#535): a final "..", "." or slash names what the system would reach.
+function grit_clone_perms_resolves_a_final_dot_dot_or_slash { # @test
+  setup_perms
+  mkdir -p "$HOME/project" "$HOME/elsewhere/dir"
+  cd "$HOME/project"
+  ln -s "$HOME/elsewhere/dir" way-out
+
+  local d
+  for d in .. ../ way-out/ way-out/. way-out/..; do
+    HOME="$HOME" CLAUDE_CODE_TMPDIR= PWD="$HOME/project" run "$PERMS" "$d"
+    [ "$status" -eq 1 ] || fail "allowed destination $d: $output"
+  done
+}
+
 function grit_clone_perms_allows_destination_in_cwd { # @test
   setup_perms
   mkdir -p "$HOME/project"
